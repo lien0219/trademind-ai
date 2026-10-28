@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { ProCard, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { history, useLocation } from '@umijs/max';
@@ -117,10 +119,10 @@ function severityCell(sev?: string) {
 }
 
 const ALERT_ST_META: Record<string, { color: string; text: string }> = {
-  none: { color: 'default', text: '无' },
-  generated: { color: 'gold', text: '告警中' },
-  handled: { color: 'green', text: '告警已处理' },
-  ignored: { color: 'default', text: '告警忽略' },
+  none: { color: 'default', get text() { return tr("无"); } },
+  generated: { color: 'gold', get text() { return tr("告警中"); } },
+  handled: { color: 'green', get text() { return tr("告警已处理"); } },
+  ignored: { color: 'default', get text() { return tr("告警忽略"); } },
 };
 
 function alertStatusUi(st?: string) {
@@ -147,18 +149,19 @@ function relatedHref(row: UnifiedTaskDTO): string | undefined {
 function detailLinkLabel(detailUrl?: string | null): string {
   const url = (detailUrl || '').trim();
   if (url.includes('/product/publish-batches/')) {
-    return '批次详情';
+    return tr('批次详情');
   }
   if (url.includes('/product/ai-text-batches/') || url.includes('/product/ai-image-batches/')) {
-    return '复核工作台';
+    return tr('复核工作台');
   }
   if (url.includes('/orders/sync-tasks')) {
-    return '订单同步任务';
+    return tr('订单同步任务');
   }
-  return '打开任务详情';
+  return tr('打开任务详情');
 }
 
 export default function TaskCenterFailuresPage() {
+  const language = useLanguage();
   const emptyLocale = useListEmptyLocale('taskFailures');
   const location = useLocation();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
@@ -295,12 +298,12 @@ export default function TaskCenterFailuresPage() {
     }
     if (!canOpenFailureDetail(taskType, jumpId)) {
       if (taskType.trim() === 'douyin_platform') {
-        message.info('该平台级告警无对应失败任务详情，已跳转到平台运行状态页');
+        message.info(tr("该平台级告警无对应失败任务详情，已跳转到平台运行状态页"));
         history.replace('/ops/platform-runtime?platform=douyin_shop');
         return;
       }
       if (isPlatformAlertTaskType(taskType)) {
-        message.info('该平台级告警无对应失败任务详情，请在告警中心查看');
+        message.info(tr("该平台级告警无对应失败任务详情，请在告警中心查看"));
         sp.delete('jumpId');
         sp.delete('drawer');
         sp.delete('id');
@@ -309,7 +312,7 @@ export default function TaskCenterFailuresPage() {
         history.replace(qs ? `${location.pathname}?${qs}` : location.pathname);
         return;
       }
-      message.warning('链接中的任务类型或 ID 无效，无法打开失败详情');
+      message.warning(tr("链接中的任务类型或 ID 无效，无法打开失败详情"));
       sp.delete('jumpId');
       sp.delete('drawer');
       sp.delete('id');
@@ -340,7 +343,7 @@ export default function TaskCenterFailuresPage() {
   const columns: ProColumns<UnifiedTaskDTO>[] = useMemo(
     () => [
       {
-        title: '更新时间',
+        title: tr("更新时间"),
         dataIndex: 'timeRange',
         hideInTable: true,
         valueType: 'dateTimeRange',
@@ -352,7 +355,7 @@ export default function TaskCenterFailuresPage() {
         },
       },
       {
-        title: '任务类型',
+        title: tr("任务类型"),
         dataIndex: 'taskType',
         width: 120,
         valueType: 'select',
@@ -362,12 +365,12 @@ export default function TaskCenterFailuresPage() {
             value: k,
           })),
           allowClear: true,
-          placeholder: '请选择',
+          placeholder: tr("请选择"),
         },
         render: (_, r) => TASK_CENTER_TASK_TYPE_LABEL[r.taskType] || r.taskType,
       },
       {
-        title: '状态(归一)',
+        title: tr("状态(归一)"),
         dataIndex: 'normalizedStatus',
         width: 110,
         valueType: 'select',
@@ -377,12 +380,12 @@ export default function TaskCenterFailuresPage() {
             value: k,
           })),
           allowClear: true,
-          placeholder: '请选择',
+          placeholder: tr("请选择"),
         },
         render: (_, r) => normTag(r.normalizedStatus),
       },
       {
-        title: '失败类别',
+        title: tr("失败类别"),
         dataIndex: 'failureCategory',
         width: 132,
         valueType: 'select',
@@ -390,19 +393,19 @@ export default function TaskCenterFailuresPage() {
           options: failureCatOpts,
           allowClear: true,
           showSearch: true,
-          placeholder: '请选择',
+          placeholder: tr("请选择"),
         },
         render: (_, r) => failureCategoryLabel(r.failureCategory),
       },
       {
-        title: '恢复状态',
+        title: tr("恢复状态"),
         dataIndex: 'recoveryStatus',
         width: 148,
         valueType: 'select',
         fieldProps: {
           options: TASK_RECOVERY_STATUS_OPTIONS,
           allowClear: true,
-          placeholder: '请选择',
+          placeholder: tr("请选择"),
         },
         render: (_, r) => {
           const label = recoveryStatusLabel(r.recoveryStatus);
@@ -411,56 +414,56 @@ export default function TaskCenterFailuresPage() {
         },
       },
       {
-        title: '严重等级',
+        title: tr("严重等级"),
         dataIndex: 'severity',
         width: 106,
         valueType: 'select',
         fieldProps: {
           options: TASK_FAILURE_SEVERITY_OPTIONS,
           allowClear: true,
-          placeholder: '请选择',
+          placeholder: tr("请选择"),
         },
         render: (_, r) => severityCell(r.severity),
       },
       {
-        title: '平台',
+        title: tr("平台"),
         dataIndex: 'platform',
         width: 90,
       },
       {
-        title: '店铺 ID',
+        title: tr("店铺 ID"),
         dataIndex: 'shopId',
         width: 120,
         hideInTable: true,
       },
       {
-        title: '店铺',
+        title: tr("店铺"),
         dataIndex: 'shopName',
         width: 120,
         search: false,
         ellipsis: true,
       },
       {
-        title: '关键词',
+        title: tr("关键词"),
         dataIndex: 'keyword',
         hideInTable: true,
         fieldProps: keywordFieldProps,
       },
       {
-        title: '创建时间',
+        title: tr("创建时间"),
         dataIndex: 'createdAt',
         width: 156,
         search: false,
         render: (_, r) => formatDateTime(r.createdAt),
       },
       {
-        title: '标题',
+        title: tr("标题"),
         dataIndex: 'title',
         ellipsis: true,
         search: false,
       },
       {
-        title: '关联',
+        title: tr("关联"),
         search: false,
         width: 140,
         render: (_, r) => {
@@ -474,54 +477,54 @@ export default function TaskCenterFailuresPage() {
         },
       },
       {
-        title: '重试次数',
+        title: tr("重试次数"),
         dataIndex: 'retryCount',
         width: 76,
         search: false,
       },
       {
-        title: '建议动作',
+        title: tr("建议动作"),
         dataIndex: 'suggestedAction',
         width: 160,
         search: false,
         ellipsis: true,
       },
       {
-        title: '错误摘要',
+        title: tr("错误摘要"),
         dataIndex: 'errorMessage',
         ellipsis: true,
         search: false,
         width: 180,
       },
       {
-        title: '告警',
+        title: tr("告警"),
         search: false,
         width: 100,
         render: (_, r) => alertStatusUi(r.alertStatus),
       },
       {
-        title: '标记',
+        title: tr("标记"),
         search: false,
         width: 100,
         render: (_, r) => (
           <Space size={[0, 4]} wrap>
-            {r.ignored ? <Tag>忽略</Tag> : null}
-            {r.handled ? <Tag color="blue">已处理</Tag> : null}
+            {r.ignored ? <Tag>{tr("忽略")}</Tag> : null}
+            {r.handled ? <Tag color="blue">{tr("已处理")}</Tag> : null}
           </Space>
         ),
       },
       {
-        title: '操作',
+        title: tr("操作"),
         valueType: 'option',
         width: 320,
         fixed: 'right',
         render: (_, r) => (
           <Space wrap size={4}>
             <Button size="small" type="link" onClick={() => void openDetail(r)}>
-              详情
+              {tr("详情")}
             </Button>
             <Button size="small" type="link" onClick={() => void doGenerateAlert(r)}>
-              生成告警
+              {tr("生成告警")}
             </Button>
             <Button
               size="small"
@@ -529,7 +532,7 @@ export default function TaskCenterFailuresPage() {
               disabled={!r.relatedAlertId}
               onClick={() => history.push('/ops/task-center/alerts')}
             >
-              告警列表
+              {tr("告警列表")}
             </Button>
             {r.detailUrl ? (
               <Button size="small" type="link" onClick={() => history.push(appendSourceToUrl(r.detailUrl!, 'taskcenter'))}>
@@ -542,24 +545,24 @@ export default function TaskCenterFailuresPage() {
               disabled={!r.retryable}
               onClick={() => confirmRetry(r)}
             >
-              重试
+              {tr("重试")}
             </Button>
             <Dropdown
               menu={{
                 items: [
                   {
                     key: 'ignore',
-                    label: '忽略',
+                    label: tr("忽略"),
                     onClick: () => promptMark('ignore', r),
                   },
                   {
                     key: 'handle',
-                    label: '标记已处理',
+                    label: tr("标记已处理"),
                     onClick: () => promptMark('handle', r),
                   },
                   {
                     key: 'unmark',
-                    label: '取消标记',
+                    label: tr("取消标记"),
                     disabled: !r.ignored && !r.handled,
                     onClick: () => void doUnmark(r),
                   },
@@ -567,7 +570,7 @@ export default function TaskCenterFailuresPage() {
               }}
             >
               <Button size="small" type="link">
-                更多
+                {tr("更多")}
               </Button>
             </Dropdown>
           </Space>
@@ -579,11 +582,11 @@ export default function TaskCenterFailuresPage() {
 
   async function doGenerateAlert(row: UnifiedTaskDTO) {
     Modal.confirm({
-      title: '为该失败任务手动生成站内告警（可覆盖告警状态）',
+      title: tr("为该失败任务手动生成站内告警（可覆盖告警状态）"),
       onOk: async () => {
         try {
           await generateTaskFailureAlert(row.taskType, row.id);
-          message.success('已生成/刷新告警');
+          message.success(tr("已生成/刷新告警"));
           actionRef.current?.reload?.();
         } catch (e) {
           message.error((e as Error).message);
@@ -611,7 +614,7 @@ export default function TaskCenterFailuresPage() {
   function confirmRetry(row: UnifiedTaskDTO) {
     confirmFailureTaskRetry(1, async () => {
       await retryTaskFailure(row.taskType, row.id);
-      message.success('已提交重试');
+      message.success(tr("已提交重试"));
       actionRef.current?.reload?.();
     });
   }
@@ -619,10 +622,10 @@ export default function TaskCenterFailuresPage() {
   function promptMark(kind: 'ignore' | 'handle', row: UnifiedTaskDTO) {
     let txt = '';
     Modal.confirm({
-      title: kind === 'ignore' ? '忽略此失败任务（列表默认隐藏）' : '标记为已线下处理（列表默认隐藏）',
+      title: kind === 'ignore' ? tr('忽略此失败任务（列表默认隐藏）') : tr('标记为已线下处理（列表默认隐藏）'),
       content: (
         <Input.TextArea
-          placeholder="可选备注（不记录敏感信息）"
+          placeholder={tr("可选备注（不记录敏感信息）")}
           rows={3}
           onChange={(e) => {
             txt = e.target.value;
@@ -636,7 +639,7 @@ export default function TaskCenterFailuresPage() {
           } else {
             await handleTaskFailure(row.taskType, row.id, txt);
           }
-          message.success('已保存标记');
+          message.success(tr("已保存标记"));
           actionRef.current?.reload?.();
         } catch (e) {
           message.error((e as Error).message);
@@ -648,7 +651,7 @@ export default function TaskCenterFailuresPage() {
   async function doUnmark(row: UnifiedTaskDTO) {
     try {
       await unmarkTaskFailure(row.taskType, row.id);
-      message.success('已取消标记');
+      message.success(tr("已取消标记"));
       actionRef.current?.reload?.();
     } catch (e) {
       message.error((e as Error).message);
@@ -659,7 +662,7 @@ export default function TaskCenterFailuresPage() {
 
   const latestFailedText = useMemo(
     () => (summary?.latestFailedAt ? formatDateTime(summary.latestFailedAt, '') : ''),
-    [summary?.latestFailedAt],
+    [summary?.latestFailedAt, language],
   );
 
   return (
@@ -674,26 +677,26 @@ export default function TaskCenterFailuresPage() {
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
               <Row gutter={[16, 16]}>
                 <Col xs={12} sm={8} md={6} lg={4}>
-                  <Statistic title="归一失败" value={summary.totalFailed ?? 0} />
+                  <Statistic title={tr("归一失败")} value={summary.totalFailed ?? 0} />
                 </Col>
                 <Col xs={12} sm={8} md={6} lg={4}>
-                  <Statistic title="可重试" value={summary.retryableCount ?? 0} />
+                  <Statistic title={tr("可重试")} value={summary.retryableCount ?? 0} />
                 </Col>
                 <Col xs={24} sm={16} md={12} lg={6}>
                   <Statistic
-                    title="重试中 / 停滞 / 租约过期"
+                    title={tr("重试中 / 停滞 / 租约过期")}
                     value={`${summary.retryingTotal ?? 0} / ${summary.staleTotal ?? 0} / ${summary.leaseExpiredTotal ?? 0}`}
                   />
                 </Col>
                 <Col xs={12} sm={8} md={6} lg={4}>
-                  <Statistic title="忽略标记" value={summary.ignoredCount ?? 0} />
+                  <Statistic title={tr("忽略标记")} value={summary.ignoredCount ?? 0} />
                 </Col>
                 <Col xs={12} sm={8} md={6} lg={4}>
-                  <Statistic title="已处理标记" value={summary.handledCount ?? 0} />
+                  <Statistic title={tr("已处理标记")} value={summary.handledCount ?? 0} />
                 </Col>
                 {latestFailedText ? (
                   <Col xs={24} sm={24} md={12} lg={6}>
-                    <Statistic title="最近失败" value={latestFailedText} valueStyle={{ fontSize: 16 }} />
+                    <Statistic title={tr("最近失败")} value={latestFailedText} valueStyle={{ fontSize: 16 }} />
                   </Col>
                 ) : null}
               </Row>
@@ -701,7 +704,7 @@ export default function TaskCenterFailuresPage() {
               {Object.keys(summary.byType || {}).length ? (
                 <div>
                   <Typography.Text type="secondary" style={{ marginRight: 8 }}>
-                    按类型：
+                    {tr("按类型：")}
                   </Typography.Text>
                   <Space size={[8, 8]} wrap>
                     {Object.entries(summary.byType || {}).map(([k, v]) => (
@@ -718,7 +721,7 @@ export default function TaskCenterFailuresPage() {
               <Row gutter={[16, 12]} align="middle" justify="space-between">
                 <Col xs={24} lg={14}>
                   <Space wrap align="center">
-                    <Typography.Text type="secondary">批量操作</Typography.Text>
+                    <Typography.Text type="secondary">{tr("批量操作")}</Typography.Text>
                     <Button
                       disabled={!batchRows.length}
                       type="primary"
@@ -727,24 +730,24 @@ export default function TaskCenterFailuresPage() {
                           const res = await batchRetryTaskFailures(
                             batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
                           );
-                          message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
+                          message.info(trFormat("成功 {value0}，失败 {value1}", { value0: res.successCount, value1: res.failedCount }));
                           actionRef.current?.reload?.();
                         });
                       }}
                     >
-                      批量重试
+                      {tr("批量重试")}
                     </Button>
                     <Button
                       disabled={!batchRows.length}
                       onClick={() =>
                         Modal.confirm({
-                          title: `批量忽略 ${batchRows.length} 条任务？`,
+                          title: trFormat("批量忽略 {value0} 条任务？", { value0: batchRows.length }),
                           onOk: async () => {
                             try {
                               const res = await batchIgnoreTaskFailures(
                                 batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
                               );
-                              message.info(`忽略成功 ${res.successCount}，失败 ${res.failedCount}`);
+                              message.info(trFormat("忽略成功 {value0}，失败 {value1}", { value0: res.successCount, value1: res.failedCount }));
                               actionRef.current?.reload?.();
                             } catch (e) {
                               message.error((e as Error).message);
@@ -753,19 +756,19 @@ export default function TaskCenterFailuresPage() {
                         })
                       }
                     >
-                      批量忽略
+                      {tr("批量忽略")}
                     </Button>
                     <Button
                       disabled={!batchRows.length}
                       onClick={() =>
                         Modal.confirm({
-                          title: `批量标记已处理（${batchRows.length} 条）？`,
+                          title: trFormat("批量标记已处理（{value0} 条）？", { value0: batchRows.length }),
                           onOk: async () => {
                             try {
                               const res = await batchHandleTaskFailures(
                                 batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
                               );
-                              message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
+                              message.info(trFormat("成功 {value0}，失败 {value1}", { value0: res.successCount, value1: res.failedCount }));
                               actionRef.current?.reload?.();
                             } catch (e) {
                               message.error((e as Error).message);
@@ -774,22 +777,22 @@ export default function TaskCenterFailuresPage() {
                         })
                       }
                     >
-                      批量已处理
+                      {tr("批量已处理")}
                     </Button>
                     <Typography.Text type="secondary">
-                      已选 {sel.length} 条{sel.length > 50 ? '（批量操作仅前 50 条）' : ''}
+                      {tr("已选")} {sel.length} {tr("条")}{sel.length > 50 ? tr("（批量操作仅前 50 条）") : ''}
                     </Typography.Text>
                   </Space>
                 </Col>
                 <Col xs={24} lg={10}>
                   <Space wrap align="center" style={{ justifyContent: 'flex-end', width: '100%' }}>
-                    <Typography.Text type="secondary">列表范围</Typography.Text>
+                    <Typography.Text type="secondary">{tr("列表范围")}</Typography.Text>
                     <Space size={6}>
-                      <Typography.Text>含已恢复</Typography.Text>
+                      <Typography.Text>{tr("含已恢复")}</Typography.Text>
                       <Switch
                         checked={includeResolved}
-                        checkedChildren="是"
-                        unCheckedChildren="否"
+                        checkedChildren={tr("是")}
+                        unCheckedChildren={tr("否")}
                         onChange={(checked) => {
                           listFilterRef.current.includeResolved = checked;
                           setIncludeResolved(checked);
@@ -800,11 +803,11 @@ export default function TaskCenterFailuresPage() {
                       />
                     </Space>
                     <Space size={6}>
-                      <Typography.Text>含已标记</Typography.Text>
+                      <Typography.Text>{tr("含已标记")}</Typography.Text>
                       <Switch
                         checked={includeMarked}
-                        checkedChildren="是"
-                        unCheckedChildren="否"
+                        checkedChildren={tr("是")}
+                        unCheckedChildren={tr("否")}
                         onChange={(checked) => {
                           listFilterRef.current.includeMarked = checked;
                           setIncludeMarked(checked);
@@ -815,14 +818,14 @@ export default function TaskCenterFailuresPage() {
                       />
                     </Space>
                     <Typography.Link onClick={() => history.push('/ops/workers/monitor')}>
-                      后台任务监控
+                      {tr("后台任务监控")}
                     </Typography.Link>
                   </Space>
                 </Col>
               </Row>
             </Space>
           ) : (
-            <Badge status="processing" text="载入统计..." />
+            <Badge status="processing" text={tr("载入统计...")} />
           )}
         </ProCard>
 
@@ -939,46 +942,46 @@ export default function TaskCenterFailuresPage() {
           setDetail(null);
           setUrlState({ drawer: undefined, id: undefined, detailTaskType: undefined }, { replace: true });
         }}
-        title="失败任务详情（摘要）"
+        title={tr("失败任务详情（摘要）")}
       >
-        {detailLoading ? <Typography.Paragraph type="secondary">载入中...</Typography.Paragraph> : null}
+        {detailLoading ? <Typography.Paragraph type="secondary">{tr("载入中...")}</Typography.Paragraph> : null}
         {detail ? (
           <Space direction="vertical" style={{ width: '100%' }} size={12}>
             <Typography.Title level={5}>{detail.title}</Typography.Title>
             <div>{normTag(detail.normalizedStatus)}</div>
             <div>
-              <Typography.Text strong>失败类别：</Typography.Text> {failureCategoryLabel(detail.failureCategory)}{' '}
+              <Typography.Text strong>{tr("失败类别：")}</Typography.Text> {failureCategoryLabel(detail.failureCategory)}{' '}
               {severityCell(detail.severity)}
             </div>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
-              <Typography.Text strong>归类说明：</Typography.Text>
+              <Typography.Text strong>{tr("归类说明：")}</Typography.Text>
               <br />
               {detail.classificationReason || '—'}
             </Typography.Paragraph>
             <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
-              <Typography.Text strong>命中规则：</Typography.Text> {detail.matchedRule || '—'}
+              <Typography.Text strong>{tr("命中规则：")}</Typography.Text> {detail.matchedRule || '—'}
             </Typography.Paragraph>
             <Typography.Paragraph ellipsis={{ rows: 5, expandable: true }}>
-              <Typography.Text strong>建议处理：</Typography.Text>
+              <Typography.Text strong>{tr("建议处理：")}</Typography.Text>
               <br />
               {detail.suggestedAction || '—'}
             </Typography.Paragraph>
             <div>
-              <Typography.Text strong>告警状态：</Typography.Text> {alertStatusUi(detail.alertStatus)}{' '}
+              <Typography.Text strong>{tr("告警状态：")}</Typography.Text> {alertStatusUi(detail.alertStatus)}{' '}
               {detail.relatedAlertId ? (
                 <Typography.Link onClick={() => history.push('/ops/task-center/alerts')}>
-                  （打开告警中心）
+                  {tr("（打开告警中心）")}
                 </Typography.Link>
               ) : null}
             </div>
             <Typography.Paragraph ellipsis={{ rows: 4, expandable: true }}>
-              <strong>错误摘要</strong>
+              <strong>{tr("错误摘要")}</strong>
               <br />
               {detail.errorMessage || '—'}
             </Typography.Paragraph>
             {detail.recoveryStatus || detail.extra?.recoveryStatus ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>
-                <Typography.Text strong>恢复状态：</Typography.Text>{' '}
+                <Typography.Text strong>{tr("恢复状态：")}</Typography.Text>{' '}
                 {recoveryStatusLabel(
                   (detail.recoveryStatus || detail.extra?.recoveryStatus) as string | undefined,
                 )}
@@ -986,56 +989,56 @@ export default function TaskCenterFailuresPage() {
             ) : null}
             {detail.deadLetter ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>
-                <Tag color="error">死信任务</Tag>
+                <Tag color="error">{tr("死信任务")}</Tag>
                 {detail.safeRetry === false ? (
-                  <Typography.Text type="secondary"> · 不建议自动重试</Typography.Text>
+                  <Typography.Text type="secondary"> {tr("· 不建议自动重试")}</Typography.Text>
                 ) : null}
               </Typography.Paragraph>
             ) : null}
             {detail.nextRunAt ? (
               <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
-                <Typography.Text strong>下次执行：</Typography.Text> {formatDateTime(detail.nextRunAt)}
+                <Typography.Text strong>{tr("下次执行：")}</Typography.Text> {formatDateTime(detail.nextRunAt)}
               </Typography.Paragraph>
             ) : null}
             {detail.idempotencyScope ? (
               <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
-                <Typography.Text strong>幂等作用域：</Typography.Text> {detail.idempotencyScope}
+                <Typography.Text strong>{tr("幂等作用域：")}</Typography.Text> {detail.idempotencyScope}
               </Typography.Paragraph>
             ) : null}
             {detail.safeRetry === true && !detail.manualReviewRequired && !detail.unknownResult ? (
-              <Alert type="success" showIcon message="可安全重试" style={{ marginBottom: 8 }} />
+              <Alert type="success" showIcon message={tr("可安全重试")} style={{ marginBottom: 8 }} />
             ) : null}
             {detail.safeRetry === false && !detail.manualReviewRequired && !detail.unknownResult ? (
-              <Alert type="warning" showIcon message="需要先人工确认" style={{ marginBottom: 8 }} />
+              <Alert type="warning" showIcon message={tr("需要先人工确认")} style={{ marginBottom: 8 }} />
             ) : null}
             {typeof detail.errorMessage === 'string' &&
             /TARGET_VERSION_CONFLICT|UNDO_VERSION_CONFLICT|content conflict|目标.*变化|版本冲突/i.test(
               detail.errorMessage,
             ) ? (
-              <Alert type="warning" showIcon message="目标数据已变化，不能直接覆盖" style={{ marginBottom: 8 }} />
+              <Alert type="warning" showIcon message={tr("目标数据已变化，不能直接覆盖")} style={{ marginBottom: 8 }} />
             ) : null}
             {typeof detail.errorMessage === 'string' &&
             /TASK_LEASE_LOST|lease lost|租约|已被.*接管/i.test(detail.errorMessage) ? (
-              <Alert type="info" showIcon message="任务已被新的后台执行进程接管" style={{ marginBottom: 8 }} />
+              <Alert type="info" showIcon message={tr("任务已被新的后台执行进程接管")} style={{ marginBottom: 8 }} />
             ) : null}
             {detail.unknownResult ? (
-              <Alert type="error" showIcon message="结果未知，请先核对外部系统" style={{ marginBottom: 8 }} />
+              <Alert type="error" showIcon message={tr("结果未知，请先核对外部系统")} style={{ marginBottom: 8 }} />
             ) : null}
             {(detail.heartbeatAt || detail.leaseVersion || detail.executionId) ? (
               <TechnicalDetails>
                 {detail.heartbeatAt ? (
                   <Typography.Paragraph style={{ marginBottom: 4 }} type="secondary">
-                    <Typography.Text strong>最近心跳：</Typography.Text> {formatDateTime(detail.heartbeatAt)}
+                    <Typography.Text strong>{tr("最近心跳：")}</Typography.Text> {formatDateTime(detail.heartbeatAt)}
                   </Typography.Paragraph>
                 ) : null}
                 {detail.leaseVersion != null ? (
                   <Typography.Paragraph style={{ marginBottom: 4 }} type="secondary">
-                    <Typography.Text strong>租约版本：</Typography.Text> {detail.leaseVersion}
+                    <Typography.Text strong>{tr("租约版本：")}</Typography.Text> {detail.leaseVersion}
                   </Typography.Paragraph>
                 ) : null}
                 {detail.executionId ? (
                   <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
-                    <Typography.Text strong>执行标识：</Typography.Text>{' '}
+                    <Typography.Text strong>{tr("执行标识：")}</Typography.Text>{' '}
                     <Typography.Text code copyable={{ text: detail.executionId }}>
                       {detail.executionId.slice(0, 8)}…
                     </Typography.Text>
@@ -1045,29 +1048,29 @@ export default function TaskCenterFailuresPage() {
             ) : null}
             {detail.idempotencyStatus ? (
               <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
-                <Typography.Text strong>幂等状态：</Typography.Text> {detail.idempotencyStatus}
+                <Typography.Text strong>{tr("幂等状态：")}</Typography.Text> {detail.idempotencyStatus}
               </Typography.Paragraph>
             ) : null}
             {detail.manualReviewRequired ? (
-              <Alert type="warning" showIcon message="需人工确认后再重试（平台写操作结果未知）" style={{ marginBottom: 8 }} />
+              <Alert type="warning" showIcon message={tr("需人工确认后再重试（平台写操作结果未知）")} style={{ marginBottom: 8 }} />
             ) : null}
             {typeof detail.extra?.userMessage === 'string' && detail.extra.userMessage ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>
-                <Typography.Text strong>恢复说明：</Typography.Text> {detail.extra.userMessage}
+                <Typography.Text strong>{tr("恢复说明：")}</Typography.Text> {detail.extra.userMessage}
               </Typography.Paragraph>
             ) : null}
             {detail.extra?.retryAttempts != null ? (
               <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
-                <Typography.Text strong>恢复尝试次数：</Typography.Text> {String(detail.extra.retryAttempts)}
+                <Typography.Text strong>{tr("恢复尝试次数：")}</Typography.Text> {String(detail.extra.retryAttempts)}
               </Typography.Paragraph>
             ) : null}
             {typeof detail.extra?.lastErrorCode === 'string' && detail.extra.lastErrorCode ? (
               <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
-                <Typography.Text strong>最近错误码：</Typography.Text> {detail.extra.lastErrorCode}
+                <Typography.Text strong>{tr("最近错误码：")}</Typography.Text> {detail.extra.lastErrorCode}
               </Typography.Paragraph>
             ) : null}
             {detail.relatedResourceTitle ? (
-              <Typography.Paragraph type="secondary">关联：{detail.relatedResourceTitle}</Typography.Paragraph>
+              <Typography.Paragraph type="secondary">{tr("关联：")}{detail.relatedResourceTitle}</Typography.Paragraph>
             ) : null}
             <Space wrap>
               {isTbLoginFailure(detail) ? (
@@ -1083,7 +1086,7 @@ export default function TaskCenterFailuresPage() {
                           : '';
                       const loginUrl = resolveTaobaoTmallLoginTargetUrl(src || undefined);
                       const res = await openTaobaoTmallLoginBrowser(loginUrl);
-                      message.success(res.message || '已打开淘宝/天猫采集浏览器');
+                      message.success(res.message || tr('已打开淘宝/天猫采集浏览器'));
                     } catch (e) {
                       message.error((e as Error).message);
                     } finally {
@@ -1091,7 +1094,7 @@ export default function TaskCenterFailuresPage() {
                     }
                   }}
                 >
-                  打开淘宝/天猫采集浏览器
+                  {tr("打开淘宝/天猫采集浏览器")}
                 </Button>
               ) : null}
               {isPddLoginFailure(detail) ? (
@@ -1107,7 +1110,7 @@ export default function TaskCenterFailuresPage() {
                           : '';
                       const loginUrl = resolvePinduoduoLoginTargetUrl(src || undefined);
                       const res = await openPinduoduoLoginBrowser(loginUrl);
-                      message.success(res.message || '已打开拼多多采集浏览器');
+                      message.success(res.message || tr('已打开拼多多采集浏览器'));
                     } catch (e) {
                       message.error((e as Error).message);
                     } finally {
@@ -1115,7 +1118,7 @@ export default function TaskCenterFailuresPage() {
                     }
                   }}
                 >
-                  打开拼多多采集浏览器登录
+                  {tr("打开拼多多采集浏览器登录")}
                 </Button>
               ) : null}
               {canRecoverDouyinDraft(detail) ? (
@@ -1124,14 +1127,14 @@ export default function TaskCenterFailuresPage() {
                   loading={recovering}
                   onClick={() => {
                     Modal.confirm({
-                      title: '尝试从抖店回查恢复草稿？',
-                      content: '将通过 product.detail 确认平台侧是否已创建草稿，不会盲目重复提交 product.addV2。',
-                      okText: '尝试恢复',
+                      title: tr("尝试从抖店回查恢复草稿？"),
+                      content: trFormat('将通过 {value0} 确认平台侧是否已创建草稿，不会盲目重复提交 {value1}。', { value0: 'product.detail', value1: 'product.addV2' }),
+                      okText: tr("尝试恢复"),
                       onOk: async () => {
                         setRecovering(true);
                         try {
                           await recoverDouyinDraftTask(detail.id);
-                          message.success('已提交恢复，请刷新查看任务状态');
+                          message.success(tr("已提交恢复，请刷新查看任务状态"));
                           actionRef.current?.reload?.();
                           const refreshed = await getTaskFailureDetail(detail.taskType, detail.id);
                           setDetail(refreshed);
@@ -1144,7 +1147,7 @@ export default function TaskCenterFailuresPage() {
                     });
                   }}
                 >
-                  尝试恢复
+                  {tr("尝试恢复")}
                 </Button>
               ) : null}
               {detail.retryable ? (
@@ -1153,7 +1156,7 @@ export default function TaskCenterFailuresPage() {
                     confirmFailureTaskRetry(1, async () => {
                       try {
                         await retryTaskFailure(detail.taskType, detail.id);
-                        message.success('已提交重试');
+                        message.success(tr("已提交重试"));
                         actionRef.current?.reload?.();
                       } catch (e) {
                         message.error((e as Error).message);
@@ -1162,7 +1165,7 @@ export default function TaskCenterFailuresPage() {
                     });
                   }}
                 >
-                  重试任务
+                  {tr("重试任务")}
                 </Button>
               ) : null}
               {typeof detail.extra?.sourceUrl === 'string' && detail.extra.sourceUrl ? (
@@ -1171,18 +1174,18 @@ export default function TaskCenterFailuresPage() {
                     window.open(detail.extra!.sourceUrl as string, '_blank', 'noopener,noreferrer');
                   }}
                 >
-                  打开原始失败页面
+                  {tr("打开原始失败页面")}
                 </Button>
               ) : null}
               {detail.taskType ? (
                 <Button
                   onClick={() => {
                     Modal.confirm({
-                      title: '生成站内告警记录',
+                      title: tr("生成站内告警记录"),
                       onOk: async () => {
                         try {
                           await generateTaskFailureAlert(detail.taskType, detail.id);
-                          message.success('已生成/刷新告警');
+                          message.success(tr("已生成/刷新告警"));
                           actionRef.current?.reload?.();
                           const refreshed = await getTaskFailureDetail(detail.taskType, detail.id);
                           setDetail(refreshed);
@@ -1193,7 +1196,7 @@ export default function TaskCenterFailuresPage() {
                     });
                   }}
                 >
-                  生成告警
+                  {tr("生成告警")}
                 </Button>
               ) : null}
               {detail.detailUrl ? (
@@ -1203,38 +1206,38 @@ export default function TaskCenterFailuresPage() {
               ) : null}
               {detail.taskType === 'ai_image' ? (
                 <>
-                  <Button onClick={() => history.push('/settings/config-status')}>查看配置状态</Button>
-                  <Button onClick={() => history.push('/settings/image')}>查看图片 AI 设置</Button>
+                  <Button onClick={() => history.push('/settings/config-status')}>{tr("查看配置状态")}</Button>
+                  <Button onClick={() => history.push('/settings/image')}>{tr("查看图片 AI 设置")}</Button>
                   {(detail.failureCategory || '').includes('storage') ? (
-                    <Button onClick={() => history.push('/settings/storage')}>查看存储设置</Button>
+                    <Button onClick={() => history.push('/settings/storage')}>{tr("查看存储设置")}</Button>
                   ) : null}
                 </>
               ) : null}
             </Space>
             {detail.extra?.urlTypeLabel ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>
-                <Typography.Text strong>链接类型：</Typography.Text>{' '}
+                <Typography.Text strong>{tr("链接类型：")}</Typography.Text>{' '}
                 {String(detail.extra.urlTypeLabel)}
               </Typography.Paragraph>
             ) : null}
             {detail.extra?.accessStatusLabel ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>
-                <Typography.Text strong>页面访问状态：</Typography.Text>{' '}
+                <Typography.Text strong>{tr("页面访问状态：")}</Typography.Text>{' '}
                 {String(detail.extra.accessStatusLabel)}
               </Typography.Paragraph>
             ) : null}
             {detail.extra?.suggestedActionDetail ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>
-                <Typography.Text strong>建议操作：</Typography.Text>{' '}
+                <Typography.Text strong>{tr("建议操作：")}</Typography.Text>{' '}
                 {String(detail.extra.suggestedActionDetail)}
               </Typography.Paragraph>
             ) : null}
             {detail.extra && Object.keys(detail.extra).length > 0 ? (
               <TechnicalDetails>
                 {detail.errorCode ? (
-                  <TaskJsonBlock title="错误码" value={detail.errorCode} />
+                  <TaskJsonBlock title={tr("错误码")} value={detail.errorCode} />
                 ) : null}
-                <TaskJsonBlock title="附加信息" value={detail.extra} last />
+                <TaskJsonBlock title={tr("附加信息")} value={detail.extra} last />
               </TechnicalDetails>
             ) : null}
           </Space>

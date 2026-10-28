@@ -1,5 +1,5 @@
 import { useLanguage } from '@/i18n/useLanguage';
-import { tr } from '@/i18n';
+import { tr, trFormat } from '@/i18n';
 import {
   DollarOutlined,
   MoreOutlined,
@@ -100,15 +100,15 @@ function readDraftLegacyFilters(search: string) {
   };
 }
 
-const OPERATION_STEP_OPTIONS = [
-  { label: '全部', value: '' },
-  { label: '待检查采集结果', value: 'collect_review' },
-  { label: '待优化标题', value: 'title' },
-  { label: '待生成描述', value: 'description' },
-  { label: '待处理图片', value: 'images' },
-  { label: '待设置价格', value: 'pricing' },
-  { label: '发布检查未通过', value: 'publish_check' },
-  { label: '可以生成刊登草稿', value: 'ready' },
+const operationStepOptions = () => [
+  { label: tr("全部"), value: '' },
+  { label: tr("待检查采集结果"), value: 'collect_review' },
+  { label: tr("待优化标题"), value: 'title' },
+  { label: tr("待生成描述"), value: 'description' },
+  { label: tr("待处理图片"), value: 'images' },
+  { label: tr("待设置价格"), value: 'pricing' },
+  { label: tr("发布检查未通过"), value: 'publish_check' },
+  { label: tr("可以生成刊登草稿"), value: 'ready' },
 ];
 
 function operationStepColor(step?: string) {
@@ -119,7 +119,7 @@ function operationStepColor(step?: string) {
 }
 
 export default function ProductDraftsPage() {
-  useLanguage();
+  const language = useLanguage();
   const location = useLocation();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof DRAFT_QUERY_KEYS)[number], string | undefined>>(DRAFT_QUERY_KEYS);
@@ -162,8 +162,8 @@ export default function ProductDraftsPage() {
   const selectedCount = selectedRowKeys.length;
   const selectedScopeText =
     selectedRows.length === selectedCount
-      ? '当前选择将用于 AI、发布检查、刊登和定价操作'
-      : '当前选择已保留，刷新后仍按商品 ID 执行';
+      ? tr("当前选择将用于 AI、发布检查、刊登和定价操作")
+      : tr("当前选择已保留，刷新后仍按商品 ID 执行");
 
   const clearSelection = () => {
     setSelectedRowKeys([]);
@@ -172,7 +172,7 @@ export default function ProductDraftsPage() {
 
   const ensureBatchSelection = () => {
     if (selectedRowKeys.length === 0) {
-      message.warning('请先勾选商品');
+      message.warning(tr("请先勾选商品"));
       return false;
     }
     if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
@@ -201,14 +201,14 @@ export default function ProductDraftsPage() {
     {
       key: 'pricing',
       icon: <DollarOutlined />,
-      label: '批量设置发布价',
+      label: tr("批量设置发布价"),
     },
     ...(!isProductionBuild
       ? [
           {
             key: 'legacyBulkAi',
             icon: <RobotOutlined />,
-            label: '开发版批量 AI',
+            label: tr("开发版批量 AI"),
           },
         ]
       : []),
@@ -245,9 +245,9 @@ export default function ProductDraftsPage() {
       return {
         emptyText: (
           <EmptyState
-            title="商品草稿加载失败"
-            description={`列表数据暂时无法获取：${listLoadError}`}
-            actionLabel="重试加载"
+            title={tr("商品草稿加载失败")}
+            description={trFormat("列表数据暂时无法获取：{value0}", { value0: listLoadError === '列表请求失败' ? tr('列表请求失败') : listLoadError })}
+            actionLabel={tr("重试加载")}
             onAction={() => actionRef.current?.reload()}
           />
         ),
@@ -257,9 +257,9 @@ export default function ProductDraftsPage() {
       return {
         emptyText: (
           <EmptyState
-            title="没有匹配的商品草稿"
-            description="当前筛选条件下没有商品草稿，可以调整关键字、状态或来源后重新查询。"
-            actionLabel="重置筛选"
+            title={tr("没有匹配的商品草稿")}
+            description={tr("当前筛选条件下没有商品草稿，可以调整关键字、状态或来源后重新查询。")}
+            actionLabel={tr("重置筛选")}
             onAction={() => {
               setTablePage(1);
               setTablePageSize(20);
@@ -272,7 +272,7 @@ export default function ProductDraftsPage() {
       };
     }
     return emptyLocale;
-  }, [clearUrlState, emptyLocale, hasActiveDraftFilters, listLoadError]);
+  }, [clearUrlState, emptyLocale, hasActiveDraftFilters, listLoadError, language]);
 
   useEffect(() => {
     setTablePage(parsePositiveInt(urlState.page, 1));
@@ -295,7 +295,7 @@ export default function ProductDraftsPage() {
   const columns: ProColumns<ProductListRow>[] = useMemo(
     () => [
     {
-      title: '商品图',
+      title: tr("商品图"),
       dataIndex: 'coverUrl',
       width: 96,
       fixed: 'left',
@@ -309,20 +309,20 @@ export default function ProductDraftsPage() {
             className="product-drafts-table__image"
           />
         ) : (
-          <div className="product-drafts-table__image-placeholder">无图</div>
+          <div className="product-drafts-table__image-placeholder">{tr("无图")}</div>
         ),
     },
     {
-      title: '标题',
+      title: tr("标题"),
       dataIndex: 'keyword',
       hideInTable: true,
-      fieldProps: { placeholder: '搜索标题', ...keywordFieldProps },
+      fieldProps: { placeholder: tr("搜索标题"), ...keywordFieldProps },
       search: {
         transform: (v) => ({ keyword: v }),
       },
     },
     {
-      title: '标题',
+      title: tr("标题"),
       dataIndex: 'title',
       width: 320,
       ellipsis: true,
@@ -335,20 +335,20 @@ export default function ProductDraftsPage() {
               href={`/product/drafts/${row.id}`}
               onClick={(event) => event.stopPropagation()}
             >
-              {row.title || '未命名商品'}
+              {row.title || tr('未命名商品')}
             </Typography.Link>
           </Tooltip>
           <Space size={8} wrap className="product-drafts-table__meta">
             <Typography.Text type="secondary">ID {row.id}</Typography.Text>
             {row.updatedAt ? (
-              <Typography.Text type="secondary">更新 {formatDateTime(row.updatedAt)}</Typography.Text>
+              <Typography.Text type="secondary">{tr("更新")} {formatDateTime(row.updatedAt)}</Typography.Text>
             ) : null}
           </Space>
         </div>
       ),
     },
     {
-      title: '来源',
+      title: tr("来源"),
       dataIndex: 'source',
       width: 110,
       ellipsis: true,
@@ -369,7 +369,7 @@ export default function ProductDraftsPage() {
       },
     },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 112,
       valueType: 'select',
@@ -378,16 +378,16 @@ export default function ProductDraftsPage() {
       ),
       render: (_, row) => {
         const m = PRODUCT_STATUS[row.status as keyof typeof PRODUCT_STATUS];
-        return <Tag color={m?.color}>{(m?.text ?? row.status) || '未知'}</Tag>;
+        return <Tag color={m?.color}>{(m?.text ?? row.status) || tr('未知')}</Tag>;
       },
     },
     {
-      title: '运营进度',
+      title: tr("运营进度"),
       dataIndex: 'operationStep',
       width: 220,
       valueType: 'select',
       fieldProps: {
-        options: OPERATION_STEP_OPTIONS,
+        options: operationStepOptions(),
       },
       search: {
         transform: (v) => ({ operationStep: v }),
@@ -400,11 +400,11 @@ export default function ProductDraftsPage() {
             <Progress percent={p.completionPercent ?? 0} size="small" showInfo={false} />
             <Space size={6} wrap>
               <Typography.Text>{p.completionPercent ?? 0}%</Typography.Text>
-              <Tag color={operationStepColor(p.currentStep)}>{p.currentStepLabel || '继续完善'}</Tag>
+              <Tag color={operationStepColor(p.currentStep)}>{p.currentStepLabel || tr('继续完善')}</Tag>
             </Space>
             {(p.blockerCount || p.warningCount) ? (
               <Typography.Text type="secondary" className="product-drafts-progress__issues">
-                待处理 {p.blockerCount ?? 0}，建议检查 {p.warningCount ?? 0}
+                {trFormat('待处理 {blockers}，建议检查 {warnings}', { blockers: p.blockerCount ?? 0, warnings: p.warningCount ?? 0 })}
               </Typography.Text>
             ) : null}
           </Space>
@@ -412,7 +412,7 @@ export default function ProductDraftsPage() {
       },
     },
     {
-      title: '创建时间',
+      title: tr("创建时间"),
       dataIndex: 'createdAt',
       width: 168,
       search: false,
@@ -420,7 +420,7 @@ export default function ProductDraftsPage() {
       render: (_, row) => formatDateTime(row.createdAt),
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 132,
       fixed: 'right',
@@ -430,12 +430,12 @@ export default function ProductDraftsPage() {
           href={row.operationProgress?.nextActionUrl || `/product/drafts/${row.id}`}
           onClick={(event) => event.stopPropagation()}
         >
-          {row.operationProgress?.nextActionLabel || '继续完善'}
+          {row.operationProgress?.nextActionLabel || tr('继续完善')}
         </Typography.Link>,
       ],
     },
   ],
-    [keywordFieldProps],
+    [keywordFieldProps, language],
   );
 
   const eligibleBatchPlatforms = [
@@ -467,7 +467,7 @@ export default function ProductDraftsPage() {
 
   const runBatchReadiness = async () => {
     if (!batchShopId) {
-      message.error('请选择店铺');
+      message.error(tr("请选择店铺"));
       return;
     }
     setBatchLoading(true);
@@ -478,9 +478,9 @@ export default function ProductDraftsPage() {
         shopId: batchShopId,
       });
       setBatchResult(Array.isArray(list) ? list : []);
-      message.success('检查完成');
+      message.success(tr("检查完成"));
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '检查失败');
+      message.error((e as Error)?.message || tr("检查失败"));
     } finally {
       setBatchLoading(false);
     }
@@ -491,12 +491,12 @@ export default function ProductDraftsPage() {
       const vals = await bulkForm.validateFields();
       const productIds = [...selectedRowKeys];
       if (productIds.length === 0 && !bulkConfirmFiltered) {
-        message.error('未勾选商品时，请勾选「按当前筛选」确认项');
+        message.error(tr("未勾选商品时，请勾选「按当前筛选」确认项"));
         return;
       }
       const narrow = !!(listFilters.keyword || listFilters.status || listFilters.source);
       if (productIds.length === 0 && !narrow) {
-        message.error('当前无任何列表筛选；若需全表批量，请先在列表中设置状态/来源/关键字筛选，或勾选商品。');
+        message.error(tr("当前无任何列表筛选；若需全表批量，请先在列表中设置状态/来源/关键字筛选，或勾选商品。"));
         return;
       }
       setBulkLoading(true);
@@ -542,13 +542,13 @@ export default function ProductDraftsPage() {
           confirmAll: productIds.length === 0,
         });
       }
-      message.success('批次已创建');
+      message.success(tr("批次已创建"));
       setBulkOpen(false);
       history.push('/ai/batches');
       actionRef.current?.reload();
     } catch (e: unknown) {
       if ((e as { errorFields?: unknown })?.errorFields) return;
-      message.error((e as Error)?.message || '创建失败');
+      message.error((e as Error)?.message || tr("创建失败"));
     } finally {
       setBulkLoading(false);
     }
@@ -562,13 +562,13 @@ export default function ProductDraftsPage() {
     >
       <OperationToolbar className="product-drafts-page__toolbar">
         <Button icon={<PlusOutlined />} type="primary" onClick={() => setCreateOpen(true)}>
-          新建草稿
+          {tr('新建草稿')}
         </Button>
         <Dropdown
           menu={{ items: moreActionItems, onClick: onMoreActionClick }}
           trigger={['click']}
         >
-          <Button icon={<MoreOutlined />}>更多</Button>
+          <Button icon={<MoreOutlined />}>{tr("更多")}</Button>
         </Dropdown>
       </OperationToolbar>
       <DouyinE2EPrecheckBanner blockedByCredentials compact />
@@ -578,12 +578,12 @@ export default function ProductDraftsPage() {
           className="product-drafts-page__selection-toolbar"
           extra={
             <Button type="link" onClick={clearSelection}>
-              清空选择
+              {tr('清空选择')}
             </Button>
           }
         >
           <div className="product-drafts-page__selection-summary">
-            <Typography.Text strong>已选择 {selectedCount} 个商品</Typography.Text>
+            <Typography.Text strong>{tr("已选择")} {selectedCount} {tr("个商品")}</Typography.Text>
             <Typography.Text type="secondary">{selectedScopeText}</Typography.Text>
           </div>
           <Button
@@ -594,7 +594,7 @@ export default function ProductDraftsPage() {
               history.push(`/product/ai-text-batch?productIds=${selectedRowKeys.join(',')}`);
             }}
           >
-            批量 AI 优化
+            {tr('批量 AI 优化')}
           </Button>
           <Button
             icon={<PictureOutlined />}
@@ -603,13 +603,13 @@ export default function ProductDraftsPage() {
               history.push(`/product/ai-image-batch?productIds=${selectedRowKeys.join(',')}`);
             }}
           >
-            批量 AI 图片处理
+            {tr('批量 AI 图片处理')}
           </Button>
           <Button
             icon={<SafetyCertificateOutlined />}
             onClick={() => void openBatchDrawer()}
           >
-            批量发布检查
+            {tr('批量发布检查')}
           </Button>
           <Button
             icon={<ShopOutlined />}
@@ -618,10 +618,10 @@ export default function ProductDraftsPage() {
               history.push(`/product/publish-batch?productIds=${selectedRowKeys.join(',')}`);
             }}
           >
-            批量创建刊登草稿
+            {tr('批量创建刊登草稿')}
           </Button>
           <Button icon={<DollarOutlined />} onClick={() => setPricingBatchOpen(true)}>
-            批量设置发布价
+            {tr('批量设置发布价')}
           </Button>
         </OperationToolbar>
       ) : null}
@@ -656,7 +656,7 @@ export default function ProductDraftsPage() {
             disabled: row.status === 'archived' || row.status === 'deleted',
             title:
               row.status === 'archived' || row.status === 'deleted'
-                ? '已归档或已删除的商品不能批量刊登'
+                ? tr("已归档或已删除的商品不能批量刊登")
                 : undefined,
           }),
         }}
@@ -678,7 +678,7 @@ export default function ProductDraftsPage() {
           },
         }}
         options={{ reload: true, density: true, setting: true }}
-        headerTitle="商品草稿列表"
+        headerTitle={tr("商品草稿列表")}
         request={async (params) => {
           setListFilters({
             keyword: params.keyword as string | undefined,
@@ -755,7 +755,7 @@ export default function ProductDraftsPage() {
       />
 
       <ModalForm
-        title="新建商品草稿"
+        title={tr("新建商品草稿")}
         open={createOpen}
         modalProps={{
           destroyOnHidden: true,
@@ -775,14 +775,14 @@ export default function ProductDraftsPage() {
           return true;
         }}
       >
-        <ProFormText name="title" label="标题" rules={[{ required: true, message: '必填' }]} />
-        <ProFormText name="source" label="来源" initialValue="manual" />
-        <ProFormText name="sourceUrl" label="来源链接" />
-        <ProFormTextArea name="description" label="描述" fieldProps={{ rows: 3 }} />
+        <ProFormText name="title" label={tr("标题")} rules={[{ required: true, message: tr("必填") }]} />
+        <ProFormText name="source" label={tr("来源")} initialValue="manual" />
+        <ProFormText name="sourceUrl" label={tr("来源链接")} />
+        <ProFormTextArea name="description" label={tr("描述")} fieldProps={{ rows: 3 }} />
       </ModalForm>
 
       <Drawer
-        title="批量发布检查"
+        title={tr("批量发布检查")}
         width="min(720px, calc(100vw - 32px))"
         className="product-drafts-drawer"
         open={batchOpen}
@@ -790,13 +790,13 @@ export default function ProductDraftsPage() {
         destroyOnHidden
         extra={
           <Button type="primary" loading={batchLoading} onClick={() => void runBatchReadiness()}>
-            开始检查
+            {tr("开始检查")}
           </Button>
         }
       >
         <Space direction="vertical" className="product-drafts-drawer__body" size="large">
           <Form layout="vertical">
-            <Form.Item label="平台">
+            <Form.Item label={tr("平台")}>
               <Select
                 value={batchPlat}
                 onChange={(v) => {
@@ -808,7 +808,7 @@ export default function ProductDraftsPage() {
             </Form.Item>
             <Form.Item label={tr("店铺")}>
               <Select
-                placeholder="选择已授权店铺"
+                placeholder={tr("选择已授权店铺")}
                 value={batchShopId || undefined}
                 onChange={(v) => setBatchShopId(v ? String(v) : '')}
                 options={shopsForBatchPlat.map((s) => ({
@@ -821,7 +821,7 @@ export default function ProductDraftsPage() {
             </Form.Item>
           </Form>
           <Typography.Paragraph type="secondary" className="product-drafts-drawer__hint">
-            已选 {selectedRowKeys.length} 个商品；单次最多 100 个。检查不修改商品数据，不调用平台 API。
+            {trFormat('已选 {count} 个商品；单次最多 100 个。检查不修改商品数据，不调用平台 API。', { count: selectedRowKeys.length })}
           </Typography.Paragraph>
           <Table<ProductReadinessResult>
             size="small"
@@ -830,7 +830,7 @@ export default function ProductDraftsPage() {
             pagination={false}
             columns={[
               {
-                title: '商品 ID',
+                title: tr("商品 ID"),
                 dataIndex: 'productId',
                 ellipsis: true,
                 render: (v: string) => (
@@ -838,17 +838,17 @@ export default function ProductDraftsPage() {
                 ),
               },
               {
-                title: '状态',
+                title: tr("状态"),
                 width: 100,
                 render: (_, r) => {
-                  if (!r.canPublish) return <Tag color="red">阻止</Tag>;
-                  if (r.warningCount > 0) return <Tag color="orange">警告</Tag>;
-                  return <Tag color="green">就绪</Tag>;
+                  if (!r.canPublish) return <Tag color="red">{tr("阻止")}</Tag>;
+                  if (r.warningCount > 0) return <Tag color="orange">{tr("警告")}</Tag>;
+                  return <Tag color="green">{tr("就绪")}</Tag>;
                 },
               },
-              { title: '分', dataIndex: 'score', width: 64 },
-              { title: '错', dataIndex: 'errorCount', width: 56 },
-              { title: '警', dataIndex: 'warningCount', width: 56 },
+              { title: tr("分"), dataIndex: 'score', width: 64 },
+              { title: tr("错"), dataIndex: 'errorCount', width: 56 },
+              { title: tr("警"), dataIndex: 'warningCount', width: 56 },
             ]}
           />
         </Space>
@@ -856,7 +856,7 @@ export default function ProductDraftsPage() {
 
       {!isProductionBuild ? (
         <Drawer
-          title="开发版批量 AI（商品草稿）"
+          title={tr("开发版批量 AI（商品草稿）")}
           width="min(640px, calc(100vw - 32px))"
           className="product-drafts-drawer"
           open={bulkOpen}
@@ -868,7 +868,7 @@ export default function ProductDraftsPage() {
               loading={bulkLoading}
               onClick={() => void submitBulkAI()}
             >
-              创建批次
+              {tr('创建批次')}
             </Button>
           }
         >
@@ -876,56 +876,56 @@ export default function ProductDraftsPage() {
             type="info"
             showIcon
             className="product-drafts-drawer__alert"
-            message="该入口仅用于开发环境兼容验证。正式批量任务请使用「批量 AI 优化」或「批量 AI 图片处理」。"
+            message={tr("该入口仅用于开发环境兼容验证。正式批量任务请使用「批量 AI 优化」或「批量 AI 图片处理」。")}
           />
           <Typography.Paragraph type="secondary">
-            已勾选 <strong>{selectedRowKeys.length}</strong> 个商品。
+            {tr("已勾选")} <strong>{selectedRowKeys.length}</strong> {tr("个商品。")}
             {selectedRowKeys.length === 0 ? (
-              <>未勾选时将使用下方「与列表相同的筛选条件」；必须勾选确认项。</>
+              <>{tr("未勾选时将使用下方「与列表相同的筛选条件」；必须勾选确认项。")}</>
             ) : null}
           </Typography.Paragraph>
           <Form form={bulkForm} layout="vertical">
-          <Form.Item label="操作类型" required>
+          <Form.Item label={tr("操作类型")} required>
             <Radio.Group
               value={bulkOp}
               onChange={(e) => setBulkOp(e.target.value)}
               options={[
-                { label: 'AI 标题优化', value: 'title_optimize' },
-                { label: 'AI 描述生成', value: 'description_generate' },
-                { label: '去背景（主图）', value: 'image_remove_background' },
-                { label: '生成场景图（主图）', value: 'image_generate_scene' },
-                { label: '批量主图生成', value: 'image_batch_generate_main' },
-                { label: '批量图片评分', value: 'image_score' },
-                { label: '批量自动选主图', value: 'image_select_best_main' },
+                { label: tr("AI 标题优化"), value: 'title_optimize' },
+                { label: tr("AI 描述生成"), value: 'description_generate' },
+                { label: tr("去背景（主图）"), value: 'image_remove_background' },
+                { label: tr("生成场景图（主图）"), value: 'image_generate_scene' },
+                { label: tr("批量主图生成"), value: 'image_batch_generate_main' },
+                { label: tr("批量图片评分"), value: 'image_score' },
+                { label: tr("批量自动选主图"), value: 'image_select_best_main' },
               ]}
             />
           </Form.Item>
           {(bulkOp === 'title_optimize' || bulkOp === 'description_generate') && (
             <>
               <Form.Item name="language" label={tr("语言")} rules={[{ required: true }]}>
-                <Select options={AI_LANGUAGE_OPTIONS} placeholder="请选择生成语言" />
+                <Select options={AI_LANGUAGE_OPTIONS} placeholder={tr("请选择生成语言")} />
               </Form.Item>
-              <Form.Item name="platform" label="平台口径" rules={[{ required: true }]}>
+              <Form.Item name="platform" label={tr("平台口径")} rules={[{ required: true }]}>
                 <Select
                   options={AI_TARGET_PLATFORM_OPTIONS}
-                  placeholder="请选择目标平台"
+                  placeholder={tr("请选择目标平台")}
                   showSearch
                   optionFilterProp="label"
                 />
               </Form.Item>
               {bulkOp === 'title_optimize' && (
-                <Form.Item name="maxLength" label="最大长度">
+                <Form.Item name="maxLength" label={tr("最大长度")}>
                   <InputNumber min={20} max={300} className="product-drafts-form__full-control" />
                 </Form.Item>
               )}
-              <Form.Item name="tone" label="语气 / 风格">
-                <Select options={AI_TONE_OPTIONS} placeholder="请选择文案语气" />
+              <Form.Item name="tone" label={tr("语气 / 风格")}>
+                <Select options={AI_TONE_OPTIONS} placeholder={tr("请选择文案语气")} />
               </Form.Item>
-              <Form.Item name="applyMode" label="应用策略" tooltip="成功后写入草稿中的 AI 优化标题 / AI 优化描述">
+              <Form.Item name="applyMode" label={tr("应用策略")} tooltip={tr("成功后写入草稿中的 AI 优化标题 / AI 优化描述")}>
                 <Select
                   options={[
-                    { label: '仅任务记录（不写 AI 草稿字段）', value: 'task_only' },
-                    { label: '写入 AI 优化标题 / AI 优化描述', value: 'save_ai_field' },
+                    { label: tr("仅任务记录（不写 AI 草稿字段）"), value: 'task_only' },
+                    { label: tr("写入 AI 优化标题 / AI 优化描述"), value: 'save_ai_field' },
                   ]}
                 />
               </Form.Item>
@@ -935,20 +935,20 @@ export default function ProductDraftsPage() {
             <>
               <Form.Item
                 name="provider"
-                label="图片处理服务"
-                tooltip={bulkOp === 'image_remove_background' ? '后端会强制 removebg' : '如 openai_image / comfyui'}
+                label={tr("图片处理服务")}
+                tooltip={bulkOp === 'image_remove_background' ? tr('后端会强制 removebg') : tr('如 openai_image / comfyui')}
               >
                 <Input placeholder={bulkOp === 'image_remove_background' ? 'removebg' : 'openai_image'} />
               </Form.Item>
-              <Form.Item name="prompt" label="画面描述（可选，写入任务摘要）">
-                <Input.TextArea rows={3} placeholder="场景/风格提示；勿在公开场合粘贴完整商业秘密" />
+              <Form.Item name="prompt" label={tr("画面描述（可选，写入任务摘要）")}>
+                <Input.TextArea rows={3} placeholder={tr("场景/风格提示；勿在公开场合粘贴完整商业秘密")} />
               </Form.Item>
             </>
           )}
           {selectedRowKeys.length === 0 && (
             <Form.Item>
               <Checkbox checked={bulkConfirmFiltered} onChange={(e) => setBulkConfirmFiltered(e.target.checked)}>
-                我确认：对当前列表<strong>完全相同</strong>的筛选条件下的商品执行批量 AI（关键字 / 状态 / 来源）。
+                {tr("我确认：对当前列表")}<strong>{tr("完全相同")}</strong>{tr("的筛选条件下的商品执行批量 AI（关键字 / 状态 / 来源）。")}
               </Checkbox>
             </Form.Item>
           )}

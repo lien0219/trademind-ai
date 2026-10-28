@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import { Alert, Button, Form, Input, Modal, Space, Typography, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { TaobaoTmallLoginPanel } from '@/pages/Collect/components/TaobaoTmallLoginPanel';
@@ -14,6 +16,7 @@ type Props = {
 };
 
 export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
+  useLanguage();
   const [form] = Form.useForm<{ url: string }>();
   const url = Form.useWatch('url', form);
   const [submitting, setSubmitting] = useState(false);
@@ -39,7 +42,7 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
     const vals = await form.validateFields();
     const raw = vals.url?.trim();
     if (!raw || !validateTaobaoTmallUrl(raw)) {
-      message.warning('请输入有效的淘宝/天猫商品详情页链接');
+      message.warning(tr("请输入有效的淘宝/天猫商品详情页链接"));
       return;
     }
     setSubmitting(true);
@@ -53,7 +56,7 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
       onSubmitted?.();
       onClose();
     } catch (e) {
-      message.error(mapCollectErrorMessage(e, 'taobao_tmall'));
+      message.error(tr(mapCollectErrorMessage(e, 'taobao_tmall')));
     } finally {
       setSubmitting(false);
     }
@@ -61,28 +64,26 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
 
   return (
     <Modal
-      title="淘宝/天猫采集"
+      title={tr("淘宝/天猫采集")}
       open={open}
       onCancel={onClose}
       width={680}
       destroyOnHidden
       footer={
         <Space>
-          <Button onClick={onClose}>取消</Button>
+          <Button onClick={onClose}>{tr("取消")}</Button>
           <Button type="primary" loading={submitting} disabled={!canSubmit} onClick={() => void handleSubmit()}>
-            开始采集
-          </Button>
+            {tr("开始采集")}</Button>
         </Space>
       }
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        部分淘宝/天猫商品需要登录后才能采集。如遇安全验证或滑块，请在采集浏览器中手动完成后再重试。批量采集已开放，建议每批不超过 20 条。
-      </Typography.Paragraph>
+        {tr("部分淘宝/天猫商品需要登录后才能采集。如遇安全验证或滑块，请在采集浏览器中手动完成后再重试。批量采集已开放，建议每批不超过 20 条。")}</Typography.Paragraph>
       <Form form={form} layout="vertical">
         <Form.Item
-          label="商品链接"
+          label={tr("商品链接")}
           name="url"
-          rules={[{ required: true, message: '请填写淘宝/天猫商品链接' }]}
+          rules={[{ required: true, message: tr("请填写淘宝/天猫商品链接") }]}
         >
           <Input placeholder="https://item.taobao.com/item.htm?id=..." />
         </Form.Item>
@@ -98,8 +99,7 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
       <TaobaoTmallLoginPanel loginUrl={url?.trim()} onAuthChange={setAuthStatus} />
       {authStatus && !authStatus.loggedIn ? (
         <Typography.Text type="warning" style={{ display: 'block', marginTop: 12 }}>
-          当前未检测到登录态，部分商品可能采集失败，建议先完成登录后再采集。
-        </Typography.Text>
+          {tr("当前未检测到登录态，部分商品可能采集失败，建议先完成登录后再采集。")}</Typography.Text>
       ) : null}
     </Modal>
   );

@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { CloudUploadOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
@@ -88,7 +90,7 @@ function buildPutValues(fields: AppConfigFieldDTO[], formVals: Record<string, un
 }
 
 function renderFieldControl(f: AppConfigFieldDTO) {
-  const ph = platformPublishFieldPlaceholder(f);
+  const ph = tr(platformPublishFieldPlaceholder(f) ?? '');
   switch (f.type) {
     case 'password':
       return <Input.Password placeholder={ph} autoComplete={f.sensitive ? 'new-password' : 'off'} />;
@@ -102,7 +104,7 @@ function renderFieldControl(f: AppConfigFieldDTO) {
       return (
         <Select
           allowClear={!f.required}
-          options={(f.options ?? []).map((o) => ({ label: o.label, value: o.value }))}
+          options={(f.options ?? []).map((o) => ({ label: tr(o.label), value: o.value }))}
           placeholder={ph || undefined}
         />
       );
@@ -113,8 +115,9 @@ function renderFieldControl(f: AppConfigFieldDTO) {
 }
 
 function PublishToggleCard({ field }: { field: AppConfigFieldDTO }) {
-  const label = platformPublishFieldLabel(field);
-  const extra = platformPublishFieldHelp(field);
+  useLanguage();
+  const label = tr(platformPublishFieldLabel(field) ?? '');
+  const extra = tr(platformPublishFieldHelp(field) ?? '');
   return (
     <div className="tm-system-settings__toggle-card">
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
@@ -135,14 +138,15 @@ function PublishToggleCard({ field }: { field: AppConfigFieldDTO }) {
 }
 
 function PublishFieldItem({ field }: { field: AppConfigFieldDTO }) {
-  const label = platformPublishFieldLabel(field);
+  useLanguage();
+  const label = tr(platformPublishFieldLabel(field) ?? '');
   return (
     <Form.Item
       name={field.name}
       label={label}
       valuePropName={field.type === 'switch' ? 'checked' : 'value'}
-      rules={[{ required: field.required, message: `请填写${label}` }]}
-      extra={platformPublishFieldHelp(field)}
+      rules={[{ required: field.required, message: trFormat("请填写{value0}", { value0: label }) }]}
+      extra={tr(platformPublishFieldHelp(field) ?? '')}
     >
       {renderFieldControl(field)}
     </Form.Item>
@@ -155,6 +159,7 @@ function hasPublishSchema(p: PlatformProviderMeta): boolean {
 }
 
 function PublishPanel({ meta }: { meta: PlatformProviderMeta }) {
+  const language = useLanguage();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const schema = meta.publishConfigSchema;
@@ -162,8 +167,8 @@ function PublishPanel({ meta }: { meta: PlatformProviderMeta }) {
   const st = PLATFORM_STATUS_META[meta.status] ?? { label: meta.status, color: 'default' };
   const groupKey = meta.publishSettingsGroupKey || schema?.groupKey || '';
 
-  const fieldSections = useMemo(() => groupPublishFields(fields), [fields]);
-  const switchFields = useMemo(() => publishSwitchFields(fields), [fields]);
+  const fieldSections = useMemo(() => groupPublishFields(fields), [fields, language]);
+  const switchFields = useMemo(() => publishSwitchFields(fields), [fields, language]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -173,7 +178,7 @@ function PublishPanel({ meta }: { meta: PlatformProviderMeta }) {
       form.resetFields();
       form.setFieldsValue(valuesToFormFields(flds, row.values ?? {}));
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载失败');
+      message.error((e as Error)?.message || tr("加载失败"));
     } finally {
       setLoading(false);
     }
@@ -192,15 +197,15 @@ function PublishPanel({ meta }: { meta: PlatformProviderMeta }) {
           <Alert
             showIcon
             type="warning"
-            message="该平台刊登能力规划中"
-            description="可先保存刊登侧默认参数；真实对接启用前不会调用平台上架 API。"
+            message={tr("该平台刊登能力规划中")}
+            description={tr("可先保存刊登侧默认参数；真实对接启用前不会调用平台上架 API。")}
           />
         )}
         {schema?.description ? (
-          <Alert showIcon type="info" message={`${meta.name} 刊登说明`} description={schema.description} />
+          <Alert showIcon type="info" message={trFormat("{value0} 刊登说明", { value0: meta.name })} description={schema.description} />
         ) : null}
         <Space wrap size={[8, 4]}>
-          <Text type="secondary">接入状态</Text>
+          <Text type="secondary">{tr("接入状态")}</Text>
           <Tag color={st.color}>{st.label}</Tag>
           {groupKey ? (
             <>
@@ -217,10 +222,10 @@ function PublishPanel({ meta }: { meta: PlatformProviderMeta }) {
             try {
               const payload = buildPutValues(fields, vals);
               await putPlatformPublishSettings(meta.platform, payload);
-              message.success('已保存');
+              message.success(tr("已保存"));
               await load();
             } catch (e: unknown) {
-              message.error((e as Error)?.message || '保存失败');
+              message.error((e as Error)?.message || tr("保存失败"));
             }
           }}
         >
@@ -229,11 +234,11 @@ function PublishPanel({ meta }: { meta: PlatformProviderMeta }) {
             return (
               <div key={section} className="tm-platform-publish__section">
                 <Divider orientation="left" orientationMargin={0} style={{ margin: '0 0 16px' }}>
-                  <Text strong>{metaSec.title}</Text>
+                  <Text strong>{tr(metaSec.title ?? '')}</Text>
                 </Divider>
-                {metaSec.description ? (
+                {tr(metaSec.description ?? '') ? (
                   <Paragraph type="secondary" style={{ marginTop: -8, marginBottom: 16, fontSize: 13 }}>
-                    {metaSec.description}
+                    {tr(metaSec.description ?? '')}
                   </Paragraph>
                 ) : null}
                 <Row gutter={[24, 0]}>
@@ -250,11 +255,11 @@ function PublishPanel({ meta }: { meta: PlatformProviderMeta }) {
           {switchFields.length > 0 ? (
             <div className="tm-platform-publish__section">
               <Divider orientation="left" orientationMargin={0} style={{ margin: '0 0 16px' }}>
-                <Text strong>{PUBLISH_FIELD_SECTION_META.publish.title}</Text>
+                <Text strong>{tr(PUBLISH_FIELD_SECTION_META.publish.title ?? '')}</Text>
               </Divider>
-              {PUBLISH_FIELD_SECTION_META.publish.description ? (
+              {tr(PUBLISH_FIELD_SECTION_META.publish.description ?? '') ? (
                 <Paragraph type="secondary" style={{ marginTop: -8, marginBottom: 16, fontSize: 13 }}>
-                  {PUBLISH_FIELD_SECTION_META.publish.description}
+                  {tr(PUBLISH_FIELD_SECTION_META.publish.description ?? '')}
                 </Paragraph>
               ) : null}
               <Row gutter={[16, 16]}>
@@ -269,16 +274,10 @@ function PublishPanel({ meta }: { meta: PlatformProviderMeta }) {
 
           <div className="tm-system-settings__footer" style={{ marginTop: 8, position: 'static', boxShadow: 'none', padding: '12px 0 0' }}>
             <Space wrap>
-              <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
-                保存刊登预设
-              </Button>
-              <Button icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
-                重新加载
-              </Button>
+              <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>{tr("保存刊登预设")}</Button>
+              <Button icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>{tr("重新加载")}</Button>
               {docUrl ? (
-                <Typography.Link href={docUrl} target="_blank" rel="noreferrer">
-                  开放平台文档
-                </Typography.Link>
+                <Typography.Link href={docUrl} target="_blank" rel="noreferrer">{tr("开放平台文档")}</Typography.Link>
               ) : null}
             </Space>
           </div>
@@ -289,6 +288,7 @@ function PublishPanel({ meta }: { meta: PlatformProviderMeta }) {
 }
 
 export default function PlatformPublishSettingsPage() {
+  const language = useLanguage();
   const [loadingProviders, setLoadingProviders] = useState(true);
   const [providers, setProviders] = useState<PlatformProviderMeta[]>([]);
   const [tab, setTab] = useState<string>();
@@ -297,7 +297,7 @@ export default function PlatformPublishSettingsPage() {
     return [...providers]
       .filter(hasPublishSchema)
       .sort((a, b) => preferredPlatformTabOrder(a.platform) - preferredPlatformTabOrder(b.platform));
-  }, [providers]);
+  }, [providers, language]);
 
   const loadProviders = useCallback(async () => {
     setLoadingProviders(true);
@@ -305,7 +305,7 @@ export default function PlatformPublishSettingsPage() {
       const { list } = await queryPlatformProviders();
       setProviders(Array.isArray(list) ? list : []);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载平台列表失败');
+      message.error((e as Error)?.message || tr("加载平台列表失败"));
     } finally {
       setLoadingProviders(false);
     }
@@ -342,8 +342,8 @@ export default function PlatformPublishSettingsPage() {
 
   return (
     <TmPageContainer
-      title="刊登设置"
-      subTitle="配置各平台商品刊登时的默认字段与规则。"
+      title={tr("刊登设置")}
+      subTitle={tr("配置各平台商品刊登时的默认字段与规则。")}
     >
       <div className="tm-system-settings tm-platform-publish">
         <ProCard variant="outlined" className="tm-system-settings__hero">
@@ -352,23 +352,17 @@ export default function PlatformPublishSettingsPage() {
               <CloudUploadOutlined />
             </div>
             <div className="tm-system-settings__hero-body">
-              <Title level={5} className="tm-system-settings__hero-title">
-                刊登默认参数
-              </Title>
-              <Paragraph type="secondary" className="tm-system-settings__hero-desc">
-                此处保存各平台刊登时的默认类目、物流、包裹尺寸等参数，写入系统配置并加密敏感项。与{' '}
-                <Link to="/settings/platforms">平台接入设置</Link> 分开：接入设置填应用 Key / Secret，此处填刊登业务参数。
-                在商品草稿详情选择店铺提交刊登时，可覆盖单次任务参数。查看进度请前往{' '}
-                <Link to="/product/publish-tasks">商品 · 刊登任务</Link>。
+              <Title level={5} className="tm-system-settings__hero-title">{tr("刊登默认参数")}</Title>
+              <Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("此处保存各平台刊登时的默认类目、物流、包裹尺寸等参数，写入系统配置并加密敏感项。与")}<Link to="/settings/platforms">{tr("平台接入设置")}</Link>{tr("分开：接入设置填应用 Key / Secret，此处填刊登业务参数。 在商品草稿详情选择店铺提交刊登时，可覆盖单次任务参数。查看进度请前往")}<Link to="/product/publish-tasks">{tr("商品 · 刊登任务")}</Link>。
               </Paragraph>
             </div>
           </div>
         </ProCard>
 
-        <ProCard variant="outlined" title="选择平台" className="tm-system-settings__panel">
+        <ProCard variant="outlined" title={tr("选择平台")} className="tm-system-settings__panel">
           <Spin spinning={loadingProviders}>
             {items.length === 0 ? (
-              <Paragraph type="secondary">暂无可配置刊登参数的平台，请稍后刷新或联系管理员。</Paragraph>
+              <Paragraph type="secondary">{tr("暂无可配置刊登参数的平台，请稍后刷新或联系管理员。")}</Paragraph>
             ) : (
               <Tabs activeKey={tab} onChange={setTab} items={items} />
             )}

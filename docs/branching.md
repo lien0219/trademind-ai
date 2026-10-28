@@ -36,6 +36,8 @@ PR 必须说明变更范围、风险、本地实际检查、交由 CI 的自动�
 
 PostgreSQL 和 Redis 集成测试由 GitHub Actions service container 提供。CI 中的 `trademind_test` 是作业内临时资源，本地无需创建或维护同名数据库。任何本地集成测试都必须显式指向隔离测试资源，不得回退到开发或生产服务。
 
+Admin 可见文案和国际化变更还必须通过 `pnpm check:ui-copy --strict` 与 `node admin/scripts/i18n-audit.mjs --strict --details`。`Internationalization Coverage Audit` 工作流先以冻结锁文件安装 workspace 依赖，再执行六语言全站严格审计、解析器回归和改动行防回退检查；不得将运行中、跳过或仅增量通过的结果写成全站覆盖通过。
+
 `Project Tests` 的 code quality 与 backend integration 作业各自注入 `APP_ENV=test`、`TEST_DATABASE_URL`、`TEST_REDIS_URL` 并运行独立 PostgreSQL/Redis 服务。常规 Go 单元任务不启用 `integration` build tag；数据库、租户和 Worker 回归由显式集成命令执行，库存任务同时启用 `inventorypostgres`。不得通过移除集成命令或缺失环境后的 skip 让 CI 变绿。
 
 ## 发布流程

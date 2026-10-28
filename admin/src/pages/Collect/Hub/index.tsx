@@ -54,13 +54,13 @@ import './index.less';
 const { Paragraph, Text, Title } = Typography;
 
 const DEDICATED_FEATURE_LABEL: Record<string, string> = {
-  title: '商品标题',
-  price: '商品价格',
-  mainImages: '商品主图',
-  descriptionImages: '详情图片',
-  attributes: '商品参数',
-  skus: '商品规格',
-  stock: '库存（尽力识别）',
+  title: 'Product title',
+  price: 'Product price',
+  mainImages: 'Main images',
+  descriptionImages: 'Detail images',
+  attributes: 'Attributes',
+  skus: 'Variants',
+  stock: 'Stock (best effort)',
 };
 
 const SOURCE_ORDER = ['1688', 'pinduoduo', 'pdd', 'taobao_tmall', 'taobao', 'aliexpress', 'shein_temu', 'custom'];
@@ -91,16 +91,16 @@ function batchRowDisabledForProvider(p: CollectProviderRow): boolean {
 }
 
 function batchButtonTooltipForProvider(p: CollectProviderRow): string | undefined {
-  if (!providerRunnableForSingleTask(p.status)) return '当前版本暂未开放';
+  if (!providerRunnableForSingleTask(p.status)) return tr("当前版本暂未开放");
   if (!p.batchSupported) {
-    if (p.source === 'custom') return CUSTOM_BATCH_DISABLED_TOOLTIP;
+    if (p.source === 'custom') return tr(CUSTOM_BATCH_DISABLED_TOOLTIP);
     if (p.source === 'pinduoduo' || p.source === 'pdd') {
-      return '拼多多批量采集会自动限速，建议先少量测试。部分页面可能需要登录或触发验证。';
+      return tr("拼多多批量采集会自动限速，建议先少量测试。部分页面可能需要登录或触发验证。");
     }
     if (p.source === 'taobao_tmall' || p.source === 'taobao') {
-      return '淘宝/天猫批量采集会逐条打开商品页面，建议每批不要超过 20 条。遇到登录或安全验证时，请先完成验证后重试。';
+      return tr("淘宝/天猫批量采集会逐条打开商品页面，建议每批不要超过 20 条。遇到登录或安全验证时，请先完成验证后重试。");
     }
-    return p.status === 'beta' ? '测试阶段暂未开放批量' : '该平台暂不支持批量采集';
+    return p.status === 'beta' ? tr("测试阶段暂未开放批量") : tr("该平台暂不支持批量采集");
   }
   return undefined;
 }
@@ -126,27 +126,27 @@ function providerCardFeatures(p: CollectProviderRow): string[] {
 
 function featureLabelForProvider(p: CollectProviderRow, feature: string): string {
   if (p.source === 'custom') {
-    return CUSTOM_COLLECT_FEATURE_LABEL[feature] ?? feature;
+    return tr(CUSTOM_COLLECT_FEATURE_LABEL[feature] ?? feature);
   }
-  return DEDICATED_FEATURE_LABEL[feature] ?? feature;
+  return tr(DEDICATED_FEATURE_LABEL[feature] ?? feature);
 }
 
 function providerCardCopy(p: CollectProviderRow): CollectSourceCardCopy {
   if (p.source === 'custom') {
     return {
-      description: CUSTOM_COLLECT_CARD_DESCRIPTION,
-      notes: CUSTOM_COLLECT_CARD_NOTES,
-      typeLabel: COLLECT_HUB_TYPE_HINT.custom.title,
-      typeHint: COLLECT_HUB_TYPE_HINT.custom.summary,
+      description: tr(CUSTOM_COLLECT_CARD_DESCRIPTION),
+      notes: tr(CUSTOM_COLLECT_CARD_NOTES),
+      typeLabel: tr(COLLECT_HUB_TYPE_HINT.custom.title),
+      typeHint: tr(COLLECT_HUB_TYPE_HINT.custom.summary),
     };
   }
   const key = p.source.toLowerCase();
   const description = DEDICATED_HUB_DESCRIPTION[key] ?? p.description?.trim() ?? '';
   const notes = p.notes?.trim() ?? '';
   return {
-    description,
-    notes,
-    typeLabel: COLLECT_HUB_TYPE_HINT.dedicated.title,
+    description: tr(description),
+    notes: tr(notes),
+    typeLabel: tr(COLLECT_HUB_TYPE_HINT.dedicated.title),
     typeHint: '',
   };
 }
@@ -176,7 +176,7 @@ async function openCustomCollectModal(
   try {
     const res = await queryCollectRules({ page: 1, pageSize: 1, status: 'enabled' });
     if (!res.list?.length) {
-      message.warning(NO_COLLECT_RULE_MESSAGE);
+      message.warning(tr(NO_COLLECT_RULE_MESSAGE));
     }
   } catch {
     // 仍打开 Modal，由弹窗内引导创建规则
@@ -193,6 +193,7 @@ function RecentTaskList({
   error?: string;
   tasks: CollectTaskRow[];
 }) {
+  useLanguage();
   if (loading) {
     return <Skeleton active paragraph={{ rows: 4 }} />;
   }
@@ -200,12 +201,11 @@ function RecentTaskList({
     return (
       <Result
         status="warning"
-        title="最近任务加载失败"
-        subTitle="可以进入采集任务列表查看任务状态，或稍后重新打开采集中心。"
+        title={tr("最近任务加载失败")}
+        subTitle={tr("可以进入采集任务列表查看任务状态，或稍后重新打开采集中心。")}
         extra={
           <Button onClick={() => history.push('/collect/tasks')}>
-            查看采集任务
-          </Button>
+            {tr("查看采集任务")}</Button>
         }
       />
     );
@@ -214,9 +214,9 @@ function RecentTaskList({
     return (
       <EmptyState
         compact
-        title="暂无最近采集任务"
-        description="从上方选择采集来源并提交商品链接后，任务会出现在这里。"
-        actionLabel="开始采集商品"
+        title={tr("暂无最近采集任务")}
+        description={tr("从上方选择采集来源并提交商品链接后，任务会出现在这里。")}
+        actionLabel={tr("开始采集商品")}
         actionPath="/collect/hub"
       />
     );
@@ -230,8 +230,7 @@ function RecentTaskList({
         <List.Item
           actions={[
             <Button key="view" type="link" onClick={() => history.push(`/collect/tasks?source=${encodeURIComponent(task.source)}`)}>
-              查看
-            </Button>,
+              {tr("查看")}</Button>,
           ]}
         >
           <List.Item.Meta
@@ -269,6 +268,7 @@ function BrowserProfileSummary({
   error?: string;
   profiles: BrowserProfileRow[];
 }) {
+  useLanguage();
   if (loading) {
     return <Skeleton active paragraph={{ rows: 3 }} />;
   }
@@ -277,9 +277,9 @@ function BrowserProfileSummary({
       <Alert
         type="warning"
         showIcon
-        message="登录状态加载失败"
-        description="需要登录或验证码的平台，请到采集浏览器登录状态页面重新检测后再采集。"
-        action={<Button size="small" onClick={() => history.push('/collect/browser-profiles')}>去处理</Button>}
+        message={tr("登录状态加载失败")}
+        description={tr("需要登录或验证码的平台，请到采集浏览器登录状态页面重新检测后再采集。")}
+        action={<Button size="small" onClick={() => history.push('/collect/browser-profiles')}>{tr("去处理")}</Button>}
       />
     );
   }
@@ -287,9 +287,9 @@ function BrowserProfileSummary({
     return (
       <EmptyState
         compact
-        title="暂无已保存登录状态"
-        description="淘宝/天猫、拼多多或部分自定义网站可能需要登录后采集。"
-        actionLabel="管理登录状态"
+        title={tr("暂无已保存登录状态")}
+        description={tr("淘宝/天猫、拼多多或部分自定义网站可能需要登录后采集。")}
+        actionLabel={tr("管理登录状态")}
         actionPath="/collect/browser-profiles"
       />
     );
@@ -349,7 +349,7 @@ export default function CollectHubPage() {
         setProviderState({
           loading: false,
           data: [],
-          error: error instanceof Error ? error.message : '采集来源加载失败',
+          error: error instanceof Error ? error.message : tr("采集来源加载失败"),
         });
       }
     }
@@ -381,7 +381,7 @@ export default function CollectHubPage() {
           setRecentState({
             loading: false,
             data: [],
-            error: error instanceof Error ? error.message : '最近采集任务加载失败',
+            error: error instanceof Error ? error.message : tr("最近采集任务加载失败"),
           });
           setFailedTotal(undefined);
         }
@@ -406,7 +406,7 @@ export default function CollectHubPage() {
           setProfileState({
             loading: false,
             data: [],
-            error: error instanceof Error ? error.message : '登录状态加载失败',
+            error: error instanceof Error ? error.message : tr("登录状态加载失败"),
           });
         }
       }
@@ -444,11 +444,9 @@ export default function CollectHubPage() {
   const pageExtra = (
     <OperationToolbar>
       <Button icon={<HistoryOutlined />} onClick={() => history.push('/collect/tasks')}>
-        采集任务
-      </Button>
+        {tr("采集任务")}</Button>
       {mayManagePlatform ? <Button icon={<SettingOutlined />} onClick={() => history.push('/settings/collector')}>
-        采集设置
-      </Button> : null}
+        {tr("采集设置")}</Button> : null}
     </OperationToolbar>
   );
 
@@ -462,13 +460,11 @@ export default function CollectHubPage() {
       <div className="tm-collect-hub">
         <section className="tm-collect-hub-hero">
           <div className="tm-collect-hub-hero__main">
-            <Text className="tm-collect-hub-hero__eyebrow">跨境商品采集入口</Text>
+            <Text className="tm-collect-hub-hero__eyebrow">{tr("跨境商品采集入口")}</Text>
             <Title level={4} className="tm-collect-hub-hero__title">
-              先选择来源，再把商品链接转成可运营草稿
-            </Title>
+              {tr("先选择来源，再把商品链接转成可运营草稿")}</Title>
             <Paragraph className="tm-collect-hub-hero__desc">
-              采集任务会进入队列处理。遇到登录、验证码或平台限制时，请先完成采集浏览器登录状态检测，再重试或批量恢复失败任务。
-            </Paragraph>
+              {tr("采集任务会进入队列处理。遇到登录、验证码或平台限制时，请先完成采集浏览器登录状态检测，再重试或批量恢复失败任务。")}</Paragraph>
             <OperationToolbar>
               <Button
                 type="primary"
@@ -477,42 +473,39 @@ export default function CollectHubPage() {
                 disabled={!canCollect || !primaryProvider || providerState.loading}
                 onClick={() => primaryProvider && openSingleCollect(primaryProvider)}
               >
-                开始采集商品
-              </Button>
+                {tr("开始采集商品")}</Button>
               <Button size="large" icon={<FileSearchOutlined />} disabled={!canCollect} onClick={() => history.push('/collect/batches')}>
-                批量采集
-              </Button>
+                {tr("批量采集")}</Button>
               {mayManagePlatform ? <Button size="large" type="link" onClick={() => history.push('/collect/rules')}>
-                管理采集规则
-              </Button> : null}
+                {tr("管理采集规则")}</Button> : null}
             </OperationToolbar>
           </div>
           <div className="tm-collect-hub-hero__side">
             <MetricCard
-              title="支持来源"
+              title={tr("支持来源")}
               value={providerState.loading ? '—' : sortedProviders.length}
-              description="按接口返回的采集器列表"
+              description={tr("按接口返回的采集器列表")}
               intent="primary"
               icon={<LinkOutlined />}
             />
             <MetricCard
-              title="可单条采集"
+              title={tr("可单条采集")}
               value={providerState.loading ? '—' : runnableProviders.length}
-              description="已可用或测试中"
+              description={tr("已可用或测试中")}
               intent="success"
               icon={<CloudDownloadOutlined />}
             />
             <MetricCard
-              title="批量入口"
+              title={tr("批量入口")}
               value={providerState.loading ? '—' : batchProviders.length}
-              description="支持批量提交的来源"
+              description={tr("支持批量提交的来源")}
               intent="data"
               icon={<FileSearchOutlined />}
             />
             <MetricCard
-              title="失败待恢复"
+              title={tr("失败待恢复")}
               value={recentState.loading ? '—' : failedTotal ?? '—'}
-              description="来自采集任务接口"
+              description={tr("来自采集任务接口")}
               intent="warning"
               icon={<WarningOutlined />}
               onClick={() => history.push('/collect/tasks?status=failed')}
@@ -523,16 +516,15 @@ export default function CollectHubPage() {
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={16}>
             <SectionCard
-              title="采集来源"
-              description="专用采集器优先用于已适配平台；自定义采集器适合未适配网站，使用前建议先测试规则。"
+              title={tr("采集来源")}
+              description={tr("专用采集器优先用于已适配平台；自定义采集器适合未适配网站，使用前建议先测试规则。")}
               headerExtra={
                 <Button
                   icon={<ReloadOutlined />}
                   loading={providerState.loading}
                   onClick={() => void loadProviders()}
                 >
-                  重新加载
-                </Button>
+                  {tr("重新加载")}</Button>
               }
             >
               {providerState.loading ? (
@@ -546,24 +538,22 @@ export default function CollectHubPage() {
               ) : providerState.error ? (
                 <Result
                   status="warning"
-                  title="采集来源加载失败"
-                  subTitle="请检查采集服务配置或稍后重试。已有任务可以继续在采集任务页面查看。"
+                  title={tr("采集来源加载失败")}
+                  subTitle={tr("请检查采集服务配置或稍后重试。已有任务可以继续在采集任务页面查看。")}
                   extra={
                     <Space wrap>
                       <Button type="primary" onClick={() => history.push('/settings/collector')}>
-                        检查采集设置
-                      </Button>
+                        {tr("检查采集设置")}</Button>
                       <Button onClick={() => history.push('/collect/tasks')}>
-                        查看采集任务
-                      </Button>
+                        {tr("查看采集任务")}</Button>
                     </Space>
                   }
                 />
               ) : sortedProviders.length === 0 ? (
                 <EmptyState
-                  title="暂无可用采集来源"
-                  description="请先到采集设置中检查采集服务配置，或确认后端已返回采集器列表。"
-                  actionLabel="检查采集设置"
+                  title={tr("暂无可用采集来源")}
+                  description={tr("请先到采集设置中检查采集服务配置，或确认后端已返回采集器列表。")}
+                  actionLabel={tr("检查采集设置")}
                   actionPath="/settings/collector"
                 />
               ) : (
@@ -583,14 +573,17 @@ export default function CollectHubPage() {
                           statusTag={statusTag}
                           features={features}
                           singleDisabled={!canCollect || !providerRunnableForSingleTask(provider.status)}
-                          singleTooltip={providerRunnableForSingleTask(provider.status) ? undefined : '当前版本暂未开放'}
+                          singleTooltip={providerRunnableForSingleTask(provider.status) ? undefined : tr("当前版本暂未开放")}
                           batchDisabled={!canCollect || batchRowDisabledForProvider(provider)}
-                          batchTooltip={batchButtonTooltipForProvider(provider)}
+                          batchTooltip={(() => {
+                            const tooltip = batchButtonTooltipForProvider(provider);
+                            return tooltip ? tr(tooltip) : undefined;
+                          })()}
                           onSingleCollect={() => openSingleCollect(provider)}
                           onBatchCollect={() => history.push(`/collect/batches?source=${encodeURIComponent(provider.source)}`)}
                           onSettings={() => history.push(collectSettingsPath(provider.source))}
                           showSettings={mayManagePlatform}
-                          settingsLabel={collectSettingsConfigButtonLabel(provider.status)}
+                          settingsLabel={tr(collectSettingsConfigButtonLabel(provider.status))}
                         />
                       </Col>
                     );
@@ -603,8 +596,8 @@ export default function CollectHubPage() {
           <Col xs={24} lg={8}>
             <Space direction="vertical" size={16} className="tm-collect-hub__side-stack">
               <SectionCard
-                title="登录与验证风险"
-                description="平台登录态和验证码会影响采集成功率。"
+                title={tr("登录与验证风险")}
+                description={tr("平台登录态和验证码会影响采集成功率。")}
                 compact
               >
                 <div className="tm-collect-hub-risk-list">
@@ -613,7 +606,7 @@ export default function CollectHubPage() {
                       <LoginOutlined />
                       <div className="tm-collect-hub-risk__content">
                         <Text strong>{provider.name}</Text>
-                        <Text type="secondary">可能需要采集浏览器登录或人工验证</Text>
+                        <Text type="secondary">{tr("可能需要采集浏览器登录或人工验证")}</Text>
                       </div>
                     </div>
                   ))}
@@ -621,12 +614,11 @@ export default function CollectHubPage() {
               </SectionCard>
 
               <SectionCard
-                title="浏览器登录状态"
-                description="用于处理登录页、验证码和安全验证。"
+                title={tr("浏览器登录状态")}
+                description={tr("用于处理登录页、验证码和安全验证。")}
                 headerExtra={
                   <Button type="link" onClick={() => history.push('/collect/browser-profiles')}>
-                    管理
-                  </Button>
+                    {tr("管理")}</Button>
                 }
                 compact
               >
@@ -638,17 +630,17 @@ export default function CollectHubPage() {
               </SectionCard>
 
               <SectionCard
-                title="失败恢复"
-                description="失败任务保留原因和重试入口。"
+                title={tr("失败恢复")}
+                description={tr("失败任务保留原因和重试入口。")}
                 compact
               >
                 <div className="tm-collect-hub-recovery">
                   <SafetyCertificateOutlined />
                   <div>
-                    <Text strong>{failedTotal ?? '—'} 个失败任务</Text>
-                    <Text type="secondary">进入任务列表查看原因、登录提示和重试入口。</Text>
+                    <Text strong>{failedTotal ?? '—'} {tr("个失败任务")}</Text>
+                    <Text type="secondary">{tr("进入任务列表查看原因、登录提示和重试入口。")}</Text>
                   </div>
-                  <Button onClick={() => history.push('/collect/tasks?status=failed')}>去处理</Button>
+                  <Button onClick={() => history.push('/collect/tasks?status=failed')}>{tr("去处理")}</Button>
                 </div>
               </SectionCard>
             </Space>
@@ -658,12 +650,11 @@ export default function CollectHubPage() {
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={16}>
             <SectionCard
-              title="最近采集任务"
-              description="用于确认任务是否已进入队列，以及失败后下一步处理方式。"
+              title={tr("最近采集任务")}
+              description={tr("用于确认任务是否已进入队列，以及失败后下一步处理方式。")}
               headerExtra={
                 <Button type="link" onClick={() => history.push('/collect/tasks')}>
-                  查看全部
-                </Button>
+                  {tr("查看全部")}</Button>
               }
             >
               <RecentTaskList
@@ -674,14 +665,14 @@ export default function CollectHubPage() {
             </SectionCard>
           </Col>
           <Col xs={24} lg={8}>
-            <SectionCard title="相关管理入口" description="采集前后的常用配置和记录。" compact>
+            <SectionCard title={tr("相关管理入口")} description={tr("采集前后的常用配置和记录。")} compact>
               <div className="tm-collect-hub-links">
                 <Button block onClick={() => history.push('/collect/tasks')}>{tr("采集任务")}</Button>
                 <Button block onClick={() => history.push('/collect/batches')}>{tr("批量采集")}</Button>
-                <Button block onClick={() => history.push('/collect/browser-profiles')}>浏览器登录状态</Button>
+                <Button block onClick={() => history.push('/collect/browser-profiles')}>{tr("浏览器登录状态")}</Button>
                 {mayManagePlatform ? <Button block onClick={() => history.push('/collect/rules')}>{tr("采集规则")}</Button> : null}
                 <Button block onClick={() => history.push('/collect/monitor')}>{tr("采集监控")}</Button>
-                {mayManagePlatform ? <Button block onClick={() => history.push('/settings/collector')}>采集设置</Button> : null}
+                {mayManagePlatform ? <Button block onClick={() => history.push('/settings/collector')}>{tr("采集设置")}</Button> : null}
               </div>
             </SectionCard>
           </Col>

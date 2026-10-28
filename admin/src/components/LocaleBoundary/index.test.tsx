@@ -39,3 +39,23 @@ it('preserves unsaved fields, component state and mount effects on a language ch
   expect(mounted).toHaveBeenCalledTimes(1);
   expect(unmounted).not.toHaveBeenCalled();
 });
+
+it('does not write the locale again when the Umi provider replaces its setter', () => {
+  const configure = vi.fn();
+  vi.mocked(useAntdConfigSetter).mockReturnValue(configure);
+  const { rerender } = render(<LocaleBoundary><input defaultValue="draft" /></LocaleBoundary>);
+  const field = screen.getByRole('textbox');
+  expect(configure).toHaveBeenCalledTimes(1);
+
+  // Umi creates a new setter after each config state update.
+  const replacement = vi.fn();
+  vi.mocked(useAntdConfigSetter).mockReturnValue(replacement);
+  rerender(<LocaleBoundary><input defaultValue="draft" /></LocaleBoundary>);
+  expect(replacement).not.toHaveBeenCalled();
+  expect(screen.getByRole('textbox')).toBe(field);
+
+  act(() => setLanguage('en-US'));
+  expect(replacement).toHaveBeenCalledTimes(1);
+  expect(replacement).toHaveBeenLastCalledWith(expect.objectContaining({ locale: expect.objectContaining({ locale: 'en' }) }));
+  expect(screen.getByRole('textbox')).toBe(field);
+});

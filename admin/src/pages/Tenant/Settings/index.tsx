@@ -31,11 +31,11 @@ type TenantProfileForm = {
 };
 
 const TENANT_STATUS_LABELS: Record<string, string> = {
-  pending: tr("待开通"),
-  active: tr("正常"),
-  suspended: tr("已暂停"),
-  archived: tr("已归档"),
-  closed: tr("已关闭"),
+  get pending() { return tr("待开通"); },
+  get active() { return tr("正常"); },
+  get suspended() { return tr("已暂停"); },
+  get archived() { return tr("已归档"); },
+  get closed() { return tr("已关闭"); },
 };
 
 export default function TenantSettingsPage() {
@@ -150,7 +150,7 @@ export default function TenantSettingsPage() {
   const formatAdvanced = () => {
     const result = inspectTenantSettings(advancedText);
     if (!result.ok) {
-      setAdvancedError(tr(result.error));
+      setAdvancedError(result.error);
       return;
     }
     setAdvancedText(JSON.stringify(result.value, null, 2));
@@ -365,7 +365,7 @@ export default function TenantSettingsPage() {
                 disabled={submitting}
                 style={{ fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace' }}
               />
-              {advancedError ? <Alert type="error" showIcon message={advancedError} /> : null}
+              {advancedError ? <Alert type="error" showIcon message={tr(advancedError)} /> : null}
               <Space wrap>
                 <Button onClick={formatAdvanced} disabled={submitting}>{tr("校验并格式化")}</Button>
                 <Popconfirm title={tr("清空全部扩展选项？")} description={tr("只会改变编辑框内容，点击保存后才会提交。")} onConfirm={() => updateAdvancedText('{}')} okText={tr("清空")} cancelText={tr("取消")}>

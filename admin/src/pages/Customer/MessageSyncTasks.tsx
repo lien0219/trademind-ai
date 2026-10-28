@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { Button, Drawer, Popconfirm, Space, Tag, Typography, message } from 'antd';
@@ -38,6 +40,7 @@ function tagFromStatus(raw: string) {
 }
 
 export default function CustomerMessageSyncTasksPage() {
+  const language = useLanguage();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof CUSTOMER_SYNC_QUERY_KEYS)[number], string | undefined>>(
       CUSTOMER_SYNC_QUERY_KEYS,
@@ -107,7 +110,7 @@ export default function CustomerMessageSyncTasksPage() {
   const columns: ProColumns<CustomerMessageSyncTaskRow>[] = useMemo(
     () => [
       {
-        title: '创建时间范围',
+        title: tr("创建时间范围"),
         dataIndex: 'createdRange',
         hideInTable: true,
         valueType: 'dateTimeRange',
@@ -119,20 +122,20 @@ export default function CustomerMessageSyncTasksPage() {
         },
       },
       {
-        title: '创建时间',
+        title: tr("创建时间"),
         dataIndex: 'createdAt',
         width: 168,
         search: false,
         render: (_, r) => formatDateTime(r.createdAt),
       },
       {
-        title: '店铺 ID',
+        title: tr("店铺 ID"),
         dataIndex: 'shopId',
         hideInTable: true,
         valueType: 'text',
       },
       {
-        title: '店铺',
+        title: tr("店铺"),
         dataIndex: 'shopName',
         width: 140,
         search: false,
@@ -140,7 +143,7 @@ export default function CustomerMessageSyncTasksPage() {
         render: (_, r) => r.shopName || '—',
       },
       {
-        title: '平台',
+        title: tr("平台"),
         dataIndex: 'platform',
         width: 100,
         valueType: 'select',
@@ -153,13 +156,13 @@ export default function CustomerMessageSyncTasksPage() {
         render: (_, r) => platformLabel(r.platform),
       },
       {
-        title: '模式',
+        title: tr("模式"),
         dataIndex: 'mode',
         width: 96,
         search: false,
       },
       {
-        title: '状态',
+        title: tr("状态"),
         dataIndex: 'status',
         width: 96,
         valueType: 'select',
@@ -167,62 +170,62 @@ export default function CustomerMessageSyncTasksPage() {
         render: (_, r) => tagFromStatus(r.status),
       },
       {
-        title: '总计',
+        title: tr("总计"),
         dataIndex: 'totalCount',
         width: 72,
         search: false,
       },
       {
-        title: '成功',
+        title: tr("成功"),
         dataIndex: 'successCount',
         width: 72,
         search: false,
       },
       {
-        title: '失败',
+        title: tr("失败"),
         dataIndex: 'failedCount',
         width: 72,
         search: false,
       },
       {
-        title: '开始',
+        title: tr("开始"),
         dataIndex: 'startedAt',
         width: 156,
         search: false,
         render: (_, r) => (r.startedAt ? formatDateTime(r.startedAt) : '—'),
       },
       {
-        title: '结束',
+        title: tr("结束"),
         dataIndex: 'finishedAt',
         width: 156,
         search: false,
         render: (_, r) => (r.finishedAt ? formatDateTime(r.finishedAt) : '—'),
       },
       {
-        title: '错误',
+        title: tr("错误"),
         dataIndex: 'errorMessage',
         ellipsis: true,
         search: false,
         render: (_, r) => r.errorMessage || '—',
       },
       {
-        title: '操作',
+        title: tr("操作"),
         valueType: 'option',
         width: 140,
         render: (_, r) => (
           <Space>
-            <a onClick={() => void openDetail(r.id)}>查看</a>
+            <a onClick={() => void openDetail(r.id)}>{tr("查看")}</a>
             {r.status === 'failed' || r.status === 'partial_success' ? (
               <Popconfirm
-                title="确认重试该同步任务？"
+                title={tr("确认重试该同步任务？")}
                 onConfirm={async () => {
                   await retryCustomerMessageSyncTask(r.id);
-                  message.success('已提交重试');
+                  message.success(tr("已提交重试"));
                   actionRef.current?.reload();
                 }}
               >
                 <Button type="link" size="small" style={{ padding: 0 }}>
-                  重试
+                  {tr("重试")}
                 </Button>
               </Popconfirm>
             ) : null}
@@ -230,11 +233,11 @@ export default function CustomerMessageSyncTasksPage() {
         ),
       },
     ],
-    [],
+    [language],
   );
 
   return (
-    <TmPageContainer title="客服消息同步任务">
+    <TmPageContainer title={tr("客服消息同步任务")}>
       <ProTable<CustomerMessageSyncTaskRow>
         rowKey="id"
         actionRef={actionRef}
@@ -260,7 +263,7 @@ export default function CustomerMessageSyncTasksPage() {
             });
           },
         }}
-        headerTitle="同步记录"
+        headerTitle={tr("同步记录")}
         request={async (params) => {
           const qp = {
             page: params.current ?? tablePage,
@@ -294,7 +297,7 @@ export default function CustomerMessageSyncTasksPage() {
 
       <Drawer
         width={560}
-        title={detail ? `同步任务 ${detail.id}` : '详情'}
+        title={detail ? trFormat("同步任务 {value0}", { value0: detail.id }) : tr("详情")}
         open={detailOpen}
         destroyOnHidden
         onClose={closeDetail}
@@ -302,23 +305,23 @@ export default function CustomerMessageSyncTasksPage() {
         {detail && (
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <div>
-              <Typography.Text strong>状态：</Typography.Text> {tagFromStatus(detail.status)}
+              <Typography.Text strong>{tr("状态：")}</Typography.Text> {tagFromStatus(detail.status)}
             </div>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
-              <Typography.Text strong>店铺：</Typography.Text> {detail.shopName || detail.shopId}{' '}
+              <Typography.Text strong>{tr("店铺：")}</Typography.Text> {detail.shopName || detail.shopId}{' '}
               <Typography.Text type="secondary">({platformLabel(detail.platform)})</Typography.Text>
             </Typography.Paragraph>
             <Typography.Paragraph copyable={{ text: detail.id }}>
-              <Typography.Text strong>任务编号：</Typography.Text> {detail.id}
+              <Typography.Text strong>{tr("任务编号：")}</Typography.Text> {detail.id}
             </Typography.Paragraph>
             {detail.errorMessage ? (
               <Typography.Paragraph type="danger">
-                <Typography.Text strong>失败原因：</Typography.Text> {detail.errorMessage}
+                <Typography.Text strong>{tr("失败原因：")}</Typography.Text> {detail.errorMessage}
               </Typography.Paragraph>
             ) : null}
             <TechnicalDetails>
-              <TaskJsonBlock title="任务输入" value={detail.input} />
-              <TaskJsonBlock title="任务输出" value={detail.output} last />
+              <TaskJsonBlock title={tr("任务输入")} value={detail.input} />
+              <TaskJsonBlock title={tr("任务输出")} value={detail.output} last />
             </TechnicalDetails>
           </Space>
         )}

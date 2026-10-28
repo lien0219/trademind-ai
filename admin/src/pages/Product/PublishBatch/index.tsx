@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import PublishBoundaryBanner from '@/components/platform/PublishBoundaryBanner';
 import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
 import { TmPageContainer, TechnicalDetails } from '@/components/ui';
@@ -101,10 +103,17 @@ function parseConfigError(e: unknown): { title?: string; message: string; techni
       technical: data.technicalDetails as Record<string, unknown> | undefined,
     };
   }
-  return { message: err.message || '操作失败' };
+  return { message: err.message || tr("操作失败") };
+}
+
+function localizePublishConfigMessage(value?: string): string {
+  if (!value) return '';
+  if (value === '刊登配置不正确' || value === '配置校验失败' || value === '操作失败') return tr(value);
+  return value;
 }
 
 export default function PublishBatchWizardPage() {
+  const language = useLanguage();
   const location = useLocation();
   const { user, can } = usePermission();
   const canCreatePublishDraft = can(PERMISSIONS.PUBLISH_CREATE_DRAFT);
@@ -147,7 +156,7 @@ export default function PublishBatchWizardPage() {
   const expectedTasks = productIds.length * selectedTargetList.length;
   const matrixLimitError = useMemo(
     () => validatePublishBatchMatrix(productIds.length, selectedTargetList.length),
-    [productIds.length, selectedTargetList.length],
+    [productIds.length, selectedTargetList.length, language],
   );
   const dirty = step > 1 || Object.keys(commonConfig).length > 0 || Object.keys(overrides).length > 0;
 
@@ -183,10 +192,10 @@ export default function PublishBatchWizardPage() {
     if (existing && (existing.step > 1 || Object.keys(existing.commonConfig || {}).length)) {
       setDraftPrompted(true);
       Modal.confirm({
-        title: '恢复未完成的批量刊登配置？',
-        content: '检测到本批商品有未提交的向导草稿，是否恢复？',
-        okText: '恢复草稿',
-        cancelText: '重新开始',
+        title: tr("恢复未完成的批量刊登配置？"),
+        content: tr("检测到本批商品有未提交的向导草稿，是否恢复？"),
+        okText: tr("恢复草稿"),
+        cancelText: tr("重新开始"),
         onOk: () => restoreDraft(existing),
         onCancel: () => clearDraft(),
       });
@@ -228,7 +237,7 @@ export default function PublishBatchWizardPage() {
       );
       setProducts(rows.filter(Boolean) as ProductListRow[]);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载商品失败');
+      message.error((e as Error)?.message || tr("加载商品失败"));
     } finally {
       setLoadingProducts(false);
     }
@@ -244,7 +253,7 @@ export default function PublishBatchWizardPage() {
       const res = await fetchGlobalPublishTargets();
       setPlatforms(res.platforms ?? []);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载刊登目标失败');
+      message.error((e as Error)?.message || tr("加载刊登目标失败"));
     } finally {
       setLoadingPlatforms(false);
     }
@@ -284,7 +293,7 @@ export default function PublishBatchWizardPage() {
 
   const runCheck = async () => {
     if (!canCreatePublishDraft) {
-      message.error('当前账号无刊登草稿写权限');
+      message.error(tr("当前账号无刊登草稿写权限"));
       return;
     }
     const clientErr = validatePublishConfigClient(commonConfig);
@@ -293,15 +302,15 @@ export default function PublishBatchWizardPage() {
       return;
     }
     if (selectedTargetList.some((target) => isDouyinPlatform(target.platform))) {
-      message.error('抖店平台草稿需逐商品进入运营任务中心并人工审核');
+      message.error(tr("抖店平台草稿需逐商品进入运营任务中心并人工审核"));
       return;
     }
     if (!productIds.length || !selectedTargetList.length) {
-      message.warning('请先选择商品和刊登目标');
+      message.warning(tr("请先选择商品和刊登目标"));
       return;
     }
     if (matrixLimitError) {
-      message.error(matrixLimitError);
+      message.error(tr(matrixLimitError));
       return;
     }
     setChecking(true);
@@ -326,11 +335,11 @@ export default function PublishBatchWizardPage() {
 
   const runCreate = async (onlyReady: boolean) => {
     if (matrixLimitError) {
-      message.error(matrixLimitError);
+      message.error(tr(matrixLimitError));
       return;
     }
     if (selectedTargetList.some((target) => isDouyinPlatform(target.platform))) {
-      message.error('抖店平台草稿需逐商品进入运营任务中心并人工审核');
+      message.error(tr("抖店平台草稿需逐商品进入运营任务中心并人工审核"));
       return;
     }
     setCreating(true);
@@ -342,10 +351,10 @@ export default function PublishBatchWizardPage() {
         overrides,
         onlyReady,
         includeWarnings: !onlyReady,
-        name: `批量刊登 ${productIds.length} 商品`,
+        name: trFormat("批量刊登 {value0} 商品", { value0: productIds.length }),
       });
       clearDraft();
-      message.success(`批次已创建：${res.successCount} 成功，${res.failedCount} 失败，${res.skippedCount} 跳过`);
+      message.success(trFormat("批次已创建：{value0} 成功，{value1} 失败，{value2} 跳过", { value0: res.successCount, value1: res.failedCount, value2: res.skippedCount }));
       history.push(`/product/publish-batches/${res.batchId}`);
     } catch (e: unknown) {
       const parsed = parseConfigError(e);
@@ -357,11 +366,11 @@ export default function PublishBatchWizardPage() {
 
   const invokeCreate = (onlyReady: boolean) => {
     if (!canCreatePublishDraft) {
-      message.error('当前账号无刊登草稿写权限');
+      message.error(tr("当前账号无刊登草稿写权限"));
       return;
     }
     if (matrixLimitError) {
-      message.error(matrixLimitError);
+      message.error(tr(matrixLimitError));
       return;
     }
     if (!checkResult) return;
@@ -372,7 +381,7 @@ export default function PublishBatchWizardPage() {
     });
     const count = creatableItems.length;
     if (count === 0) {
-      message.warning('没有可创建的草稿项');
+      message.warning(tr("没有可创建的草稿项"));
       return;
     }
     const localDraftOnly =
@@ -404,7 +413,7 @@ export default function PublishBatchWizardPage() {
       seen.add(r.key);
       return true;
     });
-  }, [products, selectedTargetList, commonConfig, overrides]);
+  }, [products, selectedTargetList, commonConfig, overrides, language]);
 
   const previewCells = useMemo(
     () =>
@@ -424,10 +433,10 @@ export default function PublishBatchWizardPage() {
   const handleBack = () => {
     if (dirty) {
       Modal.confirm({
-        title: '离开批量刊登向导？',
-        content: '未提交的配置已自动保存为草稿，可稍后恢复。',
-        okText: '离开',
-        cancelText: '继续编辑',
+        title: tr("离开批量刊登向导？"),
+        content: tr("未提交的配置已自动保存为草稿，可稍后恢复。"),
+        okText: tr("离开"),
+        cancelText: tr("继续编辑"),
         onOk: () => history.push('/product/drafts'),
       });
       return;
@@ -436,9 +445,9 @@ export default function PublishBatchWizardPage() {
   };
 
   const matrixColumns = [
-    { title: '商品', dataIndex: 'productTitle', ellipsis: true, width: 180 },
+    { title: tr("商品"), dataIndex: 'productTitle', ellipsis: true, width: 180 },
     {
-      title: '刊登目标',
+      title: tr("刊登目标"),
       key: 'target',
       width: 160,
       render: (_: unknown, r: BatchTargetCheckItem) => (
@@ -449,13 +458,13 @@ export default function PublishBatchWizardPage() {
       ),
     },
     {
-      title: '能力',
+      title: tr("能力"),
       dataIndex: 'capability',
       width: 120,
       render: (v: string) => publishCapabilityLabel(v),
     },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 120,
       render: (_: unknown, r: BatchTargetCheckItem) => (
@@ -463,7 +472,7 @@ export default function PublishBatchWizardPage() {
       ),
     },
     {
-      title: '问题',
+      title: tr("问题"),
       key: 'issues',
       ellipsis: true,
       render: (_: unknown, r: BatchTargetCheckItem) =>
@@ -472,21 +481,21 @@ export default function PublishBatchWizardPage() {
   ];
 
   const stepItems = [
-    { title: '确认商品' },
-    { title: '选择平台店铺' },
-    { title: '统一配置' },
-    { title: '单独覆盖' },
-    { title: '检查并创建' },
+    { title: tr("确认商品") },
+    { title: tr("选择平台店铺") },
+    { title: tr("统一配置") },
+    { title: tr("单独覆盖") },
+    { title: tr("检查并创建") },
   ];
 
   if (!canCreatePublishDraft) {
     return (
-      <TmPageContainer title="批量刊登" subTitle="批量创建本地刊登草稿。">
+      <TmPageContainer title={tr("批量刊登")} subTitle={tr("批量创建本地刊登草稿。")}>
         <Alert
           type="info"
           showIcon
-          message="当前账号无刊登草稿写权限"
-          description="可以从商品草稿或刊登任务页面查看已有记录；批量检查和草稿创建已禁用。"
+          message={tr("当前账号无刊登草稿写权限")}
+          description={tr("可以从商品草稿或刊登任务页面查看已有记录；批量检查和草稿创建已禁用。")}
         />
       </TmPageContainer>
     );
@@ -494,8 +503,8 @@ export default function PublishBatchWizardPage() {
 
   return (
     <TmPageContainer
-      title="批量创建刊登草稿"
-      subTitle="为多个商品同时创建平台草稿或本地刊登草稿（不直接上架）"
+      title={tr("批量创建刊登草稿")}
+      subTitle={tr("为多个商品同时创建平台草稿或本地刊登草稿（不直接上架）")}
       onBack={handleBack}
     >
       <Steps current={step} items={stepItems} style={{ marginBottom: 24 }} />
@@ -503,17 +512,17 @@ export default function PublishBatchWizardPage() {
       <PublishBoundaryBanner capability={publishBoundaryCapability} blockedByCredentials />
 
       {step === 0 && (
-        <Card title="第 1 步：确认商品">
+        <Card title={tr("第 1 步：确认商品")}>
           {loadingProducts ? (
             <Spin />
           ) : products.length === 0 ? (
             <Alert
               type="warning"
               showIcon
-              message="未选择商品"
+              message={tr("未选择商品")}
               description={
                 <span>
-                  请先在 <Link to="/product/drafts">商品草稿列表</Link> 勾选商品后点击「批量创建刊登草稿」。
+                  {tr("请先在")} <Link to="/product/drafts">{tr("商品草稿列表")}</Link> {tr("勾选商品后点击「批量创建刊登草稿」。")}
                 </span>
               }
             />
@@ -523,7 +532,7 @@ export default function PublishBatchWizardPage() {
                 type="info"
                 showIcon
                 style={{ marginBottom: 16 }}
-                message={`已选择 ${products.length} 个商品${selectedTargetList.length ? `，预计生成 ${expectedTasks} 个刊登任务` : ''}`}
+                message={trFormat("已选择 {value0} 个商品{value1}", { value0: String(products.length), value1: String(selectedTargetList.length ? trFormat("，预计生成 {value0} 个刊登任务", { value0: expectedTasks }) : '') })}
               />
               <Table
                 rowKey="id"
@@ -533,21 +542,21 @@ export default function PublishBatchWizardPage() {
                 scroll={{ x: 900 }}
                 columns={[
                   {
-                    title: '主图',
+                    title: tr("主图"),
                     dataIndex: 'coverUrl',
                     width: 72,
                     render: (url: string) =>
                       url ? <Image src={url} width={48} height={48} style={{ objectFit: 'cover' }} /> : '—',
                   },
-                  { title: '标题', dataIndex: 'title', ellipsis: true },
+                  { title: tr("标题"), dataIndex: 'title', ellipsis: true },
                   {
-                    title: '来源',
+                    title: tr("来源"),
                     dataIndex: 'source',
                     width: 100,
                     render: (v: string) => productSourceLabel(v),
                   },
                   {
-                    title: '状态',
+                    title: tr("状态"),
                     dataIndex: 'status',
                     width: 100,
                     render: (v: string) => {
@@ -556,27 +565,27 @@ export default function PublishBatchWizardPage() {
                     },
                   },
                   {
-                    title: '运营进度',
+                    title: tr("运营进度"),
                     key: 'progress',
                     width: 140,
                     render: (_: unknown, row: ProductListRow) =>
                       row.operationProgress ? (
                         <Tag color={row.operationProgress.currentStep === 'ready' ? 'green' : 'blue'}>
-                          {row.operationProgress.currentStepLabel || '继续完善'}
+                          {row.operationProgress.currentStepLabel || tr("继续完善")}
                         </Tag>
                       ) : (
                         '—'
                       ),
                   },
                   {
-                    title: '操作',
+                    title: tr("操作"),
                     key: 'ops',
                     width: 140,
                     render: (_: unknown, row: ProductListRow) => (
                       <Space>
-                        <Link to={`/product/drafts/${row.id}`}>查看详情</Link>
+                        <Link to={`/product/drafts/${row.id}`}>{tr("查看详情")}</Link>
                         <Typography.Link type="danger" onClick={() => removeProduct(row.id)}>
-                          移除
+                          {tr("移除")}
                         </Typography.Link>
                       </Space>
                     ),
@@ -587,14 +596,14 @@ export default function PublishBatchWizardPage() {
           )}
           <div style={{ marginTop: 16, textAlign: 'right' }}>
             <Button type="primary" disabled={!products.length} onClick={() => setStep(1)}>
-              下一步
+              {tr("下一步")}
             </Button>
           </div>
         </Card>
       )}
 
       {step === 1 && (
-        <Card title="第 2 步：选择平台和店铺">
+        <Card title={tr("第 2 步：选择平台和店铺")}>
           {loadingPlatforms ? (
             <Spin />
           ) : (
@@ -609,8 +618,8 @@ export default function PublishBatchWizardPage() {
                     <Alert
                       type="info"
                       showIcon
-                      message="抖店需逐商品进入运营任务人工审核"
-                      action={<Link to="/ops/task-center/operation-tasks?create=production">进入运营任务中心</Link>}
+                      message={tr("抖店需逐商品进入运营任务人工审核")}
+                      action={<Link to="/ops/task-center/operation-tasks?create=production">{tr("进入运营任务中心")}</Link>}
                       style={{ marginBottom: 8 }}
                     />
                   ) : null}
@@ -630,14 +639,14 @@ export default function PublishBatchWizardPage() {
                             {disabled ? (
                               <Typography.Text type="secondary">
                                 {' '}
-                                （{shop.authStatus !== 'authorized' ? '店铺未授权' : '已停用'}）
+                                （{shop.authStatus !== 'authorized' ? tr("店铺未授权") : tr("已停用")}）
                               </Typography.Text>
                             ) : null}
                           </Checkbox>
                         );
                       })
                     ) : (
-                      <Typography.Text type="secondary">暂无可用店铺</Typography.Text>
+                      <Typography.Text type="secondary">{tr("暂无可用店铺")}</Typography.Text>
                     )}
                   </Space>
                 </Card>
@@ -649,33 +658,33 @@ export default function PublishBatchWizardPage() {
             showIcon
             style={{ marginTop: 16 }}
             message={
-              matrixLimitError ||
-              `已选 ${selectedTargetList.length} 个刊登目标，预计 ${expectedTasks} 个子任务`
+              (matrixLimitError ? tr(matrixLimitError) : null) ||
+              trFormat("已选 {value0} 个刊登目标，预计 {value1} 个子任务", { value0: String(selectedTargetList.length), value1: String(expectedTasks) })
             }
           />
           <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between' }}>
-            <Button onClick={() => setStep(0)}>上一步</Button>
+            <Button onClick={() => setStep(0)}>{tr("上一步")}</Button>
             <Button type="primary" disabled={!selectedTargetList.length} onClick={() => setStep(2)}>
-              下一步
+              {tr("下一步")}
             </Button>
           </div>
         </Card>
       )}
 
       {step === 2 && (
-        <Card title="第 3 步：统一刊登配置">
+        <Card title={tr("第 3 步：统一刊登配置")}>
           <PublishConfigEditor value={commonConfig} onChange={setCommonConfig} />
           <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between' }}>
-            <Button onClick={() => setStep(1)}>上一步</Button>
+            <Button onClick={() => setStep(1)}>{tr("上一步")}</Button>
             <Button type="primary" onClick={() => setStep(3)}>
-              下一步
+              {tr("下一步")}
             </Button>
           </div>
         </Card>
       )}
 
       {step === 3 && (
-        <Card title="第 4 步：单独配置（可选）">
+        <Card title={tr("第 4 步：单独配置（可选）")}>
           <OverrideConfigTabs
             products={products}
             targets={selectedTargetList}
@@ -688,7 +697,7 @@ export default function PublishBatchWizardPage() {
               type="warning"
               showIcon
               style={{ marginTop: 16 }}
-              message="配置提醒"
+              message={tr("配置提醒")}
               description={
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
                   {configReminders.map((r) => (
@@ -703,12 +712,12 @@ export default function PublishBatchWizardPage() {
               type="error"
               showIcon
               style={{ marginTop: 12 }}
-              message={configError.title || '刊登配置不正确'}
+              message={localizePublishConfigMessage(configError.title) || tr("刊登配置不正确")}
               description={
                 <>
-                  <div>{configError.message}</div>
+                  <div>{localizePublishConfigMessage(configError.message)}</div>
                   {configError.technical ? (
-                    <TechnicalDetails label="技术详情">
+                    <TechnicalDetails label={tr("技术详情")}>
                       <pre style={{ margin: 0, fontSize: 12 }}>{JSON.stringify(configError.technical, null, 2)}</pre>
                     </TechnicalDetails>
                   ) : null}
@@ -717,30 +726,30 @@ export default function PublishBatchWizardPage() {
             />
           )}
           <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between' }}>
-            <Button onClick={() => setStep(2)}>上一步</Button>
+            <Button onClick={() => setStep(2)}>{tr("上一步")}</Button>
             <Button type="primary" loading={checking} onClick={() => void runCheck()}>
-              检查并进入下一步
+              {tr("检查并进入下一步")}
             </Button>
           </div>
         </Card>
       )}
 
       {step === 4 && checkResult && (
-        <Card title="第 5 步：检查并创建">
+        <Card title={tr("第 5 步：检查并创建")}>
           <Descriptions bordered size="small" column={{ xs: 1, sm: 2, md: 3 }} style={{ marginBottom: 16 }}>
-            <Descriptions.Item label="商品数">{checkResult.summary.productCount}</Descriptions.Item>
-            <Descriptions.Item label="目标数">{checkResult.summary.targetCount}</Descriptions.Item>
-            <Descriptions.Item label="预计任务数">{checkResult.summary.taskCount}</Descriptions.Item>
-            <Descriptions.Item label="可创建">
+            <Descriptions.Item label={tr("商品数")}>{checkResult.summary.productCount}</Descriptions.Item>
+            <Descriptions.Item label={tr("目标数")}>{checkResult.summary.targetCount}</Descriptions.Item>
+            <Descriptions.Item label={tr("预计任务数")}>{checkResult.summary.taskCount}</Descriptions.Item>
+            <Descriptions.Item label={tr("可创建")}>
               <Tag color="green">{checkResult.summary.readyCount}</Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="建议检查">
+            <Descriptions.Item label={tr("建议检查")}>
               <Tag color="orange">{checkResult.summary.warningCount}</Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="暂不能创建">
+            <Descriptions.Item label={tr("暂不能创建")}>
               <Tag color="red">{checkResult.summary.blockedCount}</Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="仅本地草稿">{checkResult.summary.localDraftOnlyCount}</Descriptions.Item>
+            <Descriptions.Item label={tr("仅本地草稿")}>{checkResult.summary.localDraftOnlyCount}</Descriptions.Item>
           </Descriptions>
 
           {configReminders.length > 0 && (
@@ -748,7 +757,7 @@ export default function PublishBatchWizardPage() {
               type="warning"
               showIcon
               style={{ marginBottom: 12 }}
-              message="配置提醒"
+              message={tr("配置提醒")}
               description={
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
                   {configReminders.slice(0, 5).map((r) => (
@@ -760,7 +769,7 @@ export default function PublishBatchWizardPage() {
           )}
 
           <Space style={{ marginBottom: 12 }} wrap>
-            <Button onClick={() => setPreviewOpen(true)}>查看生效配置</Button>
+            <Button onClick={() => setPreviewOpen(true)}>{tr("查看生效配置")}</Button>
           </Space>
 
           <Table
@@ -779,21 +788,21 @@ export default function PublishBatchWizardPage() {
           />
 
           <Space style={{ marginTop: 16 }} wrap>
-            <Button onClick={() => setStep(3)}>返回修改配置</Button>
+            <Button onClick={() => setStep(3)}>{tr("返回修改配置")}</Button>
             <Button
               type="primary"
               loading={creating}
               onClick={() => invokeCreate(true)}
               disabled={checkResult.summary.readyCount === 0}
             >
-              只创建可处理的草稿
+              {tr("只创建可处理的草稿")}
             </Button>
             <Button
               loading={creating}
               onClick={() => invokeCreate(false)}
               disabled={checkResult.summary.readyCount + checkResult.summary.warningCount === 0}
             >
-              创建可处理项（含建议检查）
+              {tr("创建可处理项（含建议检查）")}
             </Button>
           </Space>
           {checkResult.summary.blockedCount > 0 && (
@@ -801,7 +810,7 @@ export default function PublishBatchWizardPage() {
               type="warning"
               showIcon
               style={{ marginTop: 12 }}
-              message="暂不能创建的项将自动跳过，不会强行提交。"
+              message={tr("暂不能创建的项将自动跳过，不会强行提交。")}
             />
           )}
         </Card>

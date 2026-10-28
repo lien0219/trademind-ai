@@ -1,3 +1,5 @@
+import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { DollarOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
@@ -60,6 +62,7 @@ function buildPutItems(values: Record<string, unknown>): SettingPutItem[] {
 }
 
 export default function PricingSettingsPage() {
+  useLanguage();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
@@ -90,7 +93,7 @@ export default function PricingSettingsPage() {
         batch_max_size: parseNum(g.batch_max_size, 500),
       });
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载失败');
+      message.error((e as Error)?.message || tr("加载失败"));
     } finally {
       setLoading(false);
     }
@@ -101,7 +104,7 @@ export default function PricingSettingsPage() {
   }, [load]);
 
   return (
-    <TmPageContainer title="商品定价" subTitle="配置默认加价、尾数与平台覆盖规则，用于本地销售价计算。">
+    <TmPageContainer title={tr("商品定价")} subTitle={tr("配置默认加价、尾数与平台覆盖规则，用于本地销售价计算。")}>
       <div className="tm-system-settings">
         <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
@@ -109,12 +112,8 @@ export default function PricingSettingsPage() {
               <DollarOutlined />
             </div>
             <div className="tm-system-settings__hero-body">
-              <Typography.Title level={5} className="tm-system-settings__hero-title">
-                成本价 → 发布价
-              </Typography.Title>
-              <Paragraph type="secondary" className="tm-system-settings__hero-desc">
-                采集价通常是成本价，不建议直接作为发布价。在此配置默认加价与尾数规则；在商品详情或列表「应用定价规则」后，仅更新本地商品规格的销售价，不会自动发布到平台店铺。
-              </Paragraph>
+              <Typography.Title level={5} className="tm-system-settings__hero-title">{tr("成本价 → 发布价")}</Typography.Title>
+              <Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("采集价通常是成本价，不建议直接作为发布价。在此配置默认加价与尾数规则；在商品详情或列表「应用定价规则」后，仅更新本地商品规格的销售价，不会自动发布到平台店铺。")}</Paragraph>
             </div>
           </div>
         </ProCard>
@@ -125,37 +124,35 @@ export default function PricingSettingsPage() {
           onFinish={async (vals) => {
             try {
               await saveSettingsItems(buildPutItems(vals));
-              message.success('已保存');
+              message.success(tr("已保存"));
               await load();
             } catch (e: unknown) {
-              message.error((e as Error)?.message || '保存失败');
+              message.error((e as Error)?.message || tr("保存失败"));
             }
           }}
         >
           <ProCard
             variant="outlined"
-            title="默认定价规则"
+            title={tr("默认定价规则")}
             className="tm-system-settings__panel"
             extra={
-              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
-                重新加载
-              </Button>
+              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>{tr("重新加载")}</Button>
             }
           >
             <Row gutter={[24, 0]}>
               <Col xs={24} md={12} lg={8}>
-                <Form.Item name="default_markup_type" label="加价方式" rules={[{ required: true, message: '请选择加价方式' }]}>
-                  <Select options={MARKUP_TYPE_OPTIONS} />
+                <Form.Item name="default_markup_type" label={tr("加价方式")} rules={[{ required: true, message: tr("请选择加价方式") }]}>
+                  <Select options={MARKUP_TYPE_OPTIONS.map((option) => ({ ...option, label: tr(option.label) }))} />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12} lg={8}>
-                <Form.Item name="default_currency" label="默认币种">
-                  <Select options={PRICING_CURRENCY_OPTIONS} />
+                <Form.Item name="default_currency" label={tr("默认币种")}>
+                  <Select options={PRICING_CURRENCY_OPTIONS.map((option) => ({ ...option, label: tr(option.label) }))} />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12} lg={8}>
-                <Form.Item name="default_rounding_mode" label="尾数规则" extra="例如 .99 使价格显示为 19.99">
-                  <Select options={ROUNDING_MODE_OPTIONS} />
+                <Form.Item name="default_rounding_mode" label={tr("尾数规则")} extra={tr("例如 .99 使价格显示为 19.99")}>
+                  <Select options={ROUNDING_MODE_OPTIONS.map((option) => ({ ...option, label: tr(option.label) }))} />
                 </Form.Item>
               </Col>
             </Row>
@@ -167,9 +164,9 @@ export default function PricingSettingsPage() {
                   <Row gutter={[24, 0]}>
                     <Col xs={24} md={12} lg={8}>
                       <Form.Item
-                        label="加价比例（%）"
+                        label={tr("加价比例（%）")}
                         name="default_markup_percent"
-                        extra={markupType === 'percent' ? '在成本价基础上按百分比加价' : '仅「百分比加价」时生效'}
+                        extra={markupType === 'percent' ? tr("在成本价基础上按百分比加价") : tr("仅「百分比加价」时生效")}
                       >
                         <InputNumber
                           min={0}
@@ -182,9 +179,9 @@ export default function PricingSettingsPage() {
                     </Col>
                     <Col xs={24} md={12} lg={8}>
                       <Form.Item
-                        label="固定加价金额"
+                        label={tr("固定加价金额")}
                         name="default_markup_amount"
-                        extra={markupType === 'fixed' ? '在成本价基础上加固定金额' : '仅「固定金额加价」时生效'}
+                        extra={markupType === 'fixed' ? tr("在成本价基础上加固定金额") : tr("仅「固定金额加价」时生效")}
                       >
                         <InputNumber
                           min={0}
@@ -196,9 +193,9 @@ export default function PricingSettingsPage() {
                     </Col>
                     <Col xs={24} md={12} lg={8}>
                       <Form.Item
-                        label="加价倍率"
+                        label={tr("加价倍率")}
                         name="default_markup_multiplier"
-                        extra={markupType === 'multiplier' ? '例如 1.5 表示成本 x 1.5' : '仅「倍率加价」时生效'}
+                        extra={markupType === 'multiplier' ? tr("例如 1.5 表示成本 x 1.5") : tr("仅「倍率加价」时生效")}
                       >
                         <InputNumber
                           min={0}
@@ -212,9 +209,9 @@ export default function PricingSettingsPage() {
                     </Col>
                     <Col xs={24} md={12} lg={8}>
                       <Form.Item
-                        label="最低利润率（%）"
+                        label={tr("最低利润率（%）")}
                         name="default_min_margin_percent"
-                        tooltip="用于校验或提示；具体行为取决于定价引擎实现"
+                        tooltip={tr("用于校验或提示；具体行为取决于定价引擎实现")}
                       >
                         <InputNumber min={0} max={1000} style={{ width: '100%' }} placeholder="10" />
                       </Form.Item>
@@ -223,42 +220,42 @@ export default function PricingSettingsPage() {
                 );
               }}
             </Form.Item>
-            <Divider plain>成本、佣金与汇率</Divider>
+            <Divider plain>{tr("成本、佣金与汇率")}</Divider>
             <Row gutter={[24, 0]}>
               <Col xs={24} md={12} lg={8}>
-                <Form.Item label="固定运费成本" name="default_shipping_cost">
+                <Form.Item label={tr("固定运费成本")} name="default_shipping_cost">
                   <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="0" />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12} lg={8}>
-                <Form.Item label="按重量运费单价" name="default_shipping_cost_per_weight">
+                <Form.Item label={tr("按重量运费单价")} name="default_shipping_cost_per_weight">
                   <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="0" />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12} lg={8}>
-                <Form.Item label="平台佣金（%）" name="default_platform_commission_percent">
+                <Form.Item label={tr("平台佣金（%）")} name="default_platform_commission_percent">
                   <InputNumber min={0} max={95} precision={2} style={{ width: '100%' }} placeholder="0" />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12} lg={8}>
-                <Form.Item label="最低利润保护" name="default_min_profit">
+                <Form.Item label={tr("最低利润保护")} name="default_min_profit">
                   <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="0" />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12} lg={8}>
-                <Form.Item label="汇率（CNY → 目标币种）" name="default_exchange_rate">
+                <Form.Item label={tr("汇率（CNY → 目标币种）")} name="default_exchange_rate">
                   <InputNumber min={0.0001} precision={6} style={{ width: '100%' }} placeholder="1" />
                 </Form.Item>
               </Col>
             </Row>
           </ProCard>
 
-          <ProCard variant="outlined" title="平台覆盖规则" className="tm-system-settings__panel">
+          <ProCard variant="outlined" title={tr("平台覆盖规则")} className="tm-system-settings__panel">
             <Form.Item
-              label="启用平台覆盖"
+              label={tr("启用平台覆盖")}
               name="enable_platform_pricing_rules"
               valuePropName="checked"
-              extra="开启后，各平台可单独设置加价比例，覆盖默认定价"
+              extra={tr("开启后，各平台可单独设置加价比例，覆盖默认定价")}
             >
               <Switch />
             </Form.Item>
@@ -270,11 +267,11 @@ export default function PricingSettingsPage() {
                 const platformRulesEnabled = !!getFieldValue('enable_platform_pricing_rules');
                 return (
                   <>
-                    <Divider plain>平台加价比例（%）</Divider>
+                    <Divider plain>{tr("平台加价比例（%）")}</Divider>
                     <Row gutter={[16, 0]}>
                       {PRICING_PLATFORM_MARKUPS.map((item) => (
                         <Col xs={24} sm={12} md={6} key={item.name}>
-                          <Form.Item label={item.label} name={item.name}>
+                          <Form.Item label={tr(item.label)} name={item.name}>
                             <InputNumber
                               min={0}
                               style={{ width: '100%' }}
@@ -286,9 +283,7 @@ export default function PricingSettingsPage() {
                       ))}
                     </Row>
                     {!platformRulesEnabled ? (
-                      <Text type="secondary" style={{ display: 'block', marginTop: -8, fontSize: 12 }}>
-                        启用平台覆盖后可配置各平台加价比例
-                      </Text>
+                      <Text type="secondary" style={{ display: 'block', marginTop: -8, fontSize: 12 }}>{tr("启用平台覆盖后可配置各平台加价比例")}</Text>
                     ) : null}
                   </>
                 );
@@ -296,13 +291,13 @@ export default function PricingSettingsPage() {
             </Form.Item>
           </ProCard>
 
-          <ProCard variant="outlined" title="批量操作" className="tm-system-settings__panel">
+          <ProCard variant="outlined" title={tr("批量操作")} className="tm-system-settings__panel">
             <Row gutter={[24, 0]}>
               <Col xs={24} md={12} lg={8}>
                 <Form.Item
-                  label="单次批量定价上限"
+                  label={tr("单次批量定价上限")}
                   name="batch_max_size"
-                  extra="商品列表批量「应用定价规则」时，单次最多处理的规格数量"
+                  extra={tr("商品列表批量「应用定价规则」时，单次最多处理的规格数量")}
                 >
                   <InputNumber min={1} max={5000} style={{ width: '100%' }} placeholder="500" />
                 </Form.Item>
@@ -311,9 +306,7 @@ export default function PricingSettingsPage() {
           </ProCard>
 
           <ProCard variant="outlined" className="tm-system-settings__footer">
-            <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
-              保存配置
-            </Button>
+            <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>{tr("保存配置")}</Button>
           </ProCard>
         </Form>
       </div>

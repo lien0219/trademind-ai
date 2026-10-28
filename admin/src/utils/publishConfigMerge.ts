@@ -1,3 +1,4 @@
+import { trFormat } from '@/i18n';
 import type { PublishConfigLayer } from '@/constants/publishConfig';
 import { CONFIG_FIELD_LABEL, CONFIG_SOURCE_LABEL, labelForConfigValue } from '@/constants/publishConfig';
 import type { PublishConfigOverrides } from '@/services/productPublish';
@@ -90,7 +91,7 @@ export function detectConfigReminders(
   if (priceSources.size > 1) {
     reminders.push({
       key: `price-multi-${productId}-${platform}-${shopId}`,
-      message: `${ctx ? `「${ctx}」` : '该目标'}存在多层价格覆盖，最终以优先级最高的配置为准。`,
+      message: trFormat("{value0}存在多层价格覆盖，最终以优先级最高的配置为准。", { value0: ctx ? `「${ctx}」` : '该目标' }),
       technical: JSON.stringify(Object.fromEntries(pricePaths.map((p) => [p, eff.configSources[p]]))),
     });
   }
@@ -99,7 +100,7 @@ export function detectConfigReminders(
   if (invStrategy && invStrategy !== 'skip_when_unknown') {
     reminders.push({
       key: `inv-unknown-${productId}`,
-      message: `${ctx ? `「${ctx}」` : '该商品'}库存未知时不会自动跳过，请确认库存数据。`,
+      message: trFormat("{value0}库存未知时不会自动跳过，请确认库存数据。", { value0: ctx ? `「${ctx}」` : '该商品' }),
     });
   }
 
@@ -107,7 +108,7 @@ export function detectConfigReminders(
   if (imgMain === 'platform_synced_only') {
     reminders.push({
       key: `img-sync-${productId}-${platform}`,
-      message: `${ctx ? `「${ctx}」` : '该目标'}要求使用已同步平台图片，请确认图片已同步。`,
+      message: trFormat("{value0}要求使用已同步平台图片，请确认图片已同步。", { value0: ctx ? `「${ctx}」` : '该目标' }),
     });
   }
 
@@ -115,7 +116,7 @@ export function detectConfigReminders(
   if (!pkg?.weight && !eff.effectiveConfig.packageWeight) {
     reminders.push({
       key: `pkg-missing-${productId}`,
-      message: `${ctx ? `「${ctx}」` : '该目标'}未设置包裹重量，将使用平台或店铺默认值。`,
+      message: trFormat("{value0}未设置包裹重量，将使用平台或店铺默认值。", { value0: ctx ? `「${ctx}」` : '该目标' }),
     });
   }
 
@@ -125,7 +126,7 @@ export function detectConfigReminders(
   if (hasShopOverride && hasTargetOverride) {
     reminders.push({
       key: `shop-target-${ptKey}`,
-      message: `${ctx ? `「${ctx}」` : '该目标'}同时存在店铺覆盖与商品目标覆盖，商品目标覆盖优先生效。`,
+      message: trFormat("{value0}同时存在店铺覆盖与商品目标覆盖，商品目标覆盖优先生效。", { value0: ctx ? `「${ctx}」` : '该目标' }),
     });
   }
 
@@ -134,7 +135,7 @@ export function detectConfigReminders(
   if (minMargin != null && markup != null && markup < minMargin) {
     reminders.push({
       key: `profit-${productId}`,
-      message: `${ctx ? `「${ctx}」` : '该目标'}加价规则可能低于利润保护线，请人工核对售价。`,
+      message: trFormat("{value0}加价规则可能低于利润保护线，请人工核对售价。", { value0: ctx ? `「${ctx}」` : '该目标' }),
     });
   }
 

@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import { EyeOutlined, ReloadOutlined } from "@ant-design/icons";
 import type { ActionType, ProColumns } from "@ant-design/pro-components";
 import { history } from "@umijs/max";
@@ -39,9 +41,9 @@ import {
 import { PERMISSIONS } from "@/utils/permission";
 
 const STATUS_META = {
-  allocated: { label: "已分仓", color: "success" },
-  allocatable: { label: "可分仓", color: "processing" },
-  blocked: { label: "已阻断", color: "error" },
+  allocated: { source: "已分仓", color: "success" },
+  allocatable: { source: "可分仓", color: "processing" },
+  blocked: { source: "已阻断", color: "error" },
 } as const;
 
 type AssignmentFilter = "all" | "allocated" | "unallocated";
@@ -50,10 +52,10 @@ function allocationStatusTag(
   status: WarehouseAllocationListRow["allocationStatus"],
 ) {
   const meta = STATUS_META[status] ?? {
-    label: status || "未知",
+    source: status || "未知",
     color: "default",
   };
-  return <Tag color={meta.color}>{meta.label}</Tag>;
+  return <Tag color={meta.color}>{tr(meta.source)}</Tag>;
 }
 
 function candidateLabel(candidate: WarehouseAllocationCandidate) {
@@ -62,12 +64,13 @@ function candidateLabel(candidate: WarehouseAllocationCandidate) {
 
 function recommendationPolicyLabel(policy?: string) {
   if (policy === "single_warehouse_default_first_v1") {
-    return "整单可满足优先，其次默认仓，再按仓库编码稳定排序";
+  return tr("整单可满足优先，其次默认仓，再按仓库编码稳定排序");
   }
-  return policy || "当前接口未返回推荐规则";
+  return policy || tr("当前接口未返回推荐规则");
 }
 
 export default function WarehouseAllocationsPage() {
+  const language = useLanguage();
   const { can, readonly } = usePermission();
   const canOperate = !readonly && can(PERMISSIONS.ORDER_OPERATE);
   const actionRef = useRef<ActionType>();
@@ -140,11 +143,11 @@ export default function WarehouseAllocationsPage() {
     }
     const warehouseId = rows[0]?.warehouseId;
     if (!warehouseId || rows.some((row) => row.warehouseId !== warehouseId)) {
-      message.warning("一个拣货波次只能包含同一仓库的订单，请重新选择");
+      message.warning(tr("一个拣货波次只能包含同一仓库的订单，请重新选择"));
       return;
     }
     if (rows.length > 50) {
-      message.warning("单个拣货波次最多包含 50 个订单");
+      message.warning(tr("单个拣货波次最多包含 50 个订单"));
       return;
     }
     setWaveRows(rows);
@@ -152,7 +155,7 @@ export default function WarehouseAllocationsPage() {
     setWaveKey(createFulfillmentWaveIdempotencyKey("create"));
     setWaveError("");
     setWaveOpen(true);
-  }, [canOperate, selectedRows]);
+  }, [canOperate, language, selectedRows]);
 
   const submitCreateWave = useCallback(async () => {
     const warehouseId = waveRows[0]?.warehouseId;
@@ -177,21 +180,21 @@ export default function WarehouseAllocationsPage() {
       setWaveOpen(false);
       setSelectedRows([]);
       await actionRef.current?.reload();
-      message.success("拣货波次创建成功");
+      message.success(tr("拣货波次创建成功"));
       history.push(
         `/orders/fulfillment-waves?drawer=fulfillment-wave&id=${encodeURIComponent(wave.id)}`,
       );
     } catch (error) {
-      const errorMessage = (error as Error)?.message || "拣货波次创建失败";
+      const errorMessage = (error as Error)?.message || tr("拣货波次创建失败");
       const displayMessage = /[\u3400-\u9fff]/.test(errorMessage)
         ? errorMessage
-        : "拣货波次创建失败，请确认订单仍处于已付款、已分仓和完整预占状态";
+        : tr("拣货波次创建失败，请确认订单仍处于已付款、已分仓和完整预占状态");
       setWaveError(displayMessage);
-      message.error(displayMessage);
+      message.error(tr(displayMessage));
     } finally {
       setWaveSubmitting(false);
     }
-  }, [canOperate, waveKey, waveRemark, waveRows, waveSubmitting]);
+  }, [canOperate, language, waveKey, waveRemark, waveRows, waveSubmitting]);
 
   const selectedCandidate = useMemo(
     () =>
@@ -218,12 +221,12 @@ export default function WarehouseAllocationsPage() {
         expectedRevision: selectedCandidate.revision,
         idempotencyKey,
       });
-      message.success("分仓确认成功，整单库存已预占");
+      message.success(tr("分仓确认成功，整单库存已预占"));
       await Promise.all([loadDetail(drawer.id), actionRef.current?.reload()]);
     } catch (error) {
-      const errorMessage = (error as Error)?.message || "分仓确认失败";
-      message.error(errorMessage);
-      setDetailError(`${errorMessage}。候选可能已变化，请刷新后重试。`);
+      const errorMessage = (error as Error)?.message || tr("分仓确认失败");
+      message.error(tr(errorMessage));
+      setDetailError(trFormat("{value0}。候选可能已变化，请刷新后重试。", { value0: errorMessage }));
       setIdempotencyKey(createOrderAllocationIdempotencyKey());
     } finally {
       setConfirming(false);
@@ -233,6 +236,7 @@ export default function WarehouseAllocationsPage() {
     confirming,
     drawer.id,
     idempotencyKey,
+    language,
     loadDetail,
     selectedCandidate,
   ]);
@@ -240,17 +244,17 @@ export default function WarehouseAllocationsPage() {
   const requestConfirmation = useCallback(() => {
     if (!selectedCandidate || confirming) return;
     Modal.confirm({
-      title: "确认整单分配到该仓库？",
-      content: `订单将绑定到 ${candidateLabel(selectedCandidate)}，并在同一事务中预占全部 SKU 库存。`,
-      okText: "确认分仓并预占",
-      cancelText: "取消",
+      title: tr("确认整单分配到该仓库？"),
+      content: trFormat("订单将绑定到 {value0}，并在同一事务中预占全部 SKU 库存。", { value0: candidateLabel(selectedCandidate) }),
+      okText: tr("确认分仓并预占"),
+      cancelText: tr("取消"),
       onOk: confirmSelected,
     });
-  }, [confirmSelected, confirming, selectedCandidate]);
+  }, [confirmSelected, confirming, language, selectedCandidate]);
 
   const columns: ProColumns<WarehouseAllocationListRow>[] = [
     {
-      title: "订单",
+      title: tr("订单"),
       dataIndex: "orderNo",
       width: 190,
       ellipsis: true,
@@ -266,7 +270,7 @@ export default function WarehouseAllocationsPage() {
       ),
     },
     {
-      title: "订单状态",
+      title: tr("订单状态"),
       dataIndex: "status",
       width: 125,
       render: (_, row) => (
@@ -279,20 +283,20 @@ export default function WarehouseAllocationsPage() {
       ),
     },
     {
-      title: "分仓状态",
+      title: tr("分仓状态"),
       dataIndex: "allocationStatus",
       width: 110,
       render: (_, row) => allocationStatusTag(row.allocationStatus),
     },
     {
-      title: "仓库建议",
+      title: tr("仓库建议"),
       dataIndex: "recommendedWarehouseName",
       width: 220,
       render: (_, row) => {
         if (row.allocationStatus === "allocated") {
           return row.warehouseName
             ? `${row.warehouseCode} · ${row.warehouseName}`
-            : "已绑定仓库";
+            : tr("已绑定仓库");
         }
         if (row.recommendedWarehouseId) {
           return (
@@ -308,31 +312,31 @@ export default function WarehouseAllocationsPage() {
             </Space>
           );
         }
-        return <Typography.Text type="secondary">暂无可用建议</Typography.Text>;
+        return <Typography.Text type="secondary">{tr("暂无可用建议")}</Typography.Text>;
       },
     },
     {
-      title: "候选",
+      title: tr("候选"),
       dataIndex: "eligibleCandidateCount",
       width: 105,
       render: (_, row) =>
         `${row.eligibleCandidateCount} / ${row.candidateCount}`,
     },
     {
-      title: "阻断原因",
+      title: tr("阻断原因"),
       dataIndex: "blocks",
       ellipsis: true,
       render: (_, row) =>
         row.blocks?.map((block) => block.message).join("；") || "—",
     },
     {
-      title: "创建时间",
+      title: tr("创建时间"),
       dataIndex: "createdAt",
       valueType: "dateTime",
       width: 170,
     },
     {
-      title: "操作",
+      title: tr("操作"),
       valueType: "option",
       width: 96,
       fixed: "right",
@@ -343,7 +347,7 @@ export default function WarehouseAllocationsPage() {
           icon={<EyeOutlined />}
           onClick={() => drawer.openDrawer(row.id)}
         >
-          查看
+          {tr("查看")}
         </Button>
       ),
     },
@@ -351,15 +355,15 @@ export default function WarehouseAllocationsPage() {
 
   const lineColumns = [
     {
-      title: "商品规格",
+      title: tr("商品规格"),
       dataIndex: "skuCode",
       render: (_: unknown, line: WarehouseAllocationCandidateLine) =>
         line.skuCode || line.productSkuId,
     },
-    { title: "需求", dataIndex: "required", width: 72 },
-    { title: "可用", dataIndex: "available", width: 72 },
+    { title: tr("需求"), dataIndex: "required", width: 72 },
+    { title: tr("可用"), dataIndex: "available", width: 72 },
     {
-      title: "缺口",
+      title: tr("缺口"),
       dataIndex: "shortage",
       width: 72,
       render: (value: number) =>
@@ -374,24 +378,24 @@ export default function WarehouseAllocationsPage() {
   return (
     <PermissionGuard require={PERMISSIONS.ORDER_VIEW} showForbiddenPage>
       <TmPageContainer
-        title="履约分仓"
-        subTitle="按整单规格可用库存计算单仓候选；人工确认并预占后，可将同仓订单组织为持久化拣货波次。"
+        title={tr("履约分仓")}
+        subTitle={tr("按整单规格可用库存计算单仓候选；人工确认并预占后，可将同仓订单组织为持久化拣货波次。")}
       >
         {!canOperate ? (
           <Alert
             type="info"
             showIcon
-            message="当前账号为只读模式，可查看分仓候选，但不能确认分仓或预占库存。"
+            message={tr("当前账号为只读模式，可查看分仓候选，但不能确认分仓或预占库存。")}
             style={{ marginBottom: 16 }}
           />
         ) : null}
         <Alert
           type="warning"
           showIcon
-          message="分仓仍按单订单单仓绑定；库存不足、规格未绑定、账本投影不一致或候选已变化时会阻断。已分仓订单必须先完成拣货与打包复核，再确认本地履约。"
+          message={tr("分仓仍按单订单单仓绑定；库存不足、规格未绑定、账本投影不一致或候选已变化时会阻断。已分仓订单必须先完成拣货与打包复核，再确认本地履约。")}
           style={{ marginBottom: 16 }}
         />
-        {listError ? <ErrorAlert title={listError} /> : null}
+        {listError ? <ErrorAlert title={tr(listError)} /> : null}
         <TmProTable<WarehouseAllocationListRow>
           rowKey="id"
           actionRef={actionRef}
@@ -414,14 +418,14 @@ export default function WarehouseAllocationsPage() {
                 row.allocationStatus !== "allocated" || !row.warehouseId,
             }),
           }}
-          locale={{ emptyText: "暂无待处理的已付款订单" }}
+          locale={{ emptyText: tr("暂无待处理的已付款订单") }}
           filterBar={
             <Space wrap size="small">
               <Input.Search
-                aria-label="搜索订单"
+                aria-label={tr("搜索订单")}
                 allowClear
                 value={keywordInput}
-                placeholder="订单号、客户或平台订单号"
+                placeholder={tr("订单号、客户或平台订单号")}
                 style={{ width: "min(260px, 100%)" }}
                 onChange={(event) => setKeywordInput(event.target.value)}
                 onSearch={(value) => {
@@ -429,13 +433,13 @@ export default function WarehouseAllocationsPage() {
                 }}
               />
               <Select<AssignmentFilter>
-                aria-label="仓库分配状态"
+                aria-label={tr("仓库分配状态")}
                 value={assignment}
                 style={{ width: 140 }}
                 options={[
-                  { value: "unallocated", label: "未绑定仓库" },
-                  { value: "allocated", label: "已绑定仓库" },
-                  { value: "all", label: "全部订单" },
+                  { value: "unallocated", label: tr("未绑定仓库") },
+                  { value: "allocated", label: tr("已绑定仓库") },
+                  { value: "all", label: tr("全部订单") },
                 ]}
                 onChange={(value) => {
                   setAssignment(value);
@@ -450,7 +454,7 @@ export default function WarehouseAllocationsPage() {
               disabled={!canOperate || selectedRows.length === 0}
               onClick={openCreateWave}
             >
-              创建拣货波次（{selectedRows.length}）
+              {tr("创建拣货波次（")}{selectedRows.length}）
             </Button>,
           ]}
           request={async (params) => {
@@ -469,16 +473,16 @@ export default function WarehouseAllocationsPage() {
               };
             } catch (error) {
               const errorMessage =
-                (error as Error)?.message || "分仓列表加载失败";
+                (error as Error)?.message || tr("分仓列表加载失败");
               setListError(errorMessage);
-              message.error(errorMessage);
+              message.error(tr(errorMessage));
               return { data: [], success: false, total: 0 };
             }
           }}
         />
 
         <AppDrawer
-          title="分仓候选详情"
+          title={tr("分仓候选详情")}
           open={drawer.open}
           onClose={drawer.closeDrawer}
           loading={detailLoading}
@@ -488,32 +492,32 @@ export default function WarehouseAllocationsPage() {
               disabled={!drawer.id || detailLoading}
               onClick={() => drawer.id && void loadDetail(drawer.id)}
             >
-              刷新候选
+              {tr("刷新候选")}
             </Button>
           }
         >
-          {detailError ? <ErrorAlert title={detailError} /> : null}
+          {detailError ? <ErrorAlert title={tr(detailError)} /> : null}
           {detail ? (
             <Space direction="vertical" size="middle" style={{ width: "100%" }}>
               <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
-                <Descriptions.Item label="分仓状态">
+                <Descriptions.Item label={tr("分仓状态")}>
                   {allocationStatusTag(detail.status)}
                 </Descriptions.Item>
-                <Descriptions.Item label="可用候选">
+                <Descriptions.Item label={tr("可用候选")}>
                   {detail.eligibleCandidateCount} / {detail.candidateCount}
                 </Descriptions.Item>
-                <Descriptions.Item label="推荐规则">
+                <Descriptions.Item label={tr("推荐规则")}>
                   {recommendationPolicyLabel(detail.recommendationPolicy)}
                 </Descriptions.Item>
                 {detail.recommendedWarehouseReasons?.length ? (
-                  <Descriptions.Item label="推荐依据">
+                  <Descriptions.Item label={tr("推荐依据")}>
                     {detail.recommendedWarehouseReasons
                       .map((reason) => reason.message)
                       .join("；")}
                   </Descriptions.Item>
                 ) : null}
                 {detail.warehouseId ? (
-                  <Descriptions.Item label="已分配仓库" span={{ xs: 1, sm: 2 }}>
+                  <Descriptions.Item label={tr("已分配仓库")} span={{ xs: 1, sm: 2 }}>
                     {detail.warehouseCode} · {detail.warehouseName}
                   </Descriptions.Item>
                 ) : null}
@@ -522,7 +526,7 @@ export default function WarehouseAllocationsPage() {
                 <Alert
                   type="error"
                   showIcon
-                  message="当前订单不可确认分仓"
+                  message={tr("当前订单不可确认分仓")}
                   description={detail.blocks
                     .map((block) => block.message)
                     .join("；")}
@@ -536,7 +540,7 @@ export default function WarehouseAllocationsPage() {
                         )
                       }
                     >
-                      打开异常工作台
+                      {tr("打开异常工作台")}
                     </Button>
                   }
                 />
@@ -566,16 +570,16 @@ export default function WarehouseAllocationsPage() {
                     <Space wrap>
                       {candidate.recommendationRank ? (
                         <Tag color="processing">
-                          推荐排序 #{candidate.recommendationRank}
+                          {tr("推荐排序 #")}{candidate.recommendationRank}
                         </Tag>
                       ) : null}
                       {candidate.isDefault ? (
-                        <Tag color="blue">默认仓</Tag>
+                        <Tag color="blue">{tr("默认仓")}</Tag>
                       ) : null}
                       {candidate.eligible ? (
-                        <Tag color="success">整单可分配</Tag>
+                        <Tag color="success">{tr("整单可分配")}</Tag>
                       ) : (
-                        <Tag color="error">库存不足</Tag>
+                        <Tag color="error">{tr("库存不足")}</Tag>
                       )}
                     </Space>
                     {candidate.recommendationReasons?.length ? (
@@ -607,11 +611,11 @@ export default function WarehouseAllocationsPage() {
                   }
                   onClick={requestConfirmation}
                 >
-                  确认分仓并预占库存
+                  {tr("确认分仓并预占库存")}
                 </Button>
                 {!canOperate ? (
                   <Typography.Text type="secondary">
-                    只读账号不可执行写操作
+                    {tr("只读账号不可执行写操作")}
                   </Typography.Text>
                 ) : null}
               </Space>
@@ -620,14 +624,14 @@ export default function WarehouseAllocationsPage() {
         </AppDrawer>
 
         <Modal
-          title="创建拣货波次"
+          title={tr("创建拣货波次")}
           open={waveOpen}
           width={760}
           style={{ maxWidth: "calc(100vw - 24px)" }}
           destroyOnHidden
           confirmLoading={waveSubmitting}
-          okText="创建波次"
-          cancelText="取消"
+          okText={tr("创建波次")}
+          cancelText={tr("取消")}
           onCancel={() => {
             if (!waveSubmitting) setWaveOpen(false);
           }}
@@ -637,27 +641,27 @@ export default function WarehouseAllocationsPage() {
             <Alert
               type="info"
               showIcon
-              message={`已选择 ${waveRows.length} 个同仓订单`}
-              description="创建时会固化订单、商品规格、需求数量和预占仓库快照，不会扣减库存或调用真实物流接口。"
+      message={trFormat("已选择 {value0} 个同仓订单", { value0: waveRows.length })}
+              description={tr("创建时会固化订单、商品规格、需求数量和预占仓库快照，不会扣减库存或调用真实物流接口。")}
             />
-            {waveError ? <ErrorAlert title={waveError} /> : null}
+            {waveError ? <ErrorAlert title={tr(waveError)} /> : null}
             <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
-              <Descriptions.Item label="仓库">
+              <Descriptions.Item label={tr("仓库")}>
                 {waveRows[0]?.warehouseCode
                   ? `${waveRows[0].warehouseCode} · ${waveRows[0].warehouseName || ""}`
                   : waveRows[0]?.warehouseId || "—"}
               </Descriptions.Item>
-              <Descriptions.Item label="订单数">
+              <Descriptions.Item label={tr("订单数")}>
                 {waveRows.length}
               </Descriptions.Item>
             </Descriptions>
             <Input.TextArea
-              aria-label="波次备注"
+              aria-label={tr("波次备注")}
               value={waveRemark}
               maxLength={500}
               showCount
               autoSize={{ minRows: 2, maxRows: 5 }}
-              placeholder="可选：拣货区域、班次或交接说明"
+              placeholder={tr("可选：拣货区域、班次或交接说明")}
               onChange={(event) => setWaveRemark(event.target.value)}
             />
             <Table<WarehouseAllocationListRow>
@@ -667,13 +671,13 @@ export default function WarehouseAllocationsPage() {
               scroll={{ x: 560, y: 280 }}
               dataSource={waveRows}
               columns={[
-                { title: "订单", dataIndex: "orderNo", width: 190 },
+                { title: tr("订单"), dataIndex: "orderNo", width: 190 },
                 {
-                  title: "店铺",
+                  title: tr("店铺"),
                   dataIndex: "shopName",
-                  render: (value?: string) => value || "手工订单",
+                  render: (value?: string) => value || tr("手工订单"),
                 },
-                { title: "创建时间", dataIndex: "createdAt", width: 170 },
+                { title: tr("创建时间"), dataIndex: "createdAt", width: 170 },
               ]}
             />
           </Space>

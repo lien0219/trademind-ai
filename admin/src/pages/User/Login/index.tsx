@@ -27,12 +27,12 @@ import { changeRequiredPassword, getProfile, isPasswordChangeRequired, login, re
 import './index.less';
 
 const FEATURE_TAGS = [
-  { icon: <CloudDownloadOutlined />, label: '多平台商品采集', className: 'tag-blue' },
-  { icon: <RobotOutlined />, label: 'AI 商品运营', className: 'tag-violet' },
-  { icon: <FileImageOutlined />, label: '图片智能处理', className: 'tag-teal' },
-  { icon: <CloudUploadOutlined />, label: '多平台刊登', className: 'tag-indigo' },
-  { icon: <InboxOutlined />, label: '库存同步', className: 'tag-green' },
-  { icon: <DashboardOutlined />, label: '运营看板', className: 'tag-amber' },
+  { icon: <CloudDownloadOutlined />, get label() { return tr("多平台商品采集"); }, className: 'tag-blue' },
+  { icon: <RobotOutlined />, get label() { return tr("AI 商品运营"); }, className: 'tag-violet' },
+  { icon: <FileImageOutlined />, get label() { return tr("图片智能处理"); }, className: 'tag-teal' },
+  { icon: <CloudUploadOutlined />, get label() { return tr("多平台刊登"); }, className: 'tag-indigo' },
+  { icon: <InboxOutlined />, get label() { return tr("库存同步"); }, className: 'tag-green' },
+  { icon: <DashboardOutlined />, get label() { return tr("运营看板"); }, className: 'tag-amber' },
 ] as const;
 
 const PLATFORM_ITEMS = ['1688', 'Shopee', 'Lazada', 'Temu'];

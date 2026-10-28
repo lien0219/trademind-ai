@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import {
   FileTextOutlined,
   PictureOutlined,
@@ -136,6 +138,7 @@ function sameWorkbenchUrlPatch(
 }
 
 export default function AIOperationWorkbenchPage() {
+  useLanguage();
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof WORKBENCH_QUERY_KEYS)[number], string | undefined>>(
       WORKBENCH_QUERY_KEYS,
@@ -205,7 +208,7 @@ export default function AIOperationWorkbenchPage() {
     });
     if (sameWorkbenchUrlPatch(next, urlState)) return;
     const { truncated } = normalizeSearchKeyword(filterKeyword);
-    if (truncated) message.warning(KEYWORD_TOO_LONG_MESSAGE);
+    if (truncated) message.warning(tr(KEYWORD_TOO_LONG_MESSAGE));
     setUrlState(
       {
         type: next.type,
@@ -241,7 +244,7 @@ export default function AIOperationWorkbenchPage() {
       shopId: filterShopId,
       keyword: (() => {
         const { value, truncated } = normalizeSearchKeyword(filterKeyword);
-        if (truncated) message.warning(KEYWORD_TOO_LONG_MESSAGE);
+        if (truncated) message.warning(tr(KEYWORD_TOO_LONG_MESSAGE));
         return value;
       })(),
     };
@@ -260,7 +263,7 @@ export default function AIOperationWorkbenchPage() {
       const s = await queryWorkbenchSummary(queryParams);
       setSummary(s);
     } catch (e) {
-      message.error(e instanceof Error ? e.message : '加载统计失败');
+      message.error(e instanceof Error ? e.message : tr("加载统计失败"));
     } finally {
       setSummaryLoading(false);
     }
@@ -281,9 +284,9 @@ export default function AIOperationWorkbenchPage() {
       setSummary(res.summary);
       setLastRefreshedAt(res.refreshedAt);
       tableRef.current?.reload();
-      message.success('待办已刷新');
+      message.success(tr("待办已刷新"));
     } catch (e) {
-      message.error(e instanceof Error ? e.message : '刷新失败');
+      message.error(e instanceof Error ? e.message : tr("刷新失败"));
     } finally {
       setRefreshing(false);
     }
@@ -327,7 +330,7 @@ export default function AIOperationWorkbenchPage() {
         const detail = await getWorkbenchTodo(drawerTodoId, queryParams);
         setDrawerItem(detail);
       } catch (e) {
-        message.error(e instanceof Error ? e.message : '加载待办详情失败');
+        message.error(e instanceof Error ? e.message : tr("加载待办详情失败"));
         closeTodoDrawer();
         setDrawerOpen(false);
       } finally {
@@ -338,19 +341,19 @@ export default function AIOperationWorkbenchPage() {
 
   const columns: ProColumns<WorkbenchTodoItem>[] = [
     {
-      title: '优先级',
+      title: tr("优先级"),
       dataIndex: 'priority',
       width: 88,
       render: (_, row) => priorityTag(row.priority),
     },
     {
-      title: '类型',
+      title: tr("类型"),
       dataIndex: 'typeLabel',
       width: 140,
       ellipsis: true,
     },
     {
-      title: '商品',
+      title: tr("商品"),
       dataIndex: 'productTitle',
       width: 220,
       ellipsis: true,
@@ -364,7 +367,7 @@ export default function AIOperationWorkbenchPage() {
         ),
     },
     {
-      title: '平台 / 店铺',
+      title: tr("平台 / 店铺"),
       width: 140,
       ellipsis: true,
       render: (_, row) => {
@@ -375,7 +378,7 @@ export default function AIOperationWorkbenchPage() {
       },
     },
     {
-      title: '问题',
+      title: tr("问题"),
       dataIndex: 'title',
       width: 260,
       ellipsis: true,
@@ -386,18 +389,18 @@ export default function AIOperationWorkbenchPage() {
       ),
     },
     {
-      title: '建议操作',
+      title: tr("建议操作"),
       dataIndex: 'actionLabel',
       width: 100,
     },
     {
-      title: '更新时间',
+      title: tr("更新时间"),
       dataIndex: 'updatedAt',
       width: 168,
       render: (_, row) => formatDateTime(row.updatedAt),
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 180,
       render: (_, row) => [
@@ -421,7 +424,7 @@ export default function AIOperationWorkbenchPage() {
             void openDrawer(row);
           }}
         >
-          详情
+          {tr("详情")}
         </Button>,
         row.productId ? (
           <Button
@@ -433,7 +436,7 @@ export default function AIOperationWorkbenchPage() {
               history.push(`/product/drafts/${row.productId}`);
             }}
           >
-            查看商品
+            {tr("查看商品")}
           </Button>
         ) : null,
       ],
@@ -443,18 +446,18 @@ export default function AIOperationWorkbenchPage() {
   return (
     <TmPageContainer
       className="tm-ai-workbench-page"
-      title="AI 商品运营工作台"
-      subTitle="汇总 AI 文案、AI 图片、发布检查、刊登异常与失败任务，统一处理入口"
+      title={tr("AI 商品运营工作台")}
+      subTitle={tr("汇总 AI 文案、AI 图片、发布检查、刊登异常与失败任务，统一处理入口")}
       extra={
         <OperationToolbar
           extra={
             lastRefreshedAt ? (
-              <Typography.Text type="secondary">最近刷新：{formatDateTime(lastRefreshedAt)}</Typography.Text>
+              <Typography.Text type="secondary">{tr("最近刷新：")}{formatDateTime(lastRefreshedAt)}</Typography.Text>
             ) : null
           }
         >
           <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => void handleRefresh()}>
-            刷新待办
+            {tr("刷新待办")}
           </Button>
         </OperationToolbar>
       }
@@ -475,8 +478,11 @@ export default function AIOperationWorkbenchPage() {
                 : 0;
             const description =
               'highKey' in card && card.highKey
-                ? `高优先级 ${high}${todayNew > 0 ? ` · 今日新增 ${todayNew}` : ''}`
-                : '今日处理完成项';
+                ? trFormat('高优先级 {high}{today}', {
+                    high,
+                    today: todayNew > 0 ? trFormat(' · 今日新增 {count}', { count: todayNew }) : '',
+                  })
+                : tr("今日处理完成项");
             return (
               <MetricCard
                 key={card.key}
@@ -510,25 +516,25 @@ export default function AIOperationWorkbenchPage() {
           showIcon
           message={
             summaryLoading
-              ? '正在加载高优先级概览'
+              ? tr("正在加载高优先级概览")
               : Number(summary?.highPriorityCount ?? 0) > 0
-              ? `当前有 ${Number(summary?.highPriorityCount ?? 0)} 个高优先级事项`
-              : '当前没有高优先级事项'
+              ? trFormat('当前有 {count} 个高优先级事项', { count: Number(summary?.highPriorityCount ?? 0) })
+              : tr("当前没有高优先级事项")
           }
-          description="高优先级事项来自现有待办汇总，仅作为处理顺序提示。"
+          description={tr("高优先级事项来自现有待办汇总，仅作为处理顺序提示。")}
         />
 
         <SectionCard
-          title="筛选待办"
+          title={tr("筛选待办")}
           description={
             hasActiveFilters
-              ? '当前筛选已生效，列表和汇总会按条件更新。'
-              : '按业务环节、优先级、平台、店铺和时间范围定位待处理事项。'
+              ? tr("当前筛选已生效，列表和汇总会按条件更新。")
+              : tr("按业务环节、优先级、平台、店铺和时间范围定位待处理事项。")
           }
           headerExtra={
             hasActiveFilters ? (
               <Tag color="blue" className="tm-ai-workbench__active-filter-tag">
-                筛选中
+                {tr("筛选中")}
               </Tag>
             ) : null
           }
@@ -536,10 +542,10 @@ export default function AIOperationWorkbenchPage() {
         >
           <div className="tm-ai-workbench__filters">
             <div className="tm-ai-workbench__filter-item">
-              <Typography.Text type="secondary">待办类型</Typography.Text>
+              <Typography.Text type="secondary">{tr("待办类型")}</Typography.Text>
               <Select
                 allowClear
-                placeholder="待办类型"
+                placeholder={tr("待办类型")}
                 options={WORKBENCH_TODO_TYPES.map((x) => ({ label: x.label, value: x.value }))}
                 value={filterType}
                 onChange={(v) => {
@@ -549,10 +555,10 @@ export default function AIOperationWorkbenchPage() {
               />
             </div>
             <div className="tm-ai-workbench__filter-item">
-              <Typography.Text type="secondary">优先级</Typography.Text>
+              <Typography.Text type="secondary">{tr("优先级")}</Typography.Text>
               <Select
                 allowClear
-                placeholder="优先级"
+                placeholder={tr("优先级")}
                 options={WORKBENCH_PRIORITY_OPTIONS.map((x) => ({ label: x.label, value: x.value }))}
                 value={filterPriority}
                 onChange={(v) => {
@@ -562,10 +568,10 @@ export default function AIOperationWorkbenchPage() {
               />
             </div>
             <div className="tm-ai-workbench__filter-item">
-              <Typography.Text type="secondary">平台</Typography.Text>
+              <Typography.Text type="secondary">{tr("平台")}</Typography.Text>
               <Select
                 allowClear
-                placeholder="平台"
+                placeholder={tr("平台")}
                 options={PLATFORM_OPTIONS}
                 value={filterPlatform}
                 onChange={(v) => {
@@ -575,10 +581,10 @@ export default function AIOperationWorkbenchPage() {
               />
             </div>
             <div className="tm-ai-workbench__filter-item">
-              <Typography.Text type="secondary">店铺</Typography.Text>
+              <Typography.Text type="secondary">{tr("店铺")}</Typography.Text>
               <Select
                 allowClear
-                placeholder="店铺"
+                placeholder={tr("店铺")}
                 showSearch
                 optionFilterProp="label"
                 options={shops.map((s) => ({ label: s.shopName, value: s.id }))}
@@ -590,12 +596,12 @@ export default function AIOperationWorkbenchPage() {
               />
             </div>
             <div className="tm-ai-workbench__filter-item tm-ai-workbench__filter-item--keyword">
-              <Typography.Text type="secondary">商品关键词</Typography.Text>
+              <Typography.Text type="secondary">{tr("商品关键词")}</Typography.Text>
               <Input.Search
                 allowClear
                 maxLength={KEYWORD_MAX_LENGTH}
                 value={filterKeyword}
-                placeholder="商品关键词"
+                placeholder={tr("商品关键词")}
                 onChange={(e) => {
                   setFilterKeyword(e.target.value);
                   setKeywordSensitive(looksLikeSensitiveKeyword(e.target.value));
@@ -609,7 +615,7 @@ export default function AIOperationWorkbenchPage() {
                 }}
                 onSearch={(v) => {
                   const { value, truncated } = normalizeSearchKeyword(v);
-                  if (truncated) message.warning(KEYWORD_TOO_LONG_MESSAGE);
+                  if (truncated) message.warning(tr(KEYWORD_TOO_LONG_MESSAGE));
                   setFilterKeyword(value);
                   setKeywordSensitive(looksLikeSensitiveKeyword(value));
                   setTablePage(1);
@@ -618,7 +624,7 @@ export default function AIOperationWorkbenchPage() {
               />
             </div>
             <div className="tm-ai-workbench__filter-item tm-ai-workbench__filter-item--range">
-              <Typography.Text type="secondary">日期范围</Typography.Text>
+              <Typography.Text type="secondary">{tr("日期范围")}</Typography.Text>
               <RangePicker
                 value={dateRange}
                 onChange={(v) => {
@@ -645,15 +651,15 @@ export default function AIOperationWorkbenchPage() {
                   tableRef.current?.reload();
                 }}
               >
-                重置
+                {tr("重置")}
               </Button>
             </div>
           </div>
         </SectionCard>
 
         <SectionCard
-          title="待办列表"
-          description="点击行查看详情，使用操作入口进入对应业务页面处理。"
+          title={tr("待办列表")}
+          description={tr("点击行查看详情，使用操作入口进入对应业务页面处理。")}
           compact
         >
           <ProTable<WorkbenchTodoItem>
@@ -690,7 +696,7 @@ export default function AIOperationWorkbenchPage() {
                   success: true,
                 };
               } catch (e) {
-                message.error(e instanceof Error ? e.message : '加载待办失败');
+                message.error(e instanceof Error ? e.message : tr("加载待办失败"));
                 return { data: [], total: 0, success: false };
               }
             }}
@@ -700,7 +706,7 @@ export default function AIOperationWorkbenchPage() {
       </div>
 
       <Drawer
-        title="待办详情"
+        title={tr("待办详情")}
         width="min(560px, calc(100vw - 32px))"
         rootClassName="tm-ai-workbench-drawer"
         open={drawerOpen}
@@ -721,50 +727,50 @@ export default function AIOperationWorkbenchPage() {
         {drawerItem ? (
           <Space direction="vertical" size="middle" className="tm-ai-workbench-drawer__body">
             <div>
-              <Typography.Text type="secondary">类型</Typography.Text>
+              <Typography.Text type="secondary">{tr("类型")}</Typography.Text>
               <div>{drawerItem.typeLabel}</div>
             </div>
             <div>
-              <Typography.Text type="secondary">优先级</Typography.Text>
+              <Typography.Text type="secondary">{tr("优先级")}</Typography.Text>
               <div>{priorityTag(drawerItem.priority)}</div>
             </div>
             {drawerItem.productTitle ? (
               <div>
-                <Typography.Text type="secondary">商品</Typography.Text>
+                <Typography.Text type="secondary">{tr("商品")}</Typography.Text>
                 <div className="tm-ai-workbench-drawer__text">{drawerItem.productTitle}</div>
               </div>
             ) : null}
             <div>
-              <Typography.Text type="secondary">问题</Typography.Text>
+              <Typography.Text type="secondary">{tr("问题")}</Typography.Text>
               <Typography.Paragraph className="tm-ai-workbench-drawer__text">{drawerItem.title}</Typography.Paragraph>
               <Typography.Paragraph type="secondary" className="tm-ai-workbench-drawer__text">
                 {drawerItem.message}
               </Typography.Paragraph>
             </div>
             <div>
-              <Typography.Text type="secondary">问题来源</Typography.Text>
+              <Typography.Text type="secondary">{tr("问题来源")}</Typography.Text>
               <div>{drawerItem.typeLabel}</div>
             </div>
             <div>
-              <Typography.Text type="secondary">影响范围</Typography.Text>
+              <Typography.Text type="secondary">{tr("影响范围")}</Typography.Text>
               <Typography.Paragraph className="tm-ai-workbench-drawer__text">
                 {drawerItem.productTitle
-                  ? `关联商品：${drawerItem.productTitle}`
-                  : '可能影响批量刊登或系统任务处理进度'}
+                  ? trFormat('关联商品：{title}', { title: drawerItem.productTitle })
+                  : tr("可能影响批量刊登或系统任务处理进度")}
               </Typography.Paragraph>
             </div>
             <div>
-              <Typography.Text type="secondary">建议操作</Typography.Text>
+              <Typography.Text type="secondary">{tr("建议操作")}</Typography.Text>
               <Typography.Paragraph className="tm-ai-workbench-drawer__text">
                 {drawerItem.actionLabel}：{drawerItem.message}
               </Typography.Paragraph>
             </div>
-            <TechnicalDetails label="技术详情">
+            <TechnicalDetails label={tr("技术详情")}>
               <Space direction="vertical" size={4}>
-                <div>待办编号：{drawerItem.id}</div>
-                <div>来源类型：{drawerItem.sourceType}</div>
-                <div>来源编号：{drawerItem.sourceId}</div>
-                {drawerItem.issueCode ? <div>问题代码：{drawerItem.issueCode}</div> : null}
+                <div>{tr("待办编号：")}{drawerItem.id}</div>
+                <div>{tr("来源类型：")}{drawerItem.sourceType}</div>
+                <div>{tr("来源编号：")}{drawerItem.sourceId}</div>
+                {drawerItem.issueCode ? <div>{tr("问题代码：")}{drawerItem.issueCode}</div> : null}
                 {drawerItem.technicalDetails
                   ? Object.entries(drawerItem.technicalDetails).map(([k, v]) => (
                       <div key={k}>

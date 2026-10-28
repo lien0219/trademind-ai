@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { Button, Drawer, Space, Tag, Typography, Alert, message } from 'antd';
@@ -123,12 +124,12 @@ export default function InventorySyncTasksPage() {
   const columns: ProColumns<InventorySyncTaskDTO>[] = useMemo(
     () => [
       {
-        title: '批次 ID',
+        title: tr("批次 ID"),
         dataIndex: 'batchId',
         hideInTable: true,
       },
       {
-        title: '创建时间范围',
+        title: tr("创建时间范围"),
         dataIndex: 'createdRange',
         hideInTable: true,
         valueType: 'dateTimeRange',
@@ -140,29 +141,29 @@ export default function InventorySyncTasksPage() {
         },
       },
       {
-        title: '创建时间',
+        title: tr("创建时间"),
         dataIndex: 'createdAt',
         width: 168,
         search: false,
         render: (_, r) => formatDateTime(r.createdAt),
       },
       {
-        title: '商品 ID',
+        title: tr("商品 ID"),
         dataIndex: 'productId',
         hideInTable: true,
       },
       {
-        title: '规格编号',
+        title: tr("规格编号"),
         dataIndex: 'productSkuId',
         hideInTable: true,
       },
       {
-        title: '店铺 ID',
+        title: tr("店铺 ID"),
         dataIndex: 'shopId',
         hideInTable: true,
       },
       {
-        title: '店铺',
+        title: tr("店铺"),
         dataIndex: 'shopName',
         width: 140,
         search: false,
@@ -170,7 +171,7 @@ export default function InventorySyncTasksPage() {
         render: (_, r) => r.shopName || '—',
       },
       {
-        title: '商品标题',
+        title: tr("商品标题"),
         dataIndex: 'productTitle',
         width: 140,
         search: false,
@@ -178,7 +179,7 @@ export default function InventorySyncTasksPage() {
         render: (_, r) => r.productTitle || '—',
       },
       {
-        title: '规格编码',
+        title: tr("规格编码"),
         dataIndex: 'skuCode',
         width: 120,
         search: false,
@@ -186,7 +187,7 @@ export default function InventorySyncTasksPage() {
         render: (_, r) => r.skuCode || '—',
       },
       {
-        title: '批次号',
+        title: tr("批次号"),
         dataIndex: 'batchNo',
         width: 132,
         search: false,
@@ -194,19 +195,19 @@ export default function InventorySyncTasksPage() {
         render: (_, r) => r.batchNo || '—',
       },
       {
-        title: '平台',
+        title: tr("平台"),
         dataIndex: 'platform',
         width: 100,
         render: (_, r) => platformLabel(r.platform),
       },
       {
-        title: '目标库存',
+        title: tr("目标库存"),
         dataIndex: 'targetStock',
         width: 92,
         search: false,
       },
       {
-        title: '状态',
+        title: tr("状态"),
         dataIndex: 'status',
         width: 96,
         valueType: 'select',
@@ -214,28 +215,28 @@ export default function InventorySyncTasksPage() {
         render: (_, r) => tagFromStatus(r.status),
       },
       {
-        title: '开始',
+        title: tr("开始"),
         dataIndex: 'startedAt',
         width: 156,
         search: false,
         render: (_, r) => (r.startedAt ? formatDateTime(r.startedAt) : '—'),
       },
       {
-        title: '结束',
+        title: tr("结束"),
         dataIndex: 'finishedAt',
         width: 156,
         search: false,
         render: (_, r) => (r.finishedAt ? formatDateTime(r.finishedAt) : '—'),
       },
       {
-        title: '错误',
+        title: tr("错误"),
         dataIndex: 'errorMessage',
         ellipsis: true,
         search: false,
         render: (_, r) => r.errorMessage || '—',
       },
       {
-        title: '操作',
+        title: tr("操作"),
         valueType: 'option',
         width: 140,
         render: (_, r) => (
@@ -245,7 +246,7 @@ export default function InventorySyncTasksPage() {
                 void openTaskDetail(r.id);
               }}
             >
-              查看
+              {tr("查看")}
             </a>
             {r.status === 'failed' || r.status === 'partial_success' ? (
               <Button
@@ -255,12 +256,12 @@ export default function InventorySyncTasksPage() {
                 onClick={() =>
                   confirmFailureTaskRetry(1, async () => {
                     await retryInventorySyncTask(r.id);
-                    message.success('已提交重试');
+                    message.success(tr("已提交重试"));
                     actionRef.current?.reload();
                   })
                 }
               >
-                重试
+                {tr("重试")}
               </Button>
             ) : null}
           </Space>
@@ -277,16 +278,16 @@ export default function InventorySyncTasksPage() {
         showIcon
         type="info"
         style={{ marginBottom: 16 }}
-        message="库存同步前置条件"
+        message={tr("库存同步前置条件")}
         description={
           <>
             {INVENTORY_SKU_NOT_BOUND_MESSAGE} {INVENTORY_SKU_AMBIGUOUS_MESSAGE}
-            须开启「启用库存同步」后，可在商品详情 → 库存 Tab 或库存预警页人工发起同步；失败任务支持重试。
+            {tr("须开启「启用库存同步」后，可在商品详情 → 库存 Tab 或库存预警页人工发起同步；失败任务支持重试。")}
           </>
         }
       />
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        可用平台由店铺授权与平台能力状态决定；仅已开放库存同步能力的平台可以创建任务。
+        {tr("可用平台由店铺授权与平台能力状态决定；仅已开放库存同步能力的平台可以创建任务。")}
       </Typography.Paragraph>
       <ProTable<InventorySyncTaskDTO>
         rowKey="id"
@@ -313,7 +314,7 @@ export default function InventorySyncTasksPage() {
             });
           },
         }}
-        headerTitle="任务列表"
+        headerTitle={tr("任务列表")}
         rowSelection={{
           selectedRowKeys: failedSelectedIds,
           onChange: (keys) => setFailedSelectedIds(keys.map(String)),
@@ -329,23 +330,23 @@ export default function InventorySyncTasksPage() {
             disabled={failedSelectedIds.length === 0}
             onClick={() => {
               if (failedSelectedIds.length > BATCH_RETRY_LIMIT) {
-                message.warning(`单次最多选择 ${BATCH_RETRY_LIMIT} 条失败任务`);
+                message.warning(trFormat("单次最多选择 {value0} 条失败任务", { value0: BATCH_RETRY_LIMIT }));
                 return;
               }
               confirmFailureTaskRetry(failedSelectedIds.length, async () => {
                 try {
                   const batch = await retryInventorySyncTasksBatch(failedSelectedIds);
-                  message.success(`已创建批次 ${batch.batchNo}`);
+                  message.success(trFormat("已创建批次 {value0}", { value0: batch.batchNo }));
                   setFailedSelectedIds([]);
                   actionRef.current?.reload();
                 } catch (e: unknown) {
-                  message.error((e as Error)?.message || '批量重试失败');
+                  message.error((e as Error)?.message || tr('批量重试失败'));
                   throw e;
                 }
               });
             }}
           >
-            批量重试失败（≤{BATCH_RETRY_LIMIT}）
+            {trFormat("批量重试失败（最多 {value0} 条）", { value0: BATCH_RETRY_LIMIT })}
           </Button>,
         ]}
         request={async (params) => {
@@ -401,7 +402,7 @@ export default function InventorySyncTasksPage() {
 
       <Drawer
         width={560}
-        title={detail ? `库存同步 ${detail.id}` : '详情'}
+        title={detail ? `${tr("库存同步")} ${detail.id}` : tr("详情")}
         open={detailOpen}
         destroyOnHidden
         onClose={closeTaskDetail}
@@ -409,32 +410,32 @@ export default function InventorySyncTasksPage() {
         {detail && (
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <div>
-              <Typography.Text strong>状态：</Typography.Text> {tagFromStatus(detail.status)}
+              <Typography.Text strong>{tr("状态：")}</Typography.Text> {tagFromStatus(detail.status)}
             </div>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
-              <Typography.Text strong>店铺：</Typography.Text> {detail.shopName || detail.shopId}{' '}
+              <Typography.Text strong>{tr("店铺：")}</Typography.Text> {detail.shopName || detail.shopId}{' '}
               <Typography.Text type="secondary">({detail.platform})</Typography.Text>
             </Typography.Paragraph>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
-              <Typography.Text strong>商品：</Typography.Text> {detail.productTitle || detail.productId}
+              <Typography.Text strong>{tr("商品：")}</Typography.Text> {detail.productTitle || detail.productId}
             </Typography.Paragraph>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
               <Typography.Text strong>SKU：</Typography.Text> {detail.skuCode || detail.productSkuId || '—'}
             </Typography.Paragraph>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
-              <Typography.Text strong>目标库存：</Typography.Text> {detail.targetStock}
+              <Typography.Text strong>{tr("目标库存：")}</Typography.Text> {detail.targetStock}
             </Typography.Paragraph>
             <Typography.Paragraph copyable={{ text: detail.id }}>
-              <Typography.Text strong>任务编号：</Typography.Text> {detail.id}
+              <Typography.Text strong>{tr("任务编号：")}</Typography.Text> {detail.id}
             </Typography.Paragraph>
             {detail.errorMessage ? (
               <Typography.Paragraph>
-                <Typography.Text strong>失败原因：</Typography.Text> {detail.errorMessage}
+                <Typography.Text strong>{tr("失败原因：")}</Typography.Text> {detail.errorMessage}
               </Typography.Paragraph>
             ) : null}
             <TechnicalDetails>
-              <TaskJsonBlock title="任务输入" value={detail.input} />
-              <TaskJsonBlock title="任务输出" value={detail.output} last />
+              <TaskJsonBlock title={tr("任务输入")} value={detail.input} />
+              <TaskJsonBlock title={tr("任务输出")} value={detail.output} last />
             </TechnicalDetails>
           </Space>
         )}

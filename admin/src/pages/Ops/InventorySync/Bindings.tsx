@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
@@ -28,16 +29,16 @@ const LIMIT = 20;
 type QueryState = Record<(typeof QUERY_KEYS)[number], string | undefined>;
 
 const bindingStatusOptions = [
-  { value: 'proposed', label: '待确认' },
-  { value: 'confirmed', label: '已确认' },
-  { value: 'rejected', label: '已拒绝' },
-  { value: 'stale', label: '已过期' },
-  { value: 'conflict', label: '冲突' },
+  { value: 'proposed', get label() { return tr("待确认"); } },
+  { value: 'confirmed', get label() { return tr("已确认"); } },
+  { value: 'rejected', get label() { return tr("已拒绝"); } },
+  { value: 'stale', get label() { return tr("已过期"); } },
+  { value: 'conflict', get label() { return tr("冲突"); } },
 ];
 
 const bindingSourceOptions = [
-  { value: 'automatic', label: '自动校准' },
-  { value: 'manual', label: '人工确认' },
+  { value: 'automatic', get label() { return tr("自动校准"); } },
+  { value: 'manual', get label() { return tr("人工确认"); } },
 ];
 
 export default function InventorySyncBindingsPage() {
@@ -92,18 +93,18 @@ export default function InventorySyncBindingsPage() {
   }, [load]);
 
   const columns = useMemo<ProColumns<SKUBinding>[]>(() => [
-    { title: '绑定 ID', dataIndex: 'id', width: 170, render: (v) => copyableText(String(v || ''), 14) },
-    { title: '店铺连接', dataIndex: 'shopConnectionId', width: 150, render: (v) => copyableText(String(v || ''), 12) },
-    { title: '外部规格', dataIndex: 'externalSkuId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
-    { title: '外部规格编码', dataIndex: 'externalSkuCode', width: 140 },
-    { title: '本地规格', dataIndex: 'localSkuId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
-    { title: '来源', dataIndex: 'bindingSource', width: 110 },
-    { title: '状态', dataIndex: 'bindingStatus', width: 120, render: (v) => <StatusTag map={BINDING_STATUS_LABELS} value={String(v || '')} /> },
-    { title: '置信度', dataIndex: 'confidence', width: 100, render: (v) => <ConfidenceText value={typeof v === 'number' ? v : undefined} /> },
-    { title: '版本', dataIndex: 'calibrationVersion', width: 90 },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
+    { title: tr("绑定 ID"), dataIndex: 'id', width: 170, render: (v) => copyableText(String(v || ''), 14) },
+    { title: tr("店铺连接"), dataIndex: 'shopConnectionId', width: 150, render: (v) => copyableText(String(v || ''), 12) },
+    { title: tr("外部规格"), dataIndex: 'externalSkuId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
+    { title: tr("外部规格编码"), dataIndex: 'externalSkuCode', width: 140 },
+    { title: tr("本地规格"), dataIndex: 'localSkuId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
+    { title: tr("来源"), dataIndex: 'bindingSource', width: 110 },
+    { title: tr("状态"), dataIndex: 'bindingStatus', width: 120, render: (v) => <StatusTag map={BINDING_STATUS_LABELS} value={String(v || '')} /> },
+    { title: tr("置信度"), dataIndex: 'confidence', width: 100, render: (v) => <ConfidenceText value={typeof v === 'number' ? v : undefined} /> },
+    { title: tr("版本"), dataIndex: 'calibrationVersion', width: 90 },
+    { title: tr("更新时间"), dataIndex: 'updatedAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 130,
       render: (_, row) => [
@@ -114,7 +115,7 @@ export default function InventorySyncBindingsPage() {
           disabled={!row.allowedActions.canViewHistory}
           onClick={() => history.push(`/ops/inventory-sync/bindings/${encodeURIComponent(row.id)}`)}
         >
-          历史
+          {tr("历史")}
         </Button>,
       ],
     },
@@ -122,9 +123,9 @@ export default function InventorySyncBindingsPage() {
 
   return (
     <TmPageContainer
-      title="SKU 绑定列表"
-      subTitle="查看库存同步绑定记录并进入历史"
-      extra={<Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>刷新</Button>}
+      title={tr("SKU 绑定列表")}
+      subTitle={tr("查看库存同步绑定记录并进入历史")}
+      extra={<Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>}
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         {renderInventorySyncError(error)}
@@ -139,25 +140,25 @@ export default function InventorySyncBindingsPage() {
           >
             <Row gutter={[16, 8]}>
               <Col xs={24} md={8} lg={6}>
-                <Form.Item name="shopConnectionId" label="店铺连接 ID">
-                  <Input allowClear placeholder="仅传 shopConnectionId" />
+                <Form.Item name="shopConnectionId" label={tr("店铺连接 ID")}>
+                  <Input allowClear placeholder={tr("仅传 shopConnectionId")} />
                 </Form.Item>
               </Col>
               <Col xs={24} md={8} lg={6}>
-                <Form.Item name="bindingStatus" label="绑定状态">
-                  <Select allowClear options={bindingStatusOptions} placeholder="全部状态" />
+                <Form.Item name="bindingStatus" label={tr("绑定状态")}>
+                  <Select allowClear options={bindingStatusOptions} placeholder={tr("全部状态")} />
                 </Form.Item>
               </Col>
               <Col xs={24} md={8} lg={6}>
-                <Form.Item name="bindingSource" label="绑定来源">
-                  <Select allowClear options={bindingSourceOptions} placeholder="全部来源" />
+                <Form.Item name="bindingSource" label={tr("绑定来源")}>
+                  <Select allowClear options={bindingSourceOptions} placeholder={tr("全部来源")} />
                 </Form.Item>
               </Col>
               <Col xs={24} lg={6}>
-                <Form.Item label="操作">
+                <Form.Item label={tr("操作")}>
                   <Space wrap>
-                    <Button type="primary" htmlType="submit">应用筛选</Button>
-                    <Button onClick={() => { setCursorStack([]); form.resetFields(); clearState(QUERY_KEYS, { replace: true }); }}>清除</Button>
+                    <Button type="primary" htmlType="submit">{tr("应用筛选")}</Button>
+                    <Button onClick={() => { setCursorStack([]); form.resetFields(); clearState(QUERY_KEYS, { replace: true }); }}>{tr("清除")}</Button>
                   </Space>
                 </Form.Item>
               </Col>

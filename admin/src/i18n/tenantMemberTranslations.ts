@@ -1,19 +1,5 @@
 /** Tenant member management: UI-only copy; stable role/status codes remain unchanged. */
 export const tenantMemberTranslations: Record<string, [string,string,string,string,string]> = {
-  "正常": [
-    "Active",
-    "有効",
-    "正常",
-    "활성",
-    "ใช้งานอยู่"
-  ],
-  "禁用": [
-    "Disabled",
-    "無効",
-    "停用",
-    "비활성",
-    "ปิดใช้งาน"
-  ],
   "移除": [
     "Remove",
     "削除",
@@ -34,20 +20,6 @@ export const tenantMemberTranslations: Record<string, [string,string,string,stri
     "營運",
     "운영자",
     "ผู้ปฏิบัติงาน"
-  ],
-  "只读": [
-    "Read-only",
-    "閲覧のみ",
-    "唯讀",
-    "읽기 전용",
-    "อ่านอย่างเดียว"
-  ],
-  "审核": [
-    "Reviewer",
-    "承認担当",
-    "審核",
-    "검토자",
-    "ผู้ตรวจสอบ"
   ],
   "24 小时": [
     "24 hours",
@@ -378,20 +350,6 @@ export const tenantMemberTranslations: Record<string, [string,string,string,stri
     "미할당",
     "ยังไม่กำหนด"
   ],
-  "操作": [
-    "Actions",
-    "操作",
-    "操作",
-    "작업",
-    "การดำเนินการ"
-  ],
-  "编辑": [
-    "Edit",
-    "編集",
-    "編輯",
-    "편집",
-    "แก้ไข"
-  ],
   "受邀邮箱": [
     "Invited email",
     "招待先メール",
@@ -405,13 +363,6 @@ export const tenantMemberTranslations: Record<string, [string,string,string,stri
     "已接受",
     "수락됨",
     "ตอบรับแล้ว"
-  ],
-  "已取消": [
-    "Cancelled",
-    "取消済み",
-    "已取消",
-    "취소됨",
-    "ยกเลิกแล้ว"
   ],
   "已过期": [
     "Expired",
@@ -427,26 +378,12 @@ export const tenantMemberTranslations: Record<string, [string,string,string,stri
     "만료일",
     "หมดอายุเมื่อ"
   ],
-  "创建时间": [
-    "Created at",
-    "作成日時",
-    "建立時間",
-    "생성 시각",
-    "สร้างเมื่อ"
-  ],
   "取消邀请": [
     "Cancel invitation",
     "招待を取り消す",
     "取消邀請",
     "초대 취소",
     "ยกเลิกคำเชิญ"
-  ],
-  "无权访问": [
-    "Access denied",
-    "アクセス権がありません",
-    "無權存取",
-    "접근 권한 없음",
-    "ไม่มีสิทธิ์เข้าถึง"
   ],
   "企业成员和邀请管理仅对拥有 user.manage 权限的成员开放。": [
     "Organization members and invitations require user.manage permission.",
@@ -468,13 +405,6 @@ export const tenantMemberTranslations: Record<string, [string,string,string,stri
     "管理目前企業的成員、角色與店鋪授權；不會在此建立平台角色。",
     "현재 조직의 구성원, 역할 및 매장 권한을 관리합니다. 플랫폼 역할은 여기서 생성되지 않습니다.",
     "จัดการสมาชิก บทบาท และสิทธิ์ร้านค้าขององค์กรนี้ โดยไม่สร้างบทบาทระดับแพลตฟอร์ม"
-  ],
-  "刷新": [
-    "Refresh",
-    "更新",
-    "重新整理",
-    "새로고침",
-    "รีเฟรช"
   ],
   "邀请成员": [
     "Invite member",
@@ -567,13 +497,6 @@ export const tenantMemberTranslations: Record<string, [string,string,string,stri
     "초대 생성",
     "สร้างคำเชิญ"
   ],
-  "取消": [
-    "Cancel",
-    "キャンセル",
-    "取消",
-    "취소",
-    "ยกเลิก"
-  ],
   "成员邮箱": [
     "Member email",
     "メンバーのメール",
@@ -587,13 +510,6 @@ export const tenantMemberTranslations: Record<string, [string,string,string,stri
     "請輸入成員信箱",
     "구성원 이메일을 입력하세요",
     "กรุณากรอกอีเมลสมาชิก"
-  ],
-  "请输入有效邮箱": [
-    "Enter a valid email address",
-    "有効なメールアドレスを入力してください",
-    "請輸入有效信箱",
-    "올바른 이메일을 입력하세요",
-    "กรุณากรอกอีเมลที่ถูกต้อง"
   ],
   "企业角色": [
     "Organization role",

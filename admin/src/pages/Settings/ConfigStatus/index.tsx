@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { Button, Card, Col, Row, Tag, Typography } from 'antd';
 import { history } from '@umijs/max';
 import { useEffect, useState } from 'react';
@@ -20,13 +22,12 @@ function statusColor(status: string) {
 }
 
 function StatusCard({ item }: { item: ConfigStatusItem }) {
+  useLanguage();
   return (
     <Card size="small" title={item.title} extra={<Tag color={statusColor(item.status)}>{item.status}</Tag>}>
       {item.summary ? <Typography.Paragraph type="secondary">{item.summary}</Typography.Paragraph> : null}
       {item.impactScope ? (
-        <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-          影响范围：{item.impactScope}
-        </Typography.Text>
+        <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>{trFormat("影响范围：{value0}", { value0: item.impactScope })}</Typography.Text>
       ) : null}
       {item.nextAction ? (
         <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
@@ -43,6 +44,7 @@ function StatusCard({ item }: { item: ConfigStatusItem }) {
 }
 
 export default function ConfigStatusPage() {
+  useLanguage();
   const emptyLocale = useListEmptyLocale('configStatus');
   const [items, setItems] = useState<ConfigStatusItem[]>([]);
   const [generatedAt, setGeneratedAt] = useState('');

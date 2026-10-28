@@ -23,24 +23,24 @@ const labels: Record<BusinessModule, string> = {
 const modules: BusinessModule[] = ['general', 'ai', 'collect', 'inventory', 'notifications', 'orders', 'branding'];
 const templates: Partial<Record<BusinessModule, {name:string;values:Record<string,unknown>}[]>> = {
   ai: [
-    {name:'中文内容创作',values:{defaultLanguage:'zh-CN'}},
-    {name:'国际站英文内容',values:{defaultLanguage:'en-US'}},
-    {name:'日本站内容',values:{defaultLanguage:'ja-JP'}},
+    {get name() { return tr("中文内容创作"); },values:{defaultLanguage:'zh-CN'}},
+    {get name() { return tr("国际站英文内容"); },values:{defaultLanguage:'en-US'}},
+    {get name() { return tr("日本站内容"); },values:{defaultLanguage:'ja-JP'}},
   ],
   collect: [
-    {name:'继承平台采集策略',values:{allowedSources:[],maxBatchURLs:0}},
-    {name:'小批量人工采集',values:{allowedSources:[],maxBatchURLs:10}},
+    {get name() { return tr("继承平台采集策略"); },values:{allowedSources:[],maxBatchURLs:0}},
+    {get name() { return tr("小批量人工采集"); },values:{allowedSources:[],maxBatchURLs:10}},
   ],
   inventory: [
-    {name:'保守库存预警',values:{lowStockThreshold:20}},
-    {name:'标准库存预警',values:{lowStockThreshold:5}},
+    {get name() { return tr("保守库存预警"); },values:{lowStockThreshold:20}},
+    {get name() { return tr("标准库存预警"); },values:{lowStockThreshold:5}},
   ],
 };
 const languageOptions = supportedLanguages.map(value => ({value, label: languageNames[value]}));
 const sourceOptions = [
-  {value:'1688',label:'1688'}, {value:'pinduoduo',label:'拼多多'},
-  {value:'taobao_tmall',label:'淘宝/天猫'}, {value:'aliexpress',label:'速卖通'},
-  {value:'custom',label:'自定义采集'},
+  {value:'1688',label:'1688'}, {value:'pinduoduo',get label() { return tr("拼多多"); }},
+  {value:'taobao_tmall',get label() { return tr("淘宝/天猫"); }}, {value:'aliexpress',get label() { return tr("速卖通"); }},
+  {value:'custom',get label() { return tr("自定义采集"); }},
 ];
 
 export default function TenantBusinessSettingsPage() {
@@ -61,6 +61,7 @@ export default function TenantBusinessSettingsPage() {
   const selectedModule = useRef<BusinessModule>('general');
   const readSequence = useRef(0);
   const mutationPending = useRef(false);
+  const formDirty = useRef(false);
   const [exporting, setExporting] = useState(false);
 
   const load = async (key: BusinessModule) => {
@@ -73,12 +74,11 @@ export default function TenantBusinessSettingsPage() {
     setSnapshot(null);
     setHistoryOpen(false);
     setPreview(null);
-    form.resetFields();
+    formDirty.current = false;
     try {
       const current = await getBusinessSettings(key);
       if (!isCurrent()) return;
       setSnapshot(current);
-      form.setFieldsValue(current.values);
     } catch (e) {
       if (isCurrent())
         setError((e as Error)?.message || tr('加载失败，请重试'));
@@ -87,6 +87,15 @@ export default function TenantBusinessSettingsPage() {
     }
   };
   useEffect(() => { void load(module); }, [module]);
+
+  // The form mounts only after the snapshot loads. Initialize it after that
+  // commit so Ant Design does not receive an unconnected instance.
+  useEffect(() => {
+    if (!snapshot) return;
+    form.resetFields();
+    form.setFieldsValue(snapshot.values);
+    formDirty.current = false;
+  }, [form, snapshot]);
 
   const chooseModule = (next:BusinessModule) => {
     if (next === selectedModule.current || mutationPending.current) return;
@@ -97,7 +106,7 @@ export default function TenantBusinessSettingsPage() {
       setPreview(null);
       setModule(next);
     };
-    if (form.isFieldsTouched()) {
+    if (formDirty.current) {
       Modal.confirm({title:tr('放弃未保存的更改？'),content:tr('切换模块前请确认更改已保存。'),okText:tr('放弃并切换'),cancelText:tr('继续编辑'),onOk:switchModule});
     } else switchModule();
   };
@@ -114,6 +123,7 @@ export default function TenantBusinessSettingsPage() {
       if (selectedModule.current === key && isTenantContextCurrent(context)) {
         setSnapshot(next);
         form.setFieldsValue(next.values);
+        formDirty.current = false;
         message.success(tr('企业业务配置已保存；已接入的业务模块将在新任务中使用'));
         if (historyOpen) setRevisions((await listBusinessSettingsHistory(key)).items);
       }
@@ -144,6 +154,7 @@ export default function TenantBusinessSettingsPage() {
       if (selectedModule.current === key && isTenantContextCurrent(context)) {
         setSnapshot(next);
         form.setFieldsValue(next.values);
+        formDirty.current = false;
         setRevisions((await listBusinessSettingsHistory(key)).items);
         message.success(tr('已恢复为新版本；历史记录未被覆盖'));
       }
@@ -200,6 +211,7 @@ export default function TenantBusinessSettingsPage() {
       if (obj.format !== 'trademind-tenant-config-v1' || obj.module !== module || !obj.values || typeof obj.values !== 'object' || Array.isArray(obj.values)) throw new Error(tr('配置格式或模块不匹配'));
       // Import only populates the form; saving always invokes server-side schema validation and version checks.
       form.setFieldsValue(obj.values);
+      formDirty.current = true;
       message.info(tr('已载入配置预览，检查后点击保存才会生效'));
     } catch (e) { message.error((e as Error)?.message || tr('导入失败')); }
   };
@@ -223,7 +235,7 @@ export default function TenantBusinessSettingsPage() {
       </div>}>
         {error?<Alert type="error" showIcon message={error} action={<Button onClick={()=>void load(module)}>{tr("重试")}</Button>}/>:null}
         {loading || !snapshot?<div style={{padding:30,textAlign:'center'}}><Spin /></div>:
-          <Form form={form} layout="vertical" disabled={!writable || saving}>
+          <Form form={form} layout="vertical" disabled={!writable || saving} onValuesChange={() => { formDirty.current = true; }}>
             {module==='general'?<>
               <Form.Item name="language" label={tr("默认界面语言")} rules={[{required:true}]}><Select options={languageOptions}/></Form.Item>
               <Form.Item name="timezone" label={tr("默认时区")} rules={[{required:true}]}><Select options={[
@@ -288,7 +300,7 @@ export default function TenantBusinessSettingsPage() {
       </Card>
     </div>
     <Modal title={preview?`${tr('模板预览：')}${tr(preview.name)}`:tr('配置预览')} open={Boolean(preview)} onCancel={()=>setPreview(null)}
-      okText={tr('应用到表单')} okButtonProps={{disabled:saving || !writable}} onOk={()=>{if(preview && !saving && writable && snapshot?.module === module)form.setFieldsValue(preview.values);setPreview(null);}}>
+      okText={tr('应用到表单')} okButtonProps={{disabled:saving || !writable}} onOk={()=>{if(preview && !saving && writable && snapshot?.module === module){form.setFieldsValue(preview.values);formDirty.current=true;}setPreview(null);}}>
       <Typography.Paragraph type="secondary">{tr("仅列出模板将修改的字段，未列出的字段不变。")}</Typography.Paragraph>
       {preview?Object.entries(preview.values).map(([key,value])=><div key={key} style={{marginBottom:10}}>
         <Typography.Text strong>{key}</Typography.Text>

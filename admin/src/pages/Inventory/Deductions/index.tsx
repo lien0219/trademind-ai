@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { PRODUCT_COPY } from '@/constants/copywriting';
@@ -36,7 +37,7 @@ export default function InventoryDeductionsPage() {
   const columns: ProColumns<OrderInventoryEffectRow>[] = useMemo(
     () => [
       {
-        title: '时间范围',
+        title: tr("时间范围"),
         dataIndex: 'timeRange',
         hideInTable: true,
         valueType: 'dateTimeRange',
@@ -48,14 +49,14 @@ export default function InventoryDeductionsPage() {
         },
       },
       {
-        title: '扣减时间',
+        title: tr("扣减时间"),
         dataIndex: 'createdAt',
         width: 160,
         search: false,
         render: (_, r) => formatDateTime(r.createdAt),
       },
       {
-        title: '来源订单',
+        title: tr("来源订单"),
         dataIndex: 'orderId',
         width: 140,
         render: (_, r) =>
@@ -66,7 +67,7 @@ export default function InventoryDeductionsPage() {
           ),
       },
       {
-        title: '商品',
+        title: tr("商品"),
         dataIndex: 'productTitle',
         width: 140,
         search: false,
@@ -86,11 +87,11 @@ export default function InventoryDeductionsPage() {
         ellipsis: true,
         render: (_, r) => r.skuCode || '—',
       },
-      { title: '扣减数量', dataIndex: 'quantity', width: 88, search: false },
-      { title: '扣减前', dataIndex: 'beforeStock', width: 80, search: false, render: (_, r) => r.beforeStock ?? '—' },
-      { title: '扣减后', dataIndex: 'afterStock', width: 80, search: false, render: (_, r) => r.afterStock ?? '—' },
+      { title: tr("扣减数量"), dataIndex: 'quantity', width: 88, search: false },
+      { title: tr("扣减前"), dataIndex: 'beforeStock', width: 80, search: false, render: (_, r) => r.beforeStock ?? '—' },
+      { title: tr("扣减后"), dataIndex: 'afterStock', width: 80, search: false, render: (_, r) => r.afterStock ?? '—' },
       {
-        title: '扣减状态',
+        title: tr("扣减状态"),
         dataIndex: 'status',
         width: 96,
         valueType: 'select',
@@ -103,35 +104,35 @@ export default function InventoryDeductionsPage() {
         },
       },
       {
-        title: '来源',
+        title: tr("来源"),
         dataIndex: 'effectType',
         width: 120,
         valueType: 'select',
         valueEnum: {
-          deduct: { text: '订单同步扣减' },
-          restore: { text: '系统回滚' },
+          deduct: { text: tr("订单同步扣减") },
+          restore: { text: tr("系统回滚") },
         },
         render: (_, r) => effectTypeLabel(r.effectType),
       },
       {
-        title: '失败原因',
+        title: tr("失败原因"),
         dataIndex: 'errorMessage',
         search: false,
         ellipsis: true,
         render: (_, r) => r.errorMessage || r.reason || '—',
       },
       {
-        title: '操作',
+        title: tr("操作"),
         valueType: 'option',
         width: 200,
         render: (_, r) => (
           <Space wrap size="small">
-            {r.orderId ? <Link to={`/orders/${r.orderId}?tab=inventory`}>订单详情</Link> : null}
+            {r.orderId ? <Link to={`/orders/${r.orderId}?tab=inventory`}>{tr("订单详情")}</Link> : null}
             {r.status === 'failed' ? (
-              <Link to={`/ops/task-center/failures?taskType=inventory_sync`}>失败任务</Link>
+              <Link to={`/ops/task-center/failures?taskType=inventory_sync`}>{tr("失败任务")}</Link>
             ) : null}
             {r.productSkuId ? (
-              <Link to={`/inventory/overview?skuId=${encodeURIComponent(r.productSkuId)}`}>库存中心</Link>
+              <Link to={`/inventory/overview?skuId=${encodeURIComponent(r.productSkuId)}`}>{tr("库存中心")}</Link>
             ) : null}
           </Space>
         ),
@@ -141,9 +142,9 @@ export default function InventoryDeductionsPage() {
   );
 
   return (
-    <TmPageContainer title="库存扣减记录" subTitle="订单扣减必须可追溯到订单详情；失败记录进入失败任务中心。">
+    <TmPageContainer title={tr("库存扣减记录")} subTitle={tr("订单扣减必须可追溯到订单详情；失败记录进入失败任务中心。")}>
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        来源包括订单同步扣减、人工修正与系统回滚。不允许静默扣减失败。
+        {tr("来源包括订单同步扣减、人工修正与系统回滚。不允许静默扣减失败。")}
       </Typography.Paragraph>
       <ProTable<OrderInventoryEffectRow>
         rowKey="id"
@@ -166,7 +167,7 @@ export default function InventoryDeductionsPage() {
             });
             return { data: res.list, total: res.pagination.total, success: true };
           } catch (e: unknown) {
-            message.error((e as Error)?.message || '加载失败');
+            message.error((e as Error)?.message || tr('加载失败'));
             return { data: [], success: false, total: 0 };
           }
         }}

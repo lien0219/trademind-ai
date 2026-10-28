@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { TmPageContainer, TechnicalDetails } from '@/components/ui';
 import ReviewImageItemModal from '@/pages/Product/AIImageBatch/components/ReviewImageItemModal';
 import { confirmApplyAiImage, confirmUndoAiImage } from '@/constants/sensitiveActions';
@@ -37,6 +39,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export default function AIImageBatchDetailPage() {
+  useLanguage();
   const { id } = useParams<{ id: string }>();
   const { state: urlState, setState: setUrlState } = useUrlQueryState<{
     itemId?: string;
@@ -63,7 +66,7 @@ export default function AIImageBatchDetailPage() {
       const res = await fetchAiProductImageBatchDetail(id, useFilter);
       setDetail(res);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载失败');
+      message.error((e as Error)?.message || tr("加载失败"));
     } finally {
       setLoading(false);
     }
@@ -112,7 +115,7 @@ export default function AIImageBatchDetailPage() {
 
   const onApplySelected = () => {
     if (!id || !selectedKeys.length) {
-      message.warning('请选择待复核结果');
+      message.warning(tr("请选择待复核结果"));
       return;
     }
     const mode = batchApplyMode === 'replace_image' ? 'replace' : 'append';
@@ -120,11 +123,11 @@ export default function AIImageBatchDetailPage() {
       setActing(true);
       try {
         const res = await applyAiProductImageSelected(id, selectedKeys, batchApplyMode);
-        message.success(`成功 ${res.successCount}，冲突 ${res.conflictCount}，失败 ${res.failedCount}`);
+        message.success(trFormat("成功 {value0}，冲突 {value1}，失败 {value2}", { value0: res.successCount, value1: res.conflictCount, value2: res.failedCount }));
         setSelectedKeys([]);
         await reload();
       } catch (e: unknown) {
-        message.error((e as Error)?.message || '批量应用失败');
+        message.error((e as Error)?.message || tr("批量应用失败"));
       } finally {
         setActing(false);
       }
@@ -135,28 +138,28 @@ export default function AIImageBatchDetailPage() {
 
   return (
     <TmPageContainer
-      title="AI 图片批量复核"
-      subTitle={detail ? `批次 ${detail.batchNo}` : undefined}
+      title={tr("AI 图片批量复核")}
+      subTitle={detail ? trFormat("批次 {value0}", { value0: String(detail.batchNo) }) : undefined}
       loading={loading && !detail}
     >
       {detail && (
         <>
           <Card size="small" style={{ marginBottom: 16 }}>
             <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small">
-              <Descriptions.Item label="状态">
+              <Descriptions.Item label={tr("状态")}>
                 {batchTag ? <Tag color={batchTag.color}>{batchTag.text}</Tag> : detail.status}
               </Descriptions.Item>
-              <Descriptions.Item label="商品数">{detail.productCount}</Descriptions.Item>
-              <Descriptions.Item label="图片数">{detail.imageCount}</Descriptions.Item>
-              <Descriptions.Item label="子项">
-                待复核 {detail.overview?.successCount ?? detail.successCount} / 质量提醒{' '}
-                {detail.overview?.warningCount ?? 0} / 失败 {detail.failedCount} / 已应用{' '}
+              <Descriptions.Item label={tr("商品数")}>{detail.productCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("图片数")}>{detail.imageCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("子项")}>
+                {tr("待复核")} {detail.overview?.successCount ?? detail.successCount} {tr("/ 质量提醒")}{' '}
+                {detail.overview?.warningCount ?? 0} {tr("/ 失败")} {detail.failedCount} {tr("/ 已应用")}{' '}
                 {detail.appliedCount}
               </Descriptions.Item>
-              <Descriptions.Item label="可恢复">
-                {detail.overview?.recoverableCount ?? 0} / 不可恢复 {detail.overview?.nonRecoverableCount ?? 0}
+              <Descriptions.Item label={tr("可恢复")}>
+                {detail.overview?.recoverableCount ?? 0} {tr("/ 不可恢复")} {detail.overview?.nonRecoverableCount ?? 0}
               </Descriptions.Item>
-              <Descriptions.Item label="接入服务状态">
+              <Descriptions.Item label={tr("接入服务状态")}>
                 <Tag
                   color={
                     detail.overview?.providerReadiness?.status === 'ready'
@@ -169,7 +172,7 @@ export default function AIImageBatchDetailPage() {
                   {detail.overview?.providerReadiness?.statusLabel || '—'}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="创建时间">{formatDateTime(detail.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label={tr("创建时间")}>{formatDateTime(detail.createdAt)}</Descriptions.Item>
             </Descriptions>
             {detail.overview?.summaryMessage ? (
               <Alert
@@ -200,10 +203,10 @@ export default function AIImageBatchDetailPage() {
                   history.push(back);
                 }}
               >
-                返回列表
+                {tr("返回列表")}
               </Button>
-              <Button onClick={() => history.push('/settings/config-status')}>查看配置状态</Button>
-              <Button onClick={() => history.push('/settings/image')}>图片 AI 设置</Button>
+              <Button onClick={() => history.push('/settings/config-status')}>{tr("查看配置状态")}</Button>
+              <Button onClick={() => history.push('/settings/image')}>{tr("图片 AI 设置")}</Button>
               <Button
                 loading={acting}
                 disabled={detail.failedCount === 0}
@@ -212,16 +215,16 @@ export default function AIImageBatchDetailPage() {
                   setActing(true);
                   try {
                     await retryAiProductImageBatchFailed(id);
-                    message.success('已重试失败项');
+                    message.success(tr("已重试失败项"));
                     await reload();
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '重试失败');
+                    message.error((e as Error)?.message || tr("重试失败"));
                   } finally {
                     setActing(false);
                   }
                 }}
               >
-                重试失败项
+                {tr("重试失败项")}
               </Button>
               <Select
                 style={{ width: 180 }}
@@ -230,7 +233,7 @@ export default function AIImageBatchDetailPage() {
                 onChange={setBatchApplyMode}
               />
               <Button type="primary" loading={acting} disabled={!selectedKeys.length} onClick={onApplySelected}>
-                批量应用已选图片
+                {tr("批量应用已选图片")}
               </Button>
               <Button
                 disabled={!detail.appliedCount}
@@ -240,23 +243,23 @@ export default function AIImageBatchDetailPage() {
                     setActing(true);
                     try {
                       const res = await undoAiProductImageBatchApplied(id);
-                      message.success(`撤销成功 ${res.successCount}，冲突 ${res.conflictCount}`);
+                      message.success(trFormat("撤销成功 {value0}，冲突 {value1}", { value0: res.successCount, value1: res.conflictCount }));
                       await reload();
                     } catch (e: unknown) {
-                      message.error((e as Error)?.message || '撤销失败');
+                      message.error((e as Error)?.message || tr("撤销失败"));
                     } finally {
                       setActing(false);
                     }
                   });
                 }}
               >
-                批量撤销本批次应用
+                {tr("批量撤销本批次应用")}
               </Button>
             </Space>
           </Card>
 
           {detail.status === 'partial_success' && (
-            <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="部分图片处理失败，可重试失败项或单独重新处理。" />
+            <Alert type="warning" showIcon style={{ marginBottom: 12 }} message={tr("部分图片处理失败，可重试失败项或单独重新处理。")} />
           )}
 
           <Segmented
@@ -290,20 +293,20 @@ export default function AIImageBatchDetailPage() {
             }}
             columns={[
               {
-                title: '商品',
+                title: tr("商品"),
                 dataIndex: 'productTitle',
                 ellipsis: true,
                 render: (t, row) => <Link to={`/product/drafts/${row.productId}`}>{t || row.productId}</Link>,
               },
-              { title: '图片类型', dataIndex: 'imageTypeLabel', width: 90 },
-              { title: '处理方式', dataIndex: 'operationLabel', width: 110 },
+              { title: tr("图片类型"), dataIndex: 'imageTypeLabel', width: 90 },
+              { title: tr("处理方式"), dataIndex: 'operationLabel', width: 110 },
               {
-                title: '原图',
+                title: tr("原图"),
                 width: 80,
                 render: (_, row) => <Image src={row.sourceImageUrl} width={48} height={48} style={{ objectFit: 'cover' }} />,
               },
               {
-                title: '结果图',
+                title: tr("结果图"),
                 width: 80,
                 render: (_, row) =>
                   row.resultImageUrl ? (
@@ -313,7 +316,7 @@ export default function AIImageBatchDetailPage() {
                   ),
               },
               {
-                title: '状态',
+                title: tr("状态"),
                 width: 100,
                 render: (_, row) => {
                   const meta = aiImageItemStatusTag(row.status, row.statusLabel);
@@ -322,13 +325,13 @@ export default function AIImageBatchDetailPage() {
                   return (
                     <Space direction="vertical" size={0}>
                       <Tag color={meta.color}>{meta.text}</Tag>
-                      {isWarnOnly ? <Tag color="gold">质量提醒</Tag> : null}
+                      {isWarnOnly ? <Tag color="gold">{tr("质量提醒")}</Tag> : null}
                     </Space>
                   );
                 },
               },
               {
-                title: '原因 / 提醒',
+                title: tr("原因 / 提醒"),
                 width: 200,
                 render: (_, row) => {
                   if (row.status === 'failed') {
@@ -339,7 +342,7 @@ export default function AIImageBatchDetailPage() {
                           {row.warningMessage || row.errorMessage || aiImageWarningMessage(code)}
                         </Typography.Text>
                         {code ? (
-                          <TechnicalDetails label="内部码">
+                          <TechnicalDetails label={tr("内部码")}>
                             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                               {code}
                             </Typography.Text>
@@ -357,7 +360,7 @@ export default function AIImageBatchDetailPage() {
                 },
               },
               {
-                title: '恢复',
+                title: tr("恢复"),
                 width: 120,
                 render: (_, row) => {
                   if (row.status !== 'failed') return '—';
@@ -366,11 +369,11 @@ export default function AIImageBatchDetailPage() {
                   return (
                     <Space direction="vertical" size={0}>
                       <Typography.Text type="secondary">
-                        {row.needsConfig ? '需配置' : row.recoverable === false ? '不可重试' : '可重试'}
+                        {row.needsConfig ? tr("需配置") : row.recoverable === false ? tr("不可重试") : tr("可重试")}
                       </Typography.Text>
                       {url ? (
                         <Button type="link" size="small" onClick={() => history.push(url)}>
-                          去配置
+                          {tr("去配置")}
                         </Button>
                       ) : null}
                     </Space>
@@ -378,11 +381,11 @@ export default function AIImageBatchDetailPage() {
                 },
               },
               {
-                title: '操作',
+                title: tr("操作"),
                 width: 120,
                 render: (_, row) => (
                   <Button type="link" size="small" onClick={() => openReview(row)}>
-                    查看对比
+                    {tr("查看对比")}
                   </Button>
                 ),
               },
@@ -390,7 +393,7 @@ export default function AIImageBatchDetailPage() {
           />
 
           {detail.output ? (
-            <TechnicalDetails label="技术详情">
+            <TechnicalDetails label={tr("技术详情")}>
               <pre style={{ fontSize: 12, margin: 0, maxHeight: 240, overflow: 'auto' }}>
                 {JSON.stringify(detail.output, null, 2)}
               </pre>

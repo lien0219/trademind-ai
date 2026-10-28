@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import { Alert, Button, Form, Input, Modal, Space, Switch, Typography, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { PinduoduoLoginPanel } from '@/pages/Collect/components/PinduoduoLoginPanel';
@@ -18,6 +20,7 @@ type Props = {
 };
 
 export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
+  useLanguage();
   const [form] = Form.useForm<{ url: string }>();
   const url = Form.useWatch('url', form);
   const [submitting, setSubmitting] = useState(false);
@@ -57,15 +60,15 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
     const vals = await form.validateFields();
     const raw = vals.url?.trim();
     if (!raw) {
-      message.warning('请填写商品链接');
+      message.warning(tr("请填写商品链接"));
       return;
     }
     if (!canSubmit) {
-      message.warning(pinduoduoUrlHint(raw) ?? '请输入拼多多商品详情页链接');
+      message.warning(pinduoduoUrlHint(raw) ?? tr("请输入拼多多商品详情页链接"));
       return;
     }
     if (urlType === 'wholesale_detail' && authStatus && !authStatus.loggedIn) {
-      message.warning('批发页通常需要登录，请先打开拼多多采集浏览器登录后再采集');
+      message.warning(tr("批发页通常需要登录，请先打开拼多多采集浏览器登录后再采集"));
     }
     setSubmitting(true);
     try {
@@ -78,7 +81,7 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
       onSubmitted?.();
       onClose();
     } catch (e) {
-      message.error(mapCollectErrorMessage(e, 'pinduoduo'));
+      message.error(tr(mapCollectErrorMessage(e, 'pinduoduo')));
     } finally {
       setSubmitting(false);
     }
@@ -88,28 +91,26 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
 
   return (
     <Modal
-      title="拼多多采集"
+      title={tr("拼多多采集")}
       open={open}
       onCancel={onClose}
       width={680}
       destroyOnHidden
       footer={
         <Space>
-          <Button onClick={onClose}>取消</Button>
+          <Button onClick={onClose}>{tr("取消")}</Button>
           <Button type="primary" loading={submitting} disabled={!canSubmit} onClick={() => void handleSubmit()}>
-            开始采集
-          </Button>
+            {tr("开始采集")}</Button>
         </Space>
       }
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        第一版优先支持普通商品详情页。拼多多批发页（pifa.pinduoduo.com）通常需要登录后才能采集。
-      </Typography.Paragraph>
+        {tr("第一版优先支持普通商品详情页。拼多多批发页（pifa.pinduoduo.com）通常需要登录后才能采集。")}</Typography.Paragraph>
       <Form form={form} layout="vertical">
         <Form.Item
-          label="商品链接"
+          label={tr("商品链接")}
           name="url"
-          rules={[{ required: true, message: '请填写拼多多商品链接' }]}
+          rules={[{ required: true, message: tr("请填写拼多多商品链接") }]}
         >
           <Input placeholder="https://mobile.yangkeduo.com/goods.html?goods_id=..." />
         </Form.Item>
@@ -130,12 +131,11 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
             disabled={urlType === 'wholesale_detail'}
             onChange={setUseBrowserProfile}
           />
-          <Typography.Text>使用已登录的采集浏览器</Typography.Text>
+          <Typography.Text>{tr("使用已登录的采集浏览器")}</Typography.Text>
         </Space>
         {loginNotReady ? (
           <Typography.Text type="warning">
-            当前未检测到登录态，任务可能因需要登录而失败，建议先完成登录后再采集。
-          </Typography.Text>
+            {tr("当前未检测到登录态，任务可能因需要登录而失败，建议先完成登录后再采集。")}</Typography.Text>
         ) : null}
       </Space>
     </Modal>

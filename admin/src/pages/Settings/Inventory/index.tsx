@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 ﻿import { Link } from '@umijs/renderer-react';
 import { InboxOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
@@ -129,17 +131,18 @@ function SettingsToggleCard({
   extra: string;
   link?: { href: string; text: string };
 }) {
+  useLanguage();
   return (
     <div className="tm-system-settings__toggle-card">
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <Text className="tm-system-settings__toggle-label">{label}</Text>
+          <Text className="tm-system-settings__toggle-label">{tr(label)}</Text>
           <Text type="secondary" className="tm-system-settings__toggle-extra">
-            {extra}
+            {tr(extra)}
             {link ? (
               <>
                 {' '}
-                <Link to={link.href}>{link.text}</Link>
+                <Link to={link.href}>{tr(link.text)}</Link>
               </>
             ) : null}
           </Text>
@@ -153,6 +156,7 @@ function SettingsToggleCard({
 }
 
 export default function InventorySettingsPage() {
+  useLanguage();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
@@ -226,7 +230,7 @@ export default function InventorySettingsPage() {
         });
       }
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载失败');
+      message.error((e as Error)?.message || tr("加载失败"));
     } finally {
       setLoading(false);
     }
@@ -239,15 +243,15 @@ export default function InventorySettingsPage() {
   const onFinish = async (values: Record<string, unknown>) => {
     try {
       await saveSettingsItems(buildPutItems(values));
-      message.success('已保存');
+      message.success(tr("已保存"));
       await load();
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '保存失败');
+      message.error((e as Error)?.message || tr("保存失败"));
     }
   };
 
   return (
-    <TmPageContainer title="库存与订单" subTitle="配置本地库存预警、订单扣减与平台库存同步策略。">
+    <TmPageContainer title={tr("库存与订单")} subTitle={tr("配置本地库存预警、订单扣减与平台库存同步策略。")}>
       <div className="tm-system-settings">
         <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
@@ -255,14 +259,10 @@ export default function InventorySettingsPage() {
               <InboxOutlined />
             </div>
             <div className="tm-system-settings__hero-body">
-              <Typography.Title level={5} className="tm-system-settings__hero-title">
-                本地库存与订单联动
-              </Typography.Title>
-              <Paragraph type="secondary" className="tm-system-settings__hero-desc">
-                策略仅影响本地商品规格库存。平台订单同步后再按规则尝试扣减；扣库失败或跳过不会自动回滚平台侧数据。相关审计：
-                <Link to="/inventory/effects"> 订单库存影响</Link>、
-                <Link to="/inventory/logs"> 库存流水</Link>、
-                <Link to="/inventory/alerts"> 库存预警</Link>。
+              <Typography.Title level={5} className="tm-system-settings__hero-title">{tr("本地库存与订单联动")}</Typography.Title>
+              <Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("策略仅影响本地商品规格库存。平台订单同步后再按规则尝试扣减；扣库失败或跳过不会自动回滚平台侧数据。相关审计：")}<Link to="/inventory/effects">{tr("订单库存影响")}</Link>、
+                <Link to="/inventory/logs">{tr("库存流水")}</Link>、
+                <Link to="/inventory/alerts">{tr("库存预警")}</Link>。
               </Paragraph>
             </div>
           </div>
@@ -271,36 +271,34 @@ export default function InventorySettingsPage() {
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <ProCard
             variant="outlined"
-            title="库存预警"
+            title={tr("库存预警")}
             className="tm-system-settings__panel"
             extra={
-              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
-                重新加载
-              </Button>
+              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>{tr("重新加载")}</Button>
             }
           >
             <Row gutter={[24, 0]}>
               <Col xs={24} md={12} lg={8}>
-                <Form.Item label="新建规格默认预警线" name="default_warning_stock" extra="库存低于此值触发预警">
+                <Form.Item label={tr("新建规格默认预警线")} name="default_warning_stock" extra={tr("库存低于此值触发预警")}>
                   <InputNumber min={0} style={{ width: '100%' }} placeholder="5" />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12} lg={8}>
-                <Form.Item label="新建规格默认安全线" name="default_safety_stock" extra="0 表示不设置安全库存下限">
+                <Form.Item label={tr("新建规格默认安全线")} name="default_safety_stock" extra={tr("0 表示不设置安全库存下限")}>
                   <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12} lg={8}>
                 <Form.Item
-                  label="平台库存差异阈值"
+                  label={tr("平台库存差异阈值")}
                   name="platform_stock_mismatch_threshold"
-                  tooltip="平台与本地库存差值超过此数视为不一致；0 表示必须完全一致"
+                  tooltip={tr("平台与本地库存差值超过此数视为不一致；0 表示必须完全一致")}
                 >
                   <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
                 </Form.Item>
               </Col>
             </Row>
-            <Divider plain>预警开关</Divider>
+            <Divider plain>{tr("预警开关")}</Divider>
             <Row gutter={[12, 12]}>
               {INVENTORY_ALERT_TOGGLES.map((item) => (
                 <Col xs={24} sm={12} lg={8} key={item.name}>
@@ -310,7 +308,7 @@ export default function InventorySettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard variant="outlined" title="订单与库存联动" className="tm-system-settings__panel">
+          <ProCard variant="outlined" title={tr("订单与库存联动")} className="tm-system-settings__panel">
             <Row gutter={[12, 12]}>
               {INVENTORY_ORDER_TOGGLES.map((item) => (
                 <Col xs={24} sm={12} lg={8} key={item.name}>
@@ -325,10 +323,8 @@ export default function InventorySettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard variant="outlined" title="批量同步与限流" className="tm-system-settings__panel">
-            <Paragraph type="secondary" style={{ marginBottom: 16 }}>
-              控制单次批量任务数量与各平台每分钟请求上限；超限时任务会稍后自动重试。
-            </Paragraph>
+          <ProCard variant="outlined" title={tr("批量同步与限流")} className="tm-system-settings__panel">
+            <Paragraph type="secondary" style={{ marginBottom: 16 }}>{tr("控制单次批量任务数量与各平台每分钟请求上限；超限时任务会稍后自动重试。")}</Paragraph>
             <Row gutter={[24, 0]}>
               <Col xs={24} md={12}>
                 <Form.Item label={INVENTORY_SYNC_BATCH_MAX_SIZE_LABEL} name="inventory_sync_batch_max_size">
@@ -337,15 +333,15 @@ export default function InventorySettingsPage() {
               </Col>
               <Col xs={24} md={12}>
                 <Form.Item
-                  label="单次批量设置预警线上限"
+                  label={tr("单次批量设置预警线上限")}
                   name="inventory_stock_settings_batch_max_size"
-                  extra="仅限制批量修改预警线 / 安全线，与上方库存同步批量无关"
+                  extra={tr("仅限制批量修改预警线 / 安全线，与上方库存同步批量无关")}
                 >
                   <InputNumber min={1} max={5000} style={{ width: '100%' }} placeholder="500" />
                 </Form.Item>
               </Col>
             </Row>
-            <Form.Item label="启用平台节流" name="inventory_sync_platform_rate_limit_enabled" valuePropName="checked">
+            <Form.Item label={tr("启用平台节流")} name="inventory_sync_platform_rate_limit_enabled" valuePropName="checked">
               <Switch />
             </Form.Item>
             <Form.Item
@@ -361,16 +357,14 @@ export default function InventorySettingsPage() {
                     <Row gutter={[16, 0]}>
                       {INVENTORY_PLATFORM_RATE_LIMITS.map((item) => (
                         <Col xs={24} sm={12} md={6} key={item.name}>
-                          <Form.Item label={`${item.label} 每分钟配额`} name={item.name}>
+                          <Form.Item label={trFormat("{value0} 每分钟配额", { value0: item.label })} name={item.name}>
                             <InputNumber min={1} style={{ width: '100%' }} disabled={!rateLimitEnabled} placeholder="60" />
                           </Form.Item>
                         </Col>
                       ))}
                     </Row>
                     {!rateLimitEnabled ? (
-                      <Text type="secondary" style={{ display: 'block', marginTop: -8, fontSize: 12 }}>
-                        启用平台节流后可配置各平台每分钟配额
-                      </Text>
+                      <Text type="secondary" style={{ display: 'block', marginTop: -8, fontSize: 12 }}>{tr("启用平台节流后可配置各平台每分钟配额")}</Text>
                     ) : null}
                   </>
                 );
@@ -379,9 +373,7 @@ export default function InventorySettingsPage() {
           </ProCard>
 
           <ProCard variant="outlined" className="tm-system-settings__footer">
-            <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
-              保存配置
-            </Button>
+            <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>{tr("保存配置")}</Button>
           </ProCard>
         </Form>
       </div>

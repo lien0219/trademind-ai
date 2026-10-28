@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { history, useParams } from '@umijs/max';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -33,11 +35,12 @@ type ReceiptValues = { quantities: Record<string, number> };
 type ReturnValues = { reason: string; remark: string; quantities: Record<string, number> };
 
 function statusTag(status: string) {
-  const meta = PURCHASE_ORDER_STATUS[status] || { text: '未知状态', color: 'default' };
-  return <Tag color={meta.color}>{meta.text}</Tag>;
+  const meta = PURCHASE_ORDER_STATUS[status] || { source: "未知状态", color: 'default' };
+  return <Tag color={meta.color}>{tr(meta.source)}</Tag>;
 }
 
 export default function PurchaseOrderDetailPage() {
+  useLanguage();
   const { id = '' } = useParams<{ id: string }>();
   const { can, readonly } = usePermission();
   const canManage = !readonly && can(PERMISSIONS.PROCUREMENT_MANAGE);
@@ -106,10 +109,10 @@ export default function PurchaseOrderDetailPage() {
       });
       setOrder(updated);
       setTransition(undefined);
-      message.success(`${transition.label}成功`);
+      message.success(trFormat("{value0}成功", { value0: transition.label }));
     } catch (nextError) {
       const apiError = extractProcurementAPIError(nextError);
-      message.error(procurementErrorMessage(apiError));
+      message.error(tr(procurementErrorMessage(apiError)));
       if (apiError.message.toLowerCase().includes('revision conflict')) await load();
     } finally {
       setTransitionSubmitting(false);
@@ -130,7 +133,7 @@ export default function PurchaseOrderDetailPage() {
       .map((item) => ({ purchaseOrderItemId: item.id, quantity: Number(values.quantities?.[item.id] || 0) }))
       .filter((item) => item.quantity > 0);
     if (items.length === 0) {
-      message.warning('请至少填写一项本次收货数量');
+      message.warning(tr("请至少填写一项本次收货数量"));
       return;
     }
     setReceiptSubmitting(true);
@@ -142,10 +145,10 @@ export default function PurchaseOrderDetailPage() {
       });
       setOrder(result.purchaseOrder);
       setReceiptOpen(false);
-      message.success(`收货已确认，收货单号：${result.receipt.receiptNo}`);
+      message.success(trFormat("收货已确认，收货单号：{value0}", { value0: result.receipt.receiptNo }));
     } catch (nextError) {
       const apiError = extractProcurementAPIError(nextError);
-      message.error(procurementErrorMessage(apiError, '收货确认失败，请核对数量后重试。'));
+      message.error(tr(procurementErrorMessage(apiError, tr('收货确认失败，请核对数量后重试。'))));
       if (apiError.message.toLowerCase().includes('revision conflict')) await load();
     } finally {
       setReceiptSubmitting(false);
@@ -192,7 +195,7 @@ export default function PurchaseOrderDetailPage() {
       .map((item) => ({ goodsReceiptItemId: item.goodsReceiptItemId, quantity: Number(values.quantities?.[item.goodsReceiptItemId] || 0) }))
       .filter((item) => item.quantity > 0);
     if (items.length === 0) {
-      message.warning('请至少填写一项本次退货数量');
+      message.warning(tr("请至少填写一项本次退货数量"));
       return;
     }
     returnSubmittingRef.current = true;
@@ -206,10 +209,10 @@ export default function PurchaseOrderDetailPage() {
         items,
       });
       setReturnOpen(false);
-      message.success(`采购退货草稿已创建：${purchaseReturn.returnNo}`);
+      message.success(trFormat("采购退货草稿已创建：{value0}", { value0: purchaseReturn.returnNo }));
       history.push(`/procurement/purchase-returns/${purchaseReturn.id}`);
     } catch (nextError) {
-      message.error(procurementErrorMessage(extractProcurementAPIError(nextError), '采购退货创建失败，请核对数量后重试。'));
+      message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('采购退货创建失败，请核对数量后重试。'))));
     } finally {
       returnSubmittingRef.current = false;
       setReturnSubmitting(false);
@@ -218,33 +221,33 @@ export default function PurchaseOrderDetailPage() {
 
   const itemColumns: ProColumns<PurchaseOrderItem>[] = [
     {
-      title: '商品', dataIndex: 'productTitle', minWidth: 170, ellipsis: true,
-      render: (_, row) => row.productTitle || '商品信息不可用',
+      title: tr("商品"), dataIndex: 'productTitle', minWidth: 170, ellipsis: true,
+      render: (_, row) => row.productTitle || tr('商品信息不可用'),
     },
     {
-      title: '本地规格', dataIndex: 'skuName', minWidth: 170, ellipsis: true,
+      title: tr("本地规格"), dataIndex: 'skuName', minWidth: 170, ellipsis: true,
       render: (_, row) => row.skuName || row.skuCode || row.productSkuId,
     },
-    { title: '订购数量', dataIndex: 'quantity', width: 100, align: 'right' },
-    { title: '已收数量', dataIndex: 'receivedQuantity', width: 100, align: 'right' },
-    { title: '未收数量', width: 100, align: 'right', render: (_, row) => remainingQuantity(row.quantity, row.receivedQuantity) },
-    { title: '采购单价', dataIndex: 'unitCostMinor', width: 140, align: 'right', render: (_, row) => formatMinorAmount(row.unitCostMinor, order?.currency) },
-    { title: '明细金额', dataIndex: 'lineAmountMinor', width: 150, align: 'right', render: (_, row) => formatMinorAmount(row.lineAmountMinor, order?.currency) },
+    { title: tr("订购数量"), dataIndex: 'quantity', width: 100, align: 'right' },
+    { title: tr("已收数量"), dataIndex: 'receivedQuantity', width: 100, align: 'right' },
+    { title: tr("未收数量"), width: 100, align: 'right', render: (_, row) => remainingQuantity(row.quantity, row.receivedQuantity) },
+    { title: tr("采购单价"), dataIndex: 'unitCostMinor', width: 140, align: 'right', render: (_, row) => formatMinorAmount(row.unitCostMinor, order?.currency) },
+    { title: tr("明细金额"), dataIndex: 'lineAmountMinor', width: 150, align: 'right', render: (_, row) => formatMinorAmount(row.lineAmountMinor, order?.currency) },
   ];
 
   const actionButtons = useMemo(() => {
     if (!order) return null;
     return (
       <Space wrap>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => history.push('/procurement/purchase-orders')}>返回列表</Button>
-        {order.status === 'draft' && canManage ? <Button type="primary" onClick={() => openTransition({ action: 'submit', label: '提交审批' })}>提交审批</Button> : null}
-        {order.status === 'pending_approval' && canApprove ? <Button type="primary" onClick={() => openTransition({ action: 'approve', label: '审批通过' })}>审批通过</Button> : null}
-        {canReceive && canReceivePurchaseOrder(order.status) ? <Button type="primary" onClick={openReceipt}>确认收货</Button> : null}
-        {canManage && ['partially_received', 'received', 'closed'].includes(order.status) ? <Button onClick={() => void openReturn()}>发起退货</Button> : null}
-        {['partially_received', 'received', 'closed'].includes(order.status) ? <Button onClick={() => history.push(`/procurement/purchase-returns?purchaseOrderId=${encodeURIComponent(order.id)}`)}>退货记录</Button> : null}
-        {canManage && ['approved', 'partially_received'].includes(order.status) ? <Button onClick={() => openTransition({ action: 'close', label: '关闭采购单', danger: true })}>关闭采购单</Button> : null}
+        <Button icon={<ArrowLeftOutlined />} onClick={() => history.push('/procurement/purchase-orders')}>{tr("返回列表")}</Button>
+        {order.status === 'draft' && canManage ? <Button type="primary" onClick={() => openTransition({ action: 'submit', label: tr("提交审批") })}>{tr("提交审批")}</Button> : null}
+        {order.status === 'pending_approval' && canApprove ? <Button type="primary" onClick={() => openTransition({ action: 'approve', label: tr("审批通过") })}>{tr("审批通过")}</Button> : null}
+        {canReceive && canReceivePurchaseOrder(order.status) ? <Button type="primary" onClick={openReceipt}>{tr("确认收货")}</Button> : null}
+        {canManage && ['partially_received', 'received', 'closed'].includes(order.status) ? <Button onClick={() => void openReturn()}>{tr("发起退货")}</Button> : null}
+        {['partially_received', 'received', 'closed'].includes(order.status) ? <Button onClick={() => history.push(`/procurement/purchase-returns?purchaseOrderId=${encodeURIComponent(order.id)}`)}>{tr("退货记录")}</Button> : null}
+        {canManage && ['approved', 'partially_received'].includes(order.status) ? <Button onClick={() => openTransition({ action: 'close', label: tr("关闭采购单"), danger: true })}>{tr("关闭采购单")}</Button> : null}
         {canManage && ['draft', 'pending_approval', 'approved'].includes(order.status) && (order.items || []).every((item) => item.receivedQuantity === 0) ? (
-          <Button danger onClick={() => openTransition({ action: 'cancel', label: '取消采购单', danger: true })}>取消采购单</Button>
+          <Button danger onClick={() => openTransition({ action: 'cancel', label: tr("取消采购单"), danger: true })}>{tr("取消采购单")}</Button>
         ) : null}
       </Space>
     );
@@ -254,69 +257,69 @@ export default function PurchaseOrderDetailPage() {
     <PermissionGuard require={PERMISSIONS.PROCUREMENT_VIEW} showForbiddenPage>
       <TmPageContainer
         className="tm-procurement-page"
-        title={order?.purchaseOrderNo || '采购单详情'}
-        subTitle="核对采购明细、版本和收货进度。审批与执行权限分离，过期版本会被拒绝。"
+        title={order?.purchaseOrderNo || tr('采购单详情')}
+        subTitle={tr("核对采购明细、版本和收货进度。审批与执行权限分离，过期版本会被拒绝。")}
         extra={<TmPageHeaderExtra>{actionButtons}</TmPageHeaderExtra>}
       >
-        {loading ? <Alert type="info" showIcon message="正在加载采购单详情…" /> : null}
-        {error ? <ErrorAlert title={error} actionHint={<Button onClick={() => void load()}>重新加载</Button>} /> : null}
+        {loading ? <Alert type="info" showIcon message={tr("正在加载采购单详情…")} /> : null}
+        {error ? <ErrorAlert title={tr(error)} actionHint={<Button onClick={() => void load()}>{tr("重新加载")}</Button>} /> : null}
         {order ? (
           <>
-            {readonly ? <Alert type="info" showIcon message="当前账号为只读模式，不能提交、审批、确认收货或发起退货。" /> : null}
-            <SectionCard title="采购单信息" description="状态变更使用当前版本号提交，避免覆盖他人已完成的操作。">
+            {readonly ? <Alert type="info" showIcon message={tr("当前账号为只读模式，不能提交、审批、确认收货或发起退货。")} /> : null}
+            <SectionCard title={tr("采购单信息")} description={tr("状态变更使用当前版本号提交，避免覆盖他人已完成的操作。")}>
               <Descriptions column={{ xs: 1, sm: 2, lg: 3 }}>
-                <Descriptions.Item label="采购单号"><Typography.Text copyable>{order.purchaseOrderNo}</Typography.Text></Descriptions.Item>
-                <Descriptions.Item label="状态">{statusTag(order.status)}</Descriptions.Item>
-                <Descriptions.Item label="版本">{order.revision}</Descriptions.Item>
-                <Descriptions.Item label="供应商">{supplierName}</Descriptions.Item>
-                <Descriptions.Item label="收货仓库">{warehouseName}</Descriptions.Item>
-                <Descriptions.Item label="采购金额">{formatMinorAmount(order.totalAmountMinor, order.currency)}</Descriptions.Item>
-                <Descriptions.Item label="创建时间">{formatDateTime(order.createdAt)}</Descriptions.Item>
-                <Descriptions.Item label="审批时间">{order.approvedAt ? formatDateTime(order.approvedAt) : '—'}</Descriptions.Item>
-                <Descriptions.Item label="备注">{order.remark || '—'}</Descriptions.Item>
+                <Descriptions.Item label={tr("采购单号")}><Typography.Text copyable>{order.purchaseOrderNo}</Typography.Text></Descriptions.Item>
+                <Descriptions.Item label={tr("状态")}>{statusTag(order.status)}</Descriptions.Item>
+                <Descriptions.Item label={tr("版本")}>{order.revision}</Descriptions.Item>
+                <Descriptions.Item label={tr("供应商")}>{supplierName}</Descriptions.Item>
+                <Descriptions.Item label={tr("收货仓库")}>{warehouseName}</Descriptions.Item>
+                <Descriptions.Item label={tr("采购金额")}>{formatMinorAmount(order.totalAmountMinor, order.currency)}</Descriptions.Item>
+                <Descriptions.Item label={tr("创建时间")}>{formatDateTime(order.createdAt)}</Descriptions.Item>
+                <Descriptions.Item label={tr("审批时间")}>{order.approvedAt ? formatDateTime(order.approvedAt) : '—'}</Descriptions.Item>
+                <Descriptions.Item label={tr("备注")}>{order.remark || '—'}</Descriptions.Item>
               </Descriptions>
             </SectionCard>
-            <SectionCard title="采购明细" description="已收数量来自不可重复记账的收货事务；未收数量不能小于零。">
+            <SectionCard title={tr("采购明细")} description={tr("已收数量来自不可重复记账的收货事务；未收数量不能小于零。")}>
               <TmProTable<PurchaseOrderItem>
                 rowKey="id" columns={itemColumns} dataSource={order.items || []} search={false} options={false}
-                pagination={false} cardBordered={false} scroll={{ x: 980 }} locale={{ emptyText: '采购单没有明细。' }}
+                pagination={false} cardBordered={false} scroll={{ x: 980 }} locale={{ emptyText: tr('采购单没有明细。') }}
               />
             </SectionCard>
           </>
         ) : null}
 
         <Modal
-          title={transition?.label || '采购单操作'}
+          title={transition?.label || tr('采购单操作')}
           open={Boolean(transition)}
           confirmLoading={transitionSubmitting}
-          okText={transition?.label || '确认'}
+          okText={transition?.label || tr('确认')}
           okButtonProps={{ danger: transition?.danger }}
-          cancelText="取消"
+          cancelText={tr("取消")}
           onCancel={() => !transitionSubmitting && setTransition(undefined)}
           onOk={() => transitionForm.submit()}
           forceRender
         >
           <Form form={transitionForm} layout="vertical" preserve={false} onFinish={(values) => void submitTransition(values)}>
-            <Alert type={transition?.danger ? 'warning' : 'info'} showIcon message={`本次操作基于版本 ${order?.revision || '—'}，若采购单已更新将自动拒绝。`} />
-            <Form.Item label="操作说明" name="reason" rules={[{ max: 500, message: '操作说明不能超过 500 个字符' }]}>
-              <Input.TextArea rows={3} maxLength={500} showCount placeholder="可选，用于操作日志追溯" />
+            <Alert type={transition?.danger ? 'warning' : 'info'} showIcon message={trFormat("本次操作基于版本 {value0}，若采购单已更新将自动拒绝。", { value0: String(order?.revision || '—') })} />
+            <Form.Item label={tr("操作说明")} name="reason" rules={[{ max: 500, message: tr("操作说明不能超过 500 个字符") }]}>
+              <Input.TextArea rows={3} maxLength={500} showCount placeholder={tr("可选，用于操作日志追溯")} />
             </Form.Item>
           </Form>
         </Modal>
 
         <Modal
-          title="确认收货"
+          title={tr("确认收货")}
           open={receiptOpen}
           width={760}
           confirmLoading={receiptSubmitting}
-          okText="确认本次收货"
-          cancelText="取消"
+          okText={tr("确认本次收货")}
+          cancelText={tr("取消")}
           onCancel={() => !receiptSubmitting && setReceiptOpen(false)}
           onOk={() => receiptForm.submit()}
           forceRender
         >
           <Form form={receiptForm} layout="vertical" preserve={false} onFinish={(values) => void submitReceipt(values)}>
-            <Alert type="warning" showIcon message="确认后会在同一事务中增加本地聚合库存并记录仓库库存流水，不能在此页面撤销。" />
+            <Alert type="warning" showIcon message={tr("确认后会在同一事务中增加本地聚合库存并记录仓库库存流水，不能在此页面撤销。")} />
             <div className="tm-procurement-receipt-list">
               {(order?.items || []).map((item) => {
                 const remaining = remainingQuantity(item.quantity, item.receivedQuantity);
@@ -324,12 +327,12 @@ export default function PurchaseOrderDetailPage() {
                   <div className="tm-procurement-receipt-row" key={item.id}>
                     <div>
                       <Typography.Text strong>{item.productTitle || item.productSkuId}</Typography.Text>
-                      <Typography.Text type="secondary">{item.skuName || item.skuCode || '未命名规格'} · 未收 {remaining}</Typography.Text>
+                      <Typography.Text type="secondary">{item.skuName || item.skuCode || tr('未命名规格')} {tr("· 未收")} {remaining}</Typography.Text>
                     </div>
                     <Form.Item
-                      label="本次收货"
+                      label={tr("本次收货")}
                       name={['quantities', item.id]}
-                      rules={[{ type: 'number', min: 0, max: remaining, message: `可收数量为 0–${remaining}` }]}
+                      rules={[{ type: 'number', min: 0, max: remaining, message: trFormat("可收数量为 0–{value0}", { value0: remaining }) }]}
                     >
                       <InputNumber min={0} max={remaining} precision={0} disabled={remaining === 0} />
                     </Form.Item>
@@ -341,38 +344,38 @@ export default function PurchaseOrderDetailPage() {
         </Modal>
 
         <Modal
-          title="发起采购退货"
+          title={tr("发起采购退货")}
           open={returnOpen}
           width={780}
           confirmLoading={returnSubmitting}
-          okText="创建退货单草稿"
+          okText={tr("创建退货单草稿")}
           okButtonProps={{ disabled: returnLoading || Boolean(returnError) || returnItems.length === 0 }}
-          cancelText="取消"
+          cancelText={tr("取消")}
           onCancel={closeReturn}
           onOk={() => returnForm.submit()}
           forceRender
         >
           <Form form={returnForm} layout="vertical" preserve={false} onFinish={(values) => void submitReturn(values)}>
-            <Alert type="info" showIcon message="创建后为草稿，不会立即扣减库存；提交审批并由独立执行岗确认后才会完成出库。" />
-            <Form.Item label="退货原因" name="reason" rules={[{ required: true, whitespace: true, message: '请输入退货原因' }, { max: 128, message: '退货原因不能超过 128 个字符' }]}>
-              <Input maxLength={128} placeholder="例如：到货质量异常" />
+            <Alert type="info" showIcon message={tr("创建后为草稿，不会立即扣减库存；提交审批并由独立执行岗确认后才会完成出库。")} />
+            <Form.Item label={tr("退货原因")} name="reason" rules={[{ required: true, whitespace: true, message: tr("请输入退货原因") }, { max: 128, message: tr("退货原因不能超过 128 个字符") }]}>
+              <Input maxLength={128} placeholder={tr("例如：到货质量异常")} />
             </Form.Item>
-            <Form.Item label="备注" name="remark" rules={[{ max: 520, message: '备注不能超过 520 个字符' }]}>
+            <Form.Item label={tr("备注")} name="remark" rules={[{ max: 520, message: tr("备注不能超过 520 个字符") }]}>
               <Input.TextArea rows={2} maxLength={520} showCount />
             </Form.Item>
-            {returnLoading ? <Alert type="info" showIcon message="正在加载可退收货记录…" /> : null}
-            {returnError ? <ErrorAlert title={returnError} actionHint={<Button onClick={() => void openReturn()}>重新加载</Button>} /> : null}
-            {!returnLoading && !returnError && returnItems.length === 0 ? <EmptyState compact title="没有可退数量" description="该采购单的收货数量已全部分配给有效退货单，或当前没有收货记录。" /> : null}
+            {returnLoading ? <Alert type="info" showIcon message={tr("正在加载可退收货记录…")} /> : null}
+            {returnError ? <ErrorAlert title={tr(returnError)} actionHint={<Button onClick={() => void openReturn()}>{tr("重新加载")}</Button>} /> : null}
+            {!returnLoading && !returnError && returnItems.length === 0 ? <EmptyState compact title={tr("没有可退数量")} description={tr("该采购单的收货数量已全部分配给有效退货单，或当前没有收货记录。")} /> : null}
             {!returnLoading && !returnError && returnItems.length > 0 ? <div className="tm-procurement-receipt-list">
               {returnItems.map((item) => <div className="tm-procurement-receipt-row" key={item.goodsReceiptItemId}>
                 <div>
                   <Typography.Text strong>{item.productTitle || item.productSkuId}</Typography.Text>
-                  <Typography.Text type="secondary">{item.skuName || item.skuCode || '未命名规格'} · 收货单 {item.receiptNo} · 可退 {item.remainingQuantity}</Typography.Text>
+                  <Typography.Text type="secondary">{item.skuName || item.skuCode || tr('未命名规格')} {tr("· 收货单")} {item.receiptNo} {tr("· 可退")} {item.remainingQuantity}</Typography.Text>
                 </div>
                 <Form.Item
-                  label="本次退货"
+                  label={tr("本次退货")}
                   name={['quantities', item.goodsReceiptItemId]}
-                  rules={[{ type: 'number', min: 0, max: item.remainingQuantity, message: `可退数量为 0–${item.remainingQuantity}` }]}
+                  rules={[{ type: 'number', min: 0, max: item.remainingQuantity, message: trFormat("可退数量为 0–{value0}", { value0: item.remainingQuantity }) }]}
                 >
                   <InputNumber min={0} max={item.remainingQuantity} precision={0} />
                 </Form.Item>

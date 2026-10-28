@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
 import { history, useParams } from '@umijs/max';
 import { Button, Descriptions, Form, Input, Modal, Select, Space, Spin, Table, Tabs, Tag, Timeline, Typography, message } from 'antd';
@@ -6,6 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { EmptyState, ErrorAlert, OperationToolbar, SectionCard, TaskJsonBlock, TmPageContainer } from '@/components/ui';
 import { PAGE_COPY } from '@/constants/copywriting';
 import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useLanguage } from '@/i18n/useLanguage';
 import {
   approveTask,
   cancelTask,
@@ -111,7 +113,7 @@ function latestDraft(drafts: PlatformDraftSummary[]) {
 }
 
 function requiredReasonRule(label: string) {
-  return [{ required: true, whitespace: true, message: `请填写${label}` }];
+  return [{ required: true, whitespace: true, message: trFormat("请填写{value0}", { value0: label }) }];
 }
 
 function isFormValidationError(error: unknown) {
@@ -138,13 +140,14 @@ function resourceError(error: OperationTaskAPIError | undefined, hasPreviousData
     <ErrorAlert
       title={operationErrorMessage(error)}
       actionHint={hasPreviousData
-        ? '刷新失败，当前显示上次成功加载的记录。'
-        : error.traceId ? `排查编号：${error.traceId}` : '请稍后刷新重试。'}
+        ? tr('刷新失败，当前显示上次成功加载的记录。')
+        : error.traceId ? trFormat('排查编号：{traceId}', { traceId: error.traceId }) : tr('请稍后刷新重试。')}
     />
   );
 }
 
 export default function OperationTaskDetailPage() {
+  useLanguage();
   const params = useParams<{ taskId: string }>();
   const taskId = params.taskId || '';
   const { state: urlState, setState: setUrlState } = useUrlQueryState<DetailQueryState>(['tab', 'from']);
@@ -187,7 +190,7 @@ export default function OperationTaskDetailPage() {
 
   const loadAll = useCallback(async () => {
     if (!taskId) {
-      setError({ message: '任务地址无效，请返回列表重新选择。', errorCode: 'validation_error' });
+      setError({ message: tr("任务地址无效，请返回列表重新选择。"), errorCode: 'validation_error' });
       return;
     }
     const seq = requestSeq.current + 1;
@@ -333,18 +336,18 @@ export default function OperationTaskDetailPage() {
           return;
         }
         const values = await form.validateFields();
-        if (currentDraft) throw new Error('当前接口未提供最新草稿正文，无法安全编辑已有草稿');
+        if (currentDraft) throw new Error(tr('当前接口未提供最新草稿正文，无法安全编辑已有草稿'));
         const body = {
           payload: parsed.value,
           changeReason: values.changeReason,
           expectedTaskRevision: detail.revision,
         };
         await createDraft(taskId, body, actionIdempotencyKey('draft', body));
-        await completeAction('首版草稿已创建。');
+        await completeAction(tr('首版草稿已创建。'));
       }
       if (modal === 'approve') {
         const values = await form.validateFields();
-        if (!currentDraft) throw new Error('当前没有可审核草稿');
+        if (!currentDraft) throw new Error(tr('当前没有可审核草稿'));
         const body = {
           draftVersion: currentDraft.draftVersion,
           draftPayloadHash: currentDraft.payloadHash,
@@ -353,11 +356,11 @@ export default function OperationTaskDetailPage() {
           expectedTaskRevision: detail.revision,
         };
         await approveTask(taskId, body, actionIdempotencyKey('approve', body));
-        await completeAction('已批准最新草稿。');
+        await completeAction(tr('已批准最新草稿。'));
       }
       if (modal === 'reject') {
         const values = await form.validateFields();
-        if (!currentDraft) throw new Error('当前没有可拒绝草稿');
+        if (!currentDraft) throw new Error(tr('当前没有可拒绝草稿'));
         const body = {
           draftVersion: currentDraft.draftVersion,
           draftPayloadHash: currentDraft.payloadHash,
@@ -366,7 +369,7 @@ export default function OperationTaskDetailPage() {
           expectedTaskRevision: detail.revision,
         };
         await rejectTask(taskId, body, actionIdempotencyKey('reject', body));
-        await completeAction('已拒绝最新草稿。');
+        await completeAction(tr('已拒绝最新草稿。'));
       }
       if (modal === 'execute') {
         const values = await form.validateFields();
@@ -377,9 +380,9 @@ export default function OperationTaskDetailPage() {
         const result = await executeTask(taskId, body, actionIdempotencyKey('execute', body));
         if (result.failure || result.status === 'failed_retryable' || result.status === 'failed_final') {
           await loadAll();
-          throw new Error(result.failure?.safeMessage || '草稿生成失败，请查看执行历史。');
+          throw new Error(result.failure?.safeMessage || tr('草稿生成失败，请查看执行历史。'));
         }
-        await completeAction(isProductionDraft ? '平台草稿创建请求已排队。' : '草稿生成请求已提交。');
+        await completeAction(isProductionDraft ? tr('平台草稿创建请求已排队。') : tr('草稿生成请求已提交。'));
       }
       if (modal === 'retry') {
         const values = await form.validateFields();
@@ -391,9 +394,9 @@ export default function OperationTaskDetailPage() {
         const result = await retryTask(taskId, body, actionIdempotencyKey('retry', body));
         if (result.failure || result.status === 'failed_retryable' || result.status === 'failed_final') {
           await loadAll();
-          throw new Error(result.failure?.safeMessage || '人工重试失败，请查看执行历史。');
+          throw new Error(result.failure?.safeMessage || tr('人工重试失败，请查看执行历史。'));
         }
-        await completeAction('人工重试请求已提交。');
+        await completeAction(tr('人工重试请求已提交。'));
       }
       if (modal === 'cancel') {
         const values = await form.validateFields();
@@ -402,7 +405,7 @@ export default function OperationTaskDetailPage() {
           expectedTaskRevision: detail.revision,
         };
         await cancelTask(taskId, body, actionIdempotencyKey('cancel', body));
-        await completeAction('任务已取消。');
+        await completeAction(tr('任务已取消。'));
       }
     } catch (e) {
       if (isFormValidationError(e)) return;
@@ -465,62 +468,62 @@ export default function OperationTaskDetailPage() {
   };
 
   const draftColumns: ColumnsType<PlatformDraftSummary> = [
-    { title: '版本', dataIndex: 'draftVersion', width: 90, render: (v) => `v${v}` },
-    { title: '状态', dataIndex: 'status', width: 120, render: (v) => <OperationDraftStatusTag status={String(v)} /> },
+    { title: tr("版本"), dataIndex: 'draftVersion', width: 90, render: (v) => `v${v}` },
+    { title: tr("状态"), dataIndex: 'status', width: 120, render: (v) => <OperationDraftStatusTag status={String(v)} /> },
     { title: 'Payload Hash', dataIndex: 'payloadHash', render: (v) => copyableText(String(v), 18) },
-    { title: '变更原因', dataIndex: 'changeReason', ellipsis: true, render: (v) => v || '—' },
-    { title: '创建人', dataIndex: 'createdBy', render: (v) => copyableText(String(v || ''), 10) },
-    { title: '创建时间', dataIndex: 'createdAt', render: (v) => formatDateTime(String(v)) },
+    { title: tr("变更原因"), dataIndex: 'changeReason', ellipsis: true, render: (v) => v || '—' },
+    { title: tr("创建人"), dataIndex: 'createdBy', render: (v) => copyableText(String(v || ''), 10) },
+    { title: tr("创建时间"), dataIndex: 'createdAt', render: (v) => formatDateTime(String(v)) },
   ];
 
   const attemptColumns: ColumnsType<ExecutionAttemptSummary> = [
     { title: 'Attempt', dataIndex: 'attemptNumber', width: 100 },
-    { title: '状态', dataIndex: 'status', width: 120, render: (v) => <OperationAttemptStatusTag status={String(v)} /> },
+    { title: tr("状态"), dataIndex: 'status', width: 120, render: (v) => <OperationAttemptStatusTag status={String(v)} /> },
     { title: 'Adapter Mode', dataIndex: 'adapterMode', render: (v) => adapterModeLabel(String(v)) },
-    { title: '批准草稿', dataIndex: 'approvedDraftVersion', render: (_, row) => `v${row.approvedDraftVersion} / ${row.approvedDraftPayloadHash || '—'}` },
-    { title: '执行草稿', dataIndex: 'executedDraftVersion', render: (_, row) => row.executedDraftVersion ? `v${row.executedDraftVersion} / ${row.executedDraftPayloadHash || '—'}` : '—' },
-    { title: '结果', dataIndex: 'resultType', render: (v) => resultTypeLabel(String(v || '')) },
+    { title: tr("批准草稿"), dataIndex: 'approvedDraftVersion', render: (_, row) => `v${row.approvedDraftVersion} / ${row.approvedDraftPayloadHash || '—'}` },
+    { title: tr("执行草稿"), dataIndex: 'executedDraftVersion', render: (_, row) => row.executedDraftVersion ? `v${row.executedDraftVersion} / ${row.executedDraftPayloadHash || '—'}` : '—' },
+    { title: tr("结果"), dataIndex: 'resultType', render: (v) => resultTypeLabel(String(v || '')) },
     { title: 'Request ID', dataIndex: 'requestId', render: (v) => copyableText(String(v || ''), 14) },
-    { title: '开始时间', dataIndex: 'startedAt', render: (v) => formatDateTime(String(v || '')) },
-    { title: '结束时间', dataIndex: 'finishedAt', render: (v) => formatDateTime(String(v || '')) },
+    { title: tr("开始时间"), dataIndex: 'startedAt', render: (v) => formatDateTime(String(v || '')) },
+    { title: tr("结束时间"), dataIndex: 'finishedAt', render: (v) => formatDateTime(String(v || '')) },
   ];
 
   const modalTitle = useMemo(() => {
-    if (modal === 'draft') return '创建首版草稿';
-    if (modal === 'approve') return '确认批准';
-    if (modal === 'reject') return '拒绝草稿';
-    if (modal === 'execute') return isProductionDraft ? '创建平台草稿' : '执行草稿生成';
-    if (modal === 'retry') return '人工重试';
-    if (modal === 'cancel') return '取消运营任务';
+    if (modal === 'draft') return tr('创建首版草稿');
+    if (modal === 'approve') return tr('确认批准');
+    if (modal === 'reject') return tr('拒绝草稿');
+    if (modal === 'execute') return isProductionDraft ? tr('创建平台草稿') : tr('执行草稿生成');
+    if (modal === 'retry') return tr('人工重试');
+    if (modal === 'cancel') return tr('取消运营任务');
     return '';
   }, [isProductionDraft, modal]);
 
   const modalOkText = useMemo(() => {
-    if (modal === 'draft') return '创建草稿';
-    if (modal === 'approve') return '批准草稿';
-    if (modal === 'reject') return '拒绝草稿';
-    if (modal === 'execute') return isProductionDraft ? '确认创建平台草稿' : '提交草稿生成';
-    if (modal === 'retry') return '发起人工重试';
-    if (modal === 'cancel') return '取消任务';
-    return '提交';
+    if (modal === 'draft') return tr('创建草稿');
+    if (modal === 'approve') return tr('批准草稿');
+    if (modal === 'reject') return tr('拒绝草稿');
+    if (modal === 'execute') return isProductionDraft ? tr('确认创建平台草稿') : tr('提交草稿生成');
+    if (modal === 'retry') return tr('发起人工重试');
+    if (modal === 'cancel') return tr('取消任务');
+    return tr('提交');
   }, [isProductionDraft, modal]);
 
   if (loading && !detail) {
-    return <Spin fullscreen tip="正在加载运营任务详情" />;
+    return <Spin fullscreen tip={tr("正在加载运营任务详情")} />;
   }
 
   if (!detail && error) {
     return (
       <TmPageContainer
-        title="运营任务详情"
-        extra={<Button icon={<ArrowLeftOutlined />} onClick={() => history.push(returnPath)}>返回列表</Button>}
+        title={tr("运营任务详情")}
+        extra={<Button icon={<ArrowLeftOutlined />} onClick={() => history.push(returnPath)}>{tr("返回列表")}</Button>}
       >
         <ErrorAlert
           title={operationErrorMessage(error)}
           actionHint={(
             <OperationToolbar>
-              <Text>{error.traceId ? `排查编号：${error.traceId}` : '请检查任务地址或稍后重试。'}</Text>
-              <Button size="small" onClick={() => void loadAll()}>重新加载</Button>
+              <Text>{error.traceId ? trFormat('排查编号：{traceId}', { traceId: error.traceId }) : tr('请检查任务地址或稍后重试。')}</Text>
+              <Button size="small" onClick={() => void loadAll()}>{tr("重新加载")}</Button>
             </OperationToolbar>
           )}
         />
@@ -534,11 +537,11 @@ export default function OperationTaskDetailPage() {
   return (
     <TmPageContainer
       title={PAGE_COPY.operationTasks.title}
-      subTitle="运营任务详情"
+      subTitle={tr("运营任务详情")}
       extra={
         <Space wrap>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => history.push(returnPath)}>返回列表</Button>
-          <Button icon={<ReloadOutlined />} onClick={() => void loadAll()} loading={loading}>刷新</Button>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => history.push(returnPath)}>{tr("返回列表")}</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => void loadAll()} loading={loading}>{tr("刷新")}</Button>
         </Space>
       }
     >
@@ -550,41 +553,41 @@ export default function OperationTaskDetailPage() {
         {detail ? (
           <SectionCard
             title={detail.title}
-            description={detail.summary || '运营任务概要'}
+            description={detail.summary || tr('运营任务概要')}
             headerExtra={<OperationTaskStatusTag status={detail.status} />}
           >
             <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} size="small">
-              <Descriptions.Item label="任务 ID">{copyableText(detail.id, 18)}</Descriptions.Item>
-              <Descriptions.Item label="任务类型">{taskTypeLabel(detail.taskType)}</Descriptions.Item>
-              <Descriptions.Item label="平台">{platformLabel(detail.platform)}</Descriptions.Item>
-              <Descriptions.Item label="优先级"><OperationPriorityTag priority={detail.priority} /></Descriptions.Item>
-              <Descriptions.Item label="数据版本">{detail.revision}</Descriptions.Item>
-              <Descriptions.Item label="来源">{sourceLabel} / {copyableText(detail.sourceReference, 18)}</Descriptions.Item>
-              <Descriptions.Item label="创建人">{copyableText(detail.createdBy, 12)}</Descriptions.Item>
-              <Descriptions.Item label="创建时间">{formatDateTime(detail.createdAt)}</Descriptions.Item>
-              <Descriptions.Item label="更新时间">{formatDateTime(detail.updatedAt)}</Descriptions.Item>
+              <Descriptions.Item label={tr("任务 ID")}>{copyableText(detail.id, 18)}</Descriptions.Item>
+              <Descriptions.Item label={tr("任务类型")}>{taskTypeLabel(detail.taskType)}</Descriptions.Item>
+              <Descriptions.Item label={tr("平台")}>{platformLabel(detail.platform)}</Descriptions.Item>
+              <Descriptions.Item label={tr("优先级")}><OperationPriorityTag priority={detail.priority} /></Descriptions.Item>
+              <Descriptions.Item label={tr("数据版本")}>{detail.revision}</Descriptions.Item>
+              <Descriptions.Item label={tr("来源")}>{sourceLabel} / {copyableText(detail.sourceReference, 18)}</Descriptions.Item>
+              <Descriptions.Item label={tr("创建人")}>{copyableText(detail.createdBy, 12)}</Descriptions.Item>
+              <Descriptions.Item label={tr("创建时间")}>{formatDateTime(detail.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label={tr("更新时间")}>{formatDateTime(detail.updatedAt)}</Descriptions.Item>
             </Descriptions>
           </SectionCard>
         ) : null}
 
         {detail ? (
-          <SectionCard title="可用操作" description="操作可用性由当前账号权限和任务状态共同决定。" compact>
+          <SectionCard title={tr("可用操作")} description={tr("操作可用性由当前账号权限和任务状态共同决定。")} compact>
             <OperationToolbar className="operation-task-detail__actions">
-              {!isProductionDraft ? <Button disabled={!detail.allowedActions.canEditDraft || !!currentDraft} onClick={() => openModal('draft')}>创建首版草稿</Button> : null}
-              <Button type="primary" disabled={!detail.allowedActions.canApprove || !currentDraft} onClick={() => openModal('approve')}>确认批准</Button>
-              <Button danger disabled={!detail.allowedActions.canReject || !currentDraft} onClick={() => openModal('reject')}>拒绝</Button>
+              {!isProductionDraft ? <Button disabled={!detail.allowedActions.canEditDraft || !!currentDraft} onClick={() => openModal('draft')}>{tr("创建首版草稿")}</Button> : null}
+              <Button type="primary" disabled={!detail.allowedActions.canApprove || !currentDraft} onClick={() => openModal('approve')}>{tr("确认批准")}</Button>
+              <Button danger disabled={!detail.allowedActions.canReject || !currentDraft} onClick={() => openModal('reject')}>{tr("拒绝")}</Button>
               <Button
                 disabled={!detail.allowedActions.canExecute || (isProductionDraft && (!productionStatus?.productionReady || productionStatusLoading || !!productionStatusError))}
                 onClick={() => openModal('execute')}
               >
-                {isProductionDraft ? '创建平台草稿' : '执行草稿生成'}
+                {isProductionDraft ? tr('创建平台草稿') : tr('执行草稿生成')}
               </Button>
-              {!isProductionDraft ? <Button disabled={!detail.allowedActions.canRetry || failedAttempts.length === 0} onClick={() => openModal('retry')}>人工重试</Button> : null}
-              <Button danger disabled={!detail.allowedActions.canCancel} onClick={() => openModal('cancel')}>取消任务</Button>
+              {!isProductionDraft ? <Button disabled={!detail.allowedActions.canRetry || failedAttempts.length === 0} onClick={() => openModal('retry')}>{tr("人工重试")}</Button> : null}
+              <Button danger disabled={!detail.allowedActions.canCancel} onClick={() => openModal('cancel')}>{tr("取消任务")}</Button>
             </OperationToolbar>
             {currentDraft && !isProductionDraft ? (
               <Paragraph type="secondary" className="operation-task-detail__action-hint">
-                已有草稿仅展示摘要。当前接口未提供最新草稿正文，为避免覆盖历史修改，页面不开放继续编辑。
+                {tr('已有草稿仅展示摘要。当前接口未提供最新草稿正文，为避免覆盖历史修改，页面不开放继续编辑。')}
               </Paragraph>
             ) : null}
           </SectionCard>
@@ -597,56 +600,56 @@ export default function OperationTaskDetailPage() {
             items={[
               {
                 key: 'drafts',
-                label: '草稿版本',
+                label: tr("草稿版本"),
                 children: (
                   <Space direction="vertical" size={12} style={{ width: '100%' }}>
                     {resourceError(resourceErrors.drafts, drafts.length > 0)}
                     <SectionCard
-                      title="最新草稿"
+                      title={tr("最新草稿")}
                       description={
                           isProductionDraft
-                            ? '冻结快照已绑定当前草稿版本和哈希；执行只会创建抖店平台草稿，不会发布或上架。'
+                            ? tr('冻结快照已绑定当前草稿版本和哈希；执行只会创建抖店平台草稿，不会发布或上架。')
                             : isProductionBuild
-                          ? '仅表示 TradeMind 内的本地草稿，不代表已发布商品。'
-                          : '仅表示本地、模拟或沙箱草稿，不代表已发布商品。'
+                          ? tr('仅表示 TradeMind 内的本地草稿，不代表已发布商品。')
+                          : tr('仅表示本地、模拟或沙箱草稿，不代表已发布商品。')
                       }
                     >
                       {currentDraft ? (
                         <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} size="small">
-                          <Descriptions.Item label="版本">v{currentDraft.draftVersion}</Descriptions.Item>
-                          <Descriptions.Item label="状态"><OperationDraftStatusTag status={currentDraft.status} /></Descriptions.Item>
-                          <Descriptions.Item label="执行方式">{adapterModeLabel(currentDraft.adapterMode)}</Descriptions.Item>
+                          <Descriptions.Item label={tr("版本")}>v{currentDraft.draftVersion}</Descriptions.Item>
+                          <Descriptions.Item label={tr("状态")}><OperationDraftStatusTag status={currentDraft.status} /></Descriptions.Item>
+                          <Descriptions.Item label={tr("执行方式")}>{adapterModeLabel(currentDraft.adapterMode)}</Descriptions.Item>
                           <Descriptions.Item label="Payload Hash">{copyableText(currentDraft.payloadHash, 18)}</Descriptions.Item>
-                          <Descriptions.Item label="变更原因">{currentDraft.changeReason || '—'}</Descriptions.Item>
-                          <Descriptions.Item label="创建人">{copyableText(currentDraft.createdBy, 12)}</Descriptions.Item>
-                          <Descriptions.Item label="更新时间">{formatDateTime(currentDraft.updatedAt)}</Descriptions.Item>
+                          <Descriptions.Item label={tr("变更原因")}>{currentDraft.changeReason || '—'}</Descriptions.Item>
+                          <Descriptions.Item label={tr("创建人")}>{copyableText(currentDraft.createdBy, 12)}</Descriptions.Item>
+                          <Descriptions.Item label={tr("更新时间")}>{formatDateTime(currentDraft.updatedAt)}</Descriptions.Item>
                         </Descriptions>
-                      ) : <EmptyState compact title="暂无草稿版本" description="创建首版草稿后，版本摘要会显示在这里。" />}
+                      ) : <EmptyState compact title={tr("暂无草稿版本")} description={tr("创建首版草稿后，版本摘要会显示在这里。")} />}
                     </SectionCard>
                     {isProductionDraft && frozenDraft ? (
-                      <SectionCard title="审核冻结快照" description="以下内容在任务创建时冻结，审核和执行期间不可编辑。">
+                      <SectionCard title={tr("审核冻结快照")} description={tr("以下内容在任务创建时冻结，审核和执行期间不可编辑。")}>
                         <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} size="small">
-                          <Descriptions.Item label="商品 ID">{copyableText(frozenDraft.productId, 16)}</Descriptions.Item>
-                          <Descriptions.Item label="店铺 ID">{copyableText(frozenDraft.shopId, 16)}</Descriptions.Item>
-                          <Descriptions.Item label="刊登方式">保存为平台草稿</Descriptions.Item>
-                          <Descriptions.Item label="刊登标题">{frozenDraft.mappingSnapshot?.title || '—'}</Descriptions.Item>
-                          <Descriptions.Item label="平台类目">{frozenDraft.mappingSnapshot?.categoryPath || frozenDraft.mappingSnapshot?.categoryId || '—'}</Descriptions.Item>
-                          <Descriptions.Item label="SKU 数量">{frozenDraft.skuCount ?? frozenDraft.mappingSnapshot?.skus?.length ?? 0}</Descriptions.Item>
-                          <Descriptions.Item label="价格区间">
+                          <Descriptions.Item label={tr("商品 ID")}>{copyableText(frozenDraft.productId, 16)}</Descriptions.Item>
+                          <Descriptions.Item label={tr("店铺 ID")}>{copyableText(frozenDraft.shopId, 16)}</Descriptions.Item>
+                          <Descriptions.Item label={tr("刊登方式")}>{tr("保存为平台草稿")}</Descriptions.Item>
+                          <Descriptions.Item label={tr("刊登标题")}>{frozenDraft.mappingSnapshot?.title || '—'}</Descriptions.Item>
+                          <Descriptions.Item label={tr("平台类目")}>{frozenDraft.mappingSnapshot?.categoryPath || frozenDraft.mappingSnapshot?.categoryId || '—'}</Descriptions.Item>
+                          <Descriptions.Item label={tr("SKU 数量")}>{frozenDraft.skuCount ?? frozenDraft.mappingSnapshot?.skus?.length ?? 0}</Descriptions.Item>
+                          <Descriptions.Item label={tr("价格区间")}>
                             {frozenDraft.mappingSnapshot?.price?.min != null
                               ? `${frozenDraft.mappingSnapshot.price.currency || 'CNY'} ${frozenDraft.mappingSnapshot.price.min}${frozenDraft.mappingSnapshot.price.max != null && frozenDraft.mappingSnapshot.price.max !== frozenDraft.mappingSnapshot.price.min ? ` - ${frozenDraft.mappingSnapshot.price.max}` : ''}`
                               : '—'}
                           </Descriptions.Item>
-                          <Descriptions.Item label="总库存">{frozenDraft.mappingSnapshot?.stock?.total ?? '—'}</Descriptions.Item>
-                          <Descriptions.Item label="映射 Hash">{copyableText(frozenDraft.mappingHash, 18)}</Descriptions.Item>
-                          <Descriptions.Item label="刊登描述" span={3}>
+                          <Descriptions.Item label={tr("总库存")}>{frozenDraft.mappingSnapshot?.stock?.total ?? '—'}</Descriptions.Item>
+                          <Descriptions.Item label={tr("映射 Hash")}>{copyableText(frozenDraft.mappingHash, 18)}</Descriptions.Item>
+                          <Descriptions.Item label={tr("刊登描述")} span={3}>
                             <Paragraph className="operation-task-detail__long-text">{frozenDraft.mappingSnapshot?.description || '—'}</Paragraph>
                           </Descriptions.Item>
                         </Descriptions>
                         {(frozenDraft.mappingSnapshot?.mainImages?.length || 0) > 0 ? (
                           <div className="operation-task-detail__images">
                             {frozenDraft.mappingSnapshot?.mainImages?.map((item, index) => imageURL(item) ? (
-                              <img key={`${imageURL(item)}-${index}`} src={imageURL(item)} alt={`主图 ${index + 1}`} />
+                              <img key={`${imageURL(item)}-${index}`} src={imageURL(item)} alt={trFormat("主图 {value0}", { value0: String(index + 1) })} />
                             ) : null)}
                           </div>
                         ) : null}
@@ -656,19 +659,19 @@ export default function OperationTaskDetailPage() {
                           pagination={false}
                           dataSource={frozenDraft.mappingSnapshot?.skus || []}
                           columns={[
-                            { title: '销售规格', dataIndex: 'name', render: (value) => value || '默认规格' },
-                            { title: '规格', dataIndex: 'attrs', render: (value) => value ? Object.entries(value).map(([key, raw]) => `${key}: ${String(raw)}`).join(' / ') : '—' },
-                            { title: '价格', dataIndex: 'price', width: 120, render: (value) => value ?? '—' },
-                            { title: '库存', dataIndex: 'stock', width: 100, render: (value) => value ?? '—' },
+                            { title: tr("销售规格"), dataIndex: 'name', render: (value) => value || tr('默认规格') },
+                            { title: tr("规格"), dataIndex: 'attrs', render: (value) => value ? Object.entries(value).map(([key, raw]) => `${key}: ${String(raw)}`).join(' / ') : '—' },
+                            { title: tr("价格"), dataIndex: 'price', width: 120, render: (value) => value ?? '—' },
+                            { title: tr("库存"), dataIndex: 'stock', width: 100, render: (value) => value ?? '—' },
                           ]}
-                          locale={{ emptyText: '暂无 SKU 快照' }}
+                          locale={{ emptyText: tr('暂无 SKU 快照') }}
                           scroll={{ x: 640 }}
                         />
                       </SectionCard>
                     ) : null}
-                    <Table rowKey="draftId" columns={draftColumns} dataSource={drafts} pagination={false} loading={auxiliaryLoading} scroll={{ x: 900 }} locale={{ emptyText: '暂无草稿版本' }} />
+                    <Table rowKey="draftId" columns={draftColumns} dataSource={drafts} pagination={false} loading={auxiliaryLoading} scroll={{ x: 900 }} locale={{ emptyText: tr('暂无草稿版本') }} />
                     {!isProductionDraft ? (
-                      <SectionCard title="任务载荷预览" description="这里展示任务原始载荷；草稿版本列表仅提供摘要。">
+                      <SectionCard title={tr("任务载荷预览")} description={tr("这里展示任务原始载荷；草稿版本列表仅提供摘要。")}>
                         {jsonPreview(detail.payload)}
                       </SectionCard>
                     ) : null}
@@ -677,18 +680,18 @@ export default function OperationTaskDetailPage() {
               },
               {
                 key: 'attempts',
-                label: '执行历史',
+                label: tr("执行历史"),
                 children: (
                   <Space direction="vertical" style={{ width: '100%' }}>
                     {resourceError(resourceErrors.attempts, attempts.length > 0)}
-                    <Table rowKey="attemptId" columns={attemptColumns} dataSource={attempts} pagination={false} loading={auxiliaryLoading} scroll={{ x: 1280 }} locale={{ emptyText: <EmptyState compact title="暂无执行记录" description={isProductionDraft ? '提交创建平台草稿后，执行结果会显示在这里。' : '提交草稿生成后，执行结果会显示在这里。'} /> }} />
-                    {attemptHasMore ? <Button loading={attemptMoreLoading} disabled={attemptMoreLoading} onClick={() => void loadMoreAttempts()}>加载更多执行记录</Button> : null}
+                    <Table rowKey="attemptId" columns={attemptColumns} dataSource={attempts} pagination={false} loading={auxiliaryLoading} scroll={{ x: 1280 }} locale={{ emptyText: <EmptyState compact title={tr("暂无执行记录")} description={isProductionDraft ? tr('提交创建平台草稿后，执行结果会显示在这里。') : tr('提交草稿生成后，执行结果会显示在这里。')} /> }} />
+                    {attemptHasMore ? <Button loading={attemptMoreLoading} disabled={attemptMoreLoading} onClick={() => void loadMoreAttempts()}>{tr("加载更多执行记录")}</Button> : null}
                   </Space>
                 ),
               },
               {
                 key: 'events',
-                label: '审计时间线',
+                label: tr("审计时间线"),
                 children: (
                   <Space direction="vertical" style={{ width: '100%' }}>
                     {resourceError(resourceErrors.events, events.length > 0)}
@@ -702,16 +705,16 @@ export default function OperationTaskDetailPage() {
                               <Tag>{eventTypeLabel(event.eventType)}</Tag>
                               <Text type="secondary">{formatDateTime(event.occurredAt)}</Text>
                             </Space>
-                            <Text>状态：<OperationTaskStatusTag status={event.beforeState} /> → <OperationTaskStatusTag status={event.afterState} /></Text>
-                            <Text>操作者：{actorTypeLabel(event.actorType)}{event.actorId ? <> / {copyableText(event.actorId, 12)}</> : null}</Text>
-                            <Text>草稿版本：{event.draftVersion || '—'}；请求编号：{copyableText(event.requestId, 14)}</Text>
-                            {event.reason ? <Text className="operation-task-detail__long-text">原因：{event.reason}</Text> : null}
-                            <TaskJsonBlock title="安全元数据" value={safeMetadata(event.metadata)} maxHeight={160} last />
+                            <Text>{tr("状态：")}<OperationTaskStatusTag status={event.beforeState} /> → <OperationTaskStatusTag status={event.afterState} /></Text>
+                            <Text>{tr("操作者：")}{actorTypeLabel(event.actorType)}{event.actorId ? <> / {copyableText(event.actorId, 12)}</> : null}</Text>
+                            <Text>{tr("草稿版本：")}{event.draftVersion || '—'}{tr("；请求编号：")}{copyableText(event.requestId, 14)}</Text>
+                            {event.reason ? <Text className="operation-task-detail__long-text">{tr("原因：")}{event.reason}</Text> : null}
+                            <TaskJsonBlock title={tr("安全元数据")} value={safeMetadata(event.metadata)} maxHeight={160} last />
                           </Space>
                         ),
                       }))}
-                    /> : <EmptyState compact title="暂无审计事件" description="任务状态变化和人工操作会记录在这里。" />}
-                    {eventsHasMore ? <Button loading={eventMoreLoading} disabled={eventMoreLoading} onClick={() => void loadMoreEvents()}>加载更多事件</Button> : null}
+                    /> : <EmptyState compact title={tr("暂无审计事件")} description={tr("任务状态变化和人工操作会记录在这里。")} />}
+                    {eventsHasMore ? <Button loading={eventMoreLoading} disabled={eventMoreLoading} onClick={() => void loadMoreEvents()}>{tr("加载更多事件")}</Button> : null}
                   </Space>
                 ),
               },
@@ -728,32 +731,32 @@ export default function OperationTaskDetailPage() {
         confirmLoading={actionLoading}
         okText={modalOkText}
         okButtonProps={{ danger: modal === 'reject' || modal === 'cancel', disabled: actionLoading }}
-        cancelText="取消"
+        cancelText={tr("取消")}
         width={760}
         destroyOnHidden
       >
-        {detail ? <Paragraph type="secondary">当前任务：{detail.title}（{detail.id}）</Paragraph> : null}
+        {detail ? <Paragraph type="secondary">{tr("当前任务：")}{detail.title}（{detail.id}）</Paragraph> : null}
         {modal === 'draft' ? (
           <Space direction="vertical" style={{ width: '100%' }}>
-            <Paragraph>创建后会生成首版草稿并进入人工审核，不会自动执行或发布。</Paragraph>
-            <Input.TextArea value={jsonText} onChange={(e) => { setJsonText(e.target.value); setJsonError(null); }} rows={12} aria-label="草稿 JSON" aria-invalid={!!jsonError} aria-describedby={jsonError ? 'operation-draft-json-error' : undefined} />
-            {jsonError ? <Text id="operation-draft-json-error" type="danger">JSON 格式错误：{jsonError}</Text> : null}
+            <Paragraph>{tr("创建后会生成首版草稿并进入人工审核，不会自动执行或发布。")}</Paragraph>
+            <Input.TextArea value={jsonText} onChange={(e) => { setJsonText(e.target.value); setJsonError(null); }} rows={12} aria-label={tr("草稿 JSON")} aria-invalid={!!jsonError} aria-describedby={jsonError ? 'operation-draft-json-error' : undefined} />
+            {jsonError ? <Text id="operation-draft-json-error" type="danger">{tr("JSON 格式错误：")}{jsonError}</Text> : null}
             <Form form={form} layout="vertical">
-              <Form.Item name="changeReason" label="变更原因" rules={requiredReasonRule('变更原因')}>
+              <Form.Item name="changeReason" label={tr("变更原因")} rules={requiredReasonRule(tr("变更原因"))}>
                 <Input.TextArea rows={3} maxLength={500} showCount />
               </Form.Item>
             </Form>
-            <TaskJsonBlock title="安全差异预览（仅展示变化行，最多 200 行）" value={diffJSON(detail?.payload, parseJSONInput(jsonText).ok ? parseJSONInput(jsonText).value : {})} maxHeight={220} />
+            <TaskJsonBlock title={tr("安全差异预览（仅展示变化行，最多 200 行）")} value={diffJSON(detail?.payload, parseJSONInput(jsonText).ok ? parseJSONInput(jsonText).value : {})} maxHeight={220} />
           </Space>
         ) : null}
 
         {modal === 'approve' || modal === 'reject' ? (
           <Form form={form} layout="vertical">
-            <Paragraph>当前操作绑定最新草稿 v{currentDraft?.draftVersion || '—'} / {currentDraft?.payloadHash || '—'}。{isProductionDraft ? '批准后允许在运行控制就绪时人工创建平台草稿，但不会发布或上架。' : '不会自动发布或上架商品。'}</Paragraph>
-            <Form.Item name="reason" label={modal === 'approve' ? '批准说明' : '拒绝原因'} rules={requiredReasonRule(modal === 'approve' ? '批准说明' : '拒绝原因')}>
+            <Paragraph>{tr("当前操作绑定最新草稿 v")}{currentDraft?.draftVersion || '—'} / {currentDraft?.payloadHash || '—'}。{isProductionDraft ? tr("批准后允许在运行控制就绪时人工创建平台草稿，但不会发布或上架。") : tr("不会自动发布或上架商品。")}</Paragraph>
+            <Form.Item name="reason" label={modal === 'approve' ? tr('批准说明') : tr('拒绝原因')} rules={requiredReasonRule(modal === 'approve' ? tr('批准说明') : tr('拒绝原因'))}>
               <Input.TextArea rows={3} maxLength={500} showCount />
             </Form.Item>
-            <Form.Item name="comment" label="补充说明">
+            <Form.Item name="comment" label={tr("补充说明")}>
               <Input.TextArea rows={2} maxLength={500} showCount />
             </Form.Item>
           </Form>
@@ -766,14 +769,14 @@ export default function OperationTaskDetailPage() {
             ) : !isProductionBuild ? <NonProductionBoundary /> : null}
             <Paragraph style={{ marginTop: 12 }}>
               {isProductionDraft
-                ? '将把人工批准的冻结快照提交到白名单抖店，仅保存为平台草稿。平台发布、上架和自动重试均不会执行。'
+                ? tr('将把人工批准的冻结快照提交到白名单抖店，仅保存为平台草稿。平台发布、上架和自动重试均不会执行。')
                 : isProductionBuild
-                ? '执行仅生成本地草稿，不调用真实平台发布或上架。'
-                : '执行仅生成本地、模拟或沙箱草稿，不调用真实平台发布或上架。'}
+                ? tr('执行仅生成本地草稿，不调用真实平台发布或上架。')
+                : tr('执行仅生成本地、模拟或沙箱草稿，不调用真实平台发布或上架。')}
             </Paragraph>
-            <Form.Item name="adapterMode" label="执行方式" rules={[{ required: true, message: '请选择执行方式' }]}>
+            <Form.Item name="adapterMode" label={tr("执行方式")} rules={[{ required: true, message: tr("请选择执行方式") }]}>
               {isProductionDraft ? (
-                <Select disabled options={[{ value: 'production_draft', label: '创建平台草稿' }]} />
+                <Select disabled options={[{ value: 'production_draft', label: tr("创建平台草稿") }]} />
               ) : <Select
                 options={[
                   { value: 'local_draft_only', label: adapterModeLabel('local_draft_only') },
@@ -792,11 +795,11 @@ export default function OperationTaskDetailPage() {
 
         {modal === 'retry' ? (
           <Form form={form} layout="vertical">
-            <Paragraph>仅对明确失败的执行记录发起一次人工重试，不会自动连续重试。</Paragraph>
-            <Form.Item name="failedAttemptId" label="失败执行记录" rules={[{ required: true, message: '请选择失败执行记录' }]}>
-              <Select options={failedAttempts.map((attempt) => ({ value: attempt.attemptId, label: `第 ${attempt.attemptNumber} 次 / 失败` }))} />
+            <Paragraph>{tr("仅对明确失败的执行记录发起一次人工重试，不会自动连续重试。")}</Paragraph>
+            <Form.Item name="failedAttemptId" label={tr("失败执行记录")} rules={[{ required: true, message: tr("请选择失败执行记录") }]}>
+              <Select options={failedAttempts.map((attempt) => ({ value: attempt.attemptId, label: trFormat("第 {value0} 次 / 失败", { value0: attempt.attemptNumber }) }))} />
             </Form.Item>
-            <Form.Item name="reason" label="重试原因" rules={requiredReasonRule('重试原因')}>
+            <Form.Item name="reason" label={tr("重试原因")} rules={requiredReasonRule(tr("重试原因"))}>
               <Input.TextArea rows={3} maxLength={500} showCount />
             </Form.Item>
           </Form>
@@ -804,8 +807,8 @@ export default function OperationTaskDetailPage() {
 
         {modal === 'cancel' ? (
           <Form form={form} layout="vertical">
-            <Paragraph>取消后该任务不能继续执行；已完成或已取消的任务由后端拒绝重复取消。</Paragraph>
-            <Form.Item name="reason" label="取消原因" rules={requiredReasonRule('取消原因')}>
+            <Paragraph>{tr("取消后该任务不能继续执行；已完成或已取消的任务由后端拒绝重复取消。")}</Paragraph>
+            <Form.Item name="reason" label={tr("取消原因")} rules={requiredReasonRule(tr("取消原因"))}>
               <Input.TextArea rows={3} maxLength={500} showCount />
             </Form.Item>
           </Form>

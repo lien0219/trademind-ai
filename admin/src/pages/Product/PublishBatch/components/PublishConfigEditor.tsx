@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import {
   DECIMAL_HANDLING_OPTIONS,
   DETAIL_IMAGE_STRATEGY_OPTIONS,
@@ -39,6 +41,7 @@ export default function PublishConfigEditor({
   showPreview = false,
   previewContext,
 }: PublishConfigEditorProps) {
+  useLanguage();
   const [error, setError] = useState<string | null>(null);
   const show = (s: string) => sections?.includes(s as 'price') ?? true;
 
@@ -66,16 +69,16 @@ export default function PublishConfigEditor({
 
       {show('price') && (
         <>
-          <Typography.Text strong>价格配置</Typography.Text>
+          <Typography.Text strong>{tr("价格配置")}</Typography.Text>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 8, fontSize: 13 }}>
-            用于批量生成平台草稿时的售价。不会直接修改商品原始成本。
+            {tr("用于批量生成平台草稿时的售价。不会直接修改商品原始成本。")}
           </Typography.Paragraph>
           <Row gutter={16}>
             <Col xs={24} md={12}>
-              <Form.Item label="价格策略">
+              <Form.Item label={tr("价格策略")}>
                 <Select
                   allowClear
-                  placeholder="选择价格策略"
+                  placeholder={tr("选择价格策略")}
                   value={value.price?.strategy}
                   options={PRICE_STRATEGY_OPTIONS}
                   onChange={(v) => patch({ price: { ...value.price, strategy: v } })}
@@ -83,7 +86,7 @@ export default function PublishConfigEditor({
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item label="加价数值">
+              <Form.Item label={tr("加价数值")}>
                 <InputNumber
                   style={{ width: '100%' }}
                   min={0}
@@ -93,7 +96,7 @@ export default function PublishConfigEditor({
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item label="最低利润率保护 (%)">
+              <Form.Item label={tr("最低利润率保护 (%)")}>
                 <InputNumber
                   style={{ width: '100%' }}
                   min={0}
@@ -103,7 +106,7 @@ export default function PublishConfigEditor({
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item label="小数处理方式">
+              <Form.Item label={tr("小数处理方式")}>
                 <Select
                   allowClear
                   value={value.price?.decimalHandling}
@@ -119,13 +122,13 @@ export default function PublishConfigEditor({
 
       {show('image') && (
         <>
-          <Typography.Text strong>图片配置</Typography.Text>
+          <Typography.Text strong>{tr("图片配置")}</Typography.Text>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 8, fontSize: 13 }}>
-            图片策略只影响本次刊登草稿，不会删除商品图库中的图片。
+            {tr("图片策略只影响本次刊登草稿，不会删除商品图库中的图片。")}
           </Typography.Paragraph>
           <Row gutter={16}>
             <Col xs={24} md={12}>
-              <Form.Item label="主图策略">
+              <Form.Item label={tr("主图策略")}>
                 <Select
                   allowClear
                   value={value.image?.mainImageStrategy}
@@ -135,7 +138,7 @@ export default function PublishConfigEditor({
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item label="详情图策略">
+              <Form.Item label={tr("详情图策略")}>
                 <Select
                   allowClear
                   value={value.image?.detailImageStrategy}
@@ -150,7 +153,7 @@ export default function PublishConfigEditor({
                   checked={!!value.image?.preferProcessedImages}
                   onChange={(e) => patch({ image: { ...value.image, preferProcessedImages: e.target.checked } })}
                 >
-                  优先使用已处理图片
+                  {tr("优先使用已处理图片")}
                 </Checkbox>
               </Form.Item>
             </Col>
@@ -160,7 +163,7 @@ export default function PublishConfigEditor({
                   checked={!!value.image?.skipFailedImages}
                   onChange={(e) => patch({ image: { ...value.image, skipFailedImages: e.target.checked } })}
                 >
-                  跳过失败图片
+                  {tr("跳过失败图片")}
                 </Checkbox>
               </Form.Item>
             </Col>
@@ -171,10 +174,10 @@ export default function PublishConfigEditor({
 
       {show('inventory') && (
         <>
-          <Typography.Text strong>库存配置</Typography.Text>
+          <Typography.Text strong>{tr("库存配置")}</Typography.Text>
           <Row gutter={16}>
             <Col xs={24} md={12}>
-              <Form.Item label="库存策略">
+              <Form.Item label={tr("库存策略")}>
                 <Select
                   allowClear
                   value={value.inventory?.strategy}
@@ -185,7 +188,7 @@ export default function PublishConfigEditor({
             </Col>
             {value.inventory?.strategy === 'fixed_quantity' && (
               <Col xs={24} md={12}>
-                <Form.Item label="统一库存">
+                <Form.Item label={tr("统一库存")}>
                   <InputNumber
                     style={{ width: '100%' }}
                     min={0}
@@ -197,7 +200,7 @@ export default function PublishConfigEditor({
               </Col>
             )}
             <Col xs={24} md={12}>
-              <Form.Item label="安全库存">
+              <Form.Item label={tr("安全库存")}>
                 <InputNumber
                   style={{ width: '100%' }}
                   min={0}
@@ -208,7 +211,7 @@ export default function PublishConfigEditor({
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item label="缺库存时处理方式">
+              <Form.Item label={tr("缺库存时处理方式")}>
                 <Select
                   allowClear
                   value={value.inventory?.outOfStockAction}
@@ -224,10 +227,10 @@ export default function PublishConfigEditor({
 
       {show('package') && (
         <>
-          <Typography.Text strong>包裹配置</Typography.Text>
+          <Typography.Text strong>{tr("包裹配置")}</Typography.Text>
           <Row gutter={16}>
             <Col xs={12} md={6}>
-              <Form.Item label="重量">
+              <Form.Item label={tr("重量")}>
                 <InputNumber
                   style={{ width: '100%' }}
                   min={0}
@@ -237,7 +240,7 @@ export default function PublishConfigEditor({
               </Form.Item>
             </Col>
             <Col xs={12} md={6}>
-              <Form.Item label="单位">
+              <Form.Item label={tr("单位")}>
                 <Select
                   allowClear
                   value={value.package?.weightUnit ?? 'kg'}
@@ -247,7 +250,7 @@ export default function PublishConfigEditor({
               </Form.Item>
             </Col>
             <Col xs={8} md={4}>
-              <Form.Item label="长 (cm)">
+              <Form.Item label={tr("长 (cm)")}>
                 <InputNumber
                   style={{ width: '100%' }}
                   min={0}
@@ -257,7 +260,7 @@ export default function PublishConfigEditor({
               </Form.Item>
             </Col>
             <Col xs={8} md={4}>
-              <Form.Item label="宽 (cm)">
+              <Form.Item label={tr("宽 (cm)")}>
                 <InputNumber
                   style={{ width: '100%' }}
                   min={0}
@@ -267,7 +270,7 @@ export default function PublishConfigEditor({
               </Form.Item>
             </Col>
             <Col xs={8} md={4}>
-              <Form.Item label="高 (cm)">
+              <Form.Item label={tr("高 (cm)")}>
                 <InputNumber
                   style={{ width: '100%' }}
                   min={0}
@@ -282,10 +285,10 @@ export default function PublishConfigEditor({
       )}
 
       {show('remark') && (
-        <Form.Item label="备注">
+        <Form.Item label={tr("备注")}>
           <Input.TextArea
             rows={2}
-            placeholder="本次批量刊登备注（仅内部记录，不会发送到平台）"
+            placeholder={tr("本次批量刊登备注（仅内部记录，不会发送到平台）")}
             value={value.remark}
             onChange={(e) => patch({ remark: e.target.value })}
           />
@@ -293,12 +296,12 @@ export default function PublishConfigEditor({
       )}
 
       {showPreview && previewRows.length > 0 && (
-        <TechnicalDetails label="保存前预览（示例生效项）">
+        <TechnicalDetails label={tr("保存前预览（示例生效项）")}>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
             {previewRows.slice(0, 8).map((r) => (
               <li key={r.field}>
                 {r.label}：{r.value}
-                {r.source ? `（来源：${r.source}）` : ''}
+                {r.source ? trFormat("（来源：{value0}）", { value0: String(r.source) }) : ''}
               </li>
             ))}
           </ul>

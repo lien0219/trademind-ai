@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
@@ -59,16 +61,16 @@ const EXCEPTION_QUERY_KEYS = [
   'end',
 ] as const;
 
-const EX_TYPES: Record<string, { text: string }> = {
-  sku_unmatched: { text: '规格未匹配' },
-  sku_ambiguous: { text: '规格多候选' },
-  insufficient_stock: { text: '库存不足' },
-  inventory_deduct_failed: { text: '扣库存失败' },
-  inventory_restore_failed: { text: '恢复库存失败' },
-  inventory_sync_failed: { text: '库存同步失败' },
-  order_sync_partial_failed: { text: '页级同步失败' },
-  missing_order_item: { text: '缺明细' },
-  unknown: { text: '未知' },
+const EX_TYPES: Record<string, { source: string }> = {
+  sku_unmatched: { source: "规格未匹配" },
+  sku_ambiguous: { source: "规格多候选" },
+  insufficient_stock: { source: "库存不足" },
+  inventory_deduct_failed: { source: "扣库存失败" },
+  inventory_restore_failed: { source: "恢复库存失败" },
+  inventory_sync_failed: { source: "库存同步失败" },
+  order_sync_partial_failed: { source: "页级同步失败" },
+  missing_order_item: { source: "缺明细" },
+  unknown: { source: "未知" },
 };
 
 const SEV_LABEL: Record<string, string> = {
@@ -89,20 +91,20 @@ function exceptionDetailContent(row: OrderExceptionRow) {
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="middle">
       <Descriptions column={1} size="small" bordered>
-        <Descriptions.Item label="异常类型">
-          {EX_TYPES[row.exceptionType]?.text || row.exceptionType || '—'}
+        <Descriptions.Item label={tr("异常类型")}>
+          {EX_TYPES[row.exceptionType] ? tr(EX_TYPES[row.exceptionType].source) : row.exceptionType || '—'}
         </Descriptions.Item>
-        <Descriptions.Item label="严重程度">
-          {SEV_LABEL[row.severity] || row.severity || '—'}
+        <Descriptions.Item label={tr("严重程度")}>
+          {SEV_LABEL[row.severity] ? tr(SEV_LABEL[row.severity]) : row.severity || '—'}
         </Descriptions.Item>
-        <Descriptions.Item label="处理状态">{row.status || '—'}</Descriptions.Item>
-        <Descriptions.Item label="订单编号">{row.orderNo || row.orderId || '—'}</Descriptions.Item>
-        <Descriptions.Item label="错误说明">{row.errorMessage || '—'}</Descriptions.Item>
-        <Descriptions.Item label="建议操作">{row.suggestedAction || '—'}</Descriptions.Item>
+        <Descriptions.Item label={tr("处理状态")}>{row.status || '—'}</Descriptions.Item>
+        <Descriptions.Item label={tr("订单编号")}>{row.orderNo || row.orderId || '—'}</Descriptions.Item>
+        <Descriptions.Item label={tr("错误说明")}>{row.errorMessage || '—'}</Descriptions.Item>
+        <Descriptions.Item label={tr("建议操作")}>{row.suggestedAction || '—'}</Descriptions.Item>
       </Descriptions>
       <TechnicalDetails>
         <TaskJsonBlock
-          title="完整记录"
+          title={tr("完整记录")}
           value={{
             exceptionType: row.exceptionType,
             severity: row.severity,
@@ -134,13 +136,14 @@ function sevColor(s: string) {
 }
 
 function candTrustBadge(conf: number) {
-  if (conf >= 90) return <Tag color="green">高可信</Tag>;
-  if (conf >= 70) return <Tag color="gold">中可信</Tag>;
-  if (conf >= 40) return <Tag>低可信</Tag>;
-  return <Tag color="default">参考</Tag>;
+  if (conf >= 90) return <Tag color="green">{tr("高可信")}</Tag>;
+  if (conf >= 70) return <Tag color="gold">{tr("中可信")}</Tag>;
+  if (conf >= 40) return <Tag>{tr("低可信")}</Tag>;
+  return <Tag color="default">{tr("参考")}</Tag>;
 }
 
 export default function OrderExceptionsPage() {
+  const language = useLanguage();
   const emptyLocale = useListEmptyLocale('orderExceptions', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
@@ -240,16 +243,16 @@ export default function OrderExceptionsPage() {
       const r = await getOrderItemSkuCandidates(orderItemId, { limit: 10 });
       setCandRows(r.list ?? []);
     } catch {
-      message.error('候选加载失败');
+      message.error(tr("候选加载失败"));
       setCandRows([]);
     } finally {
       setCandLoading(false);
     }
-  }, []);
+  }, [language]);
 
   const openCandModalOnly = useCallback(async (row: OrderExceptionRow) => {
     if (!row.orderItemId) {
-      message.warning('缺少明细行 ID，可到订单「规格匹配」页查看候选');
+      message.warning(tr("缺少明细行 ID，可到订单「规格匹配」页查看候选"));
       return;
     }
     setCandModalTitle(row.orderNo || row.orderItemId || '候选');
@@ -258,10 +261,10 @@ export default function OrderExceptionsPage() {
       const r = await getOrderItemSkuCandidates(row.orderItemId, { limit: 15 });
       setCandModalRows(r.list ?? []);
     } catch {
-      message.error('加载候选失败');
+      message.error(tr("加载候选失败"));
       setCandModalRows([]);
     }
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     const oid = bindRow?.orderItemId;
@@ -276,7 +279,7 @@ export default function OrderExceptionsPage() {
       const r = await searchProductSkus({ keyword: skuKw.trim(), limit: 30 });
       setSkuHits(r.list ?? []);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '搜索失败');
+      message.error(tr((e as Error)?.message || tr('搜索失败')));
     }
   };
 
@@ -293,7 +296,7 @@ export default function OrderExceptionsPage() {
   const columns: ProColumns<OrderExceptionRow>[] = useMemo(
     () => [
       {
-        title: '创建时间',
+        title: tr("创建时间"),
         dataIndex: 'createdAt',
         width: 168,
         valueType: 'dateTimeRange',
@@ -306,82 +309,84 @@ export default function OrderExceptionsPage() {
         },
       },
       {
-        title: '异常类型',
+        title: tr("异常类型"),
         dataIndex: 'exceptionType',
         width: 138,
         valueType: 'select',
-        valueEnum: EX_TYPES,
+        valueEnum: Object.fromEntries(
+          Object.entries(EX_TYPES).map(([key, meta]) => [key, { text: tr(meta.source) }]),
+        ),
       },
       {
-        title: '严重程度',
+        title: tr("严重程度"),
         dataIndex: 'severity',
         width: 100,
         valueType: 'select',
         valueEnum: {
-          low: { text: '低' },
-          medium: { text: '中' },
-          high: { text: '高' },
-          critical: { text: '紧急' },
+          low: { text: tr("低") },
+          medium: { text: tr("中") },
+          high: { text: tr("高") },
+          critical: { text: tr("紧急") },
         },
         render: (_, r) => <Tag color={sevColor(r.severity)}>{r.severity}</Tag>,
       },
       {
-        title: '视图状态',
+        title: tr("视图状态"),
         dataIndex: 'status',
         hideInTable: true,
         valueType: 'select',
         valueEnum: {
-          open: { text: '未处理（默认）' },
-          handled: { text: '已处理（标记）' },
-          ignored: { text: '已忽略（标记）' },
+          open: { text: tr("未处理（默认）") },
+          handled: { text: tr("已处理（标记）") },
+          ignored: { text: tr("已忽略（标记）") },
         },
       },
       {
-        title: '平台',
+        title: tr("平台"),
         dataIndex: 'platform',
         width: 96,
       },
       {
-        title: '店铺',
+        title: tr("店铺"),
         dataIndex: 'shopId',
         hideInTable: true,
         valueType: 'select',
         fieldProps: { options: shopOpts, allowClear: true, showSearch: true },
       },
       {
-        title: '订单',
+        title: tr("订单"),
         dataIndex: 'orderId',
         hideInTable: true,
       },
       {
-        title: '关键词',
+        title: tr("关键词"),
         dataIndex: 'keyword',
         hideInTable: true,
         fieldProps: keywordFieldProps,
       },
       {
-        title: '店铺',
+        title: tr("店铺"),
         dataIndex: 'shopName',
         search: false,
         width: 140,
         ellipsis: true,
       },
       {
-        title: '订单号',
+        title: tr("订单号"),
         dataIndex: 'orderNo',
         search: false,
         width: 132,
         ellipsis: true,
       },
       {
-        title: '外部单号',
+        title: tr("外部单号"),
         dataIndex: 'externalOrderId',
         search: false,
         width: 132,
         ellipsis: true,
       },
       {
-        title: '平台规格编码',
+        title: tr("平台规格编码"),
         key: 'skuCol',
         search: false,
         width: 120,
@@ -389,7 +394,7 @@ export default function OrderExceptionsPage() {
         render: (_, r) => r.skuCode || r.externalSkuId || '—',
       },
       {
-        title: '本地商品/规格',
+        title: tr("本地商品/规格"),
         key: 'localSku',
         search: false,
         width: 160,
@@ -398,40 +403,40 @@ export default function OrderExceptionsPage() {
           [r.productTitle, r.localSkuCode || r.productSkuId].filter(Boolean).join(' · ') || '—',
       },
       {
-        title: '数量',
+        title: tr("数量"),
         dataIndex: 'quantity',
         search: false,
         width: 64,
       },
       {
-        title: '错误信息',
+        title: tr("错误信息"),
         dataIndex: 'errorMessage',
         search: false,
         ellipsis: true,
       },
       {
-        title: '建议动作',
+        title: tr("建议动作"),
         dataIndex: 'suggestedAction',
         search: false,
         ellipsis: true,
       },
       {
-        title: '标记',
+        title: tr("标记"),
         dataIndex: 'status',
         search: false,
         width: 96,
         render: (_, r) =>
-          r.handled ? <Tag color="success">已处理</Tag> : r.ignored ? <Tag>已忽略</Tag> : <Tag color="processing">待处理</Tag>,
+          r.handled ? <Tag color="success">{tr("已处理")}</Tag> : r.ignored ? <Tag>{tr("已忽略")}</Tag> : <Tag color="processing">{tr("待处理")}</Tag>,
       },
       {
-        title: '创建时间',
+        title: tr("创建时间"),
         dataIndex: 'createdAt',
         search: false,
         width: 156,
         render: (_, r) => formatDateTime(r.createdAt),
       },
       {
-        title: '操作',
+        title: tr("操作"),
         valueType: 'option',
         width: 360,
         fixed: 'right',
@@ -443,18 +448,18 @@ export default function OrderExceptionsPage() {
                   history.push(`/orders/${encodeURIComponent(r.orderId!)}`);
                 }}
               >
-                订单
+                {tr("订单")}
               </a>
             ) : null}
             {r.taskCenterUrl ? (
-              <a onClick={() => history.push(r.taskCenterUrl!)}>失败任务</a>
+              <a onClick={() => history.push(r.taskCenterUrl!)}>{tr("失败任务")}</a>
             ) : r.orderId ? (
               <a
                 onClick={() =>
                   history.push(`/ops/task-center/failures?taskType=order_sync&keyword=${encodeURIComponent(r.orderId!)}`)
                 }
               >
-                失败任务
+                {tr("失败任务")}
               </a>
             ) : null}
             {r.syncTaskId ? (
@@ -463,13 +468,13 @@ export default function OrderExceptionsPage() {
                   history.push(`/orders/sync-tasks?id=${encodeURIComponent(r.syncTaskId!)}`)
                 }
               >
-                同步任务
+                {tr("同步任务")}
               </a>
             ) : null}
             {(r.exceptionType === 'sku_unmatched' || r.exceptionType === 'sku_ambiguous') && (
               <>
-                <a onClick={() => void openCandModalOnly(r)}>查看候选</a>
-                <a onClick={() => openBind(r)}>绑定 SKU（候选）</a>
+                <a onClick={() => void openCandModalOnly(r)}>{tr("查看候选")}</a>
+                <a onClick={() => openBind(r)}>{tr("绑定 SKU（候选）")}</a>
               </>
             )}
             {r.orderId &&
@@ -477,56 +482,56 @@ export default function OrderExceptionsPage() {
                 r.exceptionType === 'inventory_deduct_failed' ||
                 r.exceptionType === 'sku_unmatched') && (
                 <Popconfirm
-                  title="对该订单再次尝试扣减库存？"
+                  title={tr("对该订单再次尝试扣减库存？")}
                   onConfirm={async () => {
                     try {
                       await postOrderExceptionRetryDeduct(r.sourceType, r.sourceId, false);
-                      message.success('已触发扣减');
+                      message.success(tr("已触发扣减"));
                       reload();
                     } catch (e: unknown) {
-                      message.error((e as Error)?.message || '失败');
+                      message.error(tr((e as Error)?.message || tr('失败')));
                     }
                   }}
                 >
-                  <a>重试扣库存</a>
+                  <a>{tr("重试扣库存")}</a>
                 </Popconfirm>
               )}
             {r.exceptionType === 'inventory_sync_failed' && (
               <Popconfirm
-                title="重试该库存同步任务？"
+                title={tr("重试该库存同步任务？")}
                 onConfirm={async () => {
                   try {
                     await postOrderExceptionRetryInventorySync(r.sourceType, r.sourceId);
-                    message.success('已重试入队');
+                    message.success(tr("已重试入队"));
                     reload();
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '失败');
+                    message.error(tr((e as Error)?.message || tr('失败')));
                   }
                 }}
               >
-                <a>重试同步</a>
+                <a>{tr("重试同步")}</a>
               </Popconfirm>
             )}
             <a
               onClick={() => {
                 Modal.info({
-                  title: '异常详情',
+                  title: tr("异常详情"),
                   width: 640,
                   content: exceptionDetailContent(r),
                 });
               }}
             >
-              详情
+              {tr("详情")}
             </a>
             <a
               onClick={() => {
                 let remark = '';
                 Modal.confirm({
-                  title: '标记已处理',
+                  title: tr("标记已处理"),
                   content: (
                     <Input.TextArea
                       rows={3}
-                      placeholder="备注（可选）"
+                      placeholder={tr("备注（可选）")}
                       onChange={(e) => {
                         remark = e.target.value;
                       }}
@@ -537,85 +542,84 @@ export default function OrderExceptionsPage() {
                       exceptionType: r.exceptionType,
                       remark: remark.trim(),
                     });
-                    message.success('已标记');
+                    message.success(tr("已标记"));
                     reload();
                   },
                 });
               }}
             >
-              已处理
+              {tr("已处理")}
             </a>
             <a
               onClick={() => {
                 Modal.confirm({
-                  title: '忽略该异常（工作台视图）',
+                  title: tr("忽略该异常（工作台视图）"),
                   onOk: async () => {
                     await postOrderExceptionIgnore(r.sourceType, r.sourceId, { exceptionType: r.exceptionType });
-                    message.success('已忽略');
+                    message.success(tr("已忽略"));
                     reload();
                   },
                 });
               }}
             >
-              忽略
+              {tr("忽略")}
             </a>
             <Popconfirm
-              title="取消标记并回到待处理列表？"
+              title={tr("取消标记并回到待处理列表？")}
               onConfirm={async () => {
                 await deleteOrderExceptionMark(r.sourceType, r.sourceId);
-                message.success('已取消标记');
+                message.success(tr("已取消标记"));
                 reload();
               }}
             >
-              <a>取消标记</a>
+              <a>{tr("取消标记")}</a>
             </Popconfirm>
           </Space>
         ),
       },
     ],
-    [reload, shopOpts, openCandModalOnly, openBind, keywordFieldProps],
+    [language, reload, shopOpts, openCandModalOnly, openBind, keywordFieldProps],
   );
 
   return (
     <TmPageContainer
-      title="订单异常工作台"
-      subTitle="处理订单同步与规格匹配中的异常情况。"
+      title={tr("订单异常工作台")}
+      subTitle={tr("处理订单同步与规格匹配中的异常情况。")}
     >
       <Typography.Paragraph type="secondary">
-        聚合规格未匹配、扣库存失败与库存同步失败等需人工处理的问题；标记仅影响本列表视图，不改订单与任务原始状态。
-        抖店订单同步后若 SKU 未绑定，请在此绑定本地规格后再扣库存或同步抖店库存。
+        {tr("聚合规格未匹配、扣库存失败与库存同步失败等需人工处理的问题；标记仅影响本列表视图，不改订单与任务原始状态。\r\n        抖店订单同步后若 SKU 未绑定，请在此绑定本地规格后再扣库存或同步抖店库存。")}
       </Typography.Paragraph>
       <KeywordSafetyHint visible={showSensitiveHint} />
       {summary ? (
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           <Col xs={24} sm={12} md={8} lg={4}>
             <Card size="small">
-              <Statistic title="未处理总数" value={summary.totalOpen} />
+              <Statistic title={tr("未处理总数")} value={summary.totalOpen} />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={8} lg={4}>
             <Card size="small">
-              <Statistic title="规格未匹配" value={summary.skuUnmatched} />
+              <Statistic title={tr("规格未匹配")} value={summary.skuUnmatched} />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={8} lg={4}>
             <Card size="small">
-              <Statistic title="规格多候选" value={summary.skuAmbiguous} />
+              <Statistic title={tr("规格多候选")} value={summary.skuAmbiguous} />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={8} lg={4}>
             <Card size="small">
-              <Statistic title="库存不足" value={summary.insufficientStock} />
+              <Statistic title={tr("库存不足")} value={summary.insufficientStock} />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={8} lg={4}>
             <Card size="small">
-              <Statistic title="扣库存失败" value={summary.inventoryDeductFailed} />
+              <Statistic title={tr("扣库存失败")} value={summary.inventoryDeductFailed} />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={8} lg={4}>
             <Card size="small">
-              <Statistic title="库存同步失败" value={summary.inventorySyncFailed} />
+              <Statistic title={tr("库存同步失败")} value={summary.inventorySyncFailed} />
             </Card>
           </Col>
         </Row>
@@ -716,19 +720,19 @@ export default function OrderExceptionsPage() {
       />
 
       <Drawer
-        title="绑定本地商品规格"
+        title={tr("绑定本地商品规格")}
         width={640}
         open={bindOpen}
         onClose={() => setBindOpen(false)}
         destroyOnHidden
         footer={
           <Space>
-            <Button onClick={() => setBindOpen(false)}>取消</Button>
+            <Button onClick={() => setBindOpen(false)}>{tr("取消")}</Button>
             <Button
               type="primary"
               onClick={() => {
                 if (!bindRow || !pickedSku) {
-                  message.warning('请选择本地商品规格');
+                  message.warning(tr("请选择本地商品规格"));
                   return;
                 }
                 confirmSkuManualBind(async () => {
@@ -743,19 +747,19 @@ export default function OrderExceptionsPage() {
                       candidateSource: pickedCandMeta?.source,
                     });
                     if (out.inventoryDeductionError) {
-                      message.error(out.inventoryDeductionError);
+                      message.error(tr(out.inventoryDeductionError));
                     } else {
-                      message.success('处理完成');
+                      message.success(tr("处理完成"));
                     }
                     setBindOpen(false);
                     reload();
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '失败');
+                    message.error(tr((e as Error)?.message || tr('失败')));
                   }
                 });
               }}
             >
-              确认
+              {tr("确认")}
             </Button>
           </Space>
         }
@@ -768,18 +772,18 @@ export default function OrderExceptionsPage() {
               style={{ marginBottom: 12 }}
               message={
                 <span>
-                  订单 {bindRow.orderNo || bindRow.orderId || '—'} · 平台 {bindRow.platform || '—'} · 平台规格{' '}
+                  {tr("订单")} {bindRow.orderNo || bindRow.orderId || '—'} {tr("· 平台")} {bindRow.platform || '—'} {tr("· 平台规格")}{' '}
                   {bindRow.skuCode || bindRow.externalSkuId || '—'}
                 </span>
               }
             />
             <Typography.Paragraph type="secondary">
-              匹配状态：{EX_TYPES[bindRow.exceptionType]?.text || bindRow.exceptionType} ·{' '}
+              {tr("匹配状态：")}{EX_TYPES[bindRow.exceptionType]?.source ? tr(EX_TYPES[bindRow.exceptionType].source) : bindRow.exceptionType} ·{' '}
               {bindRow.suggestedAction || '—'}
             </Typography.Paragraph>
-            <Typography.Title level={5}>候选推荐（只读 · 不自动绑定）</Typography.Title>
+            <Typography.Title level={5}>{tr("候选推荐（只读 · 不自动绑定）")}</Typography.Title>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
-              默认不选中；最高分行已浅绿高亮。点「选择该候选」后再用底部「确认」完成绑定与库存动作（二次确认）。
+              {tr("默认不选中；最高分行已浅绿高亮。点「选择该候选」后再用底部「确认」完成绑定与库存动作（二次确认）。")}
             </Typography.Paragraph>
             <Table
               loading={candLoading}
@@ -796,7 +800,7 @@ export default function OrderExceptionsPage() {
               })}
               columns={[
                 {
-                  title: '推荐分',
+                  title: tr("推荐分"),
                   dataIndex: 'confidence',
                   width: 120,
                   render: (v: number) => (
@@ -806,13 +810,13 @@ export default function OrderExceptionsPage() {
                     </Space>
                   ),
                 },
-                { title: '原因 / 信号', key: 'rs', ellipsis: true, render: (_, r) => `${r.reason || '—'} ${(r.matchSignals || []).join(',')}` },
-                { title: '商品标题', dataIndex: 'productTitle', width: 140, ellipsis: true },
-                { title: '规格编码', dataIndex: 'skuCode', width: 112, ellipsis: true },
-                { title: '规格名称', dataIndex: 'skuName', width: 112, ellipsis: true },
-                { title: '库存', dataIndex: 'stock', width: 72, render: (v: number | undefined) => v ?? '—' },
+                { title: tr("原因 / 信号"), key: 'rs', ellipsis: true, render: (_, r) => `${r.reason || '—'} ${(r.matchSignals || []).join(',')}` },
+                { title: tr("商品标题"), dataIndex: 'productTitle', width: 140, ellipsis: true },
+                { title: tr("规格编码"), dataIndex: 'skuCode', width: 112, ellipsis: true },
+                { title: tr("规格名称"), dataIndex: 'skuName', width: 112, ellipsis: true },
+                { title: tr("库存"), dataIndex: 'stock', width: 72, render: (v: number | undefined) => v ?? '—' },
                 {
-                  title: '操作',
+                  title: tr("操作"),
                   key: 'pick',
                   width: 112,
                   render: (_, r) => (
@@ -822,33 +826,33 @@ export default function OrderExceptionsPage() {
                       onClick={() => {
                         setPickedSku(r.productSkuId);
                         setPickedCandMeta({ confidence: r.confidence, source: r.source });
-                        message.success('已选为绑定目标');
+                        message.success(tr("已选为绑定目标"));
                       }}
                     >
-                      选择该候选
+                      {tr("选择该候选")}
                     </Button>
                   ),
                 },
               ]}
-              locale={{ emptyText: candLoading ? '加载中…' : '暂无候选（可尝试勾选「低置信」查询参数或改用下方手动搜索）' }}
+              locale={{ emptyText: candLoading ? tr('加载中…') : tr('暂无候选（可尝试勾选「低置信」查询参数或改用下方手动搜索）') }}
             />
 
-            <Typography.Title level={5}>手动搜索</Typography.Title>
+            <Typography.Title level={5}>{tr("手动搜索")}</Typography.Title>
             <Space wrap style={{ marginBottom: 8 }}>
               <Input.Search
-                placeholder="搜索本地商品规格 / 商品"
+                placeholder={tr("搜索本地商品规格 / 商品")}
                 style={{ width: 280 }}
                 value={skuKw}
                 onChange={(e) => setSkuKw(e.target.value)}
                 onSearch={() => void runSkuSearch()}
               />
               <Button type="primary" onClick={() => void runSkuSearch()}>
-                搜索
+                {tr("搜索")}
               </Button>
             </Space>
             <Select
               style={{ width: '100%', marginBottom: 16 }}
-              placeholder="选择商品规格"
+              placeholder={tr("选择商品规格")}
               value={pickedSku}
               onChange={(v) => {
                 setPickedSku(v);
@@ -863,32 +867,32 @@ export default function OrderExceptionsPage() {
             {pickedHit ? (
               <>
                 <Typography.Paragraph style={{ marginBottom: 16 }} type="secondary">
-                  <Typography.Text strong>已选：</Typography.Text> {pickedHit.productTitle || '—'} ·{' '}
+                  <Typography.Text strong>{tr("已选：")}</Typography.Text> {pickedHit.productTitle || '—'} ·{' '}
                   {pickedHit.skuCode || pickedHit.productSkuId}
                   {pickedHit.skuName ? `（${pickedHit.skuName}）` : ''}
                   <br />
-                  库存：{pickedHit.stock ?? '—'}
+                  {tr("库存：")}{pickedHit.stock ?? '—'}
                   {pickedHit.attrs != null ? (
                     <>
                       <br />
-                      规格属性：{formatSkuAttrs(pickedHit.attrs)}
+                      {tr("规格属性：")}{formatSkuAttrs(pickedHit.attrs)}
                     </>
                   ) : null}
                 </Typography.Paragraph>
                 {pickedHit.attrs != null ? (
-                  <TechnicalDetails label="规格属性详情">
-                    <TaskJsonBlock title="规格属性" value={pickedHit.attrs} last />
+                  <TechnicalDetails label={tr("规格属性详情")}>
+                    <TaskJsonBlock title={tr("规格属性")} value={pickedHit.attrs} last />
                   </TechnicalDetails>
                 ) : null}
               </>
             ) : null}
             <Space direction="vertical">
               <Space>
-                <span>绑定后扣减库存</span>
+                <span>{tr("绑定后扣减库存")}</span>
                 <Switch checked={deduct} onChange={setDeduct} />
               </Space>
               <Space>
-                <span>扣减后同步平台库存任务</span>
+                <span>{tr("扣减后同步平台库存任务")}</span>
                 <Switch checked={syncPlat} onChange={setSyncPlat} />
               </Space>
             </Space>
@@ -897,7 +901,7 @@ export default function OrderExceptionsPage() {
       </Drawer>
 
       <Modal
-        title={`查看候选 · ${candModalTitle}`}
+        title={trFormat("查看候选 · {value0}", { value0: tr(candModalTitle) })}
         width={900}
         open={candModalOpen}
         footer={null}
@@ -905,7 +909,7 @@ export default function OrderExceptionsPage() {
         destroyOnHidden
       >
         <Typography.Paragraph type="secondary">
-          仅浏览：不修改数据。需绑定时请点「绑定 SKU（候选）」进入抽屉操作。
+          {tr("仅浏览：不修改数据。需绑定时请点「绑定 SKU（候选）」进入抽屉操作。")}
         </Typography.Paragraph>
         <Table
           size="small"
@@ -914,7 +918,7 @@ export default function OrderExceptionsPage() {
           rowKey={(r) => r.productSkuId}
           columns={[
             {
-              title: '推荐分',
+              title: tr("推荐分"),
               dataIndex: 'confidence',
               width: 120,
               render: (v: number) => (
@@ -924,14 +928,14 @@ export default function OrderExceptionsPage() {
                 </Space>
               ),
             },
-            { title: '原因', dataIndex: 'reason', ellipsis: true },
-            { title: '来源', dataIndex: 'source', width: 160, ellipsis: true },
-            { title: '商品标题', dataIndex: 'productTitle', width: 160, ellipsis: true },
-            { title: '规格编码', dataIndex: 'skuCode', width: 120 },
-            { title: '规格名称', dataIndex: 'skuName', width: 120, ellipsis: true },
-            { title: '库存', dataIndex: 'stock', width: 72, render: (v: number | undefined) => v ?? '—' },
+            { title: tr("原因"), dataIndex: 'reason', ellipsis: true },
+            { title: tr("来源"), dataIndex: 'source', width: 160, ellipsis: true },
+            { title: tr("商品标题"), dataIndex: 'productTitle', width: 160, ellipsis: true },
+            { title: tr("规格编码"), dataIndex: 'skuCode', width: 120 },
+            { title: tr("规格名称"), dataIndex: 'skuName', width: 120, ellipsis: true },
+            { title: tr("库存"), dataIndex: 'stock', width: 72, render: (v: number | undefined) => v ?? '—' },
             {
-              title: '信号',
+              title: tr("信号"),
               dataIndex: 'matchSignals',
               ellipsis: true,
               render: (s: string[]) => (s?.length ? s.join(' · ') : '—'),

@@ -1,10 +1,12 @@
+import { tr } from '@/i18n';
+
 export const PASSWORD_HINT = '12–72 位，需包含英文字母和数字，可使用英文符号；不支持中文和空格。';
 
 export function passwordError(value: string): string | undefined {
-  if (!value) return '请输入密码';
-  if (/[^\x21-\x7e]/.test(value)) return '密码仅支持英文字母、数字和英文符号，不能包含中文或空格';
-  if (value.length < 12 || value.length > 72) return '密码长度须为 12–72 位';
-  if (!/[A-Za-z]/.test(value) || !/[0-9]/.test(value)) return '密码须同时包含英文字母和数字';
+  if (!value) return tr('请输入密码');
+  if (/[^\x21-\x7e]/.test(value)) return tr('密码仅支持英文字母、数字和英文符号，不能包含中文或空格');
+  if (value.length < 12 || value.length > 72) return tr('密码长度须为 12–72 位');
+  if (!/[A-Za-z]/.test(value) || !/[0-9]/.test(value)) return tr('密码须同时包含英文字母和数字');
   return undefined;
 }
 

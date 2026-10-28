@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import { Alert, Button, Form, Input, Modal, Select, Space, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -46,6 +48,7 @@ export function BrowserProfileLoginPanel({
   onRecheckDone,
   tone = 'login_required',
 }: Props) {
+  const language = useLanguage();
   const domain = domainProp?.trim() || hostDomain(url);
   const [profiles, setProfiles] = useState<BrowserProfileRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -79,16 +82,16 @@ export function BrowserProfileLoginPanel({
   const options = useMemo(
     () =>
       profiles.map((p) => ({
-        label: `${p.name}（${p.domain} · ${p.lastCheckStatus || '未检测'}）`,
+        label: trFormat("{name}（{domain} · {value}）", { name: p.name, domain: p.domain, value: p.lastCheckStatus || tr("未检测") }),
         value: p.id,
       })),
-    [profiles],
+    [profiles, language],
   );
 
   const handleCreate = async () => {
     const vals = await createForm.validateFields();
     if (!domain) {
-      message.warning('无法识别适用网站，请填写有效商品链接');
+      message.warning(tr("无法识别适用网站，请填写有效商品链接"));
       return;
     }
     try {
@@ -97,21 +100,21 @@ export function BrowserProfileLoginPanel({
         domain,
         provider: profileProvider,
       });
-      message.success('登录状态已创建');
+      message.success(tr("登录状态已创建"));
       setCreateOpen(false);
       createForm.resetFields();
       await loadProfiles();
       onProfileIdChange?.(res.profileId);
       onUseProfileChange?.(true);
     } catch (e) {
-      message.error(e instanceof Error ? e.message : '创建失败');
+      message.error(e instanceof Error ? e.message : tr("创建失败"));
     }
   };
 
   const needUrl = () => {
     const u = url.trim();
     if (!u) {
-      message.warning('请先填写商品链接');
+      message.warning(tr("请先填写商品链接"));
       return '';
     }
     return u;
@@ -123,11 +126,11 @@ export function BrowserProfileLoginPanel({
     setBusy('open');
     try {
       const res = await openBrowserProfileLogin(profileId, { url: u });
-      message.success(res.message || '已打开采集浏览器，请在窗口中完成登录');
+      message.success(res.message || tr("已打开采集浏览器，请在窗口中完成登录"));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '打开失败';
+      const msg = e instanceof Error ? e.message : tr("打开失败");
       if (msg.includes('HEADED_BROWSER_REQUIRED')) {
-        message.error(mapCollectorErrorCodeDetail('HEADED_BROWSER_REQUIRED'));
+        message.error(tr(mapCollectorErrorCodeDetail('HEADED_BROWSER_REQUIRED')));
       } else {
         message.error(msg);
       }
@@ -146,12 +149,12 @@ export function BrowserProfileLoginPanel({
       setCheckResult(res);
       onRecheckDone?.(res);
       if (res.accessStatus === 'public') {
-        message.success('登录状态检测通过，可重新测试采集效果');
+        message.success(tr("登录状态检测通过，可重新测试采集效果"));
       } else {
-        message.warning(res.message || '仍未通过登录检测');
+        message.warning(res.message || tr("仍未通过登录检测"));
       }
     } catch (e) {
-      message.error(e instanceof Error ? e.message : '检测失败');
+      message.error(e instanceof Error ? e.message : tr("检测失败"));
     } finally {
       setBusy(null);
     }
@@ -162,19 +165,19 @@ export function BrowserProfileLoginPanel({
       type={tone === 'optional' ? 'info' : 'warning'}
       showIcon
       style={{ marginTop: tone === 'optional' ? 0 : 12 }}
-      message={tone === 'optional' ? '使用已登录的采集浏览器（可选）' : '页面需要登录'}
+      message={tone === 'optional' ? tr("使用已登录的采集浏览器（可选）") : tr("页面需要登录")}
       description={
         <div>
           <Typography.Paragraph style={{ marginBottom: 8 }}>
             {tone === 'optional'
-              ? '若商品页需登录才可查看，请选择或新建一条登录状态，在采集浏览器中手动登录后再生成或测试规则（系统不保存账号密码）。'
-              : '当前商品页跳转到了登录页面。请创建或选择登录状态，打开采集浏览器手动登录后再重新测试（系统不保存账号密码）。'}
+              ? tr("若商品页需登录才可查看，请选择或新建一条登录状态，在采集浏览器中手动登录后再生成或测试规则（系统不保存账号密码）。")
+              : tr("当前商品页跳转到了登录页面。请创建或选择登录状态，打开采集浏览器手动登录后再重新测试（系统不保存账号密码）。")}
           </Typography.Paragraph>
           <Space direction="vertical" style={{ width: '100%' }} size="small">
             <Space wrap>
               <Select
                 style={{ minWidth: 260 }}
-                placeholder={domain ? `选择 ${domain} 的登录状态` : '选择登录状态'}
+                placeholder={domain ? trFormat("选择 {domain} 的登录状态", { domain: domain }) : tr("选择登录状态")}
                 loading={loading}
                 allowClear
                 value={profileId}
@@ -185,7 +188,7 @@ export function BrowserProfileLoginPanel({
                   setCheckResult(null);
                 }}
               />
-              <Button onClick={() => setCreateOpen(true)}>新建登录状态</Button>
+              <Button onClick={() => setCreateOpen(true)}>{tr("新建登录状态")}</Button>
             </Space>
             <Space wrap>
               <Button
@@ -193,41 +196,39 @@ export function BrowserProfileLoginPanel({
                 loading={busy === 'open'}
                 onClick={() => void handleOpenLogin()}
               >
-                打开浏览器去登录
-              </Button>
+                {tr("打开浏览器去登录")}</Button>
               <Button
                 disabled={!profileId}
                 loading={busy === 'check'}
                 onClick={() => void handleCheck()}
               >
-                重新检测登录状态
-              </Button>
+                {tr("重新检测登录状态")}</Button>
               {useBrowserProfile ? (
-                <Typography.Text type="success">将使用所选登录状态进行测试或采集</Typography.Text>
+                <Typography.Text type="success">{tr("将使用所选登录状态进行测试或采集")}</Typography.Text>
               ) : null}
             </Space>
             {checkResult ? (
               <Typography.Text type="secondary">
-                检测结果：{accessStatusLabel(checkResult.accessStatus).text}
+                {tr("检测结果：")}{tr(accessStatusLabel(checkResult.accessStatus).text)}
                 {checkResult.message ? ` — ${checkResult.message}` : ''}
               </Typography.Text>
             ) : null}
           </Space>
           <Modal
-            title="新建采集浏览器登录状态"
+            title={tr("新建采集浏览器登录状态")}
             open={createOpen}
             onCancel={() => setCreateOpen(false)}
             onOk={() => void handleCreate()}
             destroyOnHidden
           >
             <Form form={createForm} component={false} layout="vertical">
-              <Form.Item label="适用网站">{domain || '—'}</Form.Item>
+              <Form.Item label={tr("适用网站")}>{domain || '—'}</Form.Item>
               <Form.Item
                 name="name"
-                label="名称"
-                rules={[{ required: true, message: '必填' }]}
+                label={tr("名称")}
+                rules={[{ required: true, message: tr("必填") }]}
               >
-                <Input placeholder="例如：京东-采集登录" />
+                <Input placeholder={tr("例如：京东-采集登录")} />
               </Form.Item>
             </Form>
           </Modal>

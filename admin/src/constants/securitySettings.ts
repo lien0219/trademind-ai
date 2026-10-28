@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 /** 安全设置字段文案 */
 
 export const SECURITY_FIELD_LABEL = {
@@ -17,8 +18,8 @@ export const SECURITY_FIELD_PLACEHOLDER = {
 } as const;
 
 export const SECURITY_SESSION_TIMEOUT_PRESETS = [
-  { label: '30 分钟', value: 30 },
-  { label: '60 分钟', value: 60 },
-  { label: '120 分钟', value: 120 },
-  { label: '480 分钟（8 小时）', value: 480 },
+  { get label() { return tr("30 分钟"); }, value: 30 },
+  { get label() { return tr("60 分钟"); }, value: 60 },
+  { get label() { return tr("120 分钟"); }, value: 120 },
+  { get label() { return tr("480 分钟（8 小时）"); }, value: 480 },
 ] as const;

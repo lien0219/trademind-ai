@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
@@ -49,17 +51,6 @@ const QUERY_KEYS = [
   'id',
 ] as const;
 
-const RECONCILIATION_OPTIONS = Object.entries(ORDER_FULFILLMENT_RECONCILIATION_STATUS).map(
-  ([value, meta]) => ({ value, label: meta.text }),
-);
-const ORDER_STATUS_OPTIONS = Object.entries(ORDER_STATUS).map(([value, meta]) => ({
-  value,
-  label: meta.text,
-}));
-const FULFILLMENT_STATUS_OPTIONS = Object.entries(ORDER_FULFILLMENT_STATUS).map(
-  ([value, meta]) => ({ value, label: meta.text }),
-);
-
 const ACTION_LABELS: Record<'reserve' | 'deduct' | 'release' | 'restore', string> = {
   reserve: '预占',
   deduct: '扣减',
@@ -86,7 +77,7 @@ function actionSummary(summary: FulfillmentActionSummary) {
 }
 
 function timelineType(value: string) {
-  return TIMELINE_TYPE_LABELS[value] || value || '—';
+  return tr(TIMELINE_TYPE_LABELS[value] || value || '—');
 }
 
 function issueLabel(value: string) {
@@ -94,6 +85,17 @@ function issueLabel(value: string) {
 }
 
 export default function FulfillmentReconciliationPage() {
+  useLanguage();
+  const reconciliationOptions = Object.entries(ORDER_FULFILLMENT_RECONCILIATION_STATUS).map(
+    ([value, meta]) => ({ value, label: meta.text }),
+  );
+  const orderStatusOptions = Object.entries(ORDER_STATUS).map(([value, meta]) => ({
+    value,
+    label: meta.text,
+  }));
+  const fulfillmentStatusOptions = Object.entries(ORDER_FULFILLMENT_STATUS).map(
+    ([value, meta]) => ({ value, label: meta.text }),
+  );
   const { readonly } = usePermission();
   const actionRef = useRef<ActionType>();
   const initializedRef = useRef(false);
@@ -182,7 +184,7 @@ export default function FulfillmentReconciliationPage() {
 
   const columns: ProColumns<FulfillmentReconciliation>[] = [
     {
-      title: '订单',
+      title: tr("订单"),
       dataIndex: 'orderNo',
       width: 190,
       copyable: true,
@@ -194,29 +196,29 @@ export default function FulfillmentReconciliationPage() {
       ),
     },
     {
-      title: '订单状态',
+      title: tr("订单状态"),
       dataIndex: 'status',
       width: 108,
       render: (_, row) => statusTag(row.status, ORDER_STATUS),
     },
     {
-      title: '履约状态',
+      title: tr("履约状态"),
       dataIndex: 'fulfillmentStatus',
       width: 108,
       render: (_, row) => statusTag(row.fulfillmentStatus, ORDER_FULFILLMENT_STATUS),
     },
     {
-      title: '仓库',
+      title: tr("仓库"),
       dataIndex: 'warehouseId',
       width: 180,
       ellipsis: true,
       render: (_, row) =>
         row.warehouseId
           ? warehouseOptions.find((item) => item.value === row.warehouseId)?.label || row.warehouseId
-          : '未绑定',
+          : tr("未绑定"),
     },
     ...(['reserve', 'deduct', 'release', 'restore'] as const).map((key) => ({
-      title: `${ACTION_LABELS[key]} 实际 / 预期`,
+      title: trFormat("{value0} 实际 / 预期", { value0: tr(ACTION_LABELS[key]) }),
       dataIndex: key,
       width: 120,
       align: 'right' as const,
@@ -230,32 +232,32 @@ export default function FulfillmentReconciliationPage() {
       },
     })),
     {
-      title: '发货 / effect',
+      title: tr("发货 / effect"),
       width: 116,
       align: 'right',
       render: (_, row) => `${row.shipmentCount} / ${row.effectCount}`,
     },
     {
-      title: '对账状态',
+      title: tr("对账状态"),
       dataIndex: 'reconciliationStatus',
       width: 112,
       render: (_, row) => statusTag(row.reconciliationStatus, ORDER_FULFILLMENT_RECONCILIATION_STATUS),
     },
     {
-      title: '最后库存动作',
+      title: tr("最后库存动作"),
       dataIndex: 'lastInventoryActionAt',
       width: 168,
       render: (_, row) =>
         row.lastInventoryActionAt ? formatDateTime(row.lastInventoryActionAt) : '—',
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 88,
       fixed: 'right',
       render: (_, row) => (
         <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => drawer.openDrawer(row.orderId)}>
-          查看
+          {tr("查看")}
         </Button>
       ),
     },
@@ -263,27 +265,27 @@ export default function FulfillmentReconciliationPage() {
 
   const timelineColumns: TableColumnsType<FulfillmentTimelineEntry> = [
     {
-      title: '事实',
+      title: tr("事实"),
       dataIndex: 'type',
       width: 110,
       render: (_, row) => timelineType(row.type),
     },
-    { title: '动作', dataIndex: 'action', width: 150, ellipsis: true },
+    { title: tr("动作"), dataIndex: 'action', width: 150, ellipsis: true },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 96,
       render: (_, row) => row.status || '—',
     },
     {
-      title: '数量',
+      title: tr("数量"),
       dataIndex: 'quantity',
       width: 72,
       align: 'right',
       render: (_, row) => row.quantity ?? '—',
     },
     {
-      title: '时间',
+      title: tr("时间"),
       dataIndex: 'createdAt',
       width: 180,
       render: (_, row) => formatDateTime(row.createdAt),
@@ -293,17 +295,17 @@ export default function FulfillmentReconciliationPage() {
   return (
     <PermissionGuard require={PERMISSIONS.ORDER_VIEW} showForbiddenPage>
       <TmPageContainer
-        title="履约库存对账"
-        subTitle="订单生命周期事实与库存 effect、流水和发货单的只读核对"
+        title={tr("履约库存对账")}
+        subTitle={tr("订单生命周期事实与库存 effect、流水和发货单的只读核对")}
       >
         {readonly ? (
-          <Alert type="info" showIcon message="当前账号为只读模式" description="本工作台仅提供查询、筛选和详情查看，不提供修复或重试操作。" style={{ marginBottom: 16 }} />
+          <Alert type="info" showIcon message={tr("当前账号为只读模式")} description={tr("本工作台仅提供查询、筛选和详情查看，不提供修复或重试操作。")} style={{ marginBottom: 16 }} />
         ) : null}
         {warehouseError ? (
-          <Alert type="warning" showIcon message="仓库筛选暂不可用" description={warehouseError} style={{ marginBottom: 16 }} />
+          <Alert type="warning" showIcon message={tr("仓库筛选暂不可用")} description={tr(warehouseError)} style={{ marginBottom: 16 }} />
         ) : null}
         {listError ? (
-          <ErrorAlert title={listError} actionHint={<Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>重新加载</Button>} />
+          <ErrorAlert title={tr(listError)} actionHint={<Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>{tr("重新加载")}</Button>} />
         ) : null}
         <TmProTable<FulfillmentReconciliation>
           rowKey="orderId"
@@ -312,13 +314,13 @@ export default function FulfillmentReconciliationPage() {
           search={false}
           cardBordered
           scroll={{ x: 1500 }}
-          locale={{ emptyText: listError ? '对账数据暂不可用' : '暂无符合条件的履约对账记录' }}
+          locale={{ emptyText: listError ? tr('对账数据暂不可用') : tr('暂无符合条件的履约对账记录') }}
           filterBar={
             <Space wrap>
               <Input.Search
                 allowClear
-                aria-label="订单号"
-                placeholder="搜索订单号"
+                aria-label={tr("订单号")}
+                placeholder={tr("搜索订单号")}
                 value={orderNoInput}
                 style={{ width: 210, maxWidth: '100%' }}
                 onChange={(event) => setOrderNoInput(event.target.value)}
@@ -328,8 +330,8 @@ export default function FulfillmentReconciliationPage() {
                 allowClear
                 showSearch
                 optionFilterProp="label"
-                aria-label="履约仓库"
-                placeholder="全部仓库"
+                aria-label={tr("履约仓库")}
+                placeholder={tr("全部仓库")}
                 value={urlState.warehouseId}
                 style={{ width: 190 }}
                 options={warehouseOptions}
@@ -337,29 +339,29 @@ export default function FulfillmentReconciliationPage() {
               />
               <Select
                 allowClear
-                aria-label="订单状态"
-                placeholder="全部订单状态"
+                aria-label={tr("订单状态")}
+                placeholder={tr("全部订单状态")}
                 value={urlState.status}
                 style={{ width: 150 }}
-                options={ORDER_STATUS_OPTIONS}
+                options={orderStatusOptions}
                 onChange={(value) => updateFilter('status', value)}
               />
               <Select
                 allowClear
-                aria-label="履约状态"
-                placeholder="全部履约状态"
+                aria-label={tr("履约状态")}
+                placeholder={tr("全部履约状态")}
                 value={urlState.fulfillmentStatus}
                 style={{ width: 150 }}
-                options={FULFILLMENT_STATUS_OPTIONS}
+                options={fulfillmentStatusOptions}
                 onChange={(value) => updateFilter('fulfillmentStatus', value)}
               />
               <Select
                 allowClear
-                aria-label="对账状态"
-                placeholder="全部对账状态"
+                aria-label={tr("对账状态")}
+                placeholder={tr("全部对账状态")}
                 value={urlState.reconciliationStatus}
                 style={{ width: 150 }}
-                options={RECONCILIATION_OPTIONS}
+                options={reconciliationOptions}
                 onChange={(value) => updateFilter('reconciliationStatus', value)}
               />
             </Space>
@@ -398,7 +400,7 @@ export default function FulfillmentReconciliationPage() {
           }}
         />
         <AppDrawer
-          title={detail?.orderNo ? `订单 ${detail.orderNo} · 履约对账` : '履约对账详情'}
+          title={detail?.orderNo ? `${tr('订单')} ${detail.orderNo} · ${tr('履约对账')}` : tr('履约对账详情')}
           open={drawer.open}
           onClose={drawer.closeDrawer}
           loading={detailLoading}
@@ -409,26 +411,26 @@ export default function FulfillmentReconciliationPage() {
                 icon={<EyeOutlined />}
                 onClick={() => history.push(`/orders/${encodeURIComponent(drawer.id!)}?tab=reconciliation`)}
               >
-                打开订单详情
+                {tr("打开订单详情")}
               </Button>
             ) : null
           }
         >
-          {detailError ? <ErrorAlert title={detailError} /> : null}
+          {detailError ? <ErrorAlert title={tr(detailError)} /> : null}
           {detail ? (
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
-                <Descriptions.Item label="对账状态">
+                <Descriptions.Item label={tr("对账状态")}>
                   {statusTag(detail.reconciliationStatus, ORDER_FULFILLMENT_RECONCILIATION_STATUS)}
                 </Descriptions.Item>
-                <Descriptions.Item label="订单状态">{statusTag(detail.status, ORDER_STATUS)}</Descriptions.Item>
-                <Descriptions.Item label="履约状态">{statusTag(detail.fulfillmentStatus, ORDER_FULFILLMENT_STATUS)}</Descriptions.Item>
-                <Descriptions.Item label="履约仓库">
-                  {detail.warehouseId ? warehouseOptions.find((item) => item.value === detail.warehouseId)?.label || detail.warehouseId : '未绑定'}
+                <Descriptions.Item label={tr("订单状态")}>{statusTag(detail.status, ORDER_STATUS)}</Descriptions.Item>
+                <Descriptions.Item label={tr("履约状态")}>{statusTag(detail.fulfillmentStatus, ORDER_FULFILLMENT_STATUS)}</Descriptions.Item>
+                <Descriptions.Item label={tr("履约仓库")}>
+                  {detail.warehouseId ? warehouseOptions.find((item) => item.value === detail.warehouseId)?.label || detail.warehouseId : tr("未绑定")}
                 </Descriptions.Item>
-                <Descriptions.Item label="发货单数量">{detail.shipmentCount}</Descriptions.Item>
-                <Descriptions.Item label="库存 effect 数量">{detail.effectCount}</Descriptions.Item>
-                <Descriptions.Item label="最后库存动作">
+                <Descriptions.Item label={tr("发货单数量")}>{detail.shipmentCount}</Descriptions.Item>
+                <Descriptions.Item label={tr("库存 effect 数量")}>{detail.effectCount}</Descriptions.Item>
+                <Descriptions.Item label={tr("最后库存动作")}>
                   {detail.lastInventoryActionAt ? formatDateTime(detail.lastInventoryActionAt) : '—'}
                 </Descriptions.Item>
               </Descriptions>
@@ -436,7 +438,7 @@ export default function FulfillmentReconciliationPage() {
                 <Alert
                   type={detail.reconciliationStatus === 'blocked' ? 'warning' : 'error'}
                   showIcon
-                  message="需要人工核对"
+                  message={tr("需要人工核对")}
                   description={detail.issues.map(issueLabel).join('；')}
                 />
               ) : null}
@@ -445,7 +447,7 @@ export default function FulfillmentReconciliationPage() {
                   const summary = detail[key];
                   return (
                     <Tag key={key} color={summary.expected === summary.actual ? 'success' : 'error'}>
-                      {ACTION_LABELS[key]} {actionSummary(summary)}
+                      {tr(ACTION_LABELS[key])} {actionSummary(summary)}
                     </Tag>
                   );
                 })}
@@ -455,7 +457,7 @@ export default function FulfillmentReconciliationPage() {
                 size="small"
                 pagination={false}
                 scroll={{ x: 600 }}
-                locale={{ emptyText: '暂无库存或发货事实' }}
+                locale={{ emptyText: tr("暂无库存或发货事实") }}
                 dataSource={detail.timeline || []}
                 columns={timelineColumns}
               />

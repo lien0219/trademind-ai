@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import {
   ModalForm,
   ProFormDependency,
@@ -100,13 +102,13 @@ type Props = {
 
 function imageOptionLabel(im: ProductImageRow): string {
   const typeMap: Record<string, string> = {
-    main: '主图',
-    detail: '详情图',
-    marketing: '营销图',
-    sku: 'SKU图',
-    ai_generated: 'AI图',
+    main: tr("主图"),
+    detail: tr("详情图"),
+    marketing: tr("营销图"),
+    sku: tr("SKU图"),
+    ai_generated: tr("AI图"),
   };
-  const typeLabel = typeMap[String(im.imageType ?? '')] ?? im.imageType ?? '图片';
+  const typeLabel = typeMap[String(im.imageType ?? '')] ?? im.imageType ?? tr("图片");
   const url = (im.publicUrl || im.originUrl || '').trim();
   const short = url.length > 48 ? `${url.slice(0, 48)}…` : url;
   return `${typeLabel} · ${short || im.id.slice(0, 8)}`;
@@ -121,6 +123,7 @@ export function CreateImageTaskModal({
   productImages: productImagesProp,
   allowProductIdInput = false,
 }: Props) {
+  const language = useLanguage();
   const [form] = Form.useForm<FormValues>();
   const { caps, optionsForTask } = useImageProviders();
   const [uploadedSource, setUploadedSource] = useState<{ id: string; url: string } | null>(null);
@@ -147,7 +150,7 @@ export function CreateImageTaskModal({
         value,
         disabled: !caps.some((c) => isProviderSelectable(c) && c.supportedTasks.includes(value)),
       })),
-    [caps],
+    [caps, language],
   );
 
   const advancedTaskOptions = useMemo(
@@ -158,7 +161,7 @@ export function CreateImageTaskModal({
           value: t.value,
           disabled: !caps.some((c) => isProviderSelectable(c) && c.supportedTasks.includes(t.value)),
         })),
-    [caps],
+    [caps, language],
   );
 
   const applyPrefill = useCallback(() => {
@@ -212,10 +215,10 @@ export function CreateImageTaskModal({
     try {
       const res = await testOCRConnection();
       setOcrReady(Boolean(res.ok));
-      setOcrMessage(res.message || '当前 OCR 服务可用');
+      setOcrMessage(res.message || '');
     } catch (e: unknown) {
       setOcrReady(false);
-      setOcrMessage((e as Error)?.message || '图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。');
+      setOcrMessage((e as Error)?.message || '');
     } finally {
       setOcrChecking(false);
     }
@@ -268,10 +271,10 @@ export function CreateImageTaskModal({
         sourceImageUrl: up.url,
       });
       options.onSuccess?.(up);
-      message.success('图片已上传');
+      message.success(tr("图片已上传"));
     } catch (e: unknown) {
       options.onError?.(e as Error);
-      message.error((e as Error)?.message || '上传失败');
+      message.error((e as Error)?.message || tr("上传失败"));
     } finally {
       setUploading(false);
     }
@@ -302,7 +305,7 @@ export function CreateImageTaskModal({
   return (
     <ModalForm<FormValues>
       form={form}
-      title="新建图片任务"
+      title={tr("新建图片任务")}
       open={open}
       onOpenChange={(v) => {
         if (!v) {
@@ -323,7 +326,7 @@ export function CreateImageTaskModal({
       submitter={{
         render: (props) => [
           <Button key="cancel" onClick={() => onOpenChange(false)}>
-            取消
+            {tr("取消")}
           </Button>,
           <Button
             key="submit"
@@ -332,7 +335,7 @@ export function CreateImageTaskModal({
             disabled={watchedTaskType === 'translate_image_text' && !ocrReady}
             onClick={() => props.submit?.()}
           >
-            创建任务
+            {tr("创建任务")}
           </Button>,
         ],
       }}
@@ -342,15 +345,15 @@ export function CreateImageTaskModal({
         const { sourceImageId, sourceImageUrl } = resolveSource(values);
 
         if (!imageTaskAllowsNoSource(tt) && !sourceImageId && !sourceImageUrl) {
-          message.error('请选择商品图片、上传图片或填写图片链接');
+          message.error(tr("请选择商品图片、上传图片或填写图片链接"));
           return false;
         }
         if (tt === 'select_best_main' && !productId) {
-          message.error('自动选最佳主图需要关联商品，请填写商品 ID');
+          message.error(tr("自动选最佳主图需要关联商品，请填写商品 ID"));
           return false;
         }
         if (tt === 'translate_image_text' && !ocrReady) {
-          message.error('图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。');
+          message.error(tr("图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。"));
           return false;
         }
 
@@ -360,7 +363,7 @@ export function CreateImageTaskModal({
           try {
             extra = JSON.parse(rawJson) as Record<string, unknown>;
           } catch {
-            message.error('高级参数需为合法 JSON');
+            message.error(tr("高级参数需为合法 JSON"));
             return false;
           }
         }
@@ -423,34 +426,34 @@ export function CreateImageTaskModal({
             input,
           });
           if (task.status === 'pending' || task.status === 'running') {
-            message.success('图片任务已提交，正在后台处理');
+            message.success(tr("图片任务已提交，正在后台处理"));
           } else if (task.status === 'success' || task.status === 'success_with_warnings') {
             message.success(
-              task.status === 'success_with_warnings' ? '任务完成（存在警告，请人工检查）' : '任务已完成',
+              task.status === 'success_with_warnings' ? tr("任务完成（存在警告，请人工检查）") : tr("任务已完成"),
             );
           } else if (task.status === 'failed') {
-            message.warning(task.errorMessage || '任务失败');
+            message.warning(task.errorMessage || tr("任务失败"));
           } else {
-            message.success('已创建');
+            message.success(tr("已创建"));
           }
           onSuccess?.();
           return true;
         } catch (e: unknown) {
-          message.error((e as Error)?.message || '创建失败');
+          message.error((e as Error)?.message || tr("创建失败"));
           return false;
         }
       }}
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        处理结果会自动保存到「设置 → 存储设置」当前启用的存储位置。普通用户只需选择任务类型和图片即可。
+        {tr("处理结果会自动保存到「设置 → 存储设置」当前启用的存储位置。普通用户只需选择任务类型和图片即可。")}
       </Typography.Paragraph>
 
       {showMoreTaskTypes ? (
         <ProFormSelect
           name="taskType"
-          label="任务类型"
+          label={tr("任务类型")}
           options={[...beginnerTaskOptions, ...advancedTaskOptions]}
-          rules={[{ required: true, message: '请选择任务类型' }]}
+          rules={[{ required: true, message: tr("请选择任务类型") }]}
           fieldProps={{
             showSearch: true,
             optionFilterProp: 'label',
@@ -465,9 +468,9 @@ export function CreateImageTaskModal({
         <>
           <ProFormSelect
             name="taskType"
-            label="任务类型"
+            label={tr("任务类型")}
             options={beginnerTaskOptions}
-            rules={[{ required: true, message: '请选择任务类型' }]}
+            rules={[{ required: true, message: tr("请选择任务类型") }]}
             fieldProps={{
               onChange: (v: string) => {
                 if (v === 'remove_background') {
@@ -480,7 +483,7 @@ export function CreateImageTaskModal({
             onClick={() => setShowMoreTaskTypes(true)}
             style={{ display: 'block', marginBottom: 16, marginTop: -8 }}
           >
-            显示更多任务类型（换背景、场景图、缩放等）
+            {tr("显示更多任务类型（换背景、场景图、缩放等）")}
           </Typography.Link>
         </>
       )}
@@ -488,9 +491,9 @@ export function CreateImageTaskModal({
       {allowProductIdInput && !fixedProductId ? (
         <ProFormText
           name="productId"
-          label="关联商品（可选）"
-          placeholder="填写商品 ID 后可从商品图库选择"
-          extra="关联商品后，处理结果可自动写入商品图片库"
+          label={tr("关联商品（可选）")}
+          placeholder={tr("填写商品 ID 后可从商品图库选择")}
+          extra={tr("关联商品后，处理结果可自动写入商品图片库")}
           fieldProps={{
             onBlur: () => {
               const pid = (form.getFieldValue('productId') ?? '').trim();
@@ -505,7 +508,7 @@ export function CreateImageTaskModal({
                   setLoadedImages(detail.images ?? []);
                 } catch {
                   setLoadedImages([]);
-                  message.warning('无法加载商品图片，请检查商品 ID');
+                  message.warning(tr("无法加载商品图片，请检查商品 ID"));
                 } finally {
                   setLoadingImages(false);
                 }
@@ -521,21 +524,21 @@ export function CreateImageTaskModal({
         {({ taskType }: { taskType?: string }) =>
           imageTaskAllowsNoSource(taskType ?? '') ? (
             <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-              此任务将评估当前商品的全部图片并推荐最佳主图，无需单独选择源图。
+              {tr("此任务将评估当前商品的全部图片并推荐最佳主图，无需单独选择源图。")}
             </Typography.Text>
           ) : (
             <>
               <ProFormRadio.Group
                 name="imageSourceMode"
-                label="选择图片"
+                label={tr("选择图片")}
                 options={[
                   {
-                    label: '从商品图片中选择',
+                    label: tr("从商品图片中选择"),
                     value: 'product',
                     disabled: !effectiveProductId,
                   },
-                  { label: '上传新图片', value: 'upload' },
-                  { label: '粘贴图片 URL', value: 'url' },
+                  { label: tr("上传新图片"), value: 'upload' },
+                  { label: tr("粘贴图片 URL"), value: 'url' },
                 ]}
                 rules={[{ required: true }]}
               />
@@ -545,23 +548,23 @@ export function CreateImageTaskModal({
                     return (
                       <ProFormSelect
                         name="selectedProductImageId"
-                        label="商品图片"
-                        placeholder={loadingImages ? '加载中…' : '选择一张商品图片'}
+                        label={tr("商品图片")}
+                        placeholder={loadingImages ? tr("加载中…") : tr("选择一张商品图片")}
                         options={productImages.map((im) => ({
                           label: imageOptionLabel(im),
                           value: im.id,
                         }))}
-                        rules={[{ required: true, message: '请选择商品图片' }]}
+                        rules={[{ required: true, message: tr("请选择商品图片") }]}
                         fieldProps={{
                           loading: loadingImages,
-                          notFoundContent: effectiveProductId ? '该商品暂无图片' : '请先填写商品 ID',
+                          notFoundContent: effectiveProductId ? tr("该商品暂无图片") : tr("请先填写商品 ID"),
                         }}
                       />
                     );
                   }
                   if (imageSourceMode === 'upload') {
                     return (
-                      <Form.Item label="上传图片" required>
+                      <Form.Item label={tr("上传图片")} required>
                         <Upload.Dragger
                           accept="image/*"
                           maxCount={1}
@@ -572,8 +575,8 @@ export function CreateImageTaskModal({
                           <p className="ant-upload-drag-icon">
                             <InboxOutlined />
                           </p>
-                          <p className="ant-upload-text">点击或拖拽图片到此处上传</p>
-                          <p className="ant-upload-hint">上传后将使用系统存储中的图片作为源图</p>
+                          <p className="ant-upload-text">{tr("点击或拖拽图片到此处上传")}</p>
+                          <p className="ant-upload-hint">{tr("上传后将使用系统存储中的图片作为源图")}</p>
                         </Upload.Dragger>
                         {uploadedSource ? (
                           <div style={{ marginTop: 12 }}>
@@ -591,10 +594,10 @@ export function CreateImageTaskModal({
                   return (
                     <ProFormText
                       name="pastedImageUrl"
-                      label="图片链接"
+                      label={tr("图片链接")}
                       placeholder="https://example.com/image.jpg"
-                      extra="请填写公网可访问的 HTTPS 图片地址"
-                      rules={[{ required: true, message: '请填写图片链接' }]}
+                      extra={tr("请填写公网可访问的 HTTPS 图片地址")}
+                      rules={[{ required: true, message: tr("请填写图片链接") }]}
                     />
                   );
                 }}
@@ -608,9 +611,9 @@ export function CreateImageTaskModal({
         {({ taskType }: { taskType?: string }) => (
           <ProFormSelect
             name="provider"
-            label="图片处理服务"
+            label={tr("图片处理服务")}
             options={optionsForTask(taskType ?? '')}
-            extra="默认使用「设置 → 图片 AI」中的默认图片服务；去背景推荐 remove.bg"
+            extra={tr("默认使用「设置 → 图片 AI」中的默认图片服务；去背景推荐 remove.bg")}
           />
         )}
       </ProFormDependency>
@@ -626,7 +629,7 @@ export function CreateImageTaskModal({
               </Typography.Text>
               <ProFormRadio.Group
               name="resultMode"
-              label="处理结果"
+              label={tr("处理结果")}
               options={IMAGE_TASK_RESULT_MODE_OPTIONS.map((o) => ({
                 label: o.label,
                 value: o.value,
@@ -658,7 +661,7 @@ export function CreateImageTaskModal({
                 <ProFormSelect name="style" label={AI_IMAGE_FIELD.style.label} options={AI_IMAGE_STYLE_PRESETS} />
                 <ProFormSelect name="background" label={AI_IMAGE_FIELD.background.label} options={AI_IMAGE_BACKGROUND_PRESETS} />
               </Space>
-              <ProFormText name="size" label="尺寸（可选）" placeholder="1024x1024" />
+              <ProFormText name="size" label={tr("尺寸（可选）")} placeholder="1024x1024" />
             </>
           ) : null
         }
@@ -673,62 +676,62 @@ export function CreateImageTaskModal({
                 type={ocrReady ? 'success' : 'warning'}
                 showIcon
                 style={{ marginBottom: 16 }}
-                message={ocrReady ? '当前 OCR 服务可用' : '图片文字翻译需要 OCR 服务'}
+                message={ocrReady ? tr("当前 OCR 服务可用") : tr("图片文字翻译需要 OCR 服务")}
                 description={
                   <>
-                    {ocrMessage || '请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。'}{' '}
-                    <Typography.Link onClick={() => window.location.assign('/settings/image')}>去配置 OCR</Typography.Link>
+                    {ocrMessage || tr("请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。")}{' '}
+                    <Typography.Link onClick={() => window.location.assign('/settings/image')}>{tr("去配置 OCR")}</Typography.Link>
                   </>
                 }
                 action={
                   <Button size="small" loading={ocrChecking} onClick={() => void checkOCRReady()}>
-                    重新检测
+                    {tr("重新检测")}
                   </Button>
                 }
               />
               <ProFormSelect
                 name="sourceLanguage"
-                label="源语言"
+                label={tr("源语言")}
                 initialValue="auto"
                 options={TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS}
-                rules={[{ required: true, message: '请选择源语言' }]}
+                rules={[{ required: true, message: tr("请选择源语言") }]}
               />
               <ProFormSelect
                 name="targetLanguage"
-                label="目标语言"
+                label={tr("目标语言")}
                 initialValue="en"
                 options={TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS}
-                rules={[{ required: true, message: '请选择目标语言' }]}
+                rules={[{ required: true, message: tr("请选择目标语言") }]}
               />
               <ProFormRadio.Group
                 name="translateLayoutMode"
-                label="排版方式"
+                label={tr("排版方式")}
                 initialValue="auto"
                 options={TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS}
               />
               <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
-                处理选项
+                {tr("处理选项")}
               </Typography.Text>
               <Form.Item name="translateAutoWrap" valuePropName="checked" initialValue>
-                <Checkbox>自动换行</Checkbox>
+                <Checkbox>{tr("自动换行")}</Checkbox>
               </Form.Item>
               <Form.Item name="translateAutoFontSize" valuePropName="checked" initialValue>
-                <Checkbox>自动调整字号</Checkbox>
+                <Checkbox>{tr("自动调整字号")}</Checkbox>
               </Form.Item>
               <Form.Item name="translateAllowSimplify" valuePropName="checked" initialValue>
-                <Checkbox>文字太长时自动精简</Checkbox>
+                <Checkbox>{tr("文字太长时自动精简")}</Checkbox>
               </Form.Item>
               <Form.Item name="translateKeepProduct" valuePropName="checked" initialValue>
-                <Checkbox>尽量不改变商品主体</Checkbox>
+                <Checkbox>{tr("尽量不改变商品主体")}</Checkbox>
               </Form.Item>
               <Form.Item name="translateAutoSave" valuePropName="checked" initialValue>
-                <Checkbox>自动保存到商品图片库</Checkbox>
+                <Checkbox>{tr("自动保存到商品图片库")}</Checkbox>
               </Form.Item>
               <Form.Item name="translateOutputDetail" valuePropName="checked" initialValue>
-                <Checkbox>处理后设为详情图</Checkbox>
+                <Checkbox>{tr("处理后设为详情图")}</Checkbox>
               </Form.Item>
               <Form.Item name="translateSetMain" valuePropName="checked" initialValue={false}>
-                <Checkbox>处理后设为主图</Checkbox>
+                <Checkbox>{tr("处理后设为主图")}</Checkbox>
               </Form.Item>
             </>
           ) : null
@@ -756,29 +759,29 @@ export function CreateImageTaskModal({
           items={[
             {
               key: 'advanced',
-              label: '开发参数',
+              label: tr("开发参数"),
               children: (
                 <>
                   <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-                    仅用于开发环境验证内部图片标识和任务参数覆盖。
+                    {tr("仅用于开发环境验证内部图片标识和任务参数覆盖。")}
                   </Typography.Paragraph>
                   <ProFormText
                     name="sourceImageId"
-                    label="商品图片 ID"
-                    placeholder="系统内部 UUID"
-                    extra="系统内部图片 ID；一般应直接选择商品图片。"
+                    label={tr("商品图片 ID")}
+                    placeholder={tr("系统内部 UUID")}
+                    extra={tr("系统内部图片 ID；一般应直接选择商品图片。")}
                   />
                   <ProFormText
                     name="sourceImageUrl"
-                    label="外部图片链接"
+                    label={tr("外部图片链接")}
                     placeholder="https://..."
-                    extra="填写后将覆盖上方选择的图片。"
+                    extra={tr("填写后将覆盖上方选择的图片。")}
                   />
                   <ProFormTextArea
                     name="inputJson"
-                    label="任务参数 JSON"
+                    label={tr("任务参数 JSON")}
                     fieldProps={{ rows: 4, style: { fontFamily: 'monospace' } }}
-                    extra="覆盖默认处理参数。"
+                    extra={tr("覆盖默认处理参数。")}
                     initialValue="{}"
                   />
                 </>

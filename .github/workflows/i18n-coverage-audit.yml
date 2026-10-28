@@ -29,11 +29,23 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.34.6
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install audit dependencies
+        run: pnpm install --frozen-lockfile
       - name: Validate i18n audit parser
         run: node --test admin/scripts/i18n-audit.test.mjs
-      - name: Inventory existing untranslated UI candidates
+      - name: Strict whole-site internationalization audit
         working-directory: admin
-        run: node scripts/i18n-audit.mjs
+        run: node scripts/i18n-audit.mjs --strict --details
       - name: Check changed UI strings for localization regressions
         shell: bash
         env:

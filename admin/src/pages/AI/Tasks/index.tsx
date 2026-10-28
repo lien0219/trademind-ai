@@ -19,11 +19,11 @@ import type { AiTaskDetail, AiTaskListRow } from '@/services/aiTasks';
 import { getAiTask, queryAiTasks } from '@/services/aiTasks';
 
 const AI_TASK_STATUS_LABEL: Record<string, { text: string; color?: string }> = {
-  pending: { text: '排队中' },
-  running: { text: '执行中', color: 'processing' },
-  success: { text: '成功', color: 'success' },
-  failed: { text: '失败', color: 'error' },
-  cancelled: { text: '已取消' },
+  pending: { get text() { return tr("排队中"); } },
+  running: { get text() { return tr("执行中"); }, color: 'processing' },
+  success: { get text() { return tr("成功"); }, color: 'success' },
+  failed: { get text() { return tr("失败"); }, color: 'error' },
+  cancelled: { get text() { return tr("已取消"); } },
 };
 
 function mappedLabelCell(label: string, raw?: string) {

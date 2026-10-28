@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { CheckCircleOutlined, LinkOutlined, PlusOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { useSearchParams } from '@umijs/max';
@@ -42,6 +44,7 @@ type BindingFormValues = {
 };
 
 export default function SuppliersPage() {
+	useLanguage();
 	const [searchParams] = useSearchParams();
   const { can, readonly } = usePermission();
   const canManage = !readonly && can(PERMISSIONS.SUPPLIER_MANAGE);
@@ -152,7 +155,7 @@ export default function SuppliersPage() {
           ...(canReadFullPII || phone ? { phone: phone || '' } : {}),
           ...(canReadFullPII || email ? { email: email || '' } : {}),
         });
-        message.success('供应商信息已更新');
+        message.success(tr("供应商信息已更新"));
       } else {
         await createSupplier({
           ...common,
@@ -160,12 +163,12 @@ export default function SuppliersPage() {
           phone: values.phone?.trim() || '',
           email: values.email?.trim() || '',
         });
-        message.success('供应商已创建');
+        message.success(tr("供应商已创建"));
       }
       setSupplierModalOpen(false);
       await load();
     } catch (nextError) {
-      message.error(procurementErrorMessage(extractProcurementAPIError(nextError), '供应商保存失败，请检查填写内容。'));
+      message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('供应商保存失败，请检查填写内容。'))));
     } finally {
       setSupplierSubmitting(false);
     }
@@ -211,7 +214,7 @@ export default function SuppliersPage() {
     try {
       unitCostMinor = parseMajorAmountToMinor(values.unitCostMajor);
     } catch (nextError) {
-      message.error(nextError instanceof Error ? nextError.message : '采购单价格式不正确');
+      message.error(tr(nextError instanceof Error ? nextError.message : tr('采购单价格式不正确')));
       return;
     }
     setBindingSubmitting(true);
@@ -224,68 +227,68 @@ export default function SuppliersPage() {
         minOrderQty: values.minOrderQty,
         leadTimeDays: values.leadTimeDays,
       });
-      message.success(editingBinding ? '采购信息已更新' : '商品规格已关联');
+      message.success(editingBinding ? tr('采购信息已更新') : tr('商品规格已关联'));
       setBindingModalOpen(false);
       await loadBindings(selectedSupplier);
     } catch (nextError) {
-      message.error(procurementErrorMessage(extractProcurementAPIError(nextError), '商品规格关联失败，请检查填写内容。'));
+      message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('商品规格关联失败，请检查填写内容。'))));
     } finally {
       setBindingSubmitting(false);
     }
   };
 
   const columns: ProColumns<Supplier>[] = [
-    { title: '供应商编码', dataIndex: 'code', width: 150, copyable: true, ellipsis: true },
-    { title: '供应商名称', dataIndex: 'name', minWidth: 180, ellipsis: true },
-    { title: '联系人', dataIndex: 'contactName', width: 130, ellipsis: true, renderText: (value) => value || '—' },
-    { title: '电话', dataIndex: 'phone', width: 150, ellipsis: true, renderText: (value) => value || '—' },
-    { title: '邮箱', dataIndex: 'email', minWidth: 180, ellipsis: true, renderText: (value) => value || '—' },
-    { title: '状态', dataIndex: 'status', width: 90, render: (_, row) => row.status === 'active' ? <Tag color="success">启用</Tag> : <Tag>停用</Tag> },
+    { title: tr("供应商编码"), dataIndex: 'code', width: 150, copyable: true, ellipsis: true },
+    { title: tr("供应商名称"), dataIndex: 'name', minWidth: 180, ellipsis: true },
+    { title: tr("联系人"), dataIndex: 'contactName', width: 130, ellipsis: true, renderText: (value) => value || '—' },
+    { title: tr("电话"), dataIndex: 'phone', width: 150, ellipsis: true, renderText: (value) => value || '—' },
+    { title: tr("邮箱"), dataIndex: 'email', minWidth: 180, ellipsis: true, renderText: (value) => value || '—' },
+    { title: tr("状态"), dataIndex: 'status', width: 90, render: (_, row) => row.status === 'active' ? <Tag color="success">{tr("启用")}</Tag> : <Tag>{tr("停用")}</Tag> },
     {
-      title: '操作', valueType: 'option', width: 190,
+      title: tr("操作"), valueType: 'option', width: 190,
       render: (_, row) => (
         <Space size={0} wrap>
-          <Button type="link" size="small" icon={<LinkOutlined />} onClick={() => openBindings(row)}>采购信息</Button>
-          {canManage ? <Button type="link" size="small" onClick={() => openEdit(row)}>编辑</Button> : null}
+          <Button type="link" size="small" icon={<LinkOutlined />} onClick={() => openBindings(row)}>{tr("采购信息")}</Button>
+          {canManage ? <Button type="link" size="small" onClick={() => openEdit(row)}>{tr("编辑")}</Button> : null}
         </Space>
       ),
     },
   ];
 
   const bindingColumns: ProColumns<SupplierSKU>[] = [
-    { title: '商品', dataIndex: 'productTitle', minWidth: 170, ellipsis: true },
-    { title: '本地规格', dataIndex: 'skuName', minWidth: 150, ellipsis: true, render: (_, row) => row.skuName || row.skuCode || row.productSkuId },
-    { title: '供应商货号', dataIndex: 'supplierSkuCode', width: 150, ellipsis: true, renderText: (value) => value || '—' },
-    { title: '采购价', dataIndex: 'unitCostMinor', width: 140, render: (_, row) => formatMinorAmount(row.unitCostMinor, row.currency) },
-    { title: '起订量', dataIndex: 'minOrderQty', width: 90 },
-    { title: '交期', dataIndex: 'leadTimeDays', width: 90, render: (_, row) => `${row.leadTimeDays} 天` },
-    { title: '操作', valueType: 'option', width: 90, render: (_, row) => canManage ? <Button type="link" size="small" onClick={() => openBindingModal(row)}>编辑</Button> : '—' },
+    { title: tr("商品"), dataIndex: 'productTitle', minWidth: 170, ellipsis: true },
+    { title: tr("本地规格"), dataIndex: 'skuName', minWidth: 150, ellipsis: true, render: (_, row) => row.skuName || row.skuCode || row.productSkuId },
+    { title: tr("供应商货号"), dataIndex: 'supplierSkuCode', width: 150, ellipsis: true, renderText: (value) => value || '—' },
+    { title: tr("采购价"), dataIndex: 'unitCostMinor', width: 140, render: (_, row) => formatMinorAmount(row.unitCostMinor, row.currency) },
+    { title: tr("起订量"), dataIndex: 'minOrderQty', width: 90 },
+    { title: tr("交期"), dataIndex: 'leadTimeDays', width: 90, render: (_, row) => trFormat("{value0} 天", { value0: String(row.leadTimeDays) }) },
+    { title: tr("操作"), valueType: 'option', width: 90, render: (_, row) => canManage ? <Button type="link" size="small" onClick={() => openBindingModal(row)}>{tr("编辑")}</Button> : '—' },
   ];
 
   return (
     <PermissionGuard require={PERMISSIONS.SUPPLIER_VIEW} showForbiddenPage>
       <TmPageContainer
         className="tm-procurement-page"
-        title="供应商管理"
-        subTitle="维护供应商联系方式，并为本地商品规格设置供应商货号、采购价、起订量和交期。"
-        extra={<TmPageHeaderExtra><Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={openCreate}>新建供应商</Button></TmPageHeaderExtra>}
+        title={tr("供应商管理")}
+        subTitle={tr("维护供应商联系方式，并为本地商品规格设置供应商货号、采购价、起订量和交期。")}
+        extra={<TmPageHeaderExtra><Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={openCreate}>{tr("新建供应商")}</Button></TmPageHeaderExtra>}
       >
-        {!canManage ? <Alert type="info" showIcon message="当前账号为只读模式；联系方式可能按权限脱敏展示。" /> : null}
-        {error ? <ErrorAlert title={error} actionHint={<Button onClick={() => void load()}>重新加载</Button>} /> : null}
-        <div className="tm-procurement-overview" aria-label="供应商概览">
+        {!canManage ? <Alert type="info" showIcon message={tr("当前账号为只读模式；联系方式可能按权限脱敏展示。")} /> : null}
+        {error ? <ErrorAlert title={tr(error)} actionHint={<Button onClick={() => void load()}>{tr("重新加载")}</Button>} /> : null}
+        <div className="tm-procurement-overview" aria-label={tr("供应商概览")}>
           <div className="tm-procurement-overview__item">
-            <span className="tm-procurement-overview__label">供应商总数</span>
+            <span className="tm-procurement-overview__label">{tr("供应商总数")}</span>
             <strong className="tm-procurement-overview__value">{loading ? '—' : rows.length}</strong>
           </div>
           <div className="tm-procurement-overview__item tm-procurement-overview__item--success">
             <CheckCircleOutlined aria-hidden="true" />
-            <span className="tm-procurement-overview__label">启用中</span>
+            <span className="tm-procurement-overview__label">{tr("启用中")}</span>
             <strong className="tm-procurement-overview__value">{loading ? '—' : activeCount}</strong>
           </div>
           <div className="tm-procurement-overview__note">
             <SafetyCertificateOutlined aria-hidden="true" />
             <Typography.Text type="secondary">
-              {loading ? '正在加载供应商信息' : canReadFullPII ? '联系方式按当前权限完整展示' : '联系方式按当前权限脱敏展示'}
+              {loading ? tr('正在加载供应商信息') : canReadFullPII ? tr('联系方式按当前权限完整展示') : tr('联系方式按当前权限脱敏展示')}
             </Typography.Text>
           </div>
         </div>
@@ -295,51 +298,51 @@ export default function SuppliersPage() {
           filterBar={
             <Input.Search
               allowClear
-              aria-label="搜索供应商"
-              placeholder="搜索编码、名称或联系人"
+              aria-label={tr("搜索供应商")}
+              placeholder={tr("搜索编码、名称或联系人")}
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               className="tm-procurement-search"
             />
           }
           toolBarRender={() => [
-            <Typography.Text key="count" type="secondary">共 {filteredRows.length} 家供应商</Typography.Text>,
-            <Button key="refresh" loading={loading} onClick={() => void load()}>刷新列表</Button>,
+            <Typography.Text key="count" type="secondary">{tr("共")} {filteredRows.length} {tr("家供应商")}</Typography.Text>,
+            <Button key="refresh" loading={loading} onClick={() => void load()}>{tr("刷新列表")}</Button>,
           ]}
-          pagination={false} cardBordered scroll={{ x: 1120 }} locale={{ emptyText: error ? '供应商列表暂不可用' : '暂无供应商，请先新建供应商。' }}
+          pagination={false} cardBordered scroll={{ x: 1120 }} locale={{ emptyText: error ? tr('供应商列表暂不可用') : tr('暂无供应商，请先新建供应商。') }}
         />
 
         <Modal
-          title={editing ? `编辑供应商 · ${editing.code}` : '新建供应商'}
+          title={editing ? trFormat("编辑供应商 · {value0}", { value0: String(editing.code) }) : tr('新建供应商')}
           open={supplierModalOpen}
           confirmLoading={supplierSubmitting}
-          okText={editing ? '保存供应商' : '创建供应商'}
-          cancelText="取消"
+          okText={editing ? tr('保存供应商') : tr('创建供应商')}
+          cancelText={tr("取消")}
           onCancel={() => !supplierSubmitting && setSupplierModalOpen(false)}
           onOk={() => supplierForm.submit()}
           forceRender
         >
           <Form form={supplierForm} layout="vertical" preserve={false} onFinish={(values) => void saveSupplier(values)}>
-            <Form.Item label="供应商编码" name="code" rules={[{ required: true, message: '请输入供应商编码' }, { pattern: /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/, message: '仅支持字母、数字、下划线和短横线' }]}>
-              <Input disabled={Boolean(editing)} maxLength={64} placeholder="例如 SUP-001" />
+            <Form.Item label={tr("供应商编码")} name="code" rules={[{ required: true, message: tr("请输入供应商编码") }, { pattern: /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/, message: tr("仅支持字母、数字、下划线和短横线") }]}>
+              <Input disabled={Boolean(editing)} maxLength={64} placeholder={tr("例如 SUP-001")} />
             </Form.Item>
-            <Form.Item label="供应商名称" name="name" rules={[{ required: true, whitespace: true, message: '请输入供应商名称' }]}>
+            <Form.Item label={tr("供应商名称")} name="name" rules={[{ required: true, whitespace: true, message: tr("请输入供应商名称") }]}>
               <Input maxLength={200} />
             </Form.Item>
-            {editing ? <Form.Item label="状态" name="status" rules={[{ required: true }]}><Radio.Group options={[{ label: '启用', value: 'active' }, { label: '停用', value: 'inactive' }]} /></Form.Item> : null}
-            <Form.Item label="联系人" name="contactName"><Input maxLength={120} /></Form.Item>
+            {editing ? <Form.Item label={tr("状态")} name="status" rules={[{ required: true }]}><Radio.Group options={[{ label: tr("启用"), value: 'active' }, { label: tr("停用"), value: 'inactive' }]} /></Form.Item> : null}
+            <Form.Item label={tr("联系人")} name="contactName"><Input maxLength={120} /></Form.Item>
             <Form.Item
-              label="联系电话"
+              label={tr("联系电话")}
               name="phone"
-              extra={editing && !canReadFullPII ? '原号码已脱敏；留空将保留原值，填写新号码才会替换。' : undefined}
+              extra={editing && !canReadFullPII ? tr('原号码已脱敏；留空将保留原值，填写新号码才会替换。') : undefined}
             >
               <Input maxLength={64} />
             </Form.Item>
             <Form.Item
-              label="联系邮箱"
+              label={tr("联系邮箱")}
               name="email"
-              extra={editing && !canReadFullPII ? '原邮箱已脱敏；留空将保留原值，填写新邮箱才会替换。' : undefined}
-              rules={[{ type: 'email', message: '请输入有效邮箱地址' }]}
+              extra={editing && !canReadFullPII ? tr('原邮箱已脱敏；留空将保留原值，填写新邮箱才会替换。') : undefined}
+              rules={[{ type: 'email', message: tr("请输入有效邮箱地址") }]}
             >
               <Input maxLength={254} />
             </Form.Item>
@@ -347,36 +350,36 @@ export default function SuppliersPage() {
         </Modal>
 
         <AppDrawer
-          title={selectedSupplier ? `采购信息 · ${selectedSupplier.name}` : '供应商采购信息'}
+          title={selectedSupplier ? trFormat("采购信息 · {value0}", { value0: String(selectedSupplier.name) }) : tr('供应商采购信息')}
           open={Boolean(selectedSupplier)}
           onClose={() => setSelectedSupplier(undefined)}
-          extra={<Button type="primary" icon={<PlusOutlined />} disabled={!canManage || selectedSupplier?.status !== 'active'} onClick={() => openBindingModal()}>关联商品规格</Button>}
+          extra={<Button type="primary" icon={<PlusOutlined />} disabled={!canManage || selectedSupplier?.status !== 'active'} onClick={() => openBindingModal()}>{tr("关联商品规格")}</Button>}
         >
-          {bindingsError ? <ErrorAlert title={bindingsError} actionHint={selectedSupplier ? <Button onClick={() => void loadBindings(selectedSupplier)}>重新加载</Button> : null} /> : null}
+          {bindingsError ? <ErrorAlert title={tr(bindingsError)} actionHint={selectedSupplier ? <Button onClick={() => void loadBindings(selectedSupplier)}>{tr("重新加载")}</Button> : null} /> : null}
           <TmProTable<SupplierSKU>
             rowKey="id" columns={bindingColumns} dataSource={bindings} loading={bindingsLoading} search={false} options={false}
-            pagination={false} cardBordered={false} scroll={{ x: 900 }} locale={{ emptyText: bindingsError ? '采购信息暂不可用' : '尚未关联商品规格。' }}
+            pagination={false} cardBordered={false} scroll={{ x: 900 }} locale={{ emptyText: bindingsError ? tr('采购信息暂不可用') : tr('尚未关联商品规格。') }}
           />
         </AppDrawer>
 
         <Modal
-          title={editingBinding ? '编辑规格采购信息' : '关联商品规格'}
+          title={editingBinding ? tr('编辑规格采购信息') : tr('关联商品规格')}
           open={bindingModalOpen}
           confirmLoading={bindingSubmitting}
-          okText={editingBinding ? '保存采购信息' : '确认关联'}
-          cancelText="取消"
+          okText={editingBinding ? tr('保存采购信息') : tr('确认关联')}
+          cancelText={tr("取消")}
           onCancel={() => !bindingSubmitting && setBindingModalOpen(false)}
           onOk={() => bindingForm.submit()}
           forceRender
         >
           <Form form={bindingForm} layout="vertical" preserve={false} onFinish={(values) => void saveBinding(values)}>
-            <Form.Item label="本地商品规格" name="productSkuId" rules={[{ required: true, message: '请选择商品规格' }]}>
+            <Form.Item label={tr("本地商品规格")} name="productSkuId" rules={[{ required: true, message: tr("请选择商品规格") }]}>
               <Select
                 showSearch
                 disabled={Boolean(editingBinding)}
                 filterOption={false}
                 loading={skuSearching}
-                placeholder="输入商品标题、规格编码或规格名称搜索"
+                placeholder={tr("输入商品标题、规格编码或规格名称搜索")}
                 onSearch={(value) => void searchSKUs(value)}
                 onOpenChange={(open) => open && skuOptions.length === 0 && void searchSKUs()}
                 options={skuOptions.map((item) => ({
@@ -385,18 +388,18 @@ export default function SuppliersPage() {
                 }))}
               />
             </Form.Item>
-            <Form.Item label="供应商货号" name="supplierSkuCode"><Input maxLength={128} /></Form.Item>
+            <Form.Item label={tr("供应商货号")} name="supplierSkuCode"><Input maxLength={128} /></Form.Item>
             <Space wrap size="middle" className="tm-procurement-form-row">
-              <Form.Item label="采购单价" name="unitCostMajor" rules={[{ required: true, message: '请输入采购单价' }]}>
-                <Input inputMode="decimal" suffix="主币单位" />
+              <Form.Item label={tr("采购单价")} name="unitCostMajor" rules={[{ required: true, message: tr("请输入采购单价") }]}>
+                <Input inputMode="decimal" suffix={tr("主币单位")} />
               </Form.Item>
-              <Form.Item label="币种" name="currency" rules={[{ required: true }]}>
+              <Form.Item label={tr("币种")} name="currency" rules={[{ required: true }]}>
                 <Select options={['CNY', 'USD', 'EUR'].map((value) => ({ value, label: value }))} />
               </Form.Item>
-              <Form.Item label="起订量" name="minOrderQty" rules={[{ required: true }]}>
+              <Form.Item label={tr("起订量")} name="minOrderQty" rules={[{ required: true }]}>
                 <InputNumber min={1} max={1000000} precision={0} />
               </Form.Item>
-              <Form.Item label="交期（天）" name="leadTimeDays" rules={[{ required: true }]}>
+              <Form.Item label={tr("交期（天）")} name="leadTimeDays" rules={[{ required: true }]}>
                 <InputNumber min={0} max={3650} precision={0} />
               </Form.Item>
             </Space>

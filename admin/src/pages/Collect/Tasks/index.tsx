@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
@@ -72,6 +74,7 @@ const COLLECT_TASK_QUERY_KEYS = [
 ] as const;
 
 export default function CollectTasksPage() {
+  const language = useLanguage();
   const { user, can } = usePermission();
   const mayManagePlatform = mayReadGlobalSettings(user);
   const canCollect = can(PERMISSIONS.PRODUCT_WRITE);
@@ -221,12 +224,12 @@ export default function CollectTasksPage() {
     providers.forEach((p) => {
       rec[p.source] = { text: `${p.name}` };
     });
-    return Object.keys(rec).length ? rec : { '1688': { text: '1688采集器' } };
-  }, [providers]);
+    return Object.keys(rec).length ? rec : { '1688': { text: tr("1688采集器") } };
+  }, [providers, language]);
 
   const columns: ProColumns<CollectTaskRow>[] = [
     {
-      title: '采集服务',
+      title: tr("采集服务"),
       dataIndex: 'source',
       width: 132,
       valueType: 'select',
@@ -235,16 +238,16 @@ export default function CollectTasksPage() {
         `${providers.find((p) => p.source === row.source)?.name ?? row.source}`,
     },
     {
-      title: '链接关键词',
+      title: tr("链接关键词"),
       dataIndex: 'keyword',
       hideInTable: true,
-      fieldProps: { placeholder: '匹配 source_url', ...keywordFieldProps },
+      fieldProps: { placeholder: tr("匹配 source_url"), ...keywordFieldProps },
       search: {
         transform: (v) => ({ keyword: prepareKeyword(v) }),
       },
     },
     {
-      title: '来源链接',
+      title: tr("来源链接"),
       dataIndex: 'sourceUrl',
       width: 240,
       search: false,
@@ -266,7 +269,7 @@ export default function CollectTasksPage() {
       },
     },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 112,
       valueType: 'select',
@@ -274,8 +277,8 @@ export default function CollectTasksPage() {
         ...Object.fromEntries(
           Object.entries(COLLECT_TASK_STATUS).map(([k, v]) => [k, { text: v.text }]),
         ),
-        pending: { text: '等待处理（排队）' },
-        running: { text: '处理中' },
+        pending: { text: tr("等待处理（排队）") },
+        running: { text: tr("处理中") },
       },
       render: (_, row) => {
         const m = COLLECT_TASK_STATUS[row.status as keyof typeof COLLECT_TASK_STATUS];
@@ -283,7 +286,7 @@ export default function CollectTasksPage() {
       },
     },
     {
-      title: '重试',
+      title: tr("重试"),
       search: false,
       width: 100,
       responsive: ['lg'],
@@ -294,7 +297,7 @@ export default function CollectTasksPage() {
       ),
     },
     {
-      title: '下次自动重试',
+      title: tr("下次自动重试"),
       dataIndex: 'nextRetryAt',
       width: 172,
       search: false,
@@ -302,7 +305,7 @@ export default function CollectTasksPage() {
       render: (_, row) => formatDateTime(row.nextRetryAt),
     },
     {
-      title: '商品草稿',
+      title: tr("商品草稿"),
       dataIndex: 'resultProductId',
       width: 200,
       search: false,
@@ -316,7 +319,7 @@ export default function CollectTasksPage() {
         ),
     },
     {
-      title: '失败原因',
+      title: tr("失败原因"),
       dataIndex: 'collectorErrorCode',
       width: 140,
       search: false,
@@ -324,14 +327,14 @@ export default function CollectTasksPage() {
       render: (_, row) => {
         if (row.status !== 'failed' && row.status !== 'retrying') return '—';
         return (
-          mapCollectorErrorCodeLabel(row.collectorErrorCode) ||
+          tr(mapCollectorErrorCodeLabel(row.collectorErrorCode)) ||
           row.failureHint ||
           '—'
         );
       },
     },
     {
-      title: '处理建议',
+      title: tr("处理建议"),
       dataIndex: 'failureHint',
       ellipsis: true,
       search: false,
@@ -340,13 +343,13 @@ export default function CollectTasksPage() {
         if (row.status !== 'failed' && row.status !== 'retrying') return '—';
         const hint =
           row.failureHint ||
-          mapCollectorErrorCodeDetail(row.collectorErrorCode, row.source) ||
-          (row.errorMessage ? mapCollectErrorMessage(row.errorMessage, row.source) : '');
+          tr(mapCollectorErrorCodeDetail(row.collectorErrorCode, row.source)) ||
+          (row.errorMessage ? tr(mapCollectErrorMessage(row.errorMessage, row.source)) : '');
         return hint || '—';
       },
     },
     {
-      title: '开始时间',
+      title: tr("开始时间"),
       dataIndex: 'startedAt',
       width: 168,
       search: false,
@@ -354,7 +357,7 @@ export default function CollectTasksPage() {
       render: (_, row) => formatDateTime(row.startedAt),
     },
     {
-      title: '结束时间',
+      title: tr("结束时间"),
       dataIndex: 'finishedAt',
       width: 168,
       search: false,
@@ -362,7 +365,7 @@ export default function CollectTasksPage() {
       render: (_, row) => formatDateTime(row.finishedAt),
     },
     {
-      title: '创建时间',
+      title: tr("创建时间"),
       dataIndex: 'createdAt',
       width: 168,
       search: false,
@@ -370,7 +373,7 @@ export default function CollectTasksPage() {
       render: (_, row) => formatDateTime(row.createdAt),
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 120,
       search: false,
@@ -384,8 +387,7 @@ export default function CollectTasksPage() {
               setUrlState({ drawer: 'events', id: row.id });
             }}
           >
-            事件
-          </a>,
+            {tr("事件")}</a>,
         ];
         if (row.status === 'failed') {
           actions.push(
@@ -394,15 +396,14 @@ export default function CollectTasksPage() {
               onClick={async () => {
                 try {
                   await retryCollectTask(row.id);
-                  message.success('已重新入队');
+                  message.success(tr("已重新入队"));
                   actionRef.current?.reload();
                 } catch (e) {
-                  message.error(e instanceof Error ? e.message : '重试失败');
+                  message.error(e instanceof Error ? e.message : tr("重试失败"));
                 }
               }}
             >
-              重试
-            </a>,
+              {tr("重试")}</a>,
           );
         }
         return actions;
@@ -412,13 +413,12 @@ export default function CollectTasksPage() {
 
   return (
     <TmPageContainer
-      title="采集任务"
+      title={tr("采集任务")}
       subTitle={
         batchIdFromQuery ? (
           <span>
             <Tag color="processing" style={{ marginRight: 8 }}>
-              批次筛选
-            </Tag>
+              {tr("批次筛选")}</Tag>
             <Link
               to="/collect/tasks"
               onClick={(e: MouseEvent<HTMLAnchorElement>) => {
@@ -426,11 +426,10 @@ export default function CollectTasksPage() {
                 clearUrlState(['batchId'], { replace: true });
               }}
             >
-              清除筛选
-            </Link>
+              {tr("清除筛选")}</Link>
           </span>
         ) : (
-          '提交单条商品链接采集任务，查看执行进度与结果。'
+          tr("提交单条商品链接采集任务，查看执行进度与结果。")
         )
       }
     >
@@ -441,8 +440,8 @@ export default function CollectTasksPage() {
             type="info"
             showIcon
             style={{ marginBottom: 12 }}
-            message="未选择规则时，系统会尝试按域名匹配启用规则。"
-            description="已支持专用采集服务的平台链接无法通过自定义采集提交，请在采集中心使用对应采集方式。"
+            message={tr("未选择规则时，系统会尝试按域名匹配启用规则。")}
+            description={tr("已支持专用采集服务的平台链接无法通过自定义采集提交，请在采集中心使用对应采集方式。")}
           />
         ) : null}
         <Form
@@ -456,16 +455,16 @@ export default function CollectTasksPage() {
             const src = vals.source?.trim() || '';
             const p = providers.find((x) => x.source === src);
             if (!p || !providerAllowsSingleCollect(p.status)) {
-              message.warning('请先选择一个可用的采集平台');
+              message.warning(tr("请先选择一个可用的采集平台"));
               return;
             }
             if (!url) {
-              message.warning('请填写商品链接');
+              message.warning(tr("请填写商品链接"));
               return;
             }
             if (src === 'custom') {
               if (!mayManagePlatform) {
-                message.error('当前账号无权使用平台级自定义采集规则');
+                message.error(tr("当前账号无权使用平台级自定义采集规则"));
                 return;
               }
               const rid = vals.ruleId?.trim();
@@ -480,10 +479,10 @@ export default function CollectTasksPage() {
                   const host = new URL(url).hostname.toLowerCase();
                   const suggested = suggestRuleDomainForHost(host);
                   message.error(
-                    `当前链接与已启用规则均不匹配。链接主机名为 ${host}，请在「采集规则」将域名设为 ${suggested}`,
+                    trFormat("当前链接与已启用规则均不匹配。链接主机名为 {host}，请在「采集规则」将域名设为 {suggested}", { host: host, suggested: suggested }),
                   );
                 } catch {
-                  message.error('当前链接与已启用规则均不匹配，请检查链接或规则域名');
+                  message.error(tr("当前链接与已启用规则均不匹配，请检查链接或规则域名"));
                 }
                 return;
               }
@@ -505,7 +504,7 @@ export default function CollectTasksPage() {
               message.success(COLLECT_SUCCESS_SHOP_HINT, 6);
               actionRef.current?.reload();
             } catch (e) {
-              message.error(mapCollectErrorMessage(e, vals.source));
+              message.error(tr(mapCollectErrorMessage(e, vals.source)));
             } finally {
               setSubmitting(false);
             }
@@ -514,24 +513,24 @@ export default function CollectTasksPage() {
           <Row gutter={[16, 0]} align="bottom">
             <Col xs={24} sm={12} md={8} lg={6}>
               <Form.Item
-                label="采集平台"
+                label={tr("采集平台")}
                 name="source"
-                rules={[{ required: true, message: '请选择采集平台' }]}
+                rules={[{ required: true, message: tr("请选择采集平台") }]}
               >
-                <Select options={providerSelectOptions} placeholder="选择采集服务" />
+                <Select options={providerSelectOptions} placeholder={tr("选择采集服务")} />
               </Form.Item>
             </Col>
             {formSource === 'custom' ? (
               <Col xs={24} sm={12} md={8} lg={8}>
-                <Form.Item label="规则" name="ruleId">
+                <Form.Item label={tr("规则")} name="ruleId">
                   <Select
                     allowClear
                     placeholder={
                       formUrl?.trim()
                         ? rulesForUrl.length
-                          ? '可选：指定规则（已按链接过滤）'
-                          : '无匹配规则，请检查链接或规则域名'
-                        : '可选：指定 ruleId'
+                          ? tr("可选：指定规则（已按链接过滤）")
+                          : tr("无匹配规则，请检查链接或规则域名")
+                        : tr("可选：指定 ruleId")
                     }
                     options={(formUrl?.trim() ? rulesForUrl : enabledRules).map((r) => ({
                       label: `${r.name}（${r.domain} · p${r.priority}）`,
@@ -542,15 +541,14 @@ export default function CollectTasksPage() {
               </Col>
             ) : null}
             <Col xs={24} md={16} lg={10} xl={12}>
-              <Form.Item label="链接" name="url" rules={[{ required: true, message: '必填' }]}>
+              <Form.Item label={tr("链接")} name="url" rules={[{ required: true, message: tr("必填") }]}>
                 <Input placeholder={placeholderUrl} />
               </Form.Item>
             </Col>
             <Col xs={24} sm="auto">
               <Form.Item label=" ">
                 <Button type="primary" htmlType="submit" loading={submitting} disabled={!canCollect}>
-                  提交
-                </Button>
+                  {tr("提交")}</Button>
               </Form.Item>
             </Col>
           </Row>
@@ -577,7 +575,7 @@ export default function CollectTasksPage() {
                   disabled={pddUrlType === 'wholesale_detail'}
                   onChange={setPddUseBrowserProfile}
                 />
-                <Typography.Text>使用已登录的采集浏览器</Typography.Text>
+                <Typography.Text>{tr("使用已登录的采集浏览器")}</Typography.Text>
               </Space>
             </div>
           ) : null}
@@ -659,4 +657,3 @@ export default function CollectTasksPage() {
     </TmPageContainer>
   );
 }
-

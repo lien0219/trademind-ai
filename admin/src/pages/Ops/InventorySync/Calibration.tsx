@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { ReloadOutlined, SyncOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { Button, Card, Col, Form, Input, Modal, Row, Space, Typography, message } from 'antd';
@@ -116,7 +117,7 @@ export default function InventorySyncCalibrationPage() {
         { expectedCalibrationVersion, reason: values.reason },
         createInventorySyncIdempotencyKey('recalibrate'),
       );
-      message.success('已提交夹具校准请求');
+      message.success(tr("已提交夹具校准请求"));
       setModalOpen(false);
       reasonForm.resetFields();
       void load();
@@ -130,26 +131,26 @@ export default function InventorySyncCalibrationPage() {
   };
 
   const columns = useMemo<ProColumns<BindingCalibration>[]>(() => [
-    { title: '校准 ID', dataIndex: 'id', width: 170, render: (v) => copyableText(String(v || ''), 14) },
-    { title: '平台规格', dataIndex: 'externalSkuId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
-    { title: '候选商品', dataIndex: 'candidateLocalProductId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
-    { title: '候选规格', dataIndex: 'candidateLocalSkuId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
-    { title: '策略', dataIndex: 'matchStrategy', width: 180 },
-    { title: '置信度', dataIndex: 'confidence', width: 100, render: (v) => <ConfidenceText value={typeof v === 'number' ? v : undefined} /> },
-    { title: '版本', dataIndex: 'calibrationVersion', width: 90 },
-    { title: '状态', dataIndex: 'status', width: 120 },
-    { title: '原因码', dataIndex: 'reasonCodes', width: 240, render: (v) => Array.isArray(v) ? v.join(', ') : '-' },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
+    { title: tr("校准 ID"), dataIndex: 'id', width: 170, render: (v) => copyableText(String(v || ''), 14) },
+    { title: tr("平台规格"), dataIndex: 'externalSkuId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
+    { title: tr("候选商品"), dataIndex: 'candidateLocalProductId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
+    { title: tr("候选规格"), dataIndex: 'candidateLocalSkuId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
+    { title: tr("策略"), dataIndex: 'matchStrategy', width: 180 },
+    { title: tr("置信度"), dataIndex: 'confidence', width: 100, render: (v) => <ConfidenceText value={typeof v === 'number' ? v : undefined} /> },
+    { title: tr("版本"), dataIndex: 'calibrationVersion', width: 90 },
+    { title: tr("状态"), dataIndex: 'status', width: 120 },
+    { title: tr("原因码"), dataIndex: 'reasonCodes', width: 240, render: (v) => Array.isArray(v) ? v.join(', ') : '-' },
+    { title: tr("创建时间"), dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
   ], []);
 
   return (
     <TmPageContainer
-      title="SKU 校准工作台"
-      subTitle="按快照查看候选校准并发起受控 fixture recalibrate"
+      title={tr("SKU 校准工作台")}
+      subTitle={tr("按快照查看候选校准并发起受控 fixture recalibrate")}
       extra={
         <Space wrap>
-          <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>刷新</Button>
-          <Button type="primary" icon={<SyncOutlined />} disabled={!snapshot} onClick={() => setModalOpen(true)}>重新校准</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>
+          <Button type="primary" icon={<SyncOutlined />} disabled={!snapshot} onClick={() => setModalOpen(true)}>{tr("重新校准")}</Button>
         </Space>
       }
     >
@@ -159,15 +160,15 @@ export default function InventorySyncCalibrationPage() {
           <Form form={form} layout="vertical" onFinish={submitFilter}>
             <Row gutter={[16, 8]}>
               <Col xs={24} md={14} lg={10}>
-                <Form.Item name="snapshotId" label="快照 ID">
-                  <Input allowClear placeholder="输入 inventory snapshot ID" />
+                <Form.Item name="snapshotId" label={tr("快照 ID")}>
+                  <Input allowClear placeholder={tr("输入 inventory snapshot ID")} />
                 </Form.Item>
               </Col>
               <Col xs={24} md={10}>
-                <Form.Item label="操作">
+                <Form.Item label={tr("操作")}>
                   <Space wrap>
-                    <Button type="primary" htmlType="submit">加载校准</Button>
-                    <Button onClick={clear}>清除</Button>
+                    <Button type="primary" htmlType="submit">{tr("加载校准")}</Button>
+                    <Button onClick={clear}>{tr("清除")}</Button>
                   </Space>
                 </Form.Item>
               </Col>
@@ -176,15 +177,15 @@ export default function InventorySyncCalibrationPage() {
           <ActionSourceHint />
         </Card>
         {snapshot ? (
-          <SectionCard title="快照摘要" description="来自 fixture 快照，不代表线上库存读数。" headerExtra={<StatusTag map={BINDING_RESULT_LABELS} value={snapshot.binding?.result} />}>
+          <SectionCard title={tr("快照摘要")} description={tr("来自 fixture 快照，不代表线上库存读数。")} headerExtra={<StatusTag map={BINDING_RESULT_LABELS} value={snapshot.binding?.result} />}>
             <Space direction="vertical" size={4}>
-              <Text>平台 SKU：{copyableText(snapshot.externalSkuId, 18)} / {snapshot.externalSkuCode || '-'}</Text>
-              <Text>本地 SKU：{copyableText(snapshot.binding?.localSkuId, 18)}；当前校准版本：{expectedCalibrationVersion}</Text>
-              <Text>商品：{snapshot.productTitle || '-'} / {snapshot.variantTitle || '-'}</Text>
+              <Text>{tr("平台 SKU：")}{copyableText(snapshot.externalSkuId, 18)} / {snapshot.externalSkuCode || '-'}</Text>
+              <Text>{tr("本地 SKU：")}{copyableText(snapshot.binding?.localSkuId, 18)}{tr("；当前校准版本：")}{expectedCalibrationVersion}</Text>
+              <Text>{tr("商品：")}{snapshot.productTitle || '-'} / {snapshot.variantTitle || '-'}</Text>
             </Space>
           </SectionCard>
         ) : (
-          <Card><Text type="secondary">请输入快照 ID 后加载校准记录。</Text></Card>
+          <Card><Text type="secondary">{tr("请输入快照 ID 后加载校准记录。")}</Text></Card>
         )}
         <TmProTable<BindingCalibration>
           rowKey="id"
@@ -220,20 +221,20 @@ export default function InventorySyncCalibrationPage() {
         </Card>
       </Space>
       <Modal
-        title="重新校准 SKU 绑定"
+        title={tr("重新校准 SKU 绑定")}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={() => void submitRecalibrate()}
         confirmLoading={actionLoading}
-        okText="提交校准"
-        cancelText="取消"
+        okText={tr("提交校准")}
+        cancelText={tr("取消")}
         destroyOnHidden
       >
         <Form form={reasonForm} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item label="Expected Calibration Version">
             <Input disabled value={expectedCalibrationVersion} />
           </Form.Item>
-          <Form.Item name="reason" label="校准原因" rules={[{ required: true, whitespace: true, message: '请输入校准原因' }]}>
+          <Form.Item name="reason" label={tr("校准原因")} rules={[{ required: true, whitespace: true, message: tr("请输入校准原因") }]}>
             <Input.TextArea rows={3} maxLength={500} showCount />
           </Form.Item>
         </Form>

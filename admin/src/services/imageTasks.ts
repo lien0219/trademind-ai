@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { deleteJSON, getJSON, getWithParams, postJSON } from '@/services/request';
 
 export type ImageTaskListRow = {
@@ -263,44 +264,44 @@ export async function deleteImageTaskItem(taskId: string, itemId: string) {
 }
 
 export const IMAGE_TASK_TYPE_OPTIONS: { label: string; value: string; group?: string }[] = [
-  { label: '去背景', value: 'remove_background', group: '基础' },
-  { label: '换背景', value: 'replace_background', group: '基础' },
-  { label: '场景图', value: 'generate_scene', group: '基础' },
-  { label: '去水印', value: 'remove_watermark', group: '清理' },
-  { label: '去 Logo', value: 'remove_logo', group: '清理' },
-  { label: '去角标/贴纸', value: 'remove_badge', group: '清理' },
-  { label: '去二维码', value: 'remove_qrcode', group: '清理' },
-  { label: '综合清理', value: 'cleanup', group: '清理' },
-  { label: '详情图增强', value: 'enhance_detail', group: '增强' },
-  { label: '高清修复', value: 'upscale', group: '增强' },
-  { label: '图片文字翻译', value: 'translate_image_text', group: '翻译' },
-  { label: '营销图生成', value: 'generate_marketing', group: '生成' },
-  { label: '主图生成', value: 'generate_main_image', group: '生成' },
-  { label: '批量主图生成', value: 'batch_generate_main', group: '生成' },
-  { label: '商品图评分', value: 'score_image', group: '评分' },
-  { label: '自动选最佳主图', value: 'select_best_main', group: '评分' },
-  { label: '缩放', value: 'resize', group: '其他' },
-  { label: '增强', value: 'enhance', group: '其他' },
+  { get label() { return tr("去背景"); }, value: 'remove_background', get group() { return tr("基础"); } },
+  { get label() { return tr("换背景"); }, value: 'replace_background', get group() { return tr("基础"); } },
+  { get label() { return tr("场景图"); }, value: 'generate_scene', get group() { return tr("基础"); } },
+  { get label() { return tr("去水印"); }, value: 'remove_watermark', get group() { return tr("清理"); } },
+  { get label() { return tr("去 Logo"); }, value: 'remove_logo', get group() { return tr("清理"); } },
+  { get label() { return tr("去角标/贴纸"); }, value: 'remove_badge', get group() { return tr("清理"); } },
+  { get label() { return tr("去二维码"); }, value: 'remove_qrcode', get group() { return tr("清理"); } },
+  { get label() { return tr("综合清理"); }, value: 'cleanup', get group() { return tr("清理"); } },
+  { get label() { return tr("详情图增强"); }, value: 'enhance_detail', get group() { return tr("增强"); } },
+  { get label() { return tr("高清修复"); }, value: 'upscale', get group() { return tr("增强"); } },
+  { get label() { return tr("图片文字翻译"); }, value: 'translate_image_text', get group() { return tr("翻译"); } },
+  { get label() { return tr("营销图生成"); }, value: 'generate_marketing', get group() { return tr("生成"); } },
+  { get label() { return tr("主图生成"); }, value: 'generate_main_image', get group() { return tr("生成"); } },
+  { get label() { return tr("批量主图生成"); }, value: 'batch_generate_main', get group() { return tr("生成"); } },
+  { get label() { return tr("商品图评分"); }, value: 'score_image', get group() { return tr("评分"); } },
+  { get label() { return tr("自动选最佳主图"); }, value: 'select_best_main', get group() { return tr("评分"); } },
+  { get label() { return tr("缩放"); }, value: 'resize', get group() { return tr("其他"); } },
+  { get label() { return tr("增强"); }, value: 'enhance', get group() { return tr("其他"); } },
 ];
 
 export const IMAGE_TASK_TEMPLATES: { title: string; taskType: string; description: string }[] = [
-  { title: '去水印', taskType: 'remove_watermark', description: '去除商品图水印，结果自动入库' },
-  { title: '去 Logo', taskType: 'remove_logo', description: '去除品牌 Logo 与角标' },
-  { title: '去角标/贴纸', taskType: 'remove_badge', description: '去除角标、贴纸等装饰元素' },
-  { title: '去二维码', taskType: 'remove_qrcode', description: '去除二维码、条码等扫描元素' },
-  { title: '综合清理', taskType: 'cleanup', description: '一次性清理水印/Logo/贴纸/二维码' },
-  { title: '去背景', taskType: 'remove_background', description: '白底图 / 抠图（remove.bg）' },
-  { title: '高清修复', taskType: 'upscale', description: '提升清晰度，适合模糊主图' },
+  { get title() { return tr("去水印"); }, taskType: 'remove_watermark', get description() { return tr("去除商品图水印，结果自动入库"); } },
+  { get title() { return tr("去 Logo"); }, taskType: 'remove_logo', get description() { return tr("去除品牌 Logo 与角标"); } },
+  { get title() { return tr("去角标/贴纸"); }, taskType: 'remove_badge', get description() { return tr("去除角标、贴纸等装饰元素"); } },
+  { get title() { return tr("去二维码"); }, taskType: 'remove_qrcode', get description() { return tr("去除二维码、条码等扫描元素"); } },
+  { get title() { return tr("综合清理"); }, taskType: 'cleanup', get description() { return tr("一次性清理水印/Logo/贴纸/二维码"); } },
+  { get title() { return tr("去背景"); }, taskType: 'remove_background', get description() { return tr("白底图 / 抠图（remove.bg）"); } },
+  { get title() { return tr("高清修复"); }, taskType: 'upscale', get description() { return tr("提升清晰度，适合模糊主图"); } },
   {
-    title: '图片文字翻译',
+    get title() { return tr("图片文字翻译"); },
     taskType: 'translate_image_text',
-    description: '识别图中文字并翻译为目标语言，生成新图片',
+    get description() { return tr("识别图中文字并翻译为目标语言，生成新图片"); },
   },
-  { title: '营销图生成', taskType: 'generate_marketing', description: '基于商品图生成营销图' },
-  { title: '详情图增强', taskType: 'enhance_detail', description: '增强详情图清晰度并去杂' },
-  { title: '批量主图生成', taskType: 'batch_generate_main', description: '为多商品批量生成主图候选' },
-  { title: '商品图评分', taskType: 'score_image', description: '多维评分与优化建议' },
-  { title: '自动选最佳主图', taskType: 'select_best_main', description: '评分并推荐/自动设主图' },
+  { get title() { return tr("营销图生成"); }, taskType: 'generate_marketing', get description() { return tr("基于商品图生成营销图"); } },
+  { get title() { return tr("详情图增强"); }, taskType: 'enhance_detail', get description() { return tr("增强详情图清晰度并去杂"); } },
+  { get title() { return tr("批量主图生成"); }, taskType: 'batch_generate_main', get description() { return tr("为多商品批量生成主图候选"); } },
+  { get title() { return tr("商品图评分"); }, taskType: 'score_image', get description() { return tr("多维评分与优化建议"); } },
+  { get title() { return tr("自动选最佳主图"); }, taskType: 'select_best_main', get description() { return tr("评分并推荐/自动设主图"); } },
 ];
 
 export function taskTypeLabel(taskType: string): string {
@@ -326,24 +327,24 @@ export type ImageTaskResultMode = 'auto_save' | 'set_main' | 'set_detail' | 'res
 
 export const IMAGE_TASK_RESULT_MODE_OPTIONS: { label: string; value: ImageTaskResultMode; description: string }[] = [
   {
-    label: '自动保存到商品图片库',
+    get label() { return tr("自动保存到商品图片库"); },
     value: 'auto_save',
-    description: '处理成功后追加为 AI 生成图，不覆盖原图',
+    get description() { return tr("处理成功后追加为 AI 生成图，不覆盖原图"); },
   },
   {
-    label: '处理完成后设为主图',
+    get label() { return tr("处理完成后设为主图"); },
     value: 'set_main',
-    description: '保存结果并设为主图 / 最佳主图',
+    get description() { return tr("保存结果并设为主图 / 最佳主图"); },
   },
   {
-    label: '处理完成后设为详情图',
+    get label() { return tr("处理完成后设为详情图"); },
     value: 'set_detail',
-    description: '保存结果并标记为详情图',
+    get description() { return tr("保存结果并标记为详情图"); },
   },
   {
-    label: '仅生成结果，不自动写入商品图片',
+    get label() { return tr("仅生成结果，不自动写入商品图片"); },
     value: 'result_only',
-    description: '结果可在 AI 图片任务页手动保存',
+    get description() { return tr("结果可在 AI 图片任务页手动保存"); },
   },
 ];
 
@@ -366,14 +367,14 @@ export function imageTaskAllowsNoSource(taskType: string): boolean {
 }
 
 export const TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS = [
-  { label: '自动识别', value: 'auto' },
-  { label: '中文', value: 'zh' },
-  { label: '英文', value: 'en' },
+  { get label() { return tr("自动识别"); }, value: 'auto' },
+  { get label() { return tr("中文"); }, value: 'zh' },
+  { get label() { return tr("英文"); }, value: 'en' },
 ];
 
 export const TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS = [
-  { label: '英文', value: 'en' },
-  { label: '中文', value: 'zh' },
+  { get label() { return tr("英文"); }, value: 'en' },
+  { get label() { return tr("中文"); }, value: 'zh' },
 ];
 
 export function translateLangLabel(code: string): string {
@@ -417,9 +418,9 @@ export type TranslateImageTextInputOpts = {
 };
 
 export const TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS = [
-  { label: '自动适配，推荐', value: 'auto' as const },
-  { label: '尽量保持原图', value: 'preserve' as const },
-  { label: '优先清晰可读', value: 'readable' as const },
+  { get label() { return tr("自动适配，推荐"); }, value: 'auto' as const },
+  { get label() { return tr("尽量保持原图"); }, value: 'preserve' as const },
+  { get label() { return tr("优先清晰可读"); }, value: 'readable' as const },
 ];
 
 /** User-facing hint: OCR/translate uses AI settings; production path uses deterministic render. */
@@ -434,11 +435,11 @@ export type TranslateRenderMode =
   | 'ai_edit';
 
 export const TRANSLATE_IMAGE_TEXT_RENDER_MODE_OPTIONS = [
-  { label: '纯文字替换（推荐）', value: 'pure_text_replace' as const },
-  { label: '去字后绘制', value: 'remove_text_then_render' as const },
-  { label: 'AI 擦除 + 程序排版', value: 'hybrid' as const },
-  { label: '程序排版渲染', value: 'deterministic' as const },
-  { label: 'AI 编辑实验模式', value: 'ai_edit' as const },
+  { get label() { return tr("纯文字替换（推荐）"); }, value: 'pure_text_replace' as const },
+  { get label() { return tr("去字后绘制"); }, value: 'remove_text_then_render' as const },
+  { get label() { return tr("AI 擦除 + 程序排版"); }, value: 'hybrid' as const },
+  { get label() { return tr("程序排版渲染"); }, value: 'deterministic' as const },
+  { get label() { return tr("AI 编辑实验模式"); }, value: 'ai_edit' as const },
 ];
 
 export function translateRenderModeLabel(mode?: string): string {
@@ -694,12 +695,12 @@ const TRANSLATE_LAYOUT_WARNING_LABELS: Record<string, string> = {
 };
 
 const PURE_TEXT_HARD_FAILURE_LABELS: Record<string, string> = {
-  source_text_remain: '原中文残留',
-  target_text_missing: '新英文未渲染',
-  text_overflow: '英文溢出',
-  product_occlusion: '遮挡商品主体',
-  extra_background_layer: '出现额外背景层',
-  translated_overlap_old_text: '英文与旧中文重叠',
+  get source_text_remain() { return tr("原中文残留"); },
+  get target_text_missing() { return tr("新英文未渲染"); },
+  get text_overflow() { return tr("英文溢出"); },
+  get product_occlusion() { return tr("遮挡商品主体"); },
+  get extra_background_layer() { return tr("出现额外背景层"); },
+  get translated_overlap_old_text() { return tr("英文与旧中文重叠"); },
 };
 
 export function pureTextHardFailureLabel(code: string): string {
@@ -744,13 +745,13 @@ export function translateRenderQualityLevel(
   recommendMain: boolean;
 } {
   if (taskStatus === 'low_quality' || taskStatus === 'failed_render_validation') {
-    return { text: '失败：质量不达标', color: 'error', recommendMain: false };
+    return { text: tr("失败：质量不达标"), color: 'error', recommendMain: false };
   }
   if (taskStatus === 'success_with_review') {
-    return { text: '结果可用，建议人工检查排版', color: 'warning', recommendMain: true };
+    return { text: tr("结果可用，建议人工检查排版"), color: 'warning', recommendMain: true };
   }
   if (taskStatus === 'need_manual_review') {
-    return { text: '需人工检查', color: 'warning', recommendMain: false };
+    return { text: tr("需人工检查"), color: 'warning', recommendMain: false };
   }
   const rq = output?.renderQuality;
   const score = rq?.commercialUsabilityScore ?? 0;
@@ -761,10 +762,10 @@ export function translateRenderQualityLevel(
   ) {
     const pv = output?.pureTextValidation;
     if (pv?.hardPassed === false && (output?.validationFailureReasons?.length || pv?.hardFailures?.length)) {
-      return { text: '失败：渲染校验未通过', color: 'error', recommendMain: false };
+      return { text: tr("失败：渲染校验未通过"), color: 'error', recommendMain: false };
     }
     if (taskStatus === 'success_with_review' || (pv?.hardPassed && (pv?.overallScore ?? score) >= 60 && (pv?.overallScore ?? score) < 75)) {
-      return { text: '结果可用，建议人工检查排版', color: 'warning', recommendMain: true };
+      return { text: tr("结果可用，建议人工检查排版"), color: 'warning', recommendMain: true };
     }
   }
   if (
@@ -776,15 +777,15 @@ export function translateRenderQualityLevel(
     output?.resultUnavailable === true ||
     (output?.overflowTextCount ?? 0) > 0
   ) {
-    return { text: '低质量（不建议商用）', color: 'error', recommendMain: false };
+    return { text: tr("低质量（不建议商用）"), color: 'error', recommendMain: false };
   }
   if (rq?.passed && score >= 75) {
-    return { text: '可直接使用', color: 'success', recommendMain: true };
+    return { text: tr("可直接使用"), color: 'success', recommendMain: true };
   }
   if (score >= 60) {
-    return { text: '建议检查', color: 'warning', recommendMain: false };
+    return { text: tr("建议检查"), color: 'warning', recommendMain: false };
   }
-  return { text: '不建议使用', color: 'error', recommendMain: false };
+  return { text: tr("不建议使用"), color: 'error', recommendMain: false };
 }
 
 export function parseTranslateTaskOutput(output: unknown): TranslateTaskOutput | null {

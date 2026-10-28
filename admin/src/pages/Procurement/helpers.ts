@@ -1,13 +1,13 @@
 import type { PurchaseOrderStatus } from '@/services/procurement';
 
-export const PURCHASE_ORDER_STATUS: Record<string, { text: string; color: string }> = {
-  draft: { text: '草稿', color: 'default' },
-  pending_approval: { text: '待审批', color: 'processing' },
-  approved: { text: '待收货', color: 'blue' },
-  partially_received: { text: '部分收货', color: 'warning' },
-  received: { text: '已收货', color: 'success' },
-  closed: { text: '已关闭', color: 'default' },
-  cancelled: { text: '已取消', color: 'default' },
+export const PURCHASE_ORDER_STATUS: Record<string, { source: string; color: string }> = {
+  draft: { source: "草稿", color: 'default' },
+  pending_approval: { source: "待审批", color: 'processing' },
+  approved: { source: "待收货", color: 'blue' },
+  partially_received: { source: "部分收货", color: 'warning' },
+  received: { source: "已收货", color: 'success' },
+  closed: { source: "已关闭", color: 'default' },
+  cancelled: { source: "已取消", color: 'default' },
 };
 
 export function parseMajorAmountToMinor(value: string | number | undefined): number {

@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 /** 刊登能力分级（与后端 productpublish 对齐） */
 export const PUBLISH_CAPABILITY_LABEL: Record<string, string> = {
   real_draft_create: '可创建平台草稿',
@@ -27,12 +28,12 @@ export const PUBLISH_BATCH_STATUS: Record<
   string,
   { text: string; color: 'default' | 'processing' | 'success' | 'warning' | 'error' }
 > = {
-  pending: { text: '等待处理', color: 'default' },
-  running: { text: '处理中', color: 'processing' },
-  success: { text: '全部成功', color: 'success' },
-  partial_success: { text: '部分成功', color: 'warning' },
-  failed: { text: '失败', color: 'error' },
-  cancelled: { text: '已取消', color: 'default' },
+  pending: { get text() { return tr("等待处理"); }, color: 'default' },
+  running: { get text() { return tr("处理中"); }, color: 'processing' },
+  success: { get text() { return tr("全部成功"); }, color: 'success' },
+  partial_success: { get text() { return tr("部分成功"); }, color: 'warning' },
+  failed: { get text() { return tr("失败"); }, color: 'error' },
+  cancelled: { get text() { return tr("已取消"); }, color: 'default' },
 };
 
 export function publishCapabilityLabel(cap?: string | null): string {
@@ -59,8 +60,8 @@ export function publishBatchStatusTag(status?: string | null, label?: string) {
 
 /** 统一刊登配置字段标签 */
 export const COMMON_PUBLISH_CONFIG_LABEL: Record<string, string> = {
-  title: '统一标题',
-  description: '统一描述',
+  get title() { return tr("统一标题"); },
+  get description() { return tr("统一描述"); },
   priceRule: '统一价格规则',
   imageStrategy: '统一图片策略',
   packageWeight: '统一包裹重量',

@@ -3,7 +3,7 @@ import type {
   ReactElement,
   ReactNode,
 } from "react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { MenuDataItem } from "@umijs/route-utils";
 import { history } from "@umijs/max";
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
@@ -32,6 +32,7 @@ import BrandLogo from "@/components/BrandLogo";
 import { AUTH_TOKEN_KEY } from "@/constants/auth";
 import { layoutTokens } from "@/constants/layoutTokens";
 import { postJSON } from "@/services/request";
+import { getBusinessSettings, subscribeBrandingChanges } from "@/services/tenantBusinessSettings";
 import { validateProfile } from "@/services/auth";
 import { isAppLanguage } from "@/i18n/dictionaries";
 import { readLanguage, setLanguage, setRegionalPreferences, subscribeLanguage, tr } from "@/i18n";
@@ -301,8 +302,63 @@ function AppTopNavBridge({ isMobile = false }: { isMobile?: boolean }) {
   );
 }
 
+type TenantBranding = {
+  displayName?: unknown;
+  logoUrl?: unknown;
+};
+
+function safeTenantLogoUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function AppBrandButton({ collapsed = false }: { collapsed?: boolean }) {
   useLanguage();
+  const { initialState } = useInitialStateModel();
+  const tenantId = initialState?.currentUser?.tenantId;
+  const userId = initialState?.currentUser?.id;
+  const [tenantBranding, setTenantBranding] = useState<{
+    tenantId: number;
+    context: TenantContextSnapshot;
+    values: TenantBranding;
+  }>();
+
+  useEffect(() => {
+    let active = true;
+    const context = captureTenantContext();
+    if (typeof tenantId !== "number" || !Number.isSafeInteger(tenantId) || tenantId <= 0) {
+      setTenantBranding(undefined);
+      return () => { active = false; };
+    }
+
+    setTenantBranding(undefined);
+    let readSequence = 0;
+    const load = () => {
+      if (!isTenantContextCurrent(context)) return;
+      const sequence = ++readSequence;
+      const isCurrent = () => active && sequence === readSequence && isTenantContextCurrent(context);
+      void getBusinessSettings("branding").then(({ values }) => {
+        if (isCurrent()) setTenantBranding({ tenantId, context, values });
+      }).catch(() => {
+        if (isCurrent()) setTenantBranding(undefined);
+      });
+    };
+    load();
+    const unsubscribe = subscribeBrandingChanges(load);
+    return () => { active = false; unsubscribe(); };
+  }, [tenantId, userId]);
+
+  const values = tenantBranding && tenantBranding.tenantId === tenantId && isTenantContextCurrent(tenantBranding.context)
+    ? tenantBranding.values : undefined;
+  const configuredName = typeof values?.displayName === "string" ? values.displayName.trim() : "";
+  const displayName = configuredName || "贸灵";
+  const logoUrl = safeTenantLogoUrl(values?.logoUrl);
+
   return (
     <button
       type="button"
@@ -312,9 +368,22 @@ function AppBrandButton({ collapsed = false }: { collapsed?: boolean }) {
       aria-label={tr('返回工作台')}
       onClick={() => history.push("/dashboard")}
     >
-      <BrandLogo height={28} className="tm-app-brand-logo" />
+      {logoUrl ? (
+        <img
+          src={logoUrl}
+          alt=""
+          draggable={false}
+          className="tm-app-brand-logo"
+          onError={(event) => {
+            event.currentTarget.onerror = null;
+            event.currentTarget.src = "/favicon.png";
+          }}
+          referrerPolicy="no-referrer"
+          style={{ height: 28, width: "auto", maxWidth: 40, objectFit: "contain", display: "block", flexShrink: 0, verticalAlign: "middle" }}
+        />
+      ) : <BrandLogo height={28} className="tm-app-brand-logo" />}
       <span className="tm-app-brand-header__name">
-        <span className="tm-app-brand-header__name-primary">贸灵</span>
+        <span className="tm-app-brand-header__name-primary">{displayName}</span>
         <span className="tm-app-brand-header__name-secondary">TradeMind</span>
       </span>
     </button>

@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
@@ -77,6 +79,7 @@ function isTitleOnlyRuleJson(raw?: string): boolean {
 }
 
 export default function CollectRulesPage() {
+  useLanguage();
   const actionRef = useRef<ActionType>();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -106,9 +109,9 @@ export default function CollectRulesPage() {
   }, [testRuleId, rulesCache]);
 
   const columns: ProColumns<CollectRuleRow>[] = [
-    { title: '名称', dataIndex: 'name', ellipsis: true, width: 180 },
+    { title: tr("名称"), dataIndex: 'name', ellipsis: true, width: 180 },
     {
-      title: '适用网站',
+      title: tr("适用网站"),
       dataIndex: 'domain',
       ellipsis: true,
       width: 200,
@@ -116,15 +119,15 @@ export default function CollectRulesPage() {
       responsive: ['md'],
     },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 100,
       render: (_, row) =>
-        row.status === 'enabled' ? <Tag color="success">启用</Tag> : <Tag>停用</Tag>,
+        row.status === 'enabled' ? <Tag color="success">{tr("启用")}</Tag> : <Tag>{tr("停用")}</Tag>,
     },
-    { title: '优先级', dataIndex: 'priority', width: 96, search: false, responsive: ['md'] },
+    { title: tr("优先级"), dataIndex: 'priority', width: 96, search: false, responsive: ['md'] },
     {
-      title: '更新时间',
+      title: tr("更新时间"),
       dataIndex: 'updatedAt',
       width: 172,
       search: false,
@@ -132,7 +135,7 @@ export default function CollectRulesPage() {
       render: (_, row) => formatDateTime(row.updatedAt),
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 280,
       render: (_, row) => (
@@ -144,8 +147,7 @@ export default function CollectRulesPage() {
               setEditorOpen(true);
             }}
           >
-            编辑
-          </a>
+            {tr("编辑")}</a>
           <a
             key="test"
             onClick={() => {
@@ -156,19 +158,18 @@ export default function CollectRulesPage() {
               setTestOpen(true);
             }}
           >
-            测试采集效果
-          </a>
+            {tr("测试采集效果")}</a>
           {row.status === 'enabled' ? (
-            <Popconfirm key="dis" title="停用该规则？" onConfirm={() => void toggle(row.id, false)}>
-              <a>停用</a>
+            <Popconfirm key="dis" title={tr("停用该规则？")} onConfirm={() => void toggle(row.id, false)}>
+              <a>{tr("停用")}</a>
             </Popconfirm>
           ) : (
-            <Popconfirm key="en" title="启用该规则？" onConfirm={() => void toggle(row.id, true)}>
-              <a>启用</a>
+            <Popconfirm key="en" title={tr("启用该规则？")} onConfirm={() => void toggle(row.id, true)}>
+              <a>{tr("启用")}</a>
             </Popconfirm>
           )}
-          <Popconfirm key="del" title="确定删除？" onConfirm={() => void remove(row.id)}>
-            <a style={{ color: 'var(--ant-color-error)' }}>删除</a>
+          <Popconfirm key="del" title={tr("确定删除？")} onConfirm={() => void remove(row.id)}>
+            <a style={{ color: 'var(--ant-color-error)' }}>{tr("删除")}</a>
           </Popconfirm>
         </Space>
       ),
@@ -179,38 +180,37 @@ export default function CollectRulesPage() {
     try {
       if (enable) await enableCollectRule(id);
       else await disableCollectRule(id);
-      message.success('已更新');
+      message.success(tr("已更新"));
       reload();
     } catch (e) {
-      message.error(e instanceof Error ? e.message : '操作失败');
+      message.error(e instanceof Error ? e.message : tr("操作失败"));
     }
   }
 
   async function remove(id: string) {
     try {
       await deleteCollectRule(id);
-      message.success('已删除');
+      message.success(tr("已删除"));
       reload();
     } catch (e) {
-      message.error(e instanceof Error ? e.message : '删除失败');
+      message.error(e instanceof Error ? e.message : tr("删除失败"));
     }
   }
 
   return (
     <TmPageContainer
-      title="采集规则"
-      subTitle="配置自定义网页采集规则，指定从页面读取商品标题、价格、图片等信息的字段。"
+      title={tr("采集规则")}
+      subTitle={tr("配置自定义网页采集规则，指定从页面读取商品标题、价格、图片等信息的字段。")}
       extra={
         <Space wrap className="tm-page-header-extra">
-          <Button onClick={() => setAiModalOpen(true)}>AI 帮我生成规则</Button>
+          <Button onClick={() => setAiModalOpen(true)}>{tr("AI 帮我生成规则")}</Button>
           <Button
             onClick={() => {
               setEditingId(null);
               setEditorOpen(true);
             }}
           >
-            手动新建规则
-          </Button>
+            {tr("手动新建规则")}</Button>
         </Space>
       }
     >
@@ -249,7 +249,7 @@ export default function CollectRulesPage() {
         ruleJson: string;
       }>
         key={editingId ?? 'new'}
-        title={editingId ? '编辑采集规则' : '手动新建采集规则'}
+        title={editingId ? tr("编辑采集规则") : tr("手动新建采集规则")}
         open={editorOpen}
         modalProps={{
           destroyOnHidden: true,
@@ -275,7 +275,7 @@ export default function CollectRulesPage() {
           try {
             parsed = JSON.parse(vals.ruleJson || '{}');
           } catch {
-            message.error('采集规则内容格式不正确，请检查是否为合法 JSON');
+            message.error(tr("采集规则内容格式不正确，请检查是否为合法 JSON"));
             return false;
           }
           try {
@@ -289,7 +289,7 @@ export default function CollectRulesPage() {
                 remark: vals.remark,
                 rule: parsed,
               });
-              message.success('已保存');
+              message.success(tr("已保存"));
             } else {
               await createCollectRule({
                 name: vals.name,
@@ -300,13 +300,13 @@ export default function CollectRulesPage() {
                 remark: vals.remark,
                 rule: parsed,
               });
-              message.success('已创建');
+              message.success(tr("已创建"));
             }
             setEditorOpen(false);
             reload();
             return true;
           } catch (e) {
-            message.error(e instanceof Error ? e.message : '保存失败');
+            message.error(e instanceof Error ? e.message : tr("保存失败"));
             return false;
           }
         }}
@@ -332,13 +332,13 @@ export default function CollectRulesPage() {
           };
         }}
       >
-        <ProFormText name="name" label="名称" rules={[{ required: true }]} />
+        <ProFormText name="name" label={tr("名称")} rules={[{ required: true }]} />
         <ProFormText
           name="domain"
-          label="适用网站"
+          label={tr("适用网站")}
           placeholder="jd.com"
           rules={[{ required: true }]}
-          extra="仅填网站主域名（不要带 https://）。例如填 jd.com 可匹配该站各子页面。"
+          extra={tr("仅填网站主域名（不要带 https://）。例如填 jd.com 可匹配该站各子页面。")}
           transform={(v) => {
             const s = typeof v === 'string' ? v : '';
             if (!s.trim()) return s;
@@ -352,51 +352,48 @@ export default function CollectRulesPage() {
         />
         <ProFormText
           name="matchPattern"
-          label="匹配网址（可选）"
-          placeholder="留空则按适用网站匹配；需要更精确时可填网址规则"
-          tooltip="高级选项：用于限制只匹配某一类商品页链接。"
+          label={tr("匹配网址（可选）")}
+          placeholder={tr("留空则按适用网站匹配；需要更精确时可填网址规则")}
+          tooltip={tr("高级选项：用于限制只匹配某一类商品页链接。")}
         />
-        <ProFormDigit name="priority" label="优先级" fieldProps={{ min: 0, max: 1_000_000 }} />
+        <ProFormDigit name="priority" label={tr("优先级")} fieldProps={{ min: 0, max: 1_000_000 }} />
         <ProFormSelect
           name="status"
-          label="状态"
+          label={tr("状态")}
           options={[
-            { label: '启用', value: 'enabled' },
-            { label: '停用', value: 'disabled' },
+            { label: tr("启用"), value: 'enabled' },
+            { label: tr("停用"), value: 'disabled' },
           ]}
           rules={[{ required: true }]}
         />
-        <ProFormTextArea name="remark" label="备注" fieldProps={{ rows: 2 }} />
+        <ProFormTextArea name="remark" label={tr("备注")} fieldProps={{ rows: 2 }} />
         <div style={{ marginBottom: 8 }}>
           <Space wrap>
             <Button
               size="small"
               onClick={() => {
                 void navigator.clipboard.writeText(SIMPLE_CUSTOM_RULE_TEMPLATE).then(
-                  () => message.success('已复制简单模板'),
-                  () => message.warning('复制失败'),
+                  () => message.success(tr("已复制简单模板")),
+                  () => message.warning(tr("复制失败")),
                 );
               }}
             >
-              复制简单模板
-            </Button>
+              {tr("复制简单模板")}</Button>
             <Button
               size="small"
               onClick={() => {
                 void navigator.clipboard.writeText(DEFAULT_CUSTOM_RULE_TEMPLATE).then(
-                  () => message.success('已复制高级模板'),
-                  () => message.warning('复制失败'),
+                  () => message.success(tr("已复制高级模板")),
+                  () => message.warning(tr("复制失败")),
                 );
               }}
             >
-              复制高级模板
-            </Button>
+              {tr("复制高级模板")}</Button>
           </Space>
           <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-            普通用户建议使用「AI 帮我生成规则」。只有需要精细调整时，才需要修改下方采集规则内容。
-          </Typography.Paragraph>
+            {tr("普通用户建议使用「AI 帮我生成规则」。只有需要精细调整时，才需要修改下方采集规则内容。")}</Typography.Paragraph>
         </div>
-        <TechnicalDetails label="采集规则内容（高级）">
+        <TechnicalDetails label={tr("采集规则内容（高级）")}>
           <ProFormDependency name={['ruleJson']}>
             {({ ruleJson }) =>
               isTitleOnlyRuleJson(typeof ruleJson === 'string' ? ruleJson : undefined) ? (
@@ -404,14 +401,14 @@ export default function CollectRulesPage() {
                   type="warning"
                   showIcon
                   style={{ marginBottom: 8 }}
-                  message="当前规则只会采集标题，无法采集价格、图片和参数。用于正式采集前，建议补充主图和价格规则。"
+                  message={tr("当前规则只会采集标题，无法采集价格、图片和参数。用于正式采集前，建议补充主图和价格规则。")}
                 />
               ) : null
             }
           </ProFormDependency>
           <ProFormTextArea
             name="ruleJson"
-            label="规则 JSON"
+            label={tr("规则 JSON")}
             rules={[{ required: true }]}
             fieldProps={{ rows: 14, style: { fontFamily: 'monospace', fontSize: 12 } }}
           />
@@ -419,7 +416,7 @@ export default function CollectRulesPage() {
       </ModalForm>
 
       <ModalForm<{ url: string }>
-        title="测试采集效果"
+        title={tr("测试采集效果")}
         open={testOpen}
         modalProps={{
           destroyOnHidden: true,
@@ -445,22 +442,22 @@ export default function CollectRulesPage() {
             });
             setTestResult(res);
             if (res.accessStatus === 'public' && !res.missingFields?.length) {
-              message.success('访问与字段提取正常');
+              message.success(tr("访问与字段提取正常"));
             } else {
-              message.info(res.suggestion || '测试完成');
+              message.info(res.suggestion || tr("测试完成"));
             }
             return false;
           } catch (e) {
-            message.error(e instanceof Error ? e.message : '测试失败');
+            message.error(e instanceof Error ? e.message : tr("测试失败"));
             setTestResult(null);
             return false;
           }
         }}
-        submitter={{ searchConfig: { submitText: '测试识别效果' } }}
+        submitter={{ searchConfig: { submitText: tr("测试识别效果") } }}
       >
         <ProFormText
           name="url"
-          label="商品链接"
+          label={tr("商品链接")}
           rules={[{ required: true }]}
           fieldProps={{
             onChange: (e) => setTestUrl(e.target.value),

@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 import { useLanguage } from '@/i18n/useLanguage';
 import type { CSSProperties, Key, ReactNode } from 'react';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
@@ -217,7 +218,7 @@ const PLATFORM_LABELS: Record<string, string> = {
 function platformDisplayName(platform?: string): string {
   const key = (platform || '').trim().toLowerCase();
   if (!key) return '—';
-  return PLATFORM_LABELS[key] ?? platform ?? '—';
+  return PLATFORM_LABELS[key] ? tr(PLATFORM_LABELS[key]) : platform ?? '—';
 }
 
 function inventorySyncCapabilityTag(cap?: string) {
@@ -309,65 +310,65 @@ function isTaobaoTmallProduct(data: ProductDetail | null): boolean {
 }
 
 function formatInventorySyncTaskCreateError(e: unknown): string {
-  const s = (e instanceof Error ? e.message : String(e)).trim() || '提交失败';
+  const s = (e instanceof Error ? e.message : String(e)).trim() || tr("提交失败");
   const hints: string[] = [];
   if (/missing warehouse_id|platform inventory config incomplete:\s*missing warehouse_id/i.test(s)) {
     hints.push(
-      'TikTok Shop：请到「设置 → 平台刊登配置 → TikTok Shop」填写默认仓库 ID。',
+      tr("TikTok Shop：请到「设置 → 平台刊登配置 → TikTok Shop」填写默认仓库 ID。"),
     );
     hints.push(
-      'Shopee：请到「设置 → 平台刊登配置 → Shopee」填写默认仓库 ID。',
+      tr("Shopee：请到「设置 → 平台刊登配置 → Shopee」填写默认仓库 ID。"),
     );
     hints.push(
-      'Lazada：若平台提示与仓库相关，请到「设置 → 平台刊登配置 → Lazada」填写默认仓库代码。',
+      tr("Lazada：若平台提示与仓库相关，请到「设置 → 平台刊登配置 → Lazada」填写默认仓库代码。"),
     );
-    hints.push('高级用户可在库存同步任务参数中覆盖默认仓库设置。');
+    hints.push(tr("高级用户可在库存同步任务参数中覆盖默认仓库设置。"));
   }
   if (/platform inventory config incomplete:\s*missing (marketplace_id|fulfillment_channel|product_type)/i.test(s)) {
     hints.push(
-      'Amazon：请到「设置 → 平台刊登配置 → Amazon」补齐 Marketplace ID、Fulfillment Channel、Product Type；也可在库存同步任务的 options 中逐项覆盖。',
+      tr("Amazon：请到「设置 → 平台刊登配置 → Amazon」补齐 Marketplace ID、Fulfillment Channel、Product Type；也可在库存同步任务的 options 中逐项覆盖。"),
     );
   }
   if (/platform inventory sync permission denied/i.test(s)) {
     hints.push(
-      '请确认已在平台侧申请库存 / 商品更新相关权限并重新授权店铺（TikTok Shop Partner Center 或 Shopee Open Platform）。',
+      tr("请确认已在平台侧申请库存 / 商品更新相关权限并重新授权店铺（TikTok Shop Partner Center 或 Shopee Open Platform）。"),
     );
     hints.push(
-      'Lazada：请确认已在 Lazada Open Platform / Seller Center 申请商品 / 库存更新相关权限并重新授权店铺。',
+      tr("Lazada：请确认已在 Lazada Open Platform / Seller Center 申请商品 / 库存更新相关权限并重新授权店铺。"),
     );
     hints.push(
-      'Amazon：请确认已在 Amazon Seller Central / SP-API Developer Console 申请 Listings / Inventory 相关权限并重新授权。',
+      tr("Amazon：请确认已在 Amazon Seller Central / SP-API Developer Console 申请 Listings / Inventory 相关权限并重新授权。"),
     );
   }
   if (/platform config incomplete:\s*please configure settings\.platform_tiktok/i.test(s)) {
-    hints.push('请到「设置 → 平台接入设置 → TikTok Shop」补齐平台应用信息。');
+    hints.push(tr("请到「设置 → 平台接入设置 → TikTok Shop」补齐平台应用信息。"));
   }
   if (/platform config incomplete:\s*please configure settings\.platform_shopee/i.test(s)) {
-    hints.push('请到「设置 → 平台接入设置 → Shopee」补齐平台应用信息。');
+    hints.push(tr("请到「设置 → 平台接入设置 → Shopee」补齐平台应用信息。"));
   }
   if (/platform config incomplete:\s*please configure settings\.platform_lazada/i.test(s)) {
-    hints.push('请到「设置 → 平台接入设置 → Lazada」补齐平台应用信息。');
+    hints.push(tr("请到「设置 → 平台接入设置 → Lazada」补齐平台应用信息。"));
   }
   if (/platform config incomplete:\s*please configure settings\.platform_amazon|please configure platform_amazon/i.test(s)) {
-    hints.push('请到「设置 → 平台接入设置 → Amazon」补齐应用信息。');
+    hints.push(tr("请到「设置 → 平台接入设置 → Amazon」补齐应用信息。"));
   }
   if (/DOUYIN_SKU_NOT_BOUND|external sku id missing/i.test(s)) {
-    hints.push('该规格尚未绑定抖店规格，请先完成规格绑定后再同步库存。');
+    hints.push(tr("该规格尚未绑定抖店规格，请先完成规格绑定后再同步库存。"));
   }
   if (/DOUYIN_SKU_BINDING_AMBIGUOUS/i.test(s)) {
-    hints.push('该规格存在多个候选抖店规格，匹配结果不明确，请人工确认绑定后再同步库存。');
+    hints.push(tr("该规格存在多个候选抖店规格，匹配结果不明确，请人工确认绑定后再同步库存。"));
   }
   if (/DOUYIN_PRODUCT_NOT_BOUND|external product id missing/i.test(s)) {
-    hints.push('该商品还没有绑定抖店商品 ID。请先在「刊登」Tab 完成抖店商品草稿创建。');
+    hints.push(tr("该商品还没有绑定抖店商品 ID。请先在「刊登」Tab 完成抖店商品草稿创建。"));
   }
   if (/DOUYIN_INVENTORY_SYNC_NOT_READY|inventory_sync_enabled=false/i.test(s)) {
-    hints.push('请到「设置 → 平台接入设置 → 抖店」开启「开启库存同步」后再试。');
+    hints.push(tr("请到「设置 → 平台接入设置 → 抖店」开启「开启库存同步」后再试。"));
   }
   if (/DOUYIN_INVENTORY_PERMISSION_DENIED|DOUYIN_PERMISSION_DENIED/i.test(s)) {
-    hints.push('请在抖店开放平台申请商品/库存更新权限并重新授权店铺。');
+    hints.push(tr("请在抖店开放平台申请商品/库存更新权限并重新授权店铺。"));
   }
   if (/DOUYIN_STORE_NOT_AUTHORIZED|DOUYIN_AUTH_EXPIRED|shop is not authorized/i.test(s)) {
-    hints.push('抖店店铺未授权或授权已过期，请到「店铺管理」重新完成店铺授权。');
+    hints.push(tr("抖店店铺未授权或授权已过期，请到「店铺管理」重新完成店铺授权。"));
   }
   return hints.length ? `${s}\n${hints.join('\n')}` : s;
 }
@@ -389,7 +390,7 @@ function skuPriceCell(value?: number | null): ReactNode {
 
 function skuAttrsCell(value?: string | null): ReactNode {
   const text = String(value ?? '').trim();
-  if (!text) return <Typography.Text type="secondary">未填写</Typography.Text>;
+  if (!text) return <Typography.Text type="secondary">{tr("未填写")}</Typography.Text>;
   return (
     <Tooltip title={text}>
       <Typography.Paragraph className="product-draft-skus__attrs-cell">{text}</Typography.Paragraph>
@@ -397,15 +398,15 @@ function skuAttrsCell(value?: string | null): ReactNode {
   );
 }
 
-const PRODUCT_STATUS_OPTIONS = Object.entries(PRODUCT_STATUS).map(([value, v]) => ({
-  label: v.text,
+const productStatusOptions = () => Object.entries(PRODUCT_STATUS).map(([value, v]) => ({
+  label: tr(v.text),
   value,
 }));
 
-const IMAGE_TYPE_OPTIONS = [
-  { label: '主图', value: 'main' },
-  { label: '详情图', value: 'detail' },
-  { label: '规格图', value: 'sku' },
+const imageTypeOptions = () => [
+  { label: tr("主图"), value: 'main' },
+  { label: tr("详情图"), value: 'detail' },
+  { label: tr("规格图"), value: 'sku' },
 ];
 
 function isAiTaskFailed(row?: AITaskRow | null): boolean {
@@ -415,20 +416,35 @@ function isAiTaskFailed(row?: AITaskRow | null): boolean {
 function aiTaskNextStep(row?: AITaskRow | null): string {
   const raw = String(row?.errorMessage || '').trim();
   const text = raw.toLowerCase();
-  if (!row) return '暂无需要处理的失败任务。';
+  if (!row) return tr("暂无需要处理的失败任务。");
   if (/quota|credit|balance|billing|insufficient|limit|rate/.test(text)) {
-    return '请检查 AI 设置中的模型额度、限流或计费状态，确认后重新生成。';
+    return tr("请检查 AI 设置中的模型额度、限流或计费状态，确认后重新生成。");
   }
   if (/timeout|network|connection|connect|econn|gateway|502|503|504/.test(text)) {
-    return '请检查 AI 服务连接状态，稍后重新生成。';
+    return tr("请检查 AI 服务连接状态，稍后重新生成。");
   }
   if (/api key|apikey|unauthorized|401|403|permission|forbidden/.test(text)) {
-    return '请检查 AI API Key、Base URL 和模型权限后重新生成。';
+    return tr("请检查 AI API Key、Base URL 和模型权限后重新生成。");
   }
   if (/parse|json|format|schema/.test(text)) {
-    return '模型返回格式不符合预期，建议重新生成；若反复出现，请检查默认 Prompt 模板。';
+    return tr("模型返回格式不符合预期，建议重新生成；若反复出现，请检查默认 Prompt 模板。");
   }
-  return '请根据失败原因检查 AI 设置或商品内容，确认后重新生成。';
+  return tr("请根据失败原因检查 AI 设置或商品内容，确认后重新生成。");
+}
+
+const LOCAL_PRODUCT_ERROR_MESSAGES = new Set([
+  '排序失败',
+  '同步失败',
+  '商品运营进度暂时无法加载',
+  '刊登上下文加载失败',
+  '抖店刊登任务加载失败',
+  '抖店规格绑定加载失败',
+  '检查失败',
+]);
+
+function localizeProductError(value?: string): string {
+  if (!value) return '';
+  return LOCAL_PRODUCT_ERROR_MESSAGES.has(value) ? tr(value) : value;
 }
 
 function aiTaskCostText(row: AITaskRow): string {
@@ -437,9 +453,9 @@ function aiTaskCostText(row: AITaskRow): string {
   return `${input}/${output}`;
 }
 
-function aiTextPreview(text?: string | null, fallback = '暂无内容'): ReactNode {
+function aiTextPreview(text?: string | null, fallback?: string): ReactNode {
   const value = String(text || '').trim();
-  if (!value) return <Typography.Text type="secondary">{fallback}</Typography.Text>;
+  if (!value) return <Typography.Text type="secondary">{fallback ?? tr("暂无内容")}</Typography.Text>;
   return <Typography.Paragraph className="product-draft-ai__preview-text">{value}</Typography.Paragraph>;
 }
 
@@ -453,11 +469,11 @@ function attrsToText(attrs?: Record<string, unknown>): string {
 }
 
 function imageTypeLabel(t: string): string {
-  if (t === 'main') return '主图';
-  if (t === 'detail' || t === 'description') return '详情图';
-  if (t === 'sku') return '规格图';
-  if (t === 'marketing') return '营销图';
-  if (t === 'ai_generated') return 'AI 图';
+  if (t === 'main') return tr("主图");
+  if (t === 'detail' || t === 'description') return tr("详情图");
+  if (t === 'sku') return tr("规格图");
+  if (t === 'marketing') return tr("营销图");
+  if (t === 'ai_generated') return tr("AI 图");
   return t;
 }
 
@@ -493,7 +509,7 @@ function ProductImagePreviewCell({ row }: { row: ProductImageRow }) {
     return (
       <div className="product-draft-images__thumb product-draft-images__thumb--empty">
         <PictureOutlined />
-        <Typography.Text type="secondary">{url ? '加载失败' : '无图片'}</Typography.Text>
+        <Typography.Text type="secondary">{url ? tr("加载失败") : tr("无图片")}</Typography.Text>
       </div>
     );
   }
@@ -517,40 +533,40 @@ function ProductImageMetaTags({ row }: { row: ProductImageRow }) {
   if (isMainProductImage(row)) {
     tags.push(
       <Tag key="main" color="blue" bordered={false} style={IMAGE_META_TAG_STYLE}>
-        主图
+        {tr("主图")}
       </Tag>,
     );
   }
   if (isDetailProductImage(row)) {
     tags.push(
       <Tag key="detail" color="cyan" bordered={false} style={IMAGE_META_TAG_STYLE}>
-        详情图
+        {tr("详情图")}
       </Tag>,
     );
   }
   if (row.isBestMain) {
     tags.push(
       <Tag key="best" color="gold" bordered={false} style={IMAGE_META_TAG_STYLE}>
-        最佳主图
+        {tr("最佳主图")}
       </Tag>,
     );
   }
   if (row.source === 'ai') {
     tags.push(
       <Tag key="ai" color="processing" bordered={false} style={IMAGE_META_TAG_STYLE}>
-        AI 生成
+        {tr("AI 生成")}
       </Tag>,
     );
   } else if (row.source === 'upload') {
     tags.push(
       <Tag key="upload" bordered={false} style={IMAGE_META_TAG_STYLE}>
-        上传
+        {tr("上传")}
       </Tag>,
     );
   } else if (row.source === 'collect') {
     tags.push(
       <Tag key="collect" color="default" bordered={false} style={IMAGE_META_TAG_STYLE}>
-        采集
+        {tr("采集")}
       </Tag>,
     );
   }
@@ -576,7 +592,7 @@ function ProductImageTypeCell({ row }: { row: ProductImageRow }) {
 function ProductImageSourceCell({ row }: { row: ProductImageRow }) {
   const synced = isSyncedProductImage(row);
   const source = String(row.source || '').trim();
-  const sourceLabel = source === 'ai' ? 'AI 处理图' : source === 'upload' ? '手动上传' : source === 'collect' ? '采集来源' : source || '来源未记录';
+  const sourceLabel = source === 'ai' ? tr("AI 处理图") : source === 'upload' ? tr("手动上传") : source === 'collect' ? tr("采集来源") : source || tr("来源未记录");
   const storageKey = String(row.objectKey || row.storageKey || '').trim();
 
   return (
@@ -584,7 +600,7 @@ function ProductImageSourceCell({ row }: { row: ProductImageRow }) {
       <Space size={[6, 4]} wrap>
         <Tag bordered={false}>{sourceLabel}</Tag>
         <Tag color={synced ? 'success' : 'default'} bordered={false}>
-          {synced ? '已同步' : '未同步'}
+          {synced ? tr("已同步") : tr("未同步")}
         </Tag>
       </Space>
       {storageKey ? (
@@ -593,7 +609,7 @@ function ProductImageSourceCell({ row }: { row: ProductImageRow }) {
         </Typography.Text>
       ) : (
         <Typography.Text type="secondary" className="product-draft-images__source-key">
-          暂无存储标识
+          {tr("暂无存储标识")}
         </Typography.Text>
       )}
     </div>
@@ -603,10 +619,10 @@ function ProductImageSourceCell({ row }: { row: ProductImageRow }) {
 function draftStockStatusTag(raw?: string) {
   if (!raw) return '—';
   const m: Record<string, { t: string; c: string }> = {
-    normal: { t: '正常', c: 'green' },
-    low_stock: { t: '低库存', c: 'orange' },
-    out_of_stock: { t: '售罄', c: 'red' },
-    below_safety_stock: { t: '低于安全线', c: 'gold' },
+    normal: { t: tr("正常"), c: 'green' },
+    low_stock: { t: tr("低库存"), c: 'orange' },
+    out_of_stock: { t: tr("售罄"), c: 'red' },
+    below_safety_stock: { t: tr("低于安全线"), c: 'gold' },
   };
   const x = m[raw];
   if (!x) return <Tag>{raw}</Tag>;
@@ -651,12 +667,12 @@ function readinessStatusTag(r: ProductReadinessResult | null) {
   if (!r) return null;
   const statusText = r.statusLabel || readinessStatusLabel(r.status);
   if (r.status === 'blocked' || (r.errorCount ?? 0) > 0) {
-    return <Tag color="red">{statusText || '暂不能继续'}</Tag>;
+    return <Tag color="red">{statusText || tr("暂不能继续")}</Tag>;
   }
   if (r.status === 'warning' || (r.warningCount ?? 0) > 0) {
-    return <Tag color="orange">{statusText || '建议检查'}</Tag>;
+    return <Tag color="orange">{statusText || tr("建议检查")}</Tag>;
   }
-  return <Tag color="green">{statusText || '已准备好'}</Tag>;
+  return <Tag color="green">{statusText || tr("已准备好")}</Tag>;
 }
 
 function readinessLevelTag(level?: string) {
@@ -672,9 +688,9 @@ function readinessCheckList(items: ReadinessCheckItem[], limit?: number) {
     <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
       {readinessLevelTag(c.level)} {readinessCheckDisplay(c)}
       {c.technicalDetails?.rawCode ? (
-        <TechnicalDetails label="技术详情">
+        <TechnicalDetails label={tr("技术详情")}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            内部编号：{String(c.technicalDetails.rawCode)}
+            {tr("内部编号：")}{String(c.technicalDetails.rawCode)}
           </Typography.Text>
         </TechnicalDetails>
       ) : null}
@@ -730,20 +746,20 @@ function OperationProgressPanel({
   if (error && !progress) {
     return (
       <SectionCard
-        title="商品运营进度"
-        description="商品内容仍可以正常编辑。"
+        title={tr("商品运营进度")}
+        description={tr("商品内容仍可以正常编辑。")}
         className="product-draft-progress product-draft-progress--error"
         headerExtra={
           <Button icon={<ReloadOutlined />} onClick={onReload}>
-            重新加载
+            {tr("重新加载")}
           </Button>
         }
       >
         <Alert
           type="warning"
           showIcon
-          message="商品运营进度暂时无法加载"
-          description="商品内容仍可以正常编辑，请稍后重新加载进度。"
+          message={tr("商品运营进度暂时无法加载")}
+          description={tr("商品内容仍可以正常编辑，请稍后重新加载进度。")}
         />
       </SectionCard>
     );
@@ -752,14 +768,14 @@ function OperationProgressPanel({
   if (!progress) {
     return (
       <SectionCard
-        title="商品运营进度"
-        description="根据商品内容、图片、价格和发布检查实时计算。"
+        title={tr("商品运营进度")}
+        description={tr("根据商品内容、图片、价格和发布检查实时计算。")}
         className="product-draft-progress product-draft-progress--loading"
       >
         <Spin spinning={loading}>
           <div className="product-draft-progress__loading">
             <Progress percent={0} showInfo={false} />
-            <Typography.Text type="secondary">正在计算商品运营进度...</Typography.Text>
+            <Typography.Text type="secondary">{tr("正在计算商品运营进度...")}</Typography.Text>
           </div>
         </Spin>
       </SectionCard>
@@ -774,21 +790,21 @@ function OperationProgressPanel({
     <SectionCard
       title={
         <div className="product-draft-progress__title">
-          <span>商品运营进度</span>
+          <span>{tr("商品运营进度")}</span>
           <Tag color={blockerCount > 0 ? 'red' : warningCount > 0 ? 'orange' : progress.publishReady ? 'green' : 'blue'}>
-            {blockerCount > 0 ? '存在阻断' : warningCount > 0 ? '建议检查' : progress.publishReady ? '可进入刊登' : '继续完善'}
+            {blockerCount > 0 ? tr("存在阻断") : warningCount > 0 ? tr("建议检查") : progress.publishReady ? tr("可进入刊登") : tr("继续完善")}
           </Tag>
         </div>
       }
-      description="根据商品内容、图片、价格和发布检查实时计算。"
+      description={tr("根据商品内容、图片、价格和发布检查实时计算。")}
       className={`product-draft-progress product-draft-progress--${priorityTone}`}
       headerExtra={
         <OperationToolbar>
-          <Button type="text" icon={<ReloadOutlined />} onClick={onReload} loading={loading} aria-label="刷新商品运营进度">
-            刷新进度
+          <Button type="text" icon={<ReloadOutlined />} onClick={onReload} loading={loading} aria-label={tr("刷新商品运营进度")}>
+            {tr("刷新进度")}
           </Button>
           <Button type="primary" onClick={() => onAction(progress.nextActionUrl)}>
-            {progress.nextActionLabel || '继续处理'}
+            {progress.nextActionLabel || tr("继续处理")}
           </Button>
         </OperationToolbar>
       }
@@ -797,7 +813,7 @@ function OperationProgressPanel({
         <div className="product-draft-progress__grid">
           <div className="product-draft-progress__meter">
             <div className="product-draft-progress__meter-head">
-              <Typography.Text type="secondary">运营完成度</Typography.Text>
+              <Typography.Text type="secondary">{tr("运营完成度")}</Typography.Text>
               <Typography.Text strong>{progress.completionPercent ?? 0}%</Typography.Text>
             </div>
             <Progress
@@ -806,24 +822,24 @@ function OperationProgressPanel({
               showInfo={false}
             />
           </div>
-          <div className="product-draft-progress__summary" aria-label="商品运营状态概览">
+          <div className="product-draft-progress__summary" aria-label={tr("商品运营状态概览")}>
             <div className="product-draft-progress__metric">
-              <span>下一步</span>
-              <strong className="product-draft-progress__next-step">{progress.nextActionLabel || progress.currentStepLabel || '继续处理'}</strong>
+              <span>{tr("下一步")}</span>
+              <strong className="product-draft-progress__next-step">{progress.nextActionLabel || progress.currentStepLabel || tr("继续处理")}</strong>
             </div>
             <div className="product-draft-progress__metric">
-              <span>阻断问题</span>
+              <span>{tr("阻断问题")}</span>
               <strong>{blockerCount}</strong>
             </div>
             <div className="product-draft-progress__metric">
-              <span>建议检查</span>
+              <span>{tr("建议检查")}</span>
               <strong>{warningCount}</strong>
             </div>
           </div>
         </div>
         {blockerCount > 0 || warningCount > 0 ? (
           <Typography.Text type="secondary" className="product-draft-progress__hint">
-            具体问题和处理入口已归入「发布检查」，避免在各模块重复展示。
+            {tr("具体问题和处理入口已归入「发布检查」，避免在各模块重复展示。")}
           </Typography.Text>
         ) : null}
       </Spin>
@@ -832,7 +848,7 @@ function OperationProgressPanel({
 }
 
 function douyinIssueTag(level?: string) {
-  return <Tag color={level === 'error' ? 'red' : 'orange'}>{level === 'error' ? '校验失败' : '需要确认'}</Tag>;
+  return <Tag color={level === 'error' ? 'red' : 'orange'}>{level === 'error' ? tr("校验失败") : tr("需要确认")}</Tag>;
 }
 
 function tagFromPublishStatus(raw?: string) {
@@ -846,11 +862,11 @@ function tagFromPublishStatus(raw?: string) {
 }
 
 function douyinMoney(v?: number, currency = 'CNY') {
-  return typeof v === 'number' ? `${currency} ${v.toFixed(2)}` : '未填写';
+  return typeof v === 'number' ? `${currency} ${v.toFixed(2)}` : tr("未填写");
 }
 
 function douyinAttrValueText(v: unknown) {
-  if (v == null || v === '') return '未填写';
+  if (v == null || v === '') return tr("未填写");
   if (Array.isArray(v)) return v.join(', ');
   if (typeof v === 'object') {
     try {
@@ -867,7 +883,7 @@ function douyinIssueList(items?: DouyinMappingIssue[]) {
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={4}>
       {items.map((x, i) => (
-        <Tooltip key={`${x.code}-${i}`} title={x.code ? `内部编号：${x.code}` : undefined}>
+        <Tooltip key={`${x.code}-${i}`} title={x.code ? trFormat("内部编号：{value0}", { value0: String(x.code) }) : undefined}>
           <div>
             {douyinIssueTag(x.level)} {x.message}
           </div>
@@ -883,21 +899,21 @@ function douyinImageKey(img: DouyinDraftImage, typ: string, idx: number) {
 
 function douyinBindStatusTag(status?: string) {
   const st = String(status || '').toLowerCase();
-  if (st === 'bound') return <Tag color="green">已绑定</Tag>;
-  if (st === 'skipped') return <Tag color="blue">已跳过</Tag>;
-  if (st === 'ambiguous') return <Tag color="orange">待确认</Tag>;
-  if (st === 'unmatched') return <Tag color="red">未匹配</Tag>;
-  if (st === 'failed') return <Tag color="red">失败</Tag>;
-  return <Tag>未校准</Tag>;
+  if (st === 'bound') return <Tag color="green">{tr("已绑定")}</Tag>;
+  if (st === 'skipped') return <Tag color="blue">{tr("已跳过")}</Tag>;
+  if (st === 'ambiguous') return <Tag color="orange">{tr("待确认")}</Tag>;
+  if (st === 'unmatched') return <Tag color="red">{tr("未匹配")}</Tag>;
+  if (st === 'failed') return <Tag color="red">{tr("失败")}</Tag>;
+  return <Tag>{tr("未校准")}</Tag>;
 }
 
 function douyinBindStatusHint(status?: string): string {
   const st = String(status || '').toLowerCase();
-  if (st === 'bound' || st === 'skipped') return '已绑定，可同步库存。';
-  if (st === 'unmatched') return '未匹配到抖店规格，请到刊登 Tab 管理绑定后再同步库存。';
-  if (st === 'ambiguous') return '找到多个可能的抖店规格，请到刊登 Tab 确认绑定。';
-  if (st === 'failed') return '校准失败，请到刊登 Tab 重新校准或管理绑定。';
-  return '尚未校准，请先到刊登 Tab 执行校准或管理绑定。';
+  if (st === 'bound' || st === 'skipped') return tr("已绑定，可同步库存。");
+  if (st === 'unmatched') return tr("未匹配到抖店规格，请到刊登 Tab 管理绑定后再同步库存。");
+  if (st === 'ambiguous') return tr("找到多个可能的抖店规格，请到刊登 Tab 确认绑定。");
+  if (st === 'failed') return tr("校准失败，请到刊登 Tab 重新校准或管理绑定。");
+  return tr("尚未校准，请先到刊登 Tab 执行校准或管理绑定。");
 }
 
 function douyinSkuSyncBlocked(row: PublicationSkuListingRow): boolean {
@@ -920,23 +936,23 @@ function platformSkuValue(value?: string | null, fallback = '—'): ReactNode {
 
 function platformSkuCandidateStatusTag(row: DouyinPlatformSkuCandidate, currentPublicationSkuId?: string) {
   if (row.boundToPublicationSkuId && row.boundToPublicationSkuId !== currentPublicationSkuId) {
-    return <Tag color="orange">已绑定其他本地规格</Tag>;
+    return <Tag color="orange">{tr("已绑定其他本地规格")}</Tag>;
   }
-  if (row.boundToPublicationSkuId) return <Tag color="blue">已绑定本地规格</Tag>;
-  return <Tag>未绑定</Tag>;
+  if (row.boundToPublicationSkuId) return <Tag color="blue">{tr("已绑定本地规格")}</Tag>;
+  return <Tag>{tr("未绑定")}</Tag>;
 }
 
 function douyinImageStatusTag(img: DouyinDraftImage) {
   const st = img.uploadStatus || (img.platformImageId ? 'uploaded' : img.needSync ? 'pending' : 'pending');
-  if (st === 'uploaded') return <Tag color="green">已上传抖店</Tag>;
-  if (st === 'failed') return <Tag color="red">上传失败</Tag>;
-  if (st === 'processing') return <Tag color="blue">上传中</Tag>;
-  if (img.needSync) return <Tag color="orange">待同步到存储</Tag>;
-  return <Tag color="orange">待上传</Tag>;
+  if (st === 'uploaded') return <Tag color="green">{tr("已上传抖店")}</Tag>;
+  if (st === 'failed') return <Tag color="red">{tr("上传失败")}</Tag>;
+  if (st === 'processing') return <Tag color="blue">{tr("上传中")}</Tag>;
+  if (img.needSync) return <Tag color="orange">{tr("待同步到存储")}</Tag>;
+  return <Tag color="orange">{tr("待上传")}</Tag>;
 }
 
 function douyinStorageStatusTag(img: DouyinDraftImage) {
-  return img.storageKey || img.objectKey || img.storageUrl || img.publicUrl ? <Tag color="green">存储已就绪</Tag> : <Tag color="orange">需先同步到存储</Tag>;
+  return img.storageKey || img.objectKey || img.storageUrl || img.publicUrl ? <Tag color="green">{tr("存储已就绪")}</Tag> : <Tag color="orange">{tr("需先同步到存储")}</Tag>;
 }
 
 function douyinImagePreviewUrl(img: DouyinDraftImage) {
@@ -949,12 +965,11 @@ function InventorySyncPlatformHint({ platform }: { platform?: string }) {
     return (
       <>
         <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 8 }}>
-          TikTok 会使用「设置 → 平台刊登配置 → TikTok Shop」中的默认仓库。若推送失败并提示权限不足，请在 TikTok Shop
-          Partner Center 申请库存更新相关权限后重新授权店铺。
+          {tr("TikTok 会使用「设置 → 平台刊登配置 → TikTok Shop」中的默认仓库。若推送失败并提示权限不足，请在 TikTok Shop Partner Center 申请库存更新相关权限后重新授权店铺。")}
         </Typography.Paragraph>
-        <TechnicalDetails label="高级参数说明">
+        <TechnicalDetails label={tr("高级参数说明")}>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
-            可在任务参数 options.warehouse_id 中覆盖默认仓库 ID。
+            {tr("可在任务参数 options.warehouse_id 中覆盖默认仓库 ID。")}
           </Typography.Paragraph>
         </TechnicalDetails>
       </>
@@ -964,12 +979,11 @@ function InventorySyncPlatformHint({ platform }: { platform?: string }) {
     return (
       <>
         <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 8 }}>
-          Shopee 默认按总库存更新。若你的卖家中心要求按仓/位置维护库存，请在「设置 → 平台刊登配置 → Shopee」填写默认仓库
-          ID。若推送失败并提示权限不足，请在 Shopee Open Platform 申请库存/商品更新相关权限后重新授权店铺。
+          {tr("Shopee 默认按总库存更新。若你的卖家中心要求按仓/位置维护库存，请在「设置 → 平台刊登配置 → Shopee」填写默认仓库 ID。若推送失败并提示权限不足，请在 Shopee Open Platform 申请库存/商品更新相关权限后重新授权店铺。")}
         </Typography.Paragraph>
-        <TechnicalDetails label="高级参数说明">
+        <TechnicalDetails label={tr("高级参数说明")}>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
-            Open API 字段：normal_stock、seller_stock[].location_id；任务参数 options.warehouse_id / location_id 可覆盖默认仓库。
+            {tr("Open API 字段：normal_stock、seller_stock[].location_id；任务参数 options.warehouse_id / location_id 可覆盖默认仓库。")}
           </Typography.Paragraph>
         </TechnicalDetails>
       </>
@@ -979,12 +993,11 @@ function InventorySyncPlatformHint({ platform }: { platform?: string }) {
     return (
       <>
         <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 8 }}>
-          Lazada 通过 Open Platform 更新可售数量。多仓店铺请在「设置 → 平台刊登配置 → Lazada」填写默认仓库代码。若推送失败并提示权限不足，请在
-          Lazada Open Platform / Seller Center 申请库存/商品更新相关权限后重新授权店铺。
+          {tr("Lazada 通过 Open Platform 更新可售数量。多仓店铺请在「设置 → 平台刊登配置 → Lazada」填写默认仓库代码。若推送失败并提示权限不足，请在 Lazada Open Platform / Seller Center 申请库存/商品更新相关权限后重新授权店铺。")}
         </Typography.Paragraph>
-        <TechnicalDetails label="高级参数说明">
+        <TechnicalDetails label={tr("高级参数说明")}>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
-            接口 price_quantity；仓库字段 WarehouseCode / warehouse_id；任务参数 options.warehouse_id 可覆盖默认仓库。
+            {tr("接口 price_quantity；仓库字段 WarehouseCode / warehouse_id；任务参数 options.warehouse_id 可覆盖默认仓库。")}
           </Typography.Paragraph>
         </TechnicalDetails>
       </>
@@ -993,8 +1006,7 @@ function InventorySyncPlatformHint({ platform }: { platform?: string }) {
   if (p === 'douyin_shop') {
     return (
       <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 12 }}>
-        抖店库存同步会更新各规格的可售数量。请确认「设置 → 平台接入设置 → 抖店」已开启「开启库存同步」，且刊登草稿中已写入抖店商品编号与平台规格编号。若规格编号为空，请先在「刊登」Tab
-        完成抖店商品草稿创建。
+        {tr("抖店库存同步会更新各规格的可售数量。请确认「设置 → 平台接入设置 → 抖店」已开启「开启库存同步」，且刊登草稿中已写入抖店商品编号与平台规格编号。若规格编号为空，请先在「刊登」Tab 完成抖店商品草稿创建。")}
       </Typography.Paragraph>
     );
   }
@@ -1002,7 +1014,7 @@ function InventorySyncPlatformHint({ platform }: { platform?: string }) {
 }
 
 export default function ProductDraftDetailPage() {
-  useLanguage();
+  const language = useLanguage();
   const id = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).pop() ?? '');
   const { readonly, can } = usePermission();
   const publishWriteDisabled = !can(PERMISSIONS.PUBLISH_CREATE_DRAFT);
@@ -1172,12 +1184,12 @@ export default function ProductDraftDetailPage() {
       (data?.skus ?? []).map((sku) => ({
         id: sku.id,
         skuCode: sku.skuCode || sku.id,
-        skuName: sku.skuName || '默认规格',
+        skuName: sku.skuName || tr("默认规格"),
         price: sku.price,
         stock: sku.stock,
         attrs: sku.attrs,
       })),
-    [data?.skus],
+    [data?.skus, language],
   );
 
   const showCustomIncompleteHint = useMemo(() => isCustomCollectIncomplete(data), [data]);
@@ -1185,17 +1197,17 @@ export default function ProductDraftDetailPage() {
   const missingBasicFields = useMemo(() => {
     if (!data) return [];
     return [
-      ['来源平台', data.source],
-      ['来源链接', data.sourceUrl],
-      ['原始标题', data.originalTitle],
-      ['主标题', data.title],
-      ['主描述', data.description],
-      ['币种', data.currency],
-      ['状态', data.status],
+      [tr("来源平台"), data.source],
+      [tr("来源链接"), data.sourceUrl],
+      [tr("原始标题"), data.originalTitle],
+      [tr("主标题"), data.title],
+      [tr("主描述"), data.description],
+      [tr("币种"), data.currency],
+      [tr("状态"), data.status],
     ]
       .filter(([, value]) => !String(value ?? '').trim())
       .map(([label]) => String(label));
-  }, [data]);
+  }, [data, language]);
 
   const openCreateImageTask = useCallback(
     (prefill: CreateImageTaskPrefill) => {
@@ -1236,9 +1248,9 @@ export default function ProductDraftDetailPage() {
       if (!id) return;
       try {
         await selectBestMainProductImages(id, { mode });
-        message.success('已提交自动选主图任务');
+        message.success(tr("已提交自动选主图任务"));
       } catch (e: unknown) {
-        message.error((e as Error)?.message || '提交失败');
+        message.error((e as Error)?.message || tr("提交失败"));
       }
     },
     [id],
@@ -1252,7 +1264,7 @@ export default function ProductDraftDetailPage() {
       const progress = await fetchProductOperationProgress(id);
       setOperationProgress(progress);
     } catch (e: unknown) {
-      setOperationProgressError((e as Error)?.message || 'operation progress load failed');
+      setOperationProgressError((e as Error)?.message || '商品运营进度暂时无法加载');
     } finally {
       setOperationProgressLoading(false);
     }
@@ -1337,16 +1349,16 @@ export default function ProductDraftDetailPage() {
         if (refresh) {
           const sid = String(shopId || douyinConfig.shopId || '').trim();
           if (!sid) {
-            message.warning('请先选择已授权抖店店铺');
+            message.warning(tr("请先选择已授权抖店店铺"));
             return;
           }
           await syncDouyinCategories(sid);
-          message.success('抖店类目已刷新');
+          message.success(tr("抖店类目已刷新"));
         }
         const res = await queryDouyinCategories({ onlyLeaf: true });
         setDouyinCategoryFlat(res.flat ?? []);
       } catch (e: unknown) {
-        message.error((e as Error)?.message || '加载抖店类目失败');
+        message.error((e as Error)?.message || tr("加载抖店类目失败"));
       } finally {
         setDouyinCategoryLoading(false);
       }
@@ -1366,18 +1378,18 @@ export default function ProductDraftDetailPage() {
         if (refresh) {
           const sid = String(shopId || douyinConfig.shopId || '').trim();
           if (!sid) {
-            message.warning('请先选择已授权抖店店铺');
+            message.warning(tr("请先选择已授权抖店店铺"));
             return;
           }
           const res = await syncDouyinCategoryAttributes(cid, sid);
           setDouyinAttrs(res.list ?? []);
-          message.success('抖店属性已刷新');
+          message.success(tr("抖店属性已刷新"));
           return;
         }
         const res = await queryDouyinCategoryAttributes(cid);
         setDouyinAttrs(res.list ?? []);
       } catch (e: unknown) {
-        message.error((e as Error)?.message || '加载抖店属性失败');
+        message.error((e as Error)?.message || tr("加载抖店属性失败"));
       } finally {
         setDouyinAttrLoading(false);
       }
@@ -1441,9 +1453,9 @@ export default function ProductDraftDetailPage() {
       const mapped = await buildDouyinDraftMapping(id, { shopId: vals.shopId });
       setDouyinMapping(mapped);
       douyinMappingForm.setFieldsValue({ title: mapped.title, description: mapped.description });
-      message.success('抖店刊登草稿已生成');
+      message.success(tr("抖店刊登草稿已生成"));
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '生成抖店刊登草稿失败');
+      message.error((e as Error)?.message || tr("生成抖店刊登草稿失败"));
     } finally {
       setDouyinMappingLoading(false);
     }
@@ -1451,7 +1463,7 @@ export default function ProductDraftDetailPage() {
 
   const handleBuildDouyinMapping = useCallback(() => {
     if (publishWriteDisabled) {
-      message.error('当前账号无刊登草稿写权限');
+      message.error(tr("当前账号无刊登草稿写权限"));
       return;
     }
     if (douyinConfirmingActionRef.current || douyinMappingLoading) return;
@@ -1468,11 +1480,11 @@ export default function ProductDraftDetailPage() {
 
   const handleSaveDouyinMapping = useCallback(async () => {
     if (publishWriteDisabled) {
-      message.error('当前账号无刊登草稿写权限');
+      message.error(tr("当前账号无刊登草稿写权限"));
       return;
     }
     if (!douyinMapping) {
-      message.warning('请先生成抖店刊登草稿');
+      message.warning(tr("请先生成抖店刊登草稿"));
       return;
     }
     setDouyinMappingSaving(true);
@@ -1481,9 +1493,9 @@ export default function ProductDraftDetailPage() {
       const saved = await saveDouyinDraftMapping(id, currentDouyinMapping());
       setDouyinMapping(saved);
       douyinMappingForm.setFieldsValue({ title: saved.title, description: saved.description });
-      message.success('抖店刊登草稿已保存');
+      message.success(tr("抖店刊登草稿已保存"));
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '保存抖店刊登草稿失败');
+      message.error((e as Error)?.message || tr("保存抖店刊登草稿失败"));
     } finally {
       setDouyinMappingSaving(false);
     }
@@ -1491,7 +1503,7 @@ export default function ProductDraftDetailPage() {
 
   const handleValidateDouyinMapping = useCallback(async () => {
     if (publishWriteDisabled) {
-      message.error('当前账号无刊登草稿写权限');
+      message.error(tr("当前账号无刊登草稿写权限"));
       return;
     }
     setDouyinMappingValidating(true);
@@ -1503,16 +1515,16 @@ export default function ProductDraftDetailPage() {
         warnings: res.checks.filter((x) => x.level !== 'error'),
       } : cur);
       if (res.errorCount > 0) {
-        message.error('这些信息不完整，暂时不能创建抖店商品');
+        message.error(tr("这些信息不完整，暂时不能创建抖店商品"));
       } else if (res.warningCount > 0) {
-        message.warning('抖店刊登草稿还有需要确认的信息');
+        message.warning(tr("抖店刊登草稿还有需要确认的信息"));
       } else {
-        message.success('抖店刊登草稿校验通过');
+        message.success(tr("抖店刊登草稿校验通过"));
       }
       setReadinessPlat('douyin_shop');
       setReadinessShopId(String(douyinConfig.shopId || ''));
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '校验抖店刊登草稿失败');
+      message.error((e as Error)?.message || tr("校验抖店刊登草稿失败"));
     } finally {
       setDouyinMappingValidating(false);
     }
@@ -1520,11 +1532,11 @@ export default function ProductDraftDetailPage() {
 
   const handleUploadDouyinImages = useCallback(async (force = false) => {
     if (publishWriteDisabled) {
-      message.error('当前账号无刊登草稿写权限');
+      message.error(tr("当前账号无刊登草稿写权限"));
       return;
     }
     if (!douyinMapping) {
-      message.warning('请先生成抖店刊登草稿');
+      message.warning(tr("请先生成抖店刊登草稿"));
       return;
     }
     setDouyinImageUploading(true);
@@ -1535,9 +1547,9 @@ export default function ProductDraftDetailPage() {
         force,
       });
       setDouyinMapping(res.mapping);
-      message.success(`图片上传完成：成功 ${res.summary.uploaded}，失败 ${res.summary.failed}`);
+      message.success(trFormat("图片上传完成：成功 {value0}，失败 {value1}", { value0: res.summary.uploaded, value1: res.summary.failed }));
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '上传图片到抖店失败');
+      message.error((e as Error)?.message || tr("上传图片到抖店失败"));
     } finally {
       setDouyinImageUploading(false);
     }
@@ -1545,16 +1557,16 @@ export default function ProductDraftDetailPage() {
 
   const handleRetryDouyinImage = useCallback(async (imageKey: string) => {
     if (publishWriteDisabled) {
-      message.error('当前账号无刊登草稿写权限');
+      message.error(tr("当前账号无刊登草稿写权限"));
       return;
     }
     setDouyinImageRetryingKey(imageKey);
     try {
       const res = await retryDouyinImage(id, imageKey);
       setDouyinMapping(res.mapping);
-      message.success('图片重试完成');
+      message.success(tr("图片重试完成"));
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '重试图片上传失败');
+      message.error((e as Error)?.message || tr("重试图片上传失败"));
     } finally {
       setDouyinImageRetryingKey('');
     }
@@ -1634,7 +1646,7 @@ export default function ProductDraftDetailPage() {
       setSkuBatchMatched(res.matchedCount);
     } catch (e) {
       setSkuBatchMatched(null);
-      message.error((e as Error)?.message || '预览失败');
+      message.error((e as Error)?.message || tr("预览失败"));
     } finally {
       setSkuBatchPreviewLoading(false);
     }
@@ -1682,7 +1694,7 @@ export default function ProductDraftDetailPage() {
               setOperationProgressError('');
             }
           } catch (e: unknown) {
-            if (!cancelled) setOperationProgressError((e as Error)?.message || 'operation progress load failed');
+            if (!cancelled) setOperationProgressError((e as Error)?.message || '商品运营进度暂时无法加载');
           }
         }
       } catch (e) {
@@ -1830,12 +1842,12 @@ export default function ProductDraftDetailPage() {
     try {
       const ordered = [...sortedImages].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
       await reorderProductImages(id, { imageIds: ordered.map((i) => i.id) });
-      message.success('已同步');
+      message.success(tr("已同步"));
       await reloadDetail();
     } catch (e: unknown) {
       const msg = (e as Error)?.message || '排序失败';
       setImageSyncError(msg);
-      message.error(msg);
+      message.error(localizeProductError(msg));
     } finally {
       setImageSyncingScope('');
     }
@@ -1848,17 +1860,17 @@ export default function ProductDraftDetailPage() {
       try {
         const res = await syncProductImages(id, { scope });
         if (scope === 'main') {
-          message.success(`已同步 ${res.synced} 张主图`);
+          message.success(trFormat("已同步 {value0} 张主图", { value0: res.synced }));
         } else if (scope === 'detail') {
-          message.success(`已同步 ${res.synced} 张详情图`);
+          message.success(trFormat("已同步 {value0} 张详情图", { value0: res.synced }));
         } else {
-          message.success(`已同步 ${res.synced} 张图片到平台存储`);
+          message.success(trFormat("已同步 {value0} 张图片到平台存储", { value0: res.synced }));
         }
         await reloadDetail();
       } catch (e: unknown) {
         const msg = (e as Error)?.message || '同步失败';
         setImageSyncError(msg);
-        message.error(msg);
+        message.error(localizeProductError(msg));
       } finally {
         setImageSyncingScope('');
       }
@@ -1929,11 +1941,11 @@ export default function ProductDraftDetailPage() {
 
   const handleSyncDouyinSkuBindings = useCallback(async () => {
     if (skuBindDisabled) {
-      message.error('当前账号无规格绑定权限');
+      message.error(tr("当前账号无规格绑定权限"));
       return;
     }
     if (!douyinPublication?.id) {
-      message.warning('请先完成抖店商品草稿创建');
+      message.warning(tr("请先完成抖店商品草稿创建"));
       return;
     }
     setDouyinSkuBindingSyncing(true);
@@ -1941,11 +1953,11 @@ export default function ProductDraftDetailPage() {
       const res = await syncDouyinSkuBindings(douyinPublication.id);
       setDouyinSkuBinding(res);
       message.success(
-        `规格绑定校准完成：已绑定 ${res.bound}，跳过 ${res.skipped}，未匹配 ${res.unmatched}，待确认 ${res.ambiguous}`,
+        trFormat("规格绑定校准完成：已绑定 {value0}，跳过 {value1}，未匹配 {value2}，待确认 {value3}", { value0: String(res.bound), value1: String(res.skipped), value2: String(res.unmatched), value3: String(res.ambiguous) }),
       );
       await reloadPublicationSkus();
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '校准规格绑定失败');
+      message.error((e as Error)?.message || tr("校准规格绑定失败"));
     } finally {
       setDouyinSkuBindingSyncing(false);
     }
@@ -1965,7 +1977,7 @@ export default function ProductDraftDetailPage() {
   const handleOpenDouyinOperationReview = useCallback(() => {
     const shopId = String(douyinConfig.shopId || '').trim();
     if (!shopId) {
-      message.error('请选择抖店店铺');
+      message.error(tr("请选择抖店店铺"));
       return;
     }
 	const query = new URLSearchParams({ create: 'production', productId: id, shopId });
@@ -1992,7 +2004,7 @@ export default function ProductDraftDetailPage() {
       const msg = (e as Error)?.message || '检查失败';
       setReadinessResult(null);
       setReadinessError(msg);
-      message.error(msg);
+      message.error(localizeProductError(msg));
     } finally {
       setReadinessLoading(false);
     }
@@ -2062,7 +2074,7 @@ export default function ProductDraftDetailPage() {
   const readinessDefaultActiveKeys = readinessGroups.filter((g) =>
     readinessChecks.some((c) => (c.group || 'other') === g && (c.level || '').toLowerCase() === 'error'),
   );
-  const productTitle = data?.title?.trim() || '商品详情';
+  const productTitle = data?.title?.trim() || tr("商品详情");
   const productUpdatedAt = data?.updatedAt ? formatDateTime(data.updatedAt) : '';
   const currentSkuCount = skuRows.length;
   const platformPublishAvailableCount = platformsMeta.filter((x) => {
@@ -2089,58 +2101,58 @@ export default function ProductDraftDetailPage() {
     : false;
   const douyinDraftPrerequisiteItems = [
     {
-      label: '店铺',
-      status: douyinConfig.shopId ? '已选择' : pubCtxError ? '加载失败' : '未选择',
+      label: tr("店铺"),
+      status: douyinConfig.shopId ? tr("已选择") : pubCtxError ? tr("加载失败") : tr("未选择"),
       tone: douyinConfig.shopId ? 'success' : pubCtxError ? 'error' : 'warning',
-      detail: selectedDouyinShop?.shopName || douyinConfig.shopId || (douyinShops.length ? '请选择已授权抖店店铺' : '暂无已授权抖店店铺'),
+      detail: selectedDouyinShop?.shopName || douyinConfig.shopId || (douyinShops.length ? tr("请选择已授权抖店店铺") : tr("暂无已授权抖店店铺")),
     },
     {
-      label: '配置',
-      status: douyinConfig.shopId || douyinConfig.categoryId ? '有配置上下文' : '未配置',
+      label: tr("配置"),
+      status: douyinConfig.shopId || douyinConfig.categoryId ? tr("有配置上下文") : tr("未配置"),
       tone: douyinConfig.shopId || douyinConfig.categoryId ? 'processing' : 'warning',
-      detail: '保存配置只写入店铺、类目和属性，不会创建抖店商品草稿。',
+      detail: tr("保存配置只写入店铺、类目和属性，不会创建抖店商品草稿。"),
     },
     {
-      label: '类目',
-      status: douyinConfig.categoryId ? '已选择' : douyinCategoryLoading ? '加载中' : '未选择',
+      label: tr("类目"),
+      status: douyinConfig.categoryId ? tr("已选择") : douyinCategoryLoading ? tr("加载中") : tr("未选择"),
       tone: douyinConfig.categoryId ? 'success' : 'warning',
-      detail: douyinConfig.categoryPath || selectedDouyinCategory?.path || '需要选择抖店叶子类目。',
+      detail: douyinConfig.categoryPath || selectedDouyinCategory?.path || tr("需要选择抖店叶子类目。"),
     },
     {
-      label: '类目属性',
-      status: douyinAttrs.length ? `${douyinAttrs.length} 项已加载` : douyinConfig.categoryId ? '未加载或无属性' : '待选择类目',
+      label: tr("类目属性"),
+      status: douyinAttrs.length ? trFormat("{value0} 项已加载", { value0: douyinAttrs.length }) : douyinConfig.categoryId ? tr("未加载或无属性") : tr("待选择类目"),
       tone: douyinMissingRequiredAttrs.length ? 'warning' : douyinAttrs.length ? 'success' : 'default',
-      detail: `必填 ${douyinRequiredAttrs.length} 项 · 未填写 ${douyinMissingRequiredAttrs.length} 项`,
+      detail: trFormat("必填 {value0} 项 · 未填写 {value1} 项", { value0: douyinRequiredAttrs.length, value1: douyinMissingRequiredAttrs.length }),
     },
     {
-      label: '属性映射',
-      status: douyinMapping ? '已有映射' : '未生成',
+      label: tr("属性映射"),
+      status: douyinMapping ? tr("已有映射") : tr("未生成"),
       tone: douyinMapping ? 'processing' : 'warning',
-      detail: douyinMapping ? `错误 ${douyinMappingErrorCount} · 警告 ${douyinMappingWarningCount}` : '生成映射不会代表已经通过校验。',
+      detail: douyinMapping ? trFormat("错误 {value0} · 警告 {value1}", { value0: douyinMappingErrorCount, value1: douyinMappingWarningCount }) : tr("生成映射不会代表已经通过校验。"),
     },
     {
-      label: '图片',
-      status: douyinUploadedMainImages > 0 ? '主图已上传' : douyinMapping ? '待上传主图' : '待生成映射',
+      label: tr("图片"),
+      status: douyinUploadedMainImages > 0 ? tr("主图已上传") : douyinMapping ? tr("待上传主图") : tr("待生成映射"),
       tone: douyinUploadedMainImages > 0 ? 'success' : 'warning',
-      detail: `主图 ${douyinUploadedMainImages}/${douyinMainImages.length} · 详情图 ${douyinUploadedDetailImages}/${douyinDetailImages.length}`,
+      detail: trFormat("主图 {value0}/{value1} · 详情图 {value2}/{value3}", { value0: douyinUploadedMainImages, value1: douyinMainImages.length, value2: douyinUploadedDetailImages, value3: douyinDetailImages.length }),
     },
     {
-      label: '规格绑定',
-      status: douyinSkuBindingReady ? '已完成' : douyinSkuBinding ? '待确认' : douyinPublication?.id ? '未加载' : '待创建草稿',
+      label: tr("规格绑定"),
+      status: douyinSkuBindingReady ? tr("已完成") : douyinSkuBinding ? tr("待确认") : douyinPublication?.id ? tr("未加载") : tr("待创建草稿"),
       tone: douyinSkuBindingReady ? 'success' : douyinSkuBinding ? 'warning' : 'default',
-      detail: `已绑定 ${douyinSkuBinding?.bound ?? '—'} · 未绑定 ${douyinSkuBinding?.unmatched ?? '—'} · 待确认 ${douyinSkuBinding?.ambiguous ?? '—'}`,
+      detail: trFormat("已绑定 {value0} · 未绑定 {value1} · 待确认 {value2}", { value0: douyinSkuBinding?.bound ?? '—', value1: douyinSkuBinding?.unmatched ?? '—', value2: douyinSkuBinding?.ambiguous ?? '—' }),
     },
     {
-      label: '创建草稿',
-      status: douyinCreateDraftDisabled ? '暂不可审核' : '可以进入审核',
+      label: tr("创建草稿"),
+      status: douyinCreateDraftDisabled ? tr("暂不可审核") : tr("可以进入审核"),
       tone: douyinCreateDraftDisabled ? 'warning' : 'success',
-      detail: '进入运营任务中心冻结内容并人工审核，不会直接创建平台草稿。',
+      detail: tr("进入运营任务中心冻结内容并人工审核，不会直接创建平台草稿。"),
     },
     {
-      label: '最近任务',
-      status: latestDouyinTask ? commonStatusLabel(latestDouyinTask.status) : douyinPublishTasksLoading ? '加载中' : '暂无任务',
+      label: tr("最近任务"),
+      status: latestDouyinTask ? commonStatusLabel(latestDouyinTask.status) : douyinPublishTasksLoading ? tr("加载中") : tr("暂无任务"),
       tone: latestDouyinTask?.status === 'failed' ? 'error' : latestDouyinTask ? 'processing' : 'default',
-      detail: latestDouyinTask ? `${publishModeLabel(latestDouyinTask.publishMode)} · ${formatDateTime(latestDouyinTask.createdAt)}` : '创建草稿后会出现任务记录。',
+      detail: latestDouyinTask ? `${publishModeLabel(latestDouyinTask.publishMode)} · ${formatDateTime(latestDouyinTask.createdAt)}` : tr("创建草稿后会出现任务记录。"),
     },
   ];
   const latestFailedAiTask = useMemo(
@@ -2177,35 +2189,35 @@ export default function ProductDraftDetailPage() {
   };
 
   const tabLabels: Record<string, ReactNode> = {
-    basic: renderDraftTabLabel('基础信息', { icon: <FileTextOutlined />, hint: '内容' }),
-    ai: renderDraftTabLabel('AI', { count: aiTasks.length, icon: <RobotOutlined />, hint: '文案' }),
-    images: renderDraftTabLabel('图片管理', { count: sortedImages.length, icon: <PictureOutlined />, hint: '素材' }),
-    skus: renderDraftTabLabel('商品规格', { count: data?.skus?.length ?? 0, icon: <UnorderedListOutlined />, hint: '价格' }),
-    inventory: renderDraftTabLabel('库存', { count: pubSkuRows.length, icon: <CloudUploadOutlined />, hint: '同步' }),
-    readiness: renderDraftTabLabel('发布检查', {
+    basic: renderDraftTabLabel(tr("基础信息"), { icon: <FileTextOutlined />, hint: tr("内容") }),
+    ai: renderDraftTabLabel('AI', { count: aiTasks.length, icon: <RobotOutlined />, hint: tr("文案") }),
+    images: renderDraftTabLabel(tr("图片管理"), { count: sortedImages.length, icon: <PictureOutlined />, hint: tr("素材") }),
+    skus: renderDraftTabLabel(tr("商品规格"), { count: data?.skus?.length ?? 0, icon: <UnorderedListOutlined />, hint: tr("价格") }),
+    inventory: renderDraftTabLabel(tr("库存"), { count: pubSkuRows.length, icon: <CloudUploadOutlined />, hint: tr("同步") }),
+    readiness: renderDraftTabLabel(tr("发布检查"), {
       count: progressBlockerCount || progressWarningCount,
       tone: progressBlockerCount > 0 ? 'danger' : progressWarningCount > 0 ? 'warning' : 'default',
       icon: <CheckCircleOutlined />,
-      hint: '问题',
+      hint: tr("问题"),
     }),
-    publish: renderDraftTabLabel('刊登', { count: pubRows.length, icon: <SyncOutlined />, hint: '平台' }),
+    publish: renderDraftTabLabel(tr("刊登"), { count: pubRows.length, icon: <SyncOutlined />, hint: tr("平台") }),
   };
 
   const imageColumns: ProColumns<ProductImageRow>[] = useMemo(
     () => [
       {
-        title: '预览',
+        title: tr("预览"),
         width: 92,
         render: (_, r) => <ProductImagePreviewCell row={r} />,
       },
       {
-        title: '类型与标记',
+        title: tr("类型与标记"),
         dataIndex: 'imageType',
         width: 160,
         render: (_, r) => <ProductImageTypeCell row={r} />,
       },
       {
-        title: '评分',
+        title: tr("评分"),
         dataIndex: 'score',
         width: 72,
         render: (v) => (typeof v === 'number' ? v.toFixed(1) : '—'),
@@ -2216,7 +2228,7 @@ export default function ProductDraftDetailPage() {
         width: 92,
       },
       {
-        title: '来源与状态',
+        title: tr("来源与状态"),
         dataIndex: 'source',
         width: 180,
         render: (_, r) => <ProductImageSourceCell row={r} />,
@@ -2237,39 +2249,39 @@ export default function ProductDraftDetailPage() {
               {productImageUrl(r)}
             </Typography.Link>
           ) : (
-            <Typography.Text type="secondary">未提供图片地址</Typography.Text>
+            <Typography.Text type="secondary">{tr("未提供图片地址")}</Typography.Text>
           )
         ),
       },
       {
-        title: '操作',
+        title: tr("操作"),
         width: 248,
         fixed: 'right',
         render: (_, r) => {
           const imageUrl = productImageUrl(r);
           const moreContent = (
             <div className="product-draft-images__action-menu" onClick={(event) => event.stopPropagation()}>
-              <Typography.Text className="product-draft-images__action-group">AI 任务</Typography.Text>
+              <Typography.Text className="product-draft-images__action-group">{tr("AI 任务")}</Typography.Text>
               <Button type="text" size="small" block onClick={() => openTranslateImageText(r)}>
-                翻译图片文字
+                {tr("翻译图片文字")}
               </Button>
               <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'remove_watermark')}>
-                去除水印
+                {tr("去除水印")}
               </Button>
               <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'remove_logo')}>
-                去除 Logo
+                {tr("去除 Logo")}
               </Button>
               <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'remove_background')}>
-                移除背景
+                {tr("移除背景")}
               </Button>
               <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'generate_marketing')}>
-                生成营销图
+                {tr("生成营销图")}
               </Button>
               <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'score_image')}>
-                图片评分
+                {tr("图片评分")}
               </Button>
               <div className="product-draft-images__action-divider" />
-              <Typography.Text className="product-draft-images__action-group">图片标记</Typography.Text>
+              <Typography.Text className="product-draft-images__action-group">{tr("图片标记")}</Typography.Text>
               <Button
                 type="text"
                 size="small"
@@ -2283,7 +2295,7 @@ export default function ProductDraftDetailPage() {
                   })
                 }
               >
-                设为最佳主图
+                {tr("设为最佳主图")}
               </Button>
               <Button
                 type="text"
@@ -2292,31 +2304,31 @@ export default function ProductDraftDetailPage() {
                 onClick={async () => {
                   try {
                     await updateProductImage(id, r.id, { imageType: 'detail' });
-                    message.success('已设为详情图');
+                    message.success(tr("已设为详情图"));
                     await reloadDetail();
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '操作失败');
+                    message.error((e as Error)?.message || tr("操作失败"));
                   }
                 }}
               >
-                设为详情图
+                {tr("设为详情图")}
               </Button>
               <div className="product-draft-images__action-divider" />
               <Popconfirm
-                title="删除该关联？"
-                description="仅从商品移除关联"
+                title={tr("删除该关联？")}
+                description={tr("仅从商品移除关联")}
                 onConfirm={async () => {
                   try {
                     await deleteProductImage(id, r.id);
-                    message.success('已删除');
+                    message.success(tr("已删除"));
                     await reloadDetail();
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '删除失败');
+                    message.error((e as Error)?.message || tr("删除失败"));
                   }
                 }}
               >
                 <Button type="text" size="small" block danger icon={<DeleteOutlined />}>
-                  删除图片
+                  {tr("删除图片")}
                 </Button>
               </Popconfirm>
             </div>
@@ -2325,7 +2337,7 @@ export default function ProductDraftDetailPage() {
           return (
             <Space size={4} className="product-draft-images__actions">
               <Button type="link" size="small" icon={<EditOutlined />} onClick={() => setImgEdit(r)}>
-                编辑
+                {tr("编辑")}
               </Button>
               <Button
                 type="link"
@@ -2333,14 +2345,14 @@ export default function ProductDraftDetailPage() {
                 onClick={async () => {
                   try {
                     await updateProductImage(id, r.id, { imageType: 'main', isBestMain: true, sortOrder: 0 });
-                    message.success('已设为主图');
+                    message.success(tr("已设为主图"));
                     await reloadDetail();
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '操作失败');
+                    message.error((e as Error)?.message || tr("操作失败"));
                   }
                 }}
               >
-                设为主图
+                {tr("设为主图")}
               </Button>
               <Popover
                 trigger="click"
@@ -2352,7 +2364,7 @@ export default function ProductDraftDetailPage() {
                 }
               >
                 <Button type="link" size="small" icon={<MoreOutlined />}>
-                  更多
+                  {tr("更多")}
                 </Button>
               </Popover>
             </Space>
@@ -2360,31 +2372,31 @@ export default function ProductDraftDetailPage() {
         },
       },
     ],
-    [id, reloadDetail, openQuickImageTask, openCreateImageTask, openTranslateImageText],
+    [id, reloadDetail, openQuickImageTask, openCreateImageTask, openTranslateImageText, language],
   );
 
   const skuColumns = useMemo<ProColumns<SKUEditable>[]>(
     () => [
       {
-        title: '编码',
+        title: tr("编码"),
         dataIndex: 'skuCode',
         width: 160,
         ellipsis: true,
         className: 'product-draft-skus__code-col',
         formItemProps: { rules: [] },
-        render: (_, record) => skuTextCell(record.skuCode, '未填写'),
+        render: (_, record) => skuTextCell(record.skuCode, tr("未填写")),
       },
       {
-        title: '名称',
+        title: tr("名称"),
         dataIndex: 'skuName',
         width: 200,
         ellipsis: true,
         className: 'product-draft-skus__name-col',
         formItemProps: { rules: [{ required: true }] },
-        render: (_, record) => skuTextCell(record.skuName, '未填写'),
+        render: (_, record) => skuTextCell(record.skuName, tr("未填写")),
       },
       {
-        title: '成本价',
+        title: tr("成本价"),
         dataIndex: 'costPrice',
         width: 112,
         align: 'right' as const,
@@ -2395,7 +2407,7 @@ export default function ProductDraftDetailPage() {
         render: (_, record) => skuPriceCell(record.costPrice),
       },
       {
-        title: '销售价',
+        title: tr("销售价"),
         dataIndex: 'price',
         width: 112,
         align: 'right' as const,
@@ -2405,7 +2417,7 @@ export default function ProductDraftDetailPage() {
         render: (_, record) => skuPriceCell(record.price),
       },
       {
-        title: '库存',
+        title: tr("库存"),
         dataIndex: 'stock',
         width: 96,
         align: 'right' as const,
@@ -2414,15 +2426,15 @@ export default function ProductDraftDetailPage() {
         render: (_, record) => (typeof record.stock === 'number' ? record.stock : <Typography.Text type="secondary">—</Typography.Text>),
       },
       {
-        title: '图片 URL',
+        title: tr("图片 URL"),
         dataIndex: 'imageUrl',
         width: 190,
         ellipsis: true,
         className: 'product-draft-skus__url-col',
-        render: (_, record) => skuTextCell(record.imageUrl, '未填写'),
+        render: (_, record) => skuTextCell(record.imageUrl, tr("未填写")),
       },
       {
-        title: '规格属性（高级）',
+        title: tr("规格属性（高级）"),
         dataIndex: 'attrsText',
         valueType: 'textarea' as const,
         width: 260,
@@ -2432,7 +2444,7 @@ export default function ProductDraftDetailPage() {
         render: (_, record) => skuAttrsCell(record.attrsText),
       },
       {
-        title: '操作',
+        title: tr("操作"),
         valueType: 'option' as const,
         width: 132,
         fixed: 'right' as const,
@@ -2449,19 +2461,19 @@ export default function ProductDraftDetailPage() {
                   setSkuEditableKeys((keys) => Array.from(new Set([...keys, record.id])));
                 }}
               >
-                编辑
+                {tr("编辑")}
               </Button>
             ) : null}
             <Popconfirm
-              title="删除该商品规格？"
+              title={tr("删除该商品规格？")}
               onConfirm={async () => {
                 if (!record?.id?.startsWith('new_')) {
                   try {
                     await deleteProductSku(id, record.id);
-                    message.success('已删除');
+                    message.success(tr("已删除"));
                     await reloadDetail();
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '删除失败');
+                    message.error((e as Error)?.message || tr("删除失败"));
                   }
                 } else {
                   setSkuRows((rows) => rows.filter((r) => r.id !== record.id));
@@ -2469,20 +2481,20 @@ export default function ProductDraftDetailPage() {
               }}
             >
               <Button type="link" danger size="small" className="product-draft-skus__danger-action">
-                删除
+                {tr("删除")}
               </Button>
             </Popconfirm>
           </Space>
         ),
       },
     ],
-    [id, reloadDetail],
+    [id, reloadDetail, language],
   );
 
   if (!id) {
     return (
-      <TmPageContainer title="商品详情">
-        <Typography.Text type="danger">无效的商品 ID</Typography.Text>
+      <TmPageContainer title={tr("商品详情")}>
+        <Typography.Text type="danger">{tr("无效的商品 ID")}</Typography.Text>
       </TmPageContainer>
     );
   }
@@ -2496,9 +2508,9 @@ export default function ProductDraftDetailPage() {
           <div className="product-draft-header__locator">
             <Link to="/product/drafts" className="product-draft-header__back">
               <ArrowLeftOutlined />
-              返回商品草稿
+              {tr("返回商品草稿")}
             </Link>
-            <span className="product-draft-header__eyebrow">商品运营详情</span>
+            <span className="product-draft-header__eyebrow">{tr("商品运营详情")}</span>
           </div>
           <div className="product-draft-header__main">
             <div className="product-draft-header__identity">
@@ -2508,27 +2520,27 @@ export default function ProductDraftDetailPage() {
               {data ? <StatusTag status={data.status} /> : null}
             </div>
             {data ? (
-              <div className="product-draft-header__meta" aria-label="商品摘要信息">
+              <div className="product-draft-header__meta" aria-label={tr("商品摘要信息")}>
                 <div className="product-draft-header__meta-item">
-                  <span>来源平台</span>
-                  <strong>{data.source ? platformDisplayName(data.source) : '未记录'}</strong>
+                  <span>{tr("来源平台")}</span>
+                  <strong>{data.source ? platformDisplayName(data.source) : tr("未记录")}</strong>
                 </div>
                 <div className="product-draft-header__meta-item">
-                  <span>更新时间</span>
-                  <strong>{productUpdatedAt || '未记录'}</strong>
+                  <span>{tr("更新时间")}</span>
+                  <strong>{productUpdatedAt || tr("未记录")}</strong>
                 </div>
                 <div className="product-draft-header__meta-item product-draft-header__meta-item--id">
-                  <span>草稿 ID</span>
+                  <span>{tr("草稿 ID")}</span>
                   <Typography.Text copyable={{ text: id }}>{id}</Typography.Text>
                 </div>
                 <div className={`product-draft-header__meta-item product-draft-header__meta-item--severity product-draft-header__meta-item--${progressBlockerCount > 0 ? 'danger' : progressWarningCount > 0 ? 'warning' : 'ready'}`}>
-                  <span>发布检查</span>
+                  <span>{tr("发布检查")}</span>
                   <strong>
                     {progressBlockerCount > 0
-                      ? `阻断 ${progressBlockerCount}`
+                      ? trFormat("阻断 {value0}", { value0: String(progressBlockerCount) })
                       : progressWarningCount > 0
-                        ? `建议检查 ${progressWarningCount}`
-                        : '暂无阻断'}
+                        ? trFormat("建议检查 {value0}", { value0: String(progressWarningCount) })
+                        : tr("暂无阻断")}
                   </strong>
                 </div>
               </div>
@@ -2544,43 +2556,43 @@ export default function ProductDraftDetailPage() {
               onClick={async () => {
                 try {
                   await updateProduct(id, { status: 'ready' });
-                  message.success('已设为「可用」');
+                  message.success(tr("已设为「可用」"));
                   await reloadDetail();
                 } catch (e: unknown) {
-                  message.error((e as Error)?.message || '失败');
+                    message.error((e as Error)?.message || tr("失败"));
                 }
               }}
             >
-              标记为可用
+              {tr("标记为可用")}
             </Button>
             <Button
               onClick={async () => {
                 try {
                   await updateProduct(id, { status: 'archived' });
-                  message.success('已归档');
+                  message.success(tr("已归档"));
                   await reloadDetail();
                 } catch (e: unknown) {
-                  message.error((e as Error)?.message || '失败');
+                    message.error((e as Error)?.message || tr("失败"));
                 }
               }}
             >
-              归档
+              {tr("归档")}
             </Button>
             <Popconfirm
-              title="确定删除草稿？"
-              description="软删除，列表不可见"
+              title={tr("确定删除草稿？")}
+              description={tr("软删除，列表不可见")}
               onConfirm={async () => {
                 try {
                   await deleteProduct(id);
-                  message.success('已删除');
+                  message.success(tr("已删除"));
                   window.location.href = '/product/drafts';
                 } catch (e: unknown) {
-                  message.error((e as Error)?.message || '删除失败');
+                  message.error((e as Error)?.message || tr("删除失败"));
                 }
               }}
             >
               <Button danger type="text" icon={<DeleteOutlined />}>
-                删除草稿
+                {tr("删除草稿")}
               </Button>
             </Popconfirm>
           </div>
@@ -2595,7 +2607,7 @@ export default function ProductDraftDetailPage() {
         <Alert
           type="error"
           showIcon
-          message="商品详情加载失败"
+          message={tr("商品详情加载失败")}
           description={err}
           className="product-draft-page-state"
         />
@@ -2604,7 +2616,7 @@ export default function ProductDraftDetailPage() {
           <OperationProgressPanel
             progress={operationProgress}
             loading={operationProgressLoading}
-            error={operationProgressError}
+            error={localizeProductError(operationProgressError)}
             onReload={() => void reloadOperationProgress()}
             onAction={openOperationAction}
           />
@@ -2628,8 +2640,8 @@ export default function ProductDraftDetailPage() {
               children: (
                 <Space direction="vertical" className="product-draft-basic" size={0}>
                   <SectionCard
-                    title="采集质量"
-                    description="先看采集结果是否需要人工复核，再进入字段补充。"
+                    title={tr("采集质量")}
+                    description={tr("先看采集结果是否需要人工复核，再进入字段补充。")}
                     className="product-draft-basic__section product-draft-basic__quality"
                   >
                     <div id="collect-review" />
@@ -2640,23 +2652,23 @@ export default function ProductDraftDetailPage() {
                         <Alert
                           type="info"
                           showIcon
-                          message="请人工核对采集结果"
-                          description="当前来源未提供专项质量检查，请重点核对来源链接、标题、描述、图片和规格。"
+                          message={tr("请人工核对采集结果")}
+                          description={tr("当前来源未提供专项质量检查，请重点核对来源链接、标题、描述、图片和规格。")}
                         />
                       )}
                       {showCustomIncompleteHint ? (
                         <Alert
                           type="info"
                           showIcon
-                          message="自定义链接采集需要人工复核"
-                          description="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和规格后再发布。"
+                          message={tr("自定义链接采集需要人工复核")}
+                          description={tr("该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和规格后再发布。")}
                         />
                       ) : null}
                       {collectQualityWarnings.length > 0 ? (
                         <Alert
                           type="warning"
                           showIcon
-                          message="采集质量提示"
+                          message={tr("采集质量提示")}
                           description={
                             <ul className="product-draft-basic__warning-list">
                               {collectQualityWarnings.map((w, index) => (
@@ -2669,21 +2681,21 @@ export default function ProductDraftDetailPage() {
                         <Alert
                           type="success"
                           showIcon
-                          message="未返回采集质量问题"
-                          description="当前商品详情没有携带采集质量提示。仍建议在保存前检查核心字段是否完整。"
+                          message={tr("未返回采集质量问题")}
+                          description={tr("当前商品详情没有携带采集质量提示。仍建议在保存前检查核心字段是否完整。")}
                         />
                       ) : null}
                     </Space>
                   </SectionCard>
 
                   <SectionCard
-                    title="商品来源与采集信息"
-                    description="这些信息用于追溯采集入口；来源链接和采集原始数据不在本页编辑。"
+                    title={tr("商品来源与采集信息")}
+                    description={tr("这些信息用于追溯采集入口；来源链接和采集原始数据不在本页编辑。")}
                     className="product-draft-basic__section product-draft-basic__source"
                   >
                     <div className="product-draft-basic__source-title-block">
                       <Typography.Text type="secondary" className="product-draft-basic__source-title-label">
-                        来源商品标题
+                        {tr("来源商品标题")}
                       </Typography.Text>
                       {data.originalTitle ? (
                         <Tooltip title={data.originalTitle}>
@@ -2692,7 +2704,7 @@ export default function ProductDraftDetailPage() {
                           </Typography.Text>
                         </Tooltip>
                       ) : (
-                        <Typography.Text type="secondary">未记录</Typography.Text>
+                        <Typography.Text type="secondary">{tr("未记录")}</Typography.Text>
                       )}
                     </div>
                     <Descriptions
@@ -2700,30 +2712,30 @@ export default function ProductDraftDetailPage() {
                       size="small"
                       className="product-draft-basic__descriptions"
                     >
-                      <Descriptions.Item label="来源平台">
-                        {data.source ? <Tag>{platformDisplayName(data.source)}</Tag> : <Typography.Text type="secondary">未记录</Typography.Text>}
+                      <Descriptions.Item label={tr("来源平台")}>
+                        {data.source ? <Tag>{platformDisplayName(data.source)}</Tag> : <Typography.Text type="secondary">{tr("未记录")}</Typography.Text>}
                       </Descriptions.Item>
-                      <Descriptions.Item label="币种（展示）">
-                        {data.currency || <Typography.Text type="secondary">未记录</Typography.Text>}
+                      <Descriptions.Item label={tr("币种（展示）")}>
+                        {data.currency || <Typography.Text type="secondary">{tr("未记录")}</Typography.Text>}
                       </Descriptions.Item>
-                      <Descriptions.Item label="本地商品 ID">
+                      <Descriptions.Item label={tr("本地商品 ID")}>
                         <Typography.Text type="secondary" copyable={{ text: data.id }}>
                           {data.id}
                         </Typography.Text>
                       </Descriptions.Item>
-                      <Descriptions.Item label="采集 / 创建时间">
-                        {data.createdAt ? formatDateTime(data.createdAt) : <Typography.Text type="secondary">未记录</Typography.Text>}
+                      <Descriptions.Item label={tr("采集 / 创建时间")}>
+                        {data.createdAt ? formatDateTime(data.createdAt) : <Typography.Text type="secondary">{tr("未记录")}</Typography.Text>}
                       </Descriptions.Item>
-                      <Descriptions.Item label="最近更新时间">
-                        {data.updatedAt ? formatDateTime(data.updatedAt) : <Typography.Text type="secondary">未记录</Typography.Text>}
+                      <Descriptions.Item label={tr("最近更新时间")}>
+                        {data.updatedAt ? formatDateTime(data.updatedAt) : <Typography.Text type="secondary">{tr("未记录")}</Typography.Text>}
                       </Descriptions.Item>
-                      <Descriptions.Item label="当前状态">
+                      <Descriptions.Item label={tr("当前状态")}>
                         <StatusTag status={data.status} />
                       </Descriptions.Item>
                     </Descriptions>
                     <div className="product-draft-basic__source-link-row">
                       <Typography.Text type="secondary" className="product-draft-basic__source-link-label">
-                        来源链接
+                        {tr("来源链接")}
                       </Typography.Text>
                       {data.sourceUrl ? (
                         <Typography.Link
@@ -2736,7 +2748,7 @@ export default function ProductDraftDetailPage() {
                           {data.sourceUrl}
                         </Typography.Link>
                       ) : (
-                        <Typography.Text type="secondary">未提供来源链接</Typography.Text>
+                        <Typography.Text type="secondary">{tr("未提供来源链接")}</Typography.Text>
                       )}
                     </div>
                     {!data.sourceUrl ? (
@@ -2744,15 +2756,15 @@ export default function ProductDraftDetailPage() {
                         className="product-draft-basic__inline-alert"
                         type="info"
                         showIcon
-                        message="来源链接缺失"
-                        description="无法直接回到原商品页面核对信息。请优先检查标题、描述、图片和规格是否完整。"
+                        message={tr("来源链接缺失")}
+                        description={tr("无法直接回到原商品页面核对信息。请优先检查标题、描述、图片和规格是否完整。")}
                       />
                     ) : null}
                   </SectionCard>
 
                   <SectionCard
-                    title="商品核心信息"
-                    description="保存会提交本表单当前字段；图片、SKU、库存和刊登配置仍在对应 Tab 处理。"
+                    title={tr("商品核心信息")}
+                    description={tr("保存会提交本表单当前字段；图片、SKU、库存和刊登配置仍在对应 Tab 处理。")}
                     className="product-draft-basic__section product-draft-basic__form-section"
                   >
                     {missingBasicFields.length > 0 ? (
@@ -2760,31 +2772,31 @@ export default function ProductDraftDetailPage() {
                         className="product-draft-basic__inline-alert product-draft-basic__inline-alert--top"
                         type="warning"
                         showIcon
-                        message="基础信息仍有缺失"
-                        description={`建议补充：${missingBasicFields.join('、')}。`}
+                        message={tr("基础信息仍有缺失")}
+                        description={trFormat("建议补充：{value0}。", { value0: String(missingBasicFields.join('、')) })}
                       />
                     ) : (
                       <Alert
                         className="product-draft-basic__inline-alert product-draft-basic__inline-alert--top"
                         type="success"
                         showIcon
-                        message="基础字段已具备主要内容"
-                        description="保存前仍可继续调整标题、描述、币种和状态。"
+                        message={tr("基础字段已具备主要内容")}
+                        description={tr("保存前仍可继续调整标题、描述、币种和状态。")}
                       />
                     )}
                     <ProForm
                       key={`basic-${data.id}-${data.updatedAt}`}
                       className="product-draft-basic__form"
                       submitter={{
-                        searchConfig: { submitText: '保存基础信息' },
+                        searchConfig: { submitText: tr("保存基础信息") },
                         submitButtonProps: { type: 'primary' },
                         resetButtonProps: false,
                         render: (_, dom) => (
                           <div className="product-draft-basic__save-area">
                             <div className="product-draft-basic__save-copy">
-                              <Typography.Text strong>保存范围</Typography.Text>
+                              <Typography.Text strong>{tr("保存范围")}</Typography.Text>
                               <Typography.Text type="secondary">
-                                提交标题、原始标题、AI 标题、描述、AI 描述、币种和状态；不会自动执行发布检查、刊登或图片 / SKU / 库存操作。
+                                {tr("提交标题、原始标题、AI 标题、描述、AI 描述、币种和状态；不会自动执行发布检查、刊登或图片 / SKU / 库存操作。")}
                               </Typography.Text>
                             </div>
                             <div className="product-draft-basic__save-actions">{dom}</div>
@@ -2802,11 +2814,11 @@ export default function ProductDraftDetailPage() {
                             currency: String(vals.currency ?? ''),
                             status: String(vals.status ?? ''),
                           });
-                          message.success('已保存');
+                          message.success(tr("已保存"));
                           await reloadDetail();
                           return true;
                         } catch (e: unknown) {
-                          message.error((e as Error)?.message || '保存失败');
+                          message.error((e as Error)?.message || tr("保存失败"));
                           return false;
                         }
                       }}
@@ -2824,53 +2836,53 @@ export default function ProductDraftDetailPage() {
                       colProps={{ xs: 24, md: 12 }}
                     >
                       <div id="title" className="product-draft-basic__anchor" />
-                      <div className="product-draft-basic__form-group-title">商品识别信息</div>
+                      <div className="product-draft-basic__form-group-title">{tr("商品识别信息")}</div>
                       <ProFormText
                         name="title"
-                        label="主标题"
-                        rules={[{ required: true, message: '必填' }]}
+                        label={tr("主标题")}
+                        rules={[{ required: true, message: tr("必填") }]}
                         colProps={{ xs: 24 }}
-                        extra="发布和运营默认使用的商品标题。"
+                        extra={tr("发布和运营默认使用的商品标题。")}
                       />
                       <ProFormTextArea
                         name="originalTitle"
-                        label="原始标题"
+                        label={tr("原始标题")}
                         fieldProps={{ rows: 2 }}
-                        extra="采集时带回的原始标题，用于对照来源内容。"
+                        extra={tr("采集时带回的原始标题，用于对照来源内容。")}
                       />
                       <ProFormTextArea
                         name="aiTitle"
-                        label="AI 标题"
+                        label={tr("AI 标题")}
                         fieldProps={{ rows: 2 }}
-                        extra="AI 生成结果应用后会写入这里；本页保存只保存当前字段值。"
+                        extra={tr("AI 生成结果应用后会写入这里；本页保存只保存当前字段值。")}
                       />
                       <div id="description" className="product-draft-basic__anchor" />
-                      <div className="product-draft-basic__form-group-title">标题与描述</div>
+                      <div className="product-draft-basic__form-group-title">{tr("标题与描述")}</div>
                       <ProFormTextArea
                         name="description"
-                        label="主描述"
+                        label={tr("主描述")}
                         fieldProps={{ rows: 5 }}
                         colProps={{ xs: 24, lg: 12 }}
-                        extra="发布前建议保留完整卖点、材质、尺寸和注意事项。"
+                        extra={tr("发布前建议保留完整卖点、材质、尺寸和注意事项。")}
                       />
                       <ProFormTextArea
                         name="aiDescription"
-                        label="AI 描述"
+                        label={tr("AI 描述")}
                         fieldProps={{ rows: 5 }}
                         colProps={{ xs: 24, lg: 12 }}
-                        extra="AI 生成结果应用后会写入这里，可与主描述对照。"
+                        extra={tr("AI 生成结果应用后会写入这里，可与主描述对照。")}
                       />
-                      <div className="product-draft-basic__form-group-title">流转属性</div>
-                      <ProFormText name="currency" label="币种" extra="仅保存商品基础币种展示，不会重新计算 SKU 价格。" />
-                      <ProFormSelect name="status" label="状态" options={PRODUCT_STATUS_OPTIONS} extra="状态值保持原有枚举，用于草稿流转。" />
+                      <div className="product-draft-basic__form-group-title">{tr("流转属性")}</div>
+                      <ProFormText name="currency" label={tr("币种")} extra={tr("仅保存商品基础币种展示，不会重新计算 SKU 价格。")} />
+                      <ProFormSelect name="status" label={tr("状态")} options={productStatusOptions()} extra={tr("状态值保持原有枚举，用于草稿流转。")} />
                     </ProForm>
                   </SectionCard>
 
                   <div id="attributes" className="product-draft-basic__anchor" />
                   {collectedAttrRows.length > 0 ? (
                     <SectionCard
-                      title="采集扩展属性"
-                      description="从采集原始数据中提取，仅用于核对和后续平台映射参考。"
+                      title={tr("采集扩展属性")}
+                      description={tr("从采集原始数据中提取，仅用于核对和后续平台映射参考。")}
                       className="product-draft-basic__section product-draft-basic__attributes"
                     >
                       <Table
@@ -2881,7 +2893,7 @@ export default function ProductDraftDetailPage() {
                         className="product-draft-basic__attr-table"
                         columns={[
                           {
-                            title: '属性',
+                            title: tr("属性"),
                             dataIndex: 'key',
                             width: 220,
                             render: (value) => (
@@ -2891,7 +2903,7 @@ export default function ProductDraftDetailPage() {
                             ),
                           },
                           {
-                            title: '采集值',
+                            title: tr("采集值"),
                             dataIndex: 'value',
                             render: (value) => {
                               const text = String(value ?? '');
@@ -2917,8 +2929,8 @@ export default function ProductDraftDetailPage() {
               children: (
                 <Space direction="vertical" className="product-draft-ai" size="middle">
                   <SectionCard
-                    title="AI 文案工作台"
-                    description="先生成建议，再人工确认应用。生成不会保存到商品字段，应用才会写入 AI 标题或 AI 描述。"
+                    title={tr("AI 文案工作台")}
+                    description={tr("先生成建议，再人工确认应用。生成不会保存到商品字段，应用才会写入 AI 标题或 AI 描述。")}
                     className="product-draft-ai__workbench"
                     headerExtra={
                       <Space wrap className="product-draft-ai__actions">
@@ -2932,7 +2944,7 @@ export default function ProductDraftDetailPage() {
                             setAiOpen(true);
                           }}
                         >
-                          生成标题建议
+                          {tr("生成标题建议")}
                         </Button>
                         <Button
                           icon={<FileTextOutlined />}
@@ -2948,26 +2960,26 @@ export default function ProductDraftDetailPage() {
                             setDescOpen(true);
                           }}
                         >
-                          生成描述建议
+                          {tr("生成描述建议")}
                         </Button>
                       </Space>
                     }
                   >
-                    <div className="product-draft-ai__status-strip" aria-label="AI 文案状态">
+                    <div className="product-draft-ai__status-strip" aria-label={tr("AI 文案状态")}>
                       <div className="product-draft-ai__status-item">
-                        <Typography.Text type="secondary">当前草稿</Typography.Text>
-                        <Typography.Text strong>{originalTitleText || originalDescriptionText ? '已有人工内容' : '待补充内容'}</Typography.Text>
+                        <Typography.Text type="secondary">{tr("当前草稿")}</Typography.Text>
+                        <Typography.Text strong>{originalTitleText || originalDescriptionText ? tr("已有人工内容") : tr("待补充内容")}</Typography.Text>
                       </div>
                       <div className="product-draft-ai__status-item">
-                        <Typography.Text type="secondary">AI 字段</Typography.Text>
+                        <Typography.Text type="secondary">{tr("AI 字段")}</Typography.Text>
                         <Typography.Text strong>
-                          {appliedAiTitleText || appliedAiDescriptionText ? '已有已应用内容' : '暂无已应用内容'}
+                          {appliedAiTitleText || appliedAiDescriptionText ? tr("已有已应用内容") : tr("暂无已应用内容")}
                         </Typography.Text>
                       </div>
                       <div className="product-draft-ai__status-item">
-                        <Typography.Text type="secondary">最近任务</Typography.Text>
+                        <Typography.Text type="secondary">{tr("最近任务")}</Typography.Text>
                         <Typography.Text strong>
-                          {aiTasks.length ? `${aiTasks.length} 条记录` : '暂无记录'}
+                          {aiTasks.length ? trFormat("{value0} 条记录", { value0: aiTasks.length }) : tr("暂无记录")}
                         </Typography.Text>
                       </div>
                     </div>
@@ -2975,29 +2987,29 @@ export default function ProductDraftDetailPage() {
                       className="product-draft-ai__action-note"
                       type="info"
                       showIcon
-                      message="生成只是创建候选文案"
-                      description="应用或撤销才会写入商品草稿；如果商品内容在生成后变化，系统会按现有冲突保护阻止静默覆盖。"
+                      message={tr("生成只是创建候选文案")}
+                      description={tr("应用或撤销才会写入商品草稿；如果商品内容在生成后变化，系统会按现有冲突保护阻止静默覆盖。")}
                     />
                     <div className="product-draft-ai__guide">
                       <div className="product-draft-ai__guide-item">
                         <RobotOutlined />
                         <div>
-                          <Typography.Text strong>生成建议</Typography.Text>
-                          <Typography.Text type="secondary">创建 AI 结果，可能消耗模型额度。</Typography.Text>
+                          <Typography.Text strong>{tr("生成建议")}</Typography.Text>
+                          <Typography.Text type="secondary">{tr("创建 AI 结果，可能消耗模型额度。")}</Typography.Text>
                         </div>
                       </div>
                       <div className="product-draft-ai__guide-item">
                         <CheckCircleOutlined />
                         <div>
-                          <Typography.Text strong>应用文案</Typography.Text>
-                          <Typography.Text type="secondary">人工确认后写入商品草稿的 AI 字段。</Typography.Text>
+                          <Typography.Text strong>{tr("应用文案")}</Typography.Text>
+                          <Typography.Text type="secondary">{tr("人工确认后写入商品草稿的 AI 字段。")}</Typography.Text>
                         </div>
                       </div>
                       <div className="product-draft-ai__guide-item">
                         <UndoOutlined />
                         <div>
-                          <Typography.Text strong>撤销应用</Typography.Text>
-                          <Typography.Text type="secondary">恢复最近一次应用前的 AI 字段内容。</Typography.Text>
+                          <Typography.Text strong>{tr("撤销应用")}</Typography.Text>
+                          <Typography.Text type="secondary">{tr("恢复最近一次应用前的 AI 字段内容。")}</Typography.Text>
                         </div>
                       </div>
                     </div>
@@ -3006,21 +3018,21 @@ export default function ProductDraftDetailPage() {
                       <div className="product-draft-ai__copy-panel">
                         <div className="product-draft-ai__copy-head">
                           <div>
-                            <Typography.Text strong>标题</Typography.Text>
-                            <Typography.Paragraph type="secondary">用于刊登标题候选，不覆盖主标题。</Typography.Paragraph>
+                            <Typography.Text strong>{tr("标题")}</Typography.Text>
+                            <Typography.Paragraph type="secondary">{tr("用于刊登标题候选，不覆盖主标题。")}</Typography.Paragraph>
                           </div>
                           <Tag color={appliedAiTitleText ? 'success' : 'default'}>
-                            {appliedAiTitleText ? '已应用 AI 标题' : '未应用 AI 标题'}
+                            {appliedAiTitleText ? tr("已应用 AI 标题") : tr("未应用 AI 标题")}
                           </Tag>
                         </div>
                         <div className="product-draft-ai__text-stack">
                           <div className="product-draft-ai__text-box">
-                            <span>当前原文</span>
-                            {aiTextPreview(originalTitleText, '暂无标题')}
+                            <span>{tr("当前原文")}</span>
+                            {aiTextPreview(originalTitleText, tr("暂无标题"))}
                           </div>
                           <div className="product-draft-ai__text-box product-draft-ai__text-box--ai">
-                            <span>已应用 AI 标题</span>
-                            {aiTextPreview(appliedAiTitleText, '还没有应用 AI 标题')}
+                            <span>{tr("已应用 AI 标题")}</span>
+                            {aiTextPreview(appliedAiTitleText, tr("还没有应用 AI 标题"))}
                           </div>
                         </div>
                       </div>
@@ -3028,21 +3040,21 @@ export default function ProductDraftDetailPage() {
                       <div className="product-draft-ai__copy-panel">
                         <div className="product-draft-ai__copy-head">
                           <div>
-                            <Typography.Text strong>描述</Typography.Text>
-                            <Typography.Paragraph type="secondary">用于刊登描述候选，不覆盖主描述。</Typography.Paragraph>
+                            <Typography.Text strong>{tr("描述")}</Typography.Text>
+                            <Typography.Paragraph type="secondary">{tr("用于刊登描述候选，不覆盖主描述。")}</Typography.Paragraph>
                           </div>
                           <Tag color={appliedAiDescriptionText ? 'success' : 'default'}>
-                            {appliedAiDescriptionText ? '已应用 AI 描述' : '未应用 AI 描述'}
+                            {appliedAiDescriptionText ? tr("已应用 AI 描述") : tr("未应用 AI 描述")}
                           </Tag>
                         </div>
                         <div className="product-draft-ai__text-stack">
                           <div className="product-draft-ai__text-box">
-                            <span>当前原文</span>
-                            {aiTextPreview(originalDescriptionText, '暂无描述')}
+                            <span>{tr("当前原文")}</span>
+                            {aiTextPreview(originalDescriptionText, tr("暂无描述"))}
                           </div>
                           <div className="product-draft-ai__text-box product-draft-ai__text-box--ai">
-                            <span>已应用 AI 描述</span>
-                            {aiTextPreview(appliedAiDescriptionText, '还没有应用 AI 描述')}
+                            <span>{tr("已应用 AI 描述")}</span>
+                            {aiTextPreview(appliedAiDescriptionText, tr("还没有应用 AI 描述"))}
                           </div>
                         </div>
                       </div>
@@ -3051,10 +3063,10 @@ export default function ProductDraftDetailPage() {
                     {latestFailedAiTask ? (
                       <ErrorAlert
                         className="product-draft-ai__failure"
-                        title={`最近 AI 文案任务失败：${aiTaskTypeLabel(latestFailedAiTask.taskType)}`}
+                        title={trFormat("最近 AI 文案任务失败：{value0}", { value0: String(aiTaskTypeLabel(latestFailedAiTask.taskType)) })}
                         actionHint={
                           <Space direction="vertical" size={2}>
-                            <Typography.Text>{latestFailedAiTask.errorMessage || '任务未返回具体失败原因。'}</Typography.Text>
+                            <Typography.Text>{latestFailedAiTask.errorMessage || tr("任务未返回具体失败原因。")}</Typography.Text>
                             <Typography.Text>{aiTaskNextStep(latestFailedAiTask)}</Typography.Text>
                           </Space>
                         }
@@ -3063,8 +3075,8 @@ export default function ProductDraftDetailPage() {
                   </SectionCard>
 
                   <SectionCard
-                    title="最近 AI 文案任务"
-                    description="任务状态只表示 AI 生成过程；成功生成后仍需人工应用到商品。"
+                    title={tr("最近 AI 文案任务")}
+                    description={tr("任务状态只表示 AI 生成过程；成功生成后仍需人工应用到商品。")}
                     className="product-draft-ai__task-section"
                   >
                     <ProTable<AITaskRow>
@@ -3077,14 +3089,14 @@ export default function ProductDraftDetailPage() {
                         emptyText: (
                           <EmptyState
                             compact
-                            title="暂无 AI 文案任务"
-                            description="可以先生成标题建议或描述建议。"
+                            title={tr("暂无 AI 文案任务")}
+                            description={tr("可以先生成标题建议或描述建议。")}
                           />
                         ),
                       }}
                       columns={[
                         {
-                          title: '类型',
+                          title: tr("类型"),
                           dataIndex: 'taskType',
                           width: 176,
                           render: (_, row) => (
@@ -3094,13 +3106,13 @@ export default function ProductDraftDetailPage() {
                           ),
                         },
                         {
-                          title: '状态',
+                          title: tr("状态"),
                           dataIndex: 'status',
                           width: 112,
                           render: (_, row) => <StatusTag status={row.status} />,
                         },
                         {
-                          title: '模型',
+                          title: tr("模型"),
                           dataIndex: 'model',
                           ellipsis: true,
                           render: (_, row) => (
@@ -3111,23 +3123,23 @@ export default function ProductDraftDetailPage() {
                           ),
                         },
                         {
-                          title: '模型额度',
+                          title: tr("模型额度"),
                           width: 120,
                           render: (_: unknown, row: AITaskRow) => (
-                            <Tooltip title="输入 / 输出 token，仅作模型额度参考">
+                            <Tooltip title={tr("输入 / 输出 token，仅作模型额度参考")}>
                               <Typography.Text>{aiTaskCostText(row)}</Typography.Text>
                             </Tooltip>
                           ),
                         },
                         {
-                          title: '失败原因和下一步',
+                          title: tr("失败原因和下一步"),
                           dataIndex: 'errorMessage',
                           ellipsis: true,
                           render: (_, row) =>
                             isAiTaskFailed(row) ? (
                               <Space direction="vertical" size={0}>
                                 <Typography.Text type="danger" className="product-draft-ai__task-error">
-                                  {row.errorMessage || '任务失败，未返回具体原因'}
+                                  {row.errorMessage || tr("任务失败，未返回具体原因")}
                                 </Typography.Text>
                                 <Typography.Text type="secondary">{aiTaskNextStep(row)}</Typography.Text>
                               </Space>
@@ -3136,7 +3148,7 @@ export default function ProductDraftDetailPage() {
                             ),
                         },
                         {
-                          title: '技能模板',
+                          title: tr("技能模板"),
                           dataIndex: 'promptCode',
                           width: 160,
                           ellipsis: true,
@@ -3147,7 +3159,7 @@ export default function ProductDraftDetailPage() {
                           ),
                         },
                         {
-                          title: '时间',
+                          title: tr("时间"),
                           dataIndex: 'createdAt',
                           width: 176,
                           render: (v) => formatDateTime(v as string),
@@ -3158,34 +3170,34 @@ export default function ProductDraftDetailPage() {
                   </SectionCard>
 
                   <SectionCard
-                    title="AI 图片任务"
-                    description="面向商品图片的后台处理入口；创建任务不会直接覆盖原图，结果去向在弹窗或任务内确认。"
+                    title={tr("AI 图片任务")}
+                    description={tr("面向商品图片的后台处理入口；创建任务不会直接覆盖原图，结果去向在弹窗或任务内确认。")}
                     className="product-draft-ai__image-workbench"
                     headerExtra={
                       <Link to={`/ai/image-tasks?productId=${encodeURIComponent(id)}`}>
-                        <Button icon={<UnorderedListOutlined />}>查看图片任务</Button>
+                        <Button icon={<UnorderedListOutlined />}>{tr("查看图片任务")}</Button>
                       </Link>
                     }
                   >
-                    <div className="product-draft-ai__image-status" aria-label="AI 图片任务状态">
+                    <div className="product-draft-ai__image-status" aria-label={tr("AI 图片任务状态")}>
                       <div className="product-draft-ai__image-status-item">
-                        <Typography.Text type="secondary">当前图片</Typography.Text>
-                        <Typography.Text strong>{imageOverview.total ? `${imageOverview.total} 张` : '暂无图片'}</Typography.Text>
+                        <Typography.Text type="secondary">{tr("当前图片")}</Typography.Text>
+                        <Typography.Text strong>{imageOverview.total ? trFormat("{value0} 张", { value0: imageOverview.total }) : tr("暂无图片")}</Typography.Text>
                         <Typography.Text type="secondary">
-                          {imageOverview.main ? `${imageOverview.main} 张主图` : '发布前建议补齐主图'}
+                          {imageOverview.main ? trFormat("{value0} 张主图", { value0: imageOverview.main }) : tr("发布前建议补齐主图")}
                         </Typography.Text>
                       </div>
                       <div className="product-draft-ai__image-status-item">
-                        <Typography.Text type="secondary">可翻译源图</Typography.Text>
-                        <Typography.Text strong>{aiImageSource ? '已找到' : '缺少可用图片'}</Typography.Text>
+                        <Typography.Text type="secondary">{tr("可翻译源图")}</Typography.Text>
+                        <Typography.Text strong>{aiImageSource ? tr("已找到") : tr("缺少可用图片")}</Typography.Text>
                         <Typography.Text type="secondary">
-                          {aiImageSource ? '默认使用当前排序第一张有地址的图片' : '请先在图片管理中添加图片'}
+                          {aiImageSource ? tr("默认使用当前排序第一张有地址的图片") : tr("请先在图片管理中添加图片")}
                         </Typography.Text>
                       </div>
                       <div className="product-draft-ai__image-status-item">
-                        <Typography.Text type="secondary">结果去向</Typography.Text>
-                        <Typography.Text strong>后台任务处理</Typography.Text>
-                        <Typography.Text type="secondary">自动保存、设主图或设详情图需显式选择。</Typography.Text>
+                        <Typography.Text type="secondary">{tr("结果去向")}</Typography.Text>
+                        <Typography.Text strong>{tr("后台任务处理")}</Typography.Text>
+                        <Typography.Text type="secondary">{tr("自动保存、设主图或设详情图需显式选择。")}</Typography.Text>
                       </div>
                     </div>
 
@@ -3194,18 +3206,18 @@ export default function ProductDraftDetailPage() {
                         <div className="product-draft-ai__image-card-head">
                           <RobotOutlined />
                           <div>
-                            <Typography.Text strong>AI 图片生成与处理</Typography.Text>
+                            <Typography.Text strong>{tr("AI 图片生成与处理")}</Typography.Text>
                             <Typography.Paragraph type="secondary">
-                              新建去水印、去背景、营销图、主图优选等图片任务，处理过程在后台执行。
+                              {tr("新建去水印、去背景、营销图、主图优选等图片任务，处理过程在后台执行。")}
                             </Typography.Paragraph>
                           </div>
                         </div>
                         <Space wrap size={[8, 8]}>
                           <Button type="primary" icon={<RobotOutlined />} onClick={() => openCreateImageTask({})}>
-                            新建图片任务
+                            {tr("新建图片任务")}
                           </Button>
                           <Button icon={<StarOutlined />} onClick={() => void runSelectBestMain('recommend')}>
-                            推荐最佳主图
+                            {tr("推荐最佳主图")}
                           </Button>
                           <Button
                             type="primary"
@@ -3213,7 +3225,7 @@ export default function ProductDraftDetailPage() {
                             icon={<ThunderboltOutlined />}
                             onClick={() => void runSelectBestMain('auto_set')}
                           >
-                            自动设为主图
+                            {tr("自动设为主图")}
                           </Button>
                         </Space>
                       </div>
@@ -3222,9 +3234,9 @@ export default function ProductDraftDetailPage() {
                         <div className="product-draft-ai__image-card-head">
                           <TranslationOutlined />
                           <div>
-                            <Typography.Text strong>图片文字翻译</Typography.Text>
+                            <Typography.Text strong>{tr("图片文字翻译")}</Typography.Text>
                             <Typography.Paragraph type="secondary">
-                              选择当前商品图片创建翻译任务，原图不覆盖；译后图片可保存为商品图片或详情图。
+                              {tr("选择当前商品图片创建翻译任务，原图不覆盖；译后图片可保存为商品图片或详情图。")}
                             </Typography.Paragraph>
                           </div>
                         </div>
@@ -3237,14 +3249,14 @@ export default function ProductDraftDetailPage() {
                                 if (aiImageSource) openTranslateImageText(aiImageSource);
                               }}
                             >
-                              翻译当前第一张可用图片
+                              {tr("翻译当前第一张可用图片")}
                             </Button>
                             <Button icon={<PictureOutlined />} onClick={() => openDraftLocation('images')}>
-                              前往图片管理
+                              {tr("前往图片管理")}
                             </Button>
                           </Space>
                           <Typography.Text type="secondary" className="product-draft-ai__image-note">
-                            需要指定其他源图时，可在图片管理列表中对单张图片发起翻译。
+                            {tr("需要指定其他源图时，可在图片管理列表中对单张图片发起翻译。")}
                           </Typography.Text>
                         </Space>
                       </div>
@@ -3254,14 +3266,14 @@ export default function ProductDraftDetailPage() {
                       className="product-draft-ai__image-note-alert"
                       type="info"
                       showIcon
-                      message="图片任务是异步处理"
-                      description="任务提交后不会立即替换页面图片；结果、失败原因和后续保存动作以 AI 图片任务列表和弹窗内配置为准。"
+                      message={tr("图片任务是异步处理")}
+                      description={tr("任务提交后不会立即替换页面图片；结果、失败原因和后续保存动作以 AI 图片任务列表和弹窗内配置为准。")}
                     />
                   </SectionCard>
 
                   {data.rawData != null ? (
-                    <TechnicalDetails label="原始采集 JSON（技术参考）" className="product-draft-ai__raw">
-                      <TaskJsonBlock title="原始信息" value={data.rawData} maxHeight={360} last />
+                    <TechnicalDetails label={tr("原始采集 JSON（技术参考）")} className="product-draft-ai__raw">
+                      <TaskJsonBlock title={tr("原始信息")} value={data.rawData} maxHeight={360} last />
                     </TechnicalDetails>
                   ) : null}
                 </Space>
@@ -3276,47 +3288,47 @@ export default function ProductDraftDetailPage() {
                     <Alert
                       type="info"
                       showIcon
-                      message="拼多多图片已按页面区域自动分类，请发布前检查主图和详情图是否正确。"
+                      message={tr("拼多多图片已按页面区域自动分类，请发布前检查主图和详情图是否正确。")}
                     />
                   ) : null}
                   {isTaobaoTmallProduct(data) ? (
                     <Alert
                       type="info"
                       showIcon
-                      message="淘宝/天猫采集图片默认为外链，发布前建议同步到平台存储，避免外链失效。"
+                      message={tr("淘宝/天猫采集图片默认为外链，发布前建议同步到平台存储，避免外链失效。")}
                     />
                   ) : null}
                   <SectionCard
-                    title="图片概览"
-                    description="基于当前商品详情已加载的图片数据展示，不额外请求接口。"
+                    title={tr("图片概览")}
+                    description={tr("基于当前商品详情已加载的图片数据展示，不额外请求接口。")}
                     className="product-draft-images__overview-section"
                   >
                     <div className="product-draft-images__overview-grid">
                       <MetricCard
-                        title="图片总数"
+                        title={tr("图片总数")}
                         value={imageOverview.total}
-                        description={imageOverview.total > 0 ? '当前商品图片记录' : '暂无商品图片'}
+                        description={imageOverview.total > 0 ? tr("当前商品图片记录") : tr("暂无商品图片")}
                         icon={<PictureOutlined />}
                         intent="data"
                       />
                       <MetricCard
-                        title="主图状态"
-                        value={imageOverview.main > 0 ? '已设置' : '缺少'}
-                        description={imageOverview.main > 0 ? `${imageOverview.main} 张主图` : '发布前建议补齐主图'}
+                        title={tr("主图状态")}
+                        value={imageOverview.main > 0 ? tr("已设置") : tr("缺少")}
+                        description={imageOverview.main > 0 ? trFormat("{value0} 张主图", { value0: imageOverview.main }) : tr("发布前建议补齐主图")}
                         icon={<CheckCircleOutlined />}
                         intent={imageOverview.main > 0 ? 'success' : 'warning'}
                       />
                       <MetricCard
-                        title="详情图状态"
-                        value={imageOverview.detail > 0 ? `${imageOverview.detail} 张` : '缺少'}
-                        description={imageOverview.detail > 0 ? '已识别详情图' : '可将图片设为详情图'}
+                        title={tr("详情图状态")}
+                        value={imageOverview.detail > 0 ? trFormat("{value0} 张", { value0: imageOverview.detail }) : tr("缺少")}
+                        description={imageOverview.detail > 0 ? tr("已识别详情图") : tr("可将图片设为详情图")}
                         icon={<FileTextOutlined />}
                         intent={imageOverview.detail > 0 ? 'success' : 'warning'}
                       />
                       <MetricCard
-                        title="同步状态"
+                        title={tr("同步状态")}
                         value={`${imageOverview.synced} / ${imageOverview.total}`}
-                        description={imageOverview.best > 0 ? `含 ${imageOverview.best} 张最佳主图标记` : '暂无最佳主图标记'}
+                        description={imageOverview.best > 0 ? trFormat("含 {value0} 张最佳主图标记", { value0: imageOverview.best }) : tr("暂无最佳主图标记")}
                         icon={<CloudUploadOutlined />}
                         intent={imageOverview.synced === imageOverview.total && imageOverview.total > 0 ? 'success' : 'default'}
                       />
@@ -3326,8 +3338,8 @@ export default function ProductDraftDetailPage() {
                         className="product-draft-images__inline-alert"
                         type="warning"
                         showIcon
-                        message="当前商品没有主图"
-                        description="可在图片列表中选择一张图片设为主图。"
+                        message={tr("当前商品没有主图")}
+                        description={tr("可在图片列表中选择一张图片设为主图。")}
                       />
                     ) : null}
                     {imageOverview.total > 0 && imageOverview.detail === 0 ? (
@@ -3335,15 +3347,15 @@ export default function ProductDraftDetailPage() {
                         className="product-draft-images__inline-alert"
                         type="info"
                         showIcon
-                        message="当前商品没有详情图"
-                        description="可在图片列表中选择图片设为详情图，或继续保留现有业务分类。"
+                        message={tr("当前商品没有详情图")}
+                        description={tr("可在图片列表中选择图片设为详情图，或继续保留现有业务分类。")}
                       />
                     ) : null}
                   </SectionCard>
 
                   <SectionCard
-                    title="页面操作"
-                    description="添加、排序和同步都需要手动触发，不会在页面加载时自动写入。"
+                    title={tr("页面操作")}
+                    description={tr("添加、排序和同步都需要手动触发，不会在页面加载时自动写入。")}
                     className="product-draft-images__operations-section"
                   >
                     {imageSyncError ? (
@@ -3351,15 +3363,15 @@ export default function ProductDraftDetailPage() {
                         className="product-draft-images__inline-alert product-draft-images__inline-alert--top"
                         type="error"
                         showIcon
-                        message="图片同步失败"
-                        description={imageSyncError}
+                        message={tr("图片同步失败")}
+                        description={localizeProductError(imageSyncError)}
                       />
                     ) : null}
                     <div className="product-draft-images__operation-grid">
                       <div className="product-draft-images__operation-panel">
                         <Typography.Text type="secondary" className="product-draft-images__operation-title">
                           <PictureOutlined />
-                          图片管理
+                          {tr("图片管理")}
                         </Typography.Text>
                         <Space wrap size={[8, 8]}>
                           <Button
@@ -3371,15 +3383,15 @@ export default function ProductDraftDetailPage() {
                               setImgModalOpen(true);
                             }}
                           >
-                            添加图片
+                            {tr("添加图片")}
                           </Button>
-                          <Tooltip title="按当前列表顺序提交全部图片 ID">
+                          <Tooltip title={tr("按当前列表顺序提交全部图片 ID")}>
                             <Button
                               icon={<SyncOutlined />}
                               loading={imageSyncingScope === 'order'}
                               onClick={() => void handleReorderProductImages()}
                             >
-                              同步顺序
+                              {tr("同步顺序")}
                             </Button>
                           </Tooltip>
                         </Space>
@@ -3387,7 +3399,7 @@ export default function ProductDraftDetailPage() {
                       <div className="product-draft-images__operation-panel">
                         <Typography.Text type="secondary" className="product-draft-images__operation-title">
                           <CloudUploadOutlined />
-                          图片同步
+                          {tr("图片同步")}
                         </Typography.Text>
                         {isTaobaoTmallProduct(data) ? (
                           <Space wrap size={[8, 8]}>
@@ -3395,41 +3407,41 @@ export default function ProductDraftDetailPage() {
                               loading={imageSyncingScope === 'all'}
                               onClick={() => void handleSyncProductImages('all')}
                             >
-                              同步图片到平台存储
+                              {tr("同步图片到平台存储")}
                             </Button>
                             <Button
                               loading={imageSyncingScope === 'main'}
                               onClick={() => void handleSyncProductImages('main')}
                             >
-                              批量同步主图
+                              {tr("批量同步主图")}
                             </Button>
                             <Button
                               loading={imageSyncingScope === 'detail'}
                               onClick={() => void handleSyncProductImages('detail')}
                             >
-                              批量同步详情图
+                              {tr("批量同步详情图")}
                             </Button>
                           </Space>
                         ) : (
                           <Typography.Text type="secondary">
-                            当前来源未启用该同步入口；可继续添加、编辑和标记商品图片。
+                            {tr("当前来源未启用该同步入口；可继续添加、编辑和标记商品图片。")}
                           </Typography.Text>
                         )}
                       </div>
                       <div className="product-draft-images__operation-panel product-draft-images__operation-panel--ai">
                         <Typography.Text type="secondary" className="product-draft-images__operation-title">
                           <RobotOutlined />
-                          AI 图片任务
+                          {tr("AI 图片任务")}
                         </Typography.Text>
                         <Space wrap size={[8, 8]}>
                           <Button type="primary" icon={<RobotOutlined />} onClick={() => openCreateImageTask({})}>
-                            新建图片任务
+                            {tr("新建图片任务")}
                           </Button>
                           <Link to="/ai/image-tasks">
-                            <Button icon={<UnorderedListOutlined />}>查看任务列表</Button>
+                            <Button icon={<UnorderedListOutlined />}>{tr("查看任务列表")}</Button>
                           </Link>
                           <Button icon={<StarOutlined />} onClick={() => void runSelectBestMain('recommend')}>
-                            设为最佳主图
+                            {tr("设为最佳主图")}
                           </Button>
                           <Button
                             type="primary"
@@ -3437,19 +3449,19 @@ export default function ProductDraftDetailPage() {
                             icon={<ThunderboltOutlined />}
                             onClick={() => void runSelectBestMain('auto_set')}
                           >
-                            自动设为主图
+                            {tr("自动设为主图")}
                           </Button>
                         </Space>
                         <Typography.Text type="secondary" className="product-draft-images__operation-note">
-                          图片服务可用性在任务弹窗内检查；处理结果以后台任务状态为准。
+                          {tr("图片服务可用性在任务弹窗内检查；处理结果以后台任务状态为准。")}
                         </Typography.Text>
                       </div>
                     </div>
                   </SectionCard>
 
                   <SectionCard
-                    title="图片列表"
-                    description="每行操作只作用于当前图片，更多菜单中保留低频和危险操作。"
+                    title={tr("图片列表")}
+                    description={tr("每行操作只作用于当前图片，更多菜单中保留低频和危险操作。")}
                     className="product-draft-images__list-section"
                   >
                     <ProTable<ProductImageRow>
@@ -3467,9 +3479,9 @@ export default function ProductDraftDetailPage() {
                         emptyText: (
                           <EmptyState
                             compact
-                            title="暂无商品图片"
-                            description="可以手动添加图片，或从采集结果补充后再回到这里管理。"
-                            actionLabel="添加图片"
+                            title={tr("暂无商品图片")}
+                            description={tr("可以手动添加图片，或从采集结果补充后再回到这里管理。")}
+                            actionLabel={tr("添加图片")}
                             onAction={() => {
                               setLastUpload(null);
                               setImgEdit(null);
@@ -3489,10 +3501,10 @@ export default function ProductDraftDetailPage() {
               children: (
                 <Space direction="vertical" className="product-draft-skus" size="middle">
                   <SectionCard
-                    title="规格与价格"
-                    description="维护当前商品的 SKU 编码、规格名称、价格和本地库存；定价只更新本地销售价，不会自动刊登。"
+                    title={tr("规格与价格")}
+                    description={tr("维护当前商品的 SKU 编码、规格名称、价格和本地库存；定价只更新本地销售价，不会自动刊登。")}
                     className="product-draft-skus__section"
-                    headerExtra={<Tag color="blue">当前商品 {currentSkuCount} 个 SKU</Tag>}
+                    headerExtra={<Tag color="blue">{tr("当前商品")} {currentSkuCount} {tr("个 SKU")}</Tag>}
                   >
                     <div id="pricing" />
                     {(data.source === 'custom' || isPinduoduoProduct(data)) &&
@@ -3503,8 +3515,8 @@ export default function ProductDraftDetailPage() {
                         className="product-draft-skus__alert"
                         message={
                           isPinduoduoProduct(data)
-                            ? '当前采集结果没有完整商品规格。你可以手动新增规格，或等待后续版本增强拼多多规格采集。'
-                            : '当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增规格。'
+                            ? tr("当前采集结果没有完整商品规格。你可以手动新增规格，或等待后续版本增强拼多多规格采集。")
+                            : tr("当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增规格。")
                         }
                       />
                     ) : null}
@@ -3513,40 +3525,40 @@ export default function ProductDraftDetailPage() {
                         type="warning"
                         showIcon
                         className="product-draft-skus__alert"
-                        message="当前账号处于只读模式"
-                        description="本区仅强化只读提示，不改变现有新增、编辑、保存、删除或定价按钮的可用规则。"
+                        message={tr("当前账号处于只读模式")}
+                        description={tr("本区仅强化只读提示，不改变现有新增、编辑、保存、删除或定价按钮的可用规则。")}
                       />
                     ) : null}
-                    <div className="product-draft-skus__summary" aria-label="当前商品规格摘要">
+                    <div className="product-draft-skus__summary" aria-label={tr("当前商品规格摘要")}>
                       <div className="product-draft-skus__summary-item">
-                        <span>SKU 数量</span>
+                        <span>{tr("SKU 数量")}</span>
                         <strong>{currentSkuCount}</strong>
-                        <Typography.Text type="secondary">来自当前商品规格列表</Typography.Text>
+                        <Typography.Text type="secondary">{tr("来自当前商品规格列表")}</Typography.Text>
                       </div>
                       <div className="product-draft-skus__summary-item">
-                        <span>编辑方式</span>
-                        <strong>行内编辑</strong>
-                        <Typography.Text type="secondary">新增行保存后写入接口</Typography.Text>
+                        <span>{tr("编辑方式")}</span>
+                        <strong>{tr("行内编辑")}</strong>
+                        <Typography.Text type="secondary">{tr("新增行保存后写入接口")}</Typography.Text>
                       </div>
                       <div className="product-draft-skus__summary-item">
-                        <span>定价范围</span>
-                        <strong>本商品 SKU</strong>
-                        <Typography.Text type="secondary">试算确认后更新销售价</Typography.Text>
+                        <span>{tr("定价范围")}</span>
+                        <strong>{tr("本商品 SKU")}</strong>
+                        <Typography.Text type="secondary">{tr("试算确认后更新销售价")}</Typography.Text>
                       </div>
                     </div>
                     <OperationToolbar
                       className="product-draft-skus__toolbar"
-                      extra={<Typography.Text type="secondary">新增 SKU 使用表格内真实入口；保存和删除仍按行处理。</Typography.Text>}
+                      extra={<Typography.Text type="secondary">{tr("新增 SKU 使用表格内真实入口；保存和删除仍按行处理。")}</Typography.Text>}
                     >
                       <Button icon={<ThunderboltOutlined />} onClick={() => setPricingOpen(true)}>
-                        应用定价规则
+                        {tr("应用定价规则")}
                       </Button>
                     </OperationToolbar>
                     {currentSkuCount === 0 ? (
                       <EmptyState
                         compact
-                        title="还没有商品规格"
-                        description="使用下方「新增 SKU」添加一行规格，保存后才会创建本地 SKU。"
+                        title={tr("还没有商品规格")}
+                        description={tr("使用下方「新增 SKU」添加一行规格，保存后才会创建本地 SKU。")}
                         className="product-draft-skus__empty"
                       />
                     ) : null}
@@ -3571,7 +3583,7 @@ export default function ProductDraftDetailPage() {
                         style: {
                           marginBottom: 12,
                         },
-                        creatorButtonText: '新增 SKU',
+                        creatorButtonText: tr("新增 SKU"),
                       }}
                       editable={{
                         type: 'multiple',
@@ -3589,7 +3601,7 @@ export default function ProductDraftDetailPage() {
                               price: row.price,
                               imageUrl: row.imageUrl,
                             });
-                            message.success('商品规格已创建');
+                            message.success(tr("商品规格已创建"));
                           } else {
                             await updateProductSku(id, row.id, {
                               skuCode: row.skuCode,
@@ -3598,7 +3610,7 @@ export default function ProductDraftDetailPage() {
                               price: row.price,
                               imageUrl: row.imageUrl,
                             });
-                            message.success('商品规格已更新');
+                            message.success(tr("商品规格已更新"));
                           }
                           await reloadDetail();
                         },
@@ -3619,11 +3631,11 @@ export default function ProductDraftDetailPage() {
                     <InventorySyncDisabledBanner />
                   </div>
                   <SectionCard
-                    title="库存状态说明"
-                    description="本页只处理本地 SKU 库存、预警线和库存同步任务；平台规格映射仍按原区域展示。"
+                    title={tr("库存状态说明")}
+                    description={tr("本页只处理本地 SKU 库存、预警线和库存同步任务；平台规格映射仍按原区域展示。")}
                     className="product-draft-inventory__overview"
                     headerExtra={
-                      readonly ? <Tag color="warning">只读模式</Tag> : <Tag color="blue">本地库存</Tag>
+                      readonly ? <Tag color="warning">{tr("只读模式")}</Tag> : <Tag color="blue">{tr("本地库存")}</Tag>
                     }
                   >
                     {readonly ? (
@@ -3631,47 +3643,47 @@ export default function ProductDraftDetailPage() {
                         type="warning"
                         showIcon
                         className="product-draft-inventory__alert"
-                        message="当前账号处于只读模式"
-                        description="本轮不改变现有库存按钮的可用条件；如后端拒绝写操作，会按原提示展示失败原因。"
+                        message={tr("当前账号处于只读模式")}
+                        description={tr("本轮不改变现有库存按钮的可用条件；如后端拒绝写操作，会按原提示展示失败原因。")}
                       />
                     ) : null}
-                    <div className="product-draft-inventory__summary" aria-label="当前商品库存摘要">
+                    <div className="product-draft-inventory__summary" aria-label={tr("当前商品库存摘要")}>
                       <div className="product-draft-inventory__summary-item">
-                        <span>本地 SKU</span>
+                        <span>{tr("本地 SKU")}</span>
                         <strong>{localInventorySummary.total}</strong>
-                        <Typography.Text type="secondary">来自当前商品规格列表</Typography.Text>
+                        <Typography.Text type="secondary">{tr("来自当前商品规格列表")}</Typography.Text>
                       </div>
                       <div className="product-draft-inventory__summary-item">
-                        <span>已设置预警线</span>
+                        <span>{tr("已设置预警线")}</span>
                         <strong>{localInventorySummary.warningSet}</strong>
-                        <Typography.Text type="secondary">预警线或安全线已填写</Typography.Text>
+                        <Typography.Text type="secondary">{tr("预警线或安全线已填写")}</Typography.Text>
                       </div>
                       <div className="product-draft-inventory__summary-item product-draft-inventory__summary-item--warning">
-                        <span>需关注</span>
+                        <span>{tr("需关注")}</span>
                         <strong>{localInventorySummary.low}</strong>
-                        <Typography.Text type="secondary">低库存、低于安全线或售罄</Typography.Text>
+                        <Typography.Text type="secondary">{tr("低库存、低于安全线或售罄")}</Typography.Text>
                       </div>
                       <div className="product-draft-inventory__summary-item">
-                        <span>库存未记录</span>
+                        <span>{tr("库存未记录")}</span>
                         <strong>{localInventorySummary.missingStock}</strong>
-                        <Typography.Text type="secondary">不按 0 展示</Typography.Text>
+                        <Typography.Text type="secondary">{tr("不按 0 展示")}</Typography.Text>
                       </div>
                     </div>
-                    <div className="product-draft-inventory__links" aria-label="库存相关入口">
-                      <Link to="/inventory/alerts">库存预警</Link>
-                      <Link to="/inventory/sync-tasks">同步任务</Link>
-                      <Link to={`/inventory/logs?productId=${data.id}`}>变更记录</Link>
-                      <Link to="/inventory/effects">订单扣减</Link>
+                    <div className="product-draft-inventory__links" aria-label={tr("库存相关入口")}>
+                      <Link to="/inventory/alerts">{tr("库存预警")}</Link>
+                      <Link to="/inventory/sync-tasks">{tr("同步任务")}</Link>
+                      <Link to={`/inventory/logs?productId=${data.id}`}>{tr("变更记录")}</Link>
+                      <Link to="/inventory/effects">{tr("订单扣减")}</Link>
                     </div>
                   </SectionCard>
 
                   <SectionCard
-                    title="本地 SKU 库存"
-                    description="库存调整会写入本地规格库存；预警线只影响预警规则，不修改实际库存。"
+                    title={tr("本地 SKU 库存")}
+                    description={tr("库存调整会写入本地规格库存；预警线只影响预警规则，不修改实际库存。")}
                     className="product-draft-stock__section"
                     headerExtra={
                       <div className="product-draft-stock__section-actions">
-                        <Typography.Text type="secondary">已选 {skuBatchSelKeys.length} 个 SKU</Typography.Text>
+                        <Typography.Text type="secondary">{tr("已选")} {skuBatchSelKeys.length} {tr("个 SKU")}</Typography.Text>
                         <Button
                           size="small"
                           onClick={() => {
@@ -3680,7 +3692,7 @@ export default function ProductDraftDetailPage() {
                             setSkuBatchStockOpen(true);
                           }}
                         >
-                          批量设置预警线
+                          {tr("批量设置预警线")}
                         </Button>
                       </div>
                     }
@@ -3688,8 +3700,8 @@ export default function ProductDraftDetailPage() {
                   {localInventoryRows.length === 0 ? (
                     <EmptyState
                       compact
-                      title="还没有本地 SKU"
-                      description="请先在「商品规格」中新增 SKU，保存后才能调整库存和预警线。"
+                      title={tr("还没有本地 SKU")}
+                      description={tr("请先在「商品规格」中新增 SKU，保存后才能调整库存和预警线。")}
                       className="product-draft-stock__empty"
                     />
                   ) : null}
@@ -3707,7 +3719,7 @@ export default function ProductDraftDetailPage() {
                     }}
                     columns={[
                       {
-                        title: '编码',
+                        title: tr("编码"),
                         dataIndex: 'skuCode',
                         width: 168,
                         ellipsis: true,
@@ -3718,13 +3730,13 @@ export default function ProductDraftDetailPage() {
                         ),
                       },
                       {
-                        title: '规格',
+                        title: tr("规格"),
                         dataIndex: 'skuName',
                         width: 240,
                         render: (_v, r) => (
                           <Space direction="vertical" size={2} className="product-draft-stock__sku">
                             <Typography.Text strong className="product-draft-stock__sku-name">
-                              {r.skuName || '未填写规格名称'}
+                              {r.skuName || tr("未填写规格名称")}
                             </Typography.Text>
                             {r.attrs ? (
                               <Typography.Text type="secondary" className="product-draft-stock__attrs">
@@ -3735,7 +3747,7 @@ export default function ProductDraftDetailPage() {
                         ),
                       },
                       {
-                        title: '库存',
+                        title: tr("库存"),
                         dataIndex: 'stock',
                         width: 96,
                         align: 'right' as const,
@@ -3744,11 +3756,11 @@ export default function ProductDraftDetailPage() {
                           typeof r.stock === 'number' ? (
                             <Typography.Text className="product-draft-stock__number">{r.stock}</Typography.Text>
                           ) : (
-                            <Typography.Text type="secondary">未记录</Typography.Text>
+                            <Typography.Text type="secondary">{tr("未记录")}</Typography.Text>
                           ),
                       },
                       {
-                        title: '预警',
+                        title: tr("预警"),
                         dataIndex: 'warningStock',
                         width: 88,
                         align: 'right' as const,
@@ -3757,11 +3769,11 @@ export default function ProductDraftDetailPage() {
                           typeof r.warningStock === 'number' ? (
                             <Typography.Text className="product-draft-stock__number">{r.warningStock}</Typography.Text>
                           ) : (
-                            <Typography.Text type="secondary">未设置</Typography.Text>
+                            <Typography.Text type="secondary">{tr("未设置")}</Typography.Text>
                           ),
                       },
                       {
-                        title: '安全',
+                        title: tr("安全"),
                         dataIndex: 'safetyStock',
                         width: 88,
                         align: 'right' as const,
@@ -3770,17 +3782,17 @@ export default function ProductDraftDetailPage() {
                           typeof r.safetyStock === 'number' ? (
                             <Typography.Text className="product-draft-stock__number">{r.safetyStock}</Typography.Text>
                           ) : (
-                            <Typography.Text type="secondary">未设置</Typography.Text>
+                            <Typography.Text type="secondary">{tr("未设置")}</Typography.Text>
                           ),
                       },
                       {
-                        title: '状态',
+                        title: tr("状态"),
                         dataIndex: 'stockStatus',
                         width: 108,
                         render: (_v, r) => draftStockStatusTag(effectiveStockStatus(r)),
                       },
                       {
-                        title: '操作',
+                        title: tr("操作"),
                         key: 'op',
                         width: 236,
                         fixed: 'right' as const,
@@ -3815,7 +3827,7 @@ export default function ProductDraftDetailPage() {
                                   })
                                   .catch((error: unknown) => {
                                     if (sequence !== invAdjustLoadSequence.current) return;
-                                    message.error((error as Error)?.message || '仓库库存加载失败');
+                                    message.error((error as Error)?.message || tr("仓库库存加载失败"));
                                     setInvAdjustWarehouses([]);
                                     setInvAdjustBalances([]);
                                   })
@@ -3824,7 +3836,7 @@ export default function ProductDraftDetailPage() {
                                   });
                               }}
                             >
-                              调整库存
+                              {tr("调整库存")}
                             </Button>
                             <Button
                               type="link"
@@ -3839,7 +3851,7 @@ export default function ProductDraftDetailPage() {
                                 setStockSettingsOpen(true);
                               }}
                             >
-                              预警线
+                              {tr("预警线")}
                             </Button>
                             <Button
                               type="link"
@@ -3859,7 +3871,7 @@ export default function ProductDraftDetailPage() {
                                 }
                               }}
                             >
-                              变更记录
+                              {tr("变更记录")}
                             </Button>
                           </Space>
                         ),
@@ -3869,7 +3881,7 @@ export default function ProductDraftDetailPage() {
                   </SectionCard>
 
                   <Modal
-                    title="批量设置预警线（本商品）"
+                    title={tr("批量设置预警线（本商品）")}
                     open={skuBatchStockOpen}
                     forceRender
                     width={640}
@@ -3879,26 +3891,26 @@ export default function ProductDraftDetailPage() {
                       setSkuBatchStockOpen(false);
                       setSkuBatchMatched(null);
                     }}
-                    okText="应用"
+                    okText={tr("应用")}
                     onOk={() => {
                       return skuBatchStockForm
                         .validateFields()
                         .then((v) => {
                           if (v.safetyStock > v.warningStock) {
-                            message.error('安全线不能大于预警线');
+                            message.error(tr("安全线不能大于预警线"));
                             return Promise.reject(new Error('validation'));
                           }
                           if (skuBatchScope === 'selected' && skuBatchSelKeys.length === 0) {
-                            message.error('请勾选规格，或改用「本商品全部规格」');
+                            message.error(tr("请勾选规格，或改用「本商品全部规格」"));
                             return Promise.reject(new Error('validation'));
                           }
                           return new Promise<void>((resolve, reject) => {
                             Modal.confirm({
-                              title: '确认仅修改预警线？',
+                              title: tr("确认仅修改预警线？"),
                               content:
-                                '不修改实际库存，不同步平台，不写入库存流水。将影响的规格数：' +
+                                tr("不修改实际库存，不同步平台，不写入库存流水。将影响的规格数：") +
                                 String(skuBatchMatched ?? '—'),
-                              okText: '确认',
+                              okText: tr("确认"),
                               onOk: async () => {
                                 try {
                                   await batchUpdateStockSettings({
@@ -3908,14 +3920,14 @@ export default function ProductDraftDetailPage() {
                                     confirm: true,
                                     confirmLarge: (skuBatchMatched ?? 0) > SKU_BATCH_STOCK_MAX_HINT,
                                   });
-                                  message.success('已批量更新预警线');
+                                  message.success(tr("已批量更新预警线"));
                                   setSkuBatchStockOpen(false);
                                   setSkuBatchMatched(null);
                                   setSkuBatchSelKeys([]);
                                   await reloadDetail();
                                   resolve();
                                 } catch (e) {
-                                  message.error((e as Error)?.message || '失败');
+                                  message.error((e as Error)?.message || tr("失败"));
                                   reject(e);
                                 }
                               },
@@ -3929,82 +3941,82 @@ export default function ProductDraftDetailPage() {
                     }}
                   >
                     <Typography.Paragraph type="secondary" className="product-draft-inventory__modal-note">
-                      匹配数：{skuBatchPreviewLoading ? '计算中…' : skuBatchMatched !== null ? `${skuBatchMatched} 个规格` : '—'}
+                      {tr(tr("匹配数："))}{skuBatchPreviewLoading ? tr("计算中…") : skuBatchMatched !== null ? trFormat("{value0} 个规格", { value0: String(skuBatchMatched) }) : '—'}
                     </Typography.Paragraph>
                     <Form form={skuBatchStockForm} layout="vertical" initialValues={{ warningStock: 10, safetyStock: 2 }}>
-                      <Form.Item label="应用范围">
+                      <Form.Item label={tr("应用范围")}>
                         <Radio.Group
                           value={skuBatchScope}
                           onChange={(e) => setSkuBatchScope(e.target.value as 'selected' | 'all')}
                         >
-                          <Radio value="all">本商品全部规格</Radio>
+                          <Radio value="all">{tr("本商品全部规格")}</Radio>
                           <Radio value="selected" disabled={skuBatchSelKeys.length === 0}>
-                            仅选中（{skuBatchSelKeys.length}）
+                            {tr("仅选中（")}{skuBatchSelKeys.length}）
                           </Radio>
                         </Radio.Group>
                       </Form.Item>
-                      <Form.Item name="warningStock" label="预警库存线" rules={[{ required: true }]}>
+                      <Form.Item name="warningStock" label={tr("预警库存线")} rules={[{ required: true }]}>
                         <InputNumber min={0} style={{ width: '100%' }} />
                       </Form.Item>
-                      <Form.Item name="safetyStock" label="安全库存线" rules={[{ required: true }]}>
+                      <Form.Item name="safetyStock" label={tr("安全库存线")} rules={[{ required: true }]}>
                         <InputNumber min={0} style={{ width: '100%' }} />
                       </Form.Item>
                       <Button type="link" size="small" onClick={() => void runSkuBatchPreview()} loading={skuBatchPreviewLoading}>
-                        刷新匹配数
+                        {tr("刷新匹配数")}
                       </Button>
                     </Form>
                   </Modal>
 
                   <SectionCard
-                    title="库存同步任务"
-                    description="已刊登规格映射只用于识别要同步的本地 SKU 与平台 SKU；创建任务不代表平台库存已经同步完成。"
+                    title={tr("库存同步任务")}
+                    description={tr("已刊登规格映射只用于识别要同步的本地 SKU 与平台 SKU；创建任务不代表平台库存已经同步完成。")}
                     className="product-draft-inventory-sync__section"
                   >
-                  <div className="product-draft-platform-sku__brief" aria-label="平台 SKU 映射上下文">
+                  <div className="product-draft-platform-sku__brief" aria-label={tr("平台 SKU 映射上下文")}>
                     <div className="product-draft-platform-sku__brief-main">
-                      <Typography.Text strong>映射范围</Typography.Text>
+                      <Typography.Text strong>{tr("映射范围")}</Typography.Text>
                       <Typography.Paragraph type="secondary">
-                        当前表格来自已刊登规格列表，按平台和店铺保留独立映射。缺少平台商品 ID、平台规格编码，或抖店规格处于待确认/未匹配状态时，不能创建该行的库存同步任务。
+                        {tr("当前表格来自已刊登规格列表，按平台和店铺保留独立映射。缺少平台商品 ID、平台规格编码，或抖店规格处于待确认/未匹配状态时，不能创建该行的库存同步任务。")}
                       </Typography.Paragraph>
                     </div>
                     <div className="product-draft-platform-sku__metrics">
                       <div className="product-draft-platform-sku__metric">
-                        <span>已刊登规格</span>
+                        <span>{tr("已刊登规格")}</span>
                         <strong>{platformSkuMappingSummary.total}</strong>
                       </div>
                       <div className="product-draft-platform-sku__metric">
-                        <span>平台商品 ID</span>
+                        <span>{tr("平台商品 ID")}</span>
                         <strong>{platformSkuMappingSummary.withProduct}</strong>
                       </div>
                       <div className="product-draft-platform-sku__metric">
-                        <span>平台 SKU</span>
+                        <span>{tr("平台 SKU")}</span>
                         <strong>{platformSkuMappingSummary.withSku}</strong>
                       </div>
                       <div className="product-draft-platform-sku__metric product-draft-platform-sku__metric--muted">
-                        <span>不可同步</span>
+                        <span>{tr("不可同步")}</span>
                         <strong>{platformSkuMappingSummary.blocked}</strong>
                       </div>
                     </div>
                     <div className="product-draft-platform-sku__scope">
                       <Typography.Text type="secondary">
-                        平台：{platformSkuMappingSummary.platforms.slice(0, 3).join(' / ') || '—'}
-                        {platformSkuMappingSummary.platforms.length > 3 ? ` 等 ${platformSkuMappingSummary.platforms.length} 个` : ''}
+                        {tr("平台：")}{platformSkuMappingSummary.platforms.slice(0, 3).join(' / ') || '—'}
+                        {platformSkuMappingSummary.platforms.length > 3 ? trFormat(" 等 {value0} 个", { value0: platformSkuMappingSummary.platforms.length }) : ''}
                       </Typography.Text>
                       <Typography.Text type="secondary">
-                        店铺：{platformSkuMappingSummary.shops.slice(0, 2).join(' / ') || '—'}
-                        {platformSkuMappingSummary.shops.length > 2 ? ` 等 ${platformSkuMappingSummary.shops.length} 个` : ''}
+                        {tr("店铺：")}{platformSkuMappingSummary.shops.slice(0, 2).join(' / ') || '—'}
+                        {platformSkuMappingSummary.shops.length > 2 ? trFormat(" 等 {value0} 个", { value0: platformSkuMappingSummary.shops.length }) : ''}
                       </Typography.Text>
                     </div>
                   </div>
                   <div className="product-draft-inventory-sync__toolbar">
                     <Select
                       allowClear
-                      placeholder="按平台筛选（批量同步）"
+                      placeholder={tr("按平台筛选（批量同步）")}
                       className="product-draft-inventory-sync__platform-filter"
                       value={pubSkuBulkPlatformFilter || undefined}
                       onChange={(v) => setPubSkuBulkPlatformFilter((v as string | undefined) ?? '')}
                       options={[
-                        { label: '抖店', value: 'douyin_shop' },
+                        { label: tr("抖店"), value: 'douyin_shop' },
                         { label: 'TikTok', value: 'tiktok' },
                         { label: 'Shopee', value: 'shopee' },
                         { label: 'Lazada', value: 'lazada' },
@@ -4015,7 +4027,7 @@ export default function ProductDraftDetailPage() {
                       disabled={pubSkuSelectedKeys.length === 0}
                       onClick={() => {
                         confirmInventorySync(
-                          `选中的 ${pubSkuSelectedKeys.length} 条刊登规格`,
+                          trFormat("选中的 {value0} 条刊登规格", { value0: pubSkuSelectedKeys.length }),
                           true,
                           async () => {
                             try {
@@ -4026,7 +4038,7 @@ export default function ProductDraftDetailPage() {
                                 onlyPublished: true,
                               });
                               message.success(
-                                `批次 ${batch.batchNo} 已创建；新建任务 ${batch.totalCount - batch.skippedCount}，跳过 ${batch.skippedCount}`,
+                                trFormat("批次 {value0} 已创建；新建任务 {value1}，跳过 {value2}", { value0: String(batch.batchNo), value1: String(batch.totalCount - batch.skippedCount), value2: String(batch.skippedCount) }),
                               );
                               setPubSkuSelectedKeys([]);
                               await reloadPublicationSkus();
@@ -4039,10 +4051,10 @@ export default function ProductDraftDetailPage() {
                         );
                       }}
                     >
-                      批量同步到平台
+                      {tr("批量同步到平台")}
                     </Button>
                     <Typography.Text type="secondary" className="product-draft-inventory-sync__hint">
-                      勾选左侧可选行；不可选项表示缺少平台映射或未开放库存同步。
+                      {tr("勾选左侧可选行；不可选项表示缺少平台映射或未开放库存同步。")}
                     </Typography.Text>
                   </div>
                   <Spin spinning={pubSkuLoading}>
@@ -4067,25 +4079,25 @@ export default function ProductDraftDetailPage() {
                         emptyText: (
                           <EmptyState
                             compact
-                            title="暂无已刊登规格"
-                            description="创建平台商品草稿或完成刊登后，这里会显示可用于库存同步的 SKU 映射。"
+                            title={tr("暂无已刊登规格")}
+                            description={tr("创建平台商品草稿或完成刊登后，这里会显示可用于库存同步的 SKU 映射。")}
                           />
                         ),
                       }}
                       columns={[
                         {
-                          title: '店铺',
+                          title: tr("店铺"),
                           width: 152,
                           render: (_, r) => platformSkuValue(r.shopName || r.shopId),
                         },
-                        { title: '平台', dataIndex: 'platform', width: 108, render: (v: string) => platformDisplayName(v) },
+                        { title: tr("平台"), dataIndex: 'platform', width: 108, render: (v: string) => platformDisplayName(v) },
                         {
-                          title: '本地商品规格',
+                          title: tr("本地商品规格"),
                           width: 190,
                           render: (_, r) => (
                             <Space direction="vertical" size={2} className="product-draft-platform-sku__local">
                               <Typography.Text strong className="product-draft-platform-sku__name">
-                                {r.skuCode || '未填写规格编码'}
+                                {r.skuCode || tr("未填写规格编码")}
                               </Typography.Text>
                               <span className="product-draft-platform-sku__sub-id">
                                 {platformSkuValue(r.productSkuId)}
@@ -4094,19 +4106,19 @@ export default function ProductDraftDetailPage() {
                           ),
                         },
                         {
-                          title: '外部商品 ID',
+                          title: tr("外部商品 ID"),
                           dataIndex: 'externalProductId',
                           width: 160,
                           render: (t: string | undefined) => platformSkuValue(t),
                         },
                         {
-                          title: '平台规格编码',
+                          title: tr("平台规格编码"),
                           dataIndex: 'externalSkuId',
                           width: 160,
                           render: (t: string | undefined) => platformSkuValue(t),
                         },
                         {
-                          title: '规格绑定',
+                          title: tr("规格绑定"),
                           width: 128,
                           render: (_x, r) => {
                             if ((r.platform || '').toLowerCase() !== 'douyin_shop') return '—';
@@ -4120,7 +4132,7 @@ export default function ProductDraftDetailPage() {
                           },
                         },
                         {
-                          title: '平台库存快照',
+                          title: tr("平台库存快照"),
                           width: 168,
                           render: (_x, r) => {
                             const sku = data.skus?.find((s) => s.id === r.productSkuId);
@@ -4135,13 +4147,13 @@ export default function ProductDraftDetailPage() {
                             if (plat === null || plat === undefined) {
                               nodes.push(
                                 <Tag key="u" style={{ marginLeft: 6 }}>
-                                  未知
+                                  {tr("未知")}
                                 </Tag>,
                               );
                             } else if (local !== null && plat !== local) {
                               nodes.push(
                                 <Tag key="m" color="orange" style={{ marginLeft: 6 }}>
-                                  与本地不一致
+                                  {tr("与本地不一致")}
                                 </Tag>,
                               );
                             }
@@ -4149,12 +4161,12 @@ export default function ProductDraftDetailPage() {
                           },
                         },
                         {
-                          title: '库存同步',
+                          title: tr("库存同步"),
                           width: 110,
                           render: (_x, r) => inventorySyncCapabilityTag(r.inventorySyncCapability),
                         },
                         {
-                          title: '操作',
+                          title: tr("操作"),
                           width: 132,
                           render: (_x, r) => {
                             const ok = inventorySyncRunnable(r.inventorySyncCapability);
@@ -4171,10 +4183,10 @@ export default function ProductDraftDetailPage() {
                             const st = String(r.bindStatus || '').toLowerCase();
                             const shouldManageBinding = isDouyin && (blocked || !hasBinding);
                             const disableReason = isDouyin && st === 'ambiguous'
-                              ? '找到多个可能的抖店规格，请到刊登 Tab 确认绑定后再同步库存。'
+                              ? tr("找到多个可能的抖店规格，请到刊登 Tab 确认绑定后再同步库存。")
                               : isDouyin && (st === 'unmatched' || st === 'failed' || !hasBinding)
-                                ? '该规格还没有绑定抖店规格，请到刊登 Tab 管理绑定后再同步库存。'
-                                : '当前平台未开放库存同步、店铺未授权，或该映射行不可用';
+                                ? tr("该规格还没有绑定抖店规格，请到刊登 Tab 管理绑定后再同步库存。")
+                                : tr("当前平台未开放库存同步、店铺未授权，或该映射行不可用");
                             const btn = (
                               <Button
                                 type="link"
@@ -4188,7 +4200,7 @@ export default function ProductDraftDetailPage() {
                                   setSyncOpen(true);
                                 }}
                               >
-                                同步库存
+                                {tr("同步库存")}
                               </Button>
                             );
                             const syncAction = canSync ? btn : (
@@ -4205,7 +4217,7 @@ export default function ProductDraftDetailPage() {
                                   className="product-draft-inventory-sync__action"
                                   onClick={() => openDraftLocation('publish', 'douyin-sku-bindings')}
                                 >
-                                  管理绑定
+                                  {tr("管理绑定")}
                                 </Button>
                               </Space>
                             ) : syncAction;
@@ -4223,28 +4235,28 @@ export default function ProductDraftDetailPage() {
               label: tabLabels.readiness,
               children: (
                 <SectionCard
-                  title="发布检查"
-                  description="检查当前草稿在所选平台下的完整性。检查通过不代表已经刊登，重新检查也不会自动修复商品字段。"
+                  title={tr("发布检查")}
+                  description={tr("检查当前草稿在所选平台下的完整性。检查通过不代表已经刊登，重新检查也不会自动修复商品字段。")}
                   id="publish-check"
                   className="product-draft-readiness publish-check"
                   headerExtra={
                     <OperationToolbar>
                       <Button type="primary" icon={<ReloadOutlined />} loading={readinessLoading} onClick={() => void runReadinessForTab()}>
-                        重新检查
+                        {tr("重新检查")}
                       </Button>
                     </OperationToolbar>
                   }
                 >
                   <Space direction="vertical" className="product-draft-readiness__stack" size="large">
-                    <div className="product-draft-readiness__control-strip" aria-label="发布检查范围">
+                    <div className="product-draft-readiness__control-strip" aria-label={tr("发布检查范围")}>
                       <div className="product-draft-readiness__mode-copy">
-                        <Typography.Text strong>草稿完整性检查</Typography.Text>
+                        <Typography.Text strong>{tr("草稿完整性检查")}</Typography.Text>
                         <Typography.Text type="secondary">
-                          当前页面固定使用 draft 模式；未选店铺时只校验商品、规格、图片等草稿内容，选定店铺后会把平台和店铺条件一并纳入检查。
+                          {tr("当前页面固定使用 draft 模式；未选店铺时只校验商品、规格、图片等草稿内容，选定店铺后会把平台和店铺条件一并纳入检查。")}
                         </Typography.Text>
                       </div>
                       <Space wrap align="center" className="product-draft-readiness__controls">
-                        <Typography.Text strong>目标平台</Typography.Text>
+                        <Typography.Text strong>{tr("目标平台")}</Typography.Text>
                         <Select
                           className="product-draft-readiness__platform-select"
                           value={readinessPlat}
@@ -4261,10 +4273,10 @@ export default function ProductDraftDetailPage() {
                             value: p,
                           }))}
                         />
-                        <Typography.Text strong>店铺</Typography.Text>
+                        <Typography.Text strong>{tr("店铺")}</Typography.Text>
                         <Select
                           className="product-draft-readiness__shop-select"
-                          placeholder="选择已授权店铺"
+                          placeholder={tr("选择已授权店铺")}
                           allowClear
                           showSearch
                           optionFilterProp="label"
@@ -4280,33 +4292,33 @@ export default function ProductDraftDetailPage() {
                     {readinessLoading && !readinessResult ? (
                       <div className="product-draft-readiness__loading">
                         <Spin />
-                        <Typography.Text type="secondary">正在请求发布检查结果。</Typography.Text>
+                        <Typography.Text type="secondary">{tr("正在请求发布检查结果。")}</Typography.Text>
                       </div>
                     ) : readinessResult ? (
                       <>
-                        <div className="product-draft-readiness__summary" aria-label="发布检查摘要">
+                        <div className="product-draft-readiness__summary" aria-label={tr("发布检查摘要")}>
                           <MetricCard
-                            title="总状态"
+                            title={tr("总状态")}
                             value={readinessStatusTag(readinessResult)}
-                            description={`平台 ${platformDisplayLabel(readinessResult.platform || readinessPlat)} · ${readinessResult.shopId || readinessShopId ? '包含店铺条件' : '未选择店铺'}`}
+                            description={trFormat("平台 {value0} · {value1}", { value0: String(platformDisplayLabel(readinessResult.platform || readinessPlat)), value1: String(readinessResult.shopId || readinessShopId ? tr("包含店铺条件") : tr("未选择店铺")) })}
                             intent={readinessResult.errorCount > 0 ? 'danger' : readinessResult.warningCount > 0 ? 'warning' : 'success'}
                           />
                           <MetricCard
-                            title="阻断项"
+                            title={tr("阻断项")}
                             value={readinessResult.errorCount}
-                            description={readinessResult.errorCount > 0 ? '需要先处理后再进入下一步。' : '当前检查范围内没有阻断项。'}
+                            description={readinessResult.errorCount > 0 ? tr("需要先处理后再进入下一步。") : tr("当前检查范围内没有阻断项。")}
                             intent={readinessResult.errorCount > 0 ? 'danger' : 'default'}
                           />
                           <MetricCard
-                            title="警告项"
+                            title={tr("警告项")}
                             value={readinessResult.warningCount}
-                            description={readinessResult.warningCount > 0 ? '建议发布前人工确认。' : '当前检查范围内没有警告项。'}
+                            description={readinessResult.warningCount > 0 ? tr("建议发布前人工确认。") : tr("当前检查范围内没有警告项。")}
                             intent={readinessResult.warningCount > 0 ? 'warning' : 'default'}
                           />
                           <MetricCard
-                            title="下一步"
-                            value={readinessResult.canPublish ? '可继续' : '需处理'}
-                            description="来自检查接口返回的 canPublish，不代表已刊登。"
+                            title={tr("下一步")}
+                            value={readinessResult.canPublish ? tr("可继续") : tr("需处理")}
+                            description={tr("来自检查接口返回的 canPublish，不代表已刊登。")}
                             intent={readinessResult.canPublish ? 'success' : 'default'}
                           />
                         </div>
@@ -4314,22 +4326,22 @@ export default function ProductDraftDetailPage() {
                           <Alert
                             type="success"
                             showIcon
-                            message="当前检查范围内没有发现问题"
-                            description="这只表示草稿检查未返回阻断或警告，不会自动创建刊登草稿，也不代表商品已经发布。"
+                            message={tr("当前检查范围内没有发现问题")}
+                            description={tr("这只表示草稿检查未返回阻断或警告，不会自动创建刊登草稿，也不代表商品已经发布。")}
                           />
                         ) : null}
                         {readinessChecks.length === 0 && (readinessResult.errorCount > 0 || readinessResult.warningCount > 0) ? (
                           <Alert
                             type="info"
                             showIcon
-                            message="检查返回了汇总状态，但没有返回检查项列表"
-                            description="请根据总状态处理，或点击重新检查再次获取明细。"
+                            message={tr("检查返回了汇总状态，但没有返回检查项列表")}
+                            description={tr("请根据总状态处理，或点击重新检查再次获取明细。")}
                           />
                         ) : null}
                         {readinessErrorItems.length > 0 ? (
                           <div className="product-draft-readiness__issue-band product-draft-readiness__issue-band--danger">
                             <div className="product-draft-readiness__issue-band-head">
-                              <Typography.Text strong>阻断项</Typography.Text>
+                              <Typography.Text strong>{tr("阻断项")}</Typography.Text>
                               <Tag color="red">{readinessErrorItems.length}</Tag>
                             </div>
                             {readinessCheckList(readinessErrorItems, 4)}
@@ -4338,7 +4350,7 @@ export default function ProductDraftDetailPage() {
                         {readinessWarningItems.length > 0 ? (
                           <div className="product-draft-readiness__issue-band product-draft-readiness__issue-band--warning">
                             <div className="product-draft-readiness__issue-band-head">
-                              <Typography.Text strong>警告项</Typography.Text>
+                              <Typography.Text strong>{tr("警告项")}</Typography.Text>
                               <Tag color="orange">{readinessWarningItems.length}</Tag>
                             </div>
                             {readinessCheckList(readinessWarningItems, 4)}
@@ -4347,7 +4359,7 @@ export default function ProductDraftDetailPage() {
                         {readinessSuggestionItems.length > 0 ? (
                           <div className="product-draft-readiness__issue-band product-draft-readiness__issue-band--muted">
                             <div className="product-draft-readiness__issue-band-head">
-                              <Typography.Text strong>建议项</Typography.Text>
+                              <Typography.Text strong>{tr("建议项")}</Typography.Text>
                               <Tag>{readinessSuggestionItems.length}</Tag>
                             </div>
                             {readinessCheckList(readinessSuggestionItems, 4)}
@@ -4365,11 +4377,11 @@ export default function ProductDraftDetailPage() {
                                 key: g,
                                 label: (
                                   <div className="product-draft-readiness__group-label">
-                                    <Typography.Text strong>{READINESS_GROUP_LABEL[g] || g}</Typography.Text>
+                                    <Typography.Text strong>{READINESS_GROUP_LABEL[g] ? tr(READINESS_GROUP_LABEL[g]) : g}</Typography.Text>
                                     <Space size={4} wrap>
-                                      {groupErrors > 0 ? <Tag color="red">阻断 {groupErrors}</Tag> : null}
-                                      {groupWarnings > 0 ? <Tag color="orange">警告 {groupWarnings}</Tag> : null}
-                                      {groupErrors === 0 && groupWarnings === 0 ? <Tag>检查项 {rows.length}</Tag> : null}
+                                      {groupErrors > 0 ? <Tag color="red">{tr("阻断")} {groupErrors}</Tag> : null}
+                                      {groupWarnings > 0 ? <Tag color="orange">{tr("警告")} {groupWarnings}</Tag> : null}
+                                      {groupErrors === 0 && groupWarnings === 0 ? <Tag>{tr("检查项")} {rows.length}</Tag> : null}
                                     </Space>
                                   </div>
                                 ),
@@ -4382,25 +4394,25 @@ export default function ProductDraftDetailPage() {
                                     dataSource={rows}
                                     columns={[
                                       {
-                                        title: '级别',
+                                        title: tr("级别"),
                                         width: 96,
                                         render: (_: unknown, row: ReadinessCheckItem) => readinessLevelTag(row.level),
                                       },
                                       {
-                                        title: '检查项',
+                                        title: tr("检查项"),
                                         render: (_: unknown, row: ReadinessCheckItem) => {
                                           const loc = localizePublishCheckItem(row);
                                           return (
                                             <Space direction="vertical" size={2} className="product-draft-readiness__check-copy">
                                               <Typography.Text strong>{loc.title}</Typography.Text>
                                               <Typography.Text type="secondary">{loc.message}</Typography.Text>
-                                              {row.code ? <Typography.Text type="secondary">编号：{row.code}</Typography.Text> : null}
+                                              {row.code ? <Typography.Text type="secondary">{tr("编号：")}{row.code}</Typography.Text> : null}
                                             </Space>
                                           );
                                         },
                                       },
                                       {
-                                        title: '建议 / 操作',
+                                        title: tr("建议 / 操作"),
                                         width: 260,
                                         render: (_: unknown, row: ReadinessCheckItem) => {
                                           const fx = getProductReadinessAction(row.code);
@@ -4416,17 +4428,17 @@ export default function ProductDraftDetailPage() {
                                                     onClick={() => openDraftLocation(fx.tab!, fx.section)}
                                                   >
                                                     {fx.label}
-                                                    {fx.section ? ` · ${PRODUCT_DRAFT_TAB_LABELS[fx.tab!] || fx.tab}` : ''}
+                                                    {fx.section ? ` · ${PRODUCT_DRAFT_TAB_LABELS[fx.tab!] ? tr(PRODUCT_DRAFT_TAB_LABELS[fx.tab!]) : fx.tab}` : ''}
                                                   </Button>
                                                 ) : (
                                                   <Link className="product-draft-readiness__action" to={fx.href!}>{fx.label}</Link>
                                                 )
                                               ) : (
-                                                <Typography.Text type="secondary">查看检查项说明后手动处理</Typography.Text>
+                                                <Typography.Text type="secondary">{tr("查看检查项说明后手动处理")}</Typography.Text>
                                               )}
                                               {row.technicalDetails ? (
-                                                <TechnicalDetails label="技术信息">
-                                                  <TaskJsonBlock title="检查项技术信息" value={row.technicalDetails} last />
+                                                <TechnicalDetails label={tr("技术信息")}>
+                                                  <TaskJsonBlock title={tr("检查项技术信息")} value={row.technicalDetails} last />
                                                 </TechnicalDetails>
                                               ) : null}
                                             </Space>
@@ -4436,27 +4448,27 @@ export default function ProductDraftDetailPage() {
                                     ]}
                                   />
                                 ) : (
-                                  <EmptyState compact title="当前分组没有检查项" description="保留分组顺序，等待检查接口返回明细。" />
+                                  <EmptyState compact title={tr("当前分组没有检查项")} description={tr("保留分组顺序，等待检查接口返回明细。")} />
                                 ),
                               };
                             })}
                           />
                         ) : null}
-                        <TechnicalDetails label="完整检查结果">
-                          <TaskJsonBlock title="检查结果" value={readinessResult} last />
+                        <TechnicalDetails label={tr("完整检查结果")}>
+                          <TaskJsonBlock title={tr("检查结果")} value={readinessResult} last />
                         </TechnicalDetails>
                       </>
                     ) : readinessError ? (
                       <Alert
                         type="error"
                         showIcon
-                        message="发布检查请求失败"
+                        message={tr("发布检查请求失败")}
                         description={
                           <Space direction="vertical" size={8} className="product-draft-readiness__error-copy">
-                            <Typography.Text>{readinessError}</Typography.Text>
-                            <Typography.Text type="secondary">请保留当前商品内容，稍后点击「重新检查」重试。</Typography.Text>
-                            <TechnicalDetails label="检查失败技术信息">
-                              <TaskJsonBlock title="错误信息" value={{ message: readinessError }} last />
+                            <Typography.Text>{localizeProductError(readinessError)}</Typography.Text>
+                            <Typography.Text type="secondary">{tr("请保留当前商品内容，稍后点击「重新检查」重试。")}</Typography.Text>
+                            <TechnicalDetails label={tr("检查失败技术信息")}>
+                              <TaskJsonBlock title={tr("错误信息")} value={{ message: readinessError }} last />
                             </TechnicalDetails>
                           </Space>
                         }
@@ -4464,8 +4476,8 @@ export default function ProductDraftDetailPage() {
                     ) : (
                       <EmptyState
                         compact
-                        title="尚未执行发布检查"
-                        description="选择平台与店铺后点击「重新检查」。未选店铺时仅校验商品 / 规格 / 图片，不校验店铺与平台配置。"
+                        title={tr("尚未执行发布检查")}
+                        description={tr("选择平台与店铺后点击「重新检查」。未选店铺时仅校验商品 / 规格 / 图片，不校验店铺与平台配置。")}
                       />
                     )}
                   </Space>
@@ -4479,172 +4491,172 @@ export default function ProductDraftDetailPage() {
                 <Spin spinning={pubCtxLoading || publishReadinessLoading}>
                   <Space direction="vertical" className="product-draft-publish" size="middle">
                     <SectionCard
-                      title="刊登流程说明"
-                      description="先确认商品内容、图片、规格、类目和平台能力，再选择合适的刊登入口。"
+                      title={tr("刊登流程说明")}
+                      description={tr("先确认商品内容、图片、规格、类目和平台能力，再选择合适的刊登入口。")}
                       className="product-draft-publish__intro"
                     >
                       <div className="product-draft-publish__flow">
                         <div>
-                          <Typography.Text strong>创建刊登草稿</Typography.Text>
+                          <Typography.Text strong>{tr("创建刊登草稿")}</Typography.Text>
                           <Typography.Paragraph type="secondary">
-                            多平台中心和抖店专项流程会先创建可继续编辑或确认的草稿，不代表商品已经正式提交到平台。
+                            {tr("多平台中心和抖店专项流程会先创建可继续编辑或确认的草稿，不代表商品已经正式提交到平台。")}
                           </Typography.Paragraph>
                         </div>
                         {!isProductionBuild ? (
                           <div>
-                            <Typography.Text strong>提交刊登</Typography.Text>
+                            <Typography.Text strong>{tr("提交刊登")}</Typography.Text>
                             <Typography.Paragraph type="secondary">
-                              传统入口会在发布检查通过后调用刊登提交接口，可能产生真实平台写操作和后台刊登任务。
+                              {tr("传统入口会在发布检查通过后调用刊登提交接口，可能产生真实平台写操作和后台刊登任务。")}
                             </Typography.Paragraph>
                           </div>
                         ) : null}
                         <div>
-                          <Typography.Text strong>发布检查</Typography.Text>
+                          <Typography.Text strong>{tr("发布检查")}</Typography.Text>
                           <Typography.Paragraph type="secondary">
-                            检查通过只说明当前资料满足规则，仍需要选择路径并手动触发草稿创建或刊登提交。
+                            {tr("检查通过只说明当前资料满足规则，仍需要选择路径并手动触发草稿创建或刊登提交。")}
                           </Typography.Paragraph>
                         </div>
                       </div>
                     </SectionCard>
                     <SectionCard
-                      title="当前刊登条件摘要"
-                      description="仅展示当前页面已经加载到的店铺、平台、图片、规格、抖店配置和发布检查状态。"
+                      title={tr("当前刊登条件摘要")}
+                      description={tr("仅展示当前页面已经加载到的店铺、平台、图片、规格、抖店配置和发布检查状态。")}
                       className="product-draft-publish__summary-card"
-                      headerExtra={<Button onClick={() => void reloadPublishContext()}>刷新快照</Button>}
+                      headerExtra={<Button onClick={() => void reloadPublishContext()}>{tr("刷新快照")}</Button>}
                     >
                       <Space direction="vertical" style={{ width: '100%' }} size="middle">
                         {pubCtxError ? (
                           <Alert
                             type="error"
                             showIcon
-                            message="刊登上下文加载失败"
-                            description={pubCtxError}
-                            action={<Button size="small" onClick={() => void reloadPublishContext()}>重新加载</Button>}
+                            message={tr("刊登上下文加载失败")}
+                            description={localizeProductError(pubCtxError)}
+                            action={<Button size="small" onClick={() => void reloadPublishContext()}>{tr("重新加载")}</Button>}
                           />
                         ) : null}
                         {publishWriteDisabled ? (
                           <Alert
                             type="info"
                             showIcon
-                            message="当前账号无刊登草稿写权限"
-                            description="可查看配置、任务和刊登记录；刊登检查、草稿创建、配置保存与图片上传均已禁用。"
+                            message={tr("当前账号无刊登草稿写权限")}
+                            description={tr("可查看配置、任务和刊登记录；刊登检查、草稿创建、配置保存与图片上传均已禁用。")}
                           />
                         ) : null}
                         <div className="product-draft-publish__condition-grid">
                           <div className="product-draft-publish__condition">
-                            <span>店铺上下文</span>
-                            <strong>{shopsList.length ? `${shopsList.length} 个已授权店铺` : '无已授权店铺'}</strong>
+                            <span>{tr("店铺上下文")}</span>
+                            <strong>{shopsList.length ? trFormat("{value0} 个已授权店铺", { value0: shopsList.length }) : tr("无已授权店铺")}</strong>
                             <Typography.Text type="secondary">
                               {isProductionBuild
-                                ? `${shopsList.length} 个店铺可用于本地草稿或受控平台流程`
+                                ? trFormat("{value0} 个店铺可用于本地草稿或受控平台流程", { value0: String(shopsList.length) })
                                 : eligibleShopsForPublish.length
-                                  ? `${eligibleShopsForPublish.length} 个店铺支持传统刊登或 beta`
+                                  ? trFormat("{value0} 个店铺支持传统刊登或 beta", { value0: String(eligibleShopsForPublish.length) })
                                   : pubCtxError
-                                    ? '店铺数据加载失败'
-                                    : '传统刊登暂无可用店铺'}
+                                    ? tr("店铺数据加载失败")
+                                    : tr("传统刊登暂无可用店铺")}
                             </Typography.Text>
                           </div>
                           <div className="product-draft-publish__condition">
-                            <span>平台能力</span>
-                            <strong>{platformPublishAvailableCount ? `${platformPublishAvailableCount} 个平台可刊登` : '未发现可用能力'}</strong>
+                            <span>{tr("平台能力")}</span>
+                            <strong>{platformPublishAvailableCount ? trFormat("{value0} 个平台可刊登", { value0: platformPublishAvailableCount }) : tr("未发现可用能力")}</strong>
                             <Typography.Text type="secondary">
-                              {platformsMeta.length ? '来自平台接入服务的商品刊登能力' : pubCtxError ? '平台能力加载失败' : '暂无平台能力数据'}
+                              {platformsMeta.length ? tr("来自平台接入服务的商品刊登能力") : pubCtxError ? tr("平台能力加载失败") : tr("暂无平台能力数据")}
                             </Typography.Text>
                           </div>
                           {!isProductionBuild ? (
                             <div className="product-draft-publish__condition">
-                              <span>发布检查</span>
-                              <strong>{publishReadiness ? readinessStatusTag(publishReadiness) : '未选择传统刊登店铺'}</strong>
+                              <span>{tr("发布检查")}</span>
+                              <strong>{publishReadiness ? readinessStatusTag(publishReadiness) : tr("未选择传统刊登店铺")}</strong>
                               <Typography.Text type="secondary">
-                                {publishReadiness ? `错误 ${publishReadiness.errorCount} · 警告 ${publishReadiness.warningCount}` : '选择店铺后会加载 publish 模式检查'}
+                                {publishReadiness ? trFormat("错误 {value0} · 警告 {value1}", { value0: publishReadiness.errorCount, value1: publishReadiness.warningCount }) : tr("选择店铺后会加载 publish 模式检查")}
                               </Typography.Text>
                             </div>
                           ) : null}
                           <div className="product-draft-publish__condition">
-                            <span>图片准备</span>
-                            <strong>{imageSyncSummary.synced} / {imageSyncSummary.total} 已同步</strong>
-                            <Typography.Text type="secondary">外链 {imageSyncSummary.external} · 主图 {imageSyncSummary.externalMain} · 详情图 {imageSyncSummary.externalDetail}</Typography.Text>
+                            <span>{tr("图片准备")}</span>
+                            <strong>{imageSyncSummary.synced} / {imageSyncSummary.total} {tr("已同步")}</strong>
+                            <Typography.Text type="secondary">{tr("外链")} {imageSyncSummary.external} {tr("· 主图")} {imageSyncSummary.externalMain} {tr("· 详情图")} {imageSyncSummary.externalDetail}</Typography.Text>
                           </div>
                           <div className="product-draft-publish__condition">
-                            <span>本地规格与库存</span>
-                            <strong>{data.skus?.length ?? 0} 个规格</strong>
-                            <Typography.Text type="secondary">刊登前需要确认规格编码、价格和库存。</Typography.Text>
+                            <span>{tr("本地规格与库存")}</span>
+                            <strong>{data.skus?.length ?? 0} {tr("个规格")}</strong>
+                            <Typography.Text type="secondary">{tr("刊登前需要确认规格编码、价格和库存。")}</Typography.Text>
                           </div>
                           <div className="product-draft-publish__condition">
-                            <span>平台 SKU 映射</span>
-                            <strong>{pubSkuRows.length ? `${pubSkuRows.length} 条映射记录` : '暂无映射记录'}</strong>
-                            <Typography.Text type="secondary">抖店已绑定 {douyinSkuBinding?.bound ?? '—'} · 未绑定 {douyinSkuBinding?.unmatched ?? '—'}</Typography.Text>
+                            <span>{tr("平台 SKU 映射")}</span>
+                            <strong>{pubSkuRows.length ? trFormat("{value0} 条映射记录", { value0: pubSkuRows.length }) : tr("暂无映射记录")}</strong>
+                            <Typography.Text type="secondary">{tr("抖店已绑定")} {douyinSkuBinding?.bound ?? '—'} {tr("· 未绑定")} {douyinSkuBinding?.unmatched ?? '—'}</Typography.Text>
                           </div>
                           <div className="product-draft-publish__condition">
-                            <span>抖店类目与属性</span>
-                            <strong>{douyinConfig.categoryId ? '已选择类目' : '未选择类目'}</strong>
-                            <Typography.Text type="secondary">必填属性 {douyinRequiredAttrs.length} 项 · 未填写 {douyinMissingRequiredAttrs.length} 项</Typography.Text>
+                            <span>{tr("抖店类目与属性")}</span>
+                            <strong>{douyinConfig.categoryId ? tr("已选择类目") : tr("未选择类目")}</strong>
+                            <Typography.Text type="secondary">{tr("必填属性")} {douyinRequiredAttrs.length} {tr("项 · 未填写")} {douyinMissingRequiredAttrs.length} {tr("项")}</Typography.Text>
                           </div>
                           <div className="product-draft-publish__condition">
-                            <span>抖店草稿映射</span>
-                            <strong>{douyinMapping ? '已有草稿映射' : '未生成草稿映射'}</strong>
-                            <Typography.Text type="secondary">错误 {douyinMappingErrorCount} · 警告 {douyinMappingWarningCount} · 已上传主图 {douyinUploadedMainImages}/{douyinMainImages.length}</Typography.Text>
+                            <span>{tr("抖店草稿映射")}</span>
+                            <strong>{douyinMapping ? tr("已有草稿映射") : tr("未生成草稿映射")}</strong>
+                            <Typography.Text type="secondary">{tr("错误")} {douyinMappingErrorCount} {tr("· 警告")} {douyinMappingWarningCount} {tr("· 已上传主图")} {douyinUploadedMainImages}/{douyinMainImages.length}</Typography.Text>
                           </div>
                         </div>
                       </Space>
                     </SectionCard>
                     <SectionCard
-                      title="阻断项和待完善项"
-                      description="阻断项需要先处理；待确认项不会被本页自动修复。"
+                      title={tr("阻断项和待完善项")}
+                      description={tr("阻断项需要先处理；待确认项不会被本页自动修复。")}
                       className="product-draft-publish__issues-card"
                     >
                       <Space direction="vertical" style={{ width: '100%' }} size="small">
-                        {!pubCtxError && shopsList.length === 0 ? <Alert type="warning" showIcon message="暂无已授权店铺" description="请先完成店铺授权后再选择刊登路径。" /> : null}
-                        {!isProductionBuild && !pubCtxError && shopsList.length > 0 && eligibleShopsForPublish.length === 0 ? <Alert type="warning" showIcon message="暂无支持传统刊登的店铺" description="平台接入服务未返回可用或测试中的商品刊登能力。" /> : null}
-                        {publishReadinessErrors.length ? <Alert type="error" showIcon message="发布检查存在阻断" description={readinessCheckList(publishReadinessErrors, 5)} action={<Button size="small" onClick={() => openDraftLocation('readiness', 'publish-check')}>去发布检查</Button>} /> : null}
-                        {publishReadinessWarnings.length ? <Alert type="warning" showIcon message="发布检查有待确认项" description={readinessCheckList(publishReadinessWarnings, 5)} action={<Button size="small" onClick={() => openDraftLocation('readiness', 'publish-check')}>查看明细</Button>} /> : null}
-                        {imageSyncSummary.external > 0 ? <Alert type="warning" showIcon message="仍有图片未同步到平台存储" description="抖店创建商品草稿前还需要把需要使用的图片上传到抖店。" action={<Button size="small" onClick={() => openDraftLocation('images', 'image-list')}>去图片管理</Button>} /> : null}
-                        {currentSkuCount === 0 ? <Alert type="warning" showIcon message="暂无本地 SKU" description="刊登和库存同步都依赖本地规格、价格和库存数据。" action={<Button size="small" onClick={() => openDraftLocation('skus', 'local-skus')}>去 SKU</Button>} /> : null}
-                        {!douyinConfig.categoryId ? <Alert type="warning" showIcon message="抖店未选择类目" description="抖店专项流程需要先选择叶子类目。" /> : null}
-                        {douyinMissingRequiredAttrs.length ? <Alert type="warning" showIcon message="抖店必填属性未完整填写" description={`仍有 ${douyinMissingRequiredAttrs.length} 项必填属性未填写。`} /> : null}
-                        {douyinMapping && douyinMappingErrorCount > 0 ? <Alert type="error" showIcon message="抖店草稿映射存在错误" description={douyinIssueList(douyinMapping.errors)} /> : null}
-                        {douyinMapping && douyinMainImages.length > 0 && douyinUploadedMainImages === 0 ? <Alert type="warning" showIcon message="抖店主图尚未上传成功" description="至少需要一张主图上传到抖店后，才能创建抖店商品草稿。" /> : null}
-                        {!pubCtxError && shopsList.length > 0 && !publishReadinessErrors.length && !publishReadinessWarnings.length && !imageSyncSummary.external && currentSkuCount > 0 ? <Alert type="success" showIcon message="当前摘要未发现通用阻断" description="仍需根据所选路径完成对应平台配置、草稿创建或提交刊登确认。" /> : null}
+                        {!pubCtxError && shopsList.length === 0 ? <Alert type="warning" showIcon message={tr("暂无已授权店铺")} description={tr("请先完成店铺授权后再选择刊登路径。")} /> : null}
+                        {!isProductionBuild && !pubCtxError && shopsList.length > 0 && eligibleShopsForPublish.length === 0 ? <Alert type="warning" showIcon message={tr("暂无支持传统刊登的店铺")} description={tr("平台接入服务未返回可用或测试中的商品刊登能力。")} /> : null}
+                        {publishReadinessErrors.length ? <Alert type="error" showIcon message={tr("发布检查存在阻断")} description={readinessCheckList(publishReadinessErrors, 5)} action={<Button size="small" onClick={() => openDraftLocation('readiness', 'publish-check')}>{tr("去发布检查")}</Button>} /> : null}
+                        {publishReadinessWarnings.length ? <Alert type="warning" showIcon message={tr("发布检查有待确认项")} description={readinessCheckList(publishReadinessWarnings, 5)} action={<Button size="small" onClick={() => openDraftLocation('readiness', 'publish-check')}>{tr("查看明细")}</Button>} /> : null}
+                        {imageSyncSummary.external > 0 ? <Alert type="warning" showIcon message={tr("仍有图片未同步到平台存储")} description={tr("抖店创建商品草稿前还需要把需要使用的图片上传到抖店。")} action={<Button size="small" onClick={() => openDraftLocation('images', 'image-list')}>{tr("去图片管理")}</Button>} /> : null}
+                        {currentSkuCount === 0 ? <Alert type="warning" showIcon message={tr("暂无本地 SKU")} description={tr("刊登和库存同步都依赖本地规格、价格和库存数据。")} action={<Button size="small" onClick={() => openDraftLocation('skus', 'local-skus')}>{tr("去 SKU")}</Button>} /> : null}
+                        {!douyinConfig.categoryId ? <Alert type="warning" showIcon message={tr("抖店未选择类目")} description={tr("抖店专项流程需要先选择叶子类目。")} /> : null}
+                        {douyinMissingRequiredAttrs.length ? <Alert type="warning" showIcon message={tr("抖店必填属性未完整填写")} description={trFormat("仍有 {value0} 项必填属性未填写。", { value0: douyinMissingRequiredAttrs.length })} /> : null}
+                        {douyinMapping && douyinMappingErrorCount > 0 ? <Alert type="error" showIcon message={tr("抖店草稿映射存在错误")} description={douyinIssueList(douyinMapping.errors)} /> : null}
+                        {douyinMapping && douyinMainImages.length > 0 && douyinUploadedMainImages === 0 ? <Alert type="warning" showIcon message={tr("抖店主图尚未上传成功")} description={tr("至少需要一张主图上传到抖店后，才能创建抖店商品草稿。")} /> : null}
+                        {!pubCtxError && shopsList.length > 0 && !publishReadinessErrors.length && !publishReadinessWarnings.length && !imageSyncSummary.external && currentSkuCount > 0 ? <Alert type="success" showIcon message={tr("当前摘要未发现通用阻断")} description={tr("仍需根据所选路径完成对应平台配置、草稿创建或提交刊登确认。")} /> : null}
                       </Space>
                     </SectionCard>
                     <SectionCard
-                      title="刊登路径选择"
-                      description="三条路径适用的场景不同；本页只整理入口，不自动触发任何写操作。"
+                      title={tr("刊登路径选择")}
+                      description={tr("三条路径适用的场景不同；本页只整理入口，不自动触发任何写操作。")}
                       className="product-draft-publish__paths"
                     >
                       <div className="product-draft-publish__path-grid">
                         <div className="product-draft-publish__path product-draft-publish__path--primary">
-                          <Typography.Text strong>多平台刊登中心</Typography.Text>
-                          <Tag color="blue">主推路径</Tag>
-                          <Typography.Text type="secondary">通过中心化流程创建多平台刊登草稿，创建后刷新刊登上下文、抖店任务和平台 SKU 映射。</Typography.Text>
+                          <Typography.Text strong>{tr("多平台刊登中心")}</Typography.Text>
+                          <Tag color="blue">{tr("主推路径")}</Tag>
+                          <Typography.Text type="secondary">{tr("通过中心化流程创建多平台刊登草稿，创建后刷新刊登上下文、抖店任务和平台 SKU 映射。")}</Typography.Text>
                         </div>
                         <div className="product-draft-publish__path">
-                          <Typography.Text strong>抖店专项流程</Typography.Text>
-                          <Tag>草稿和配置</Tag>
-                          <Typography.Text type="secondary">处理抖店店铺、类目、属性、图片上传、草稿映射和抖店商品草稿创建；创建后仍需到抖店后台确认上架。</Typography.Text>
+                          <Typography.Text strong>{tr("抖店专项流程")}</Typography.Text>
+                          <Tag>{tr("草稿和配置")}</Tag>
+                          <Typography.Text type="secondary">{tr("处理抖店店铺、类目、属性、图片上传、草稿映射和抖店商品草稿创建；创建后仍需到抖店后台确认上架。")}</Typography.Text>
                         </div>
                         {!isProductionBuild ? (
                           <div className="product-draft-publish__path product-draft-publish__path--compat">
-                            <Typography.Text strong>传统提交刊登</Typography.Text>
-                            <Tag color="orange">兼容入口</Tag>
-                            <Typography.Text type="secondary">执行 publish 模式发布检查后提交刊登任务，是可能触发真实平台写操作的入口。</Typography.Text>
+                            <Typography.Text strong>{tr("传统提交刊登")}</Typography.Text>
+                            <Tag color="orange">{tr("兼容入口")}</Tag>
+                            <Typography.Text type="secondary">{tr("执行 publish 模式发布检查后提交刊登任务，是可能触发真实平台写操作的入口。")}</Typography.Text>
                           </div>
                         ) : null}
                       </div>
                     </SectionCard>
-                    <SectionCard title="多平台刊登中心" description="创建多平台刊登草稿，不等同于已经正式提交到平台。" className="product-draft-publish__multi-platform">
+                    <SectionCard title={tr("多平台刊登中心")} description={tr("创建多平台刊登草稿，不等同于已经正式提交到平台。")} className="product-draft-publish__multi-platform">
                       <div className="product-draft-publish__multi-platform-brief">
                         <div>
-                          <Typography.Text strong>当前商品</Typography.Text>
+                          <Typography.Text strong>{tr("当前商品")}</Typography.Text>
                           <Typography.Paragraph type="secondary">{productTitle}</Typography.Paragraph>
                         </div>
                         <div>
-                          <Typography.Text strong>创建后的下一步</Typography.Text>
-                          <Typography.Paragraph type="secondary">创建结果会刷新刊登上下文、抖店任务和平台 SKU 映射；请继续查看任务或进入对应平台配置。</Typography.Paragraph>
+                          <Typography.Text strong>{tr("创建后的下一步")}</Typography.Text>
+                          <Typography.Paragraph type="secondary">{tr("创建结果会刷新刊登上下文、抖店任务和平台 SKU 映射；请继续查看任务或进入对应平台配置。")}</Typography.Paragraph>
                         </div>
                         <div>
-                          <Typography.Text strong>只读状态</Typography.Text>
-                          <Typography.Paragraph type="secondary">{publishWriteDisabled ? '当前账号只可查看状态，刊登检查和草稿创建已禁用。' : '需要手动选择平台和店铺，本页不会自动选择或自动提交。'}</Typography.Paragraph>
+                          <Typography.Text strong>{tr("只读状态")}</Typography.Text>
+                          <Typography.Paragraph type="secondary">{publishWriteDisabled ? tr("当前账号只可查看状态，刊登检查和草稿创建已禁用。") : tr("需要手动选择平台和店铺，本页不会自动选择或自动提交。")}</Typography.Paragraph>
                         </div>
                       </div>
                       <MultiPlatformPublishCenter
@@ -4668,44 +4680,42 @@ export default function ProductDraftDetailPage() {
                       <Alert
                         type="info"
                         showIcon
-                        message="三、各平台 / 店铺单独配置"
+                        message={tr("三、各平台 / 店铺单独配置")}
                         description={
                           <>
-                            可为已授权且支持刊登的店铺创建刊登任务。提交前请先在{' '}
-                            <Link to="/settings/platform-publish">平台刊登预设</Link>{' '}
-                            补齐类目、品牌、包裹尺寸等信息；进度可在{' '}
-                            <Link to="/product/publish-tasks">刊登任务</Link> 查看。
-                            <TechnicalDetails label="预设项说明">
+                            {tr("可为已授权且支持刊登的店铺创建刊登任务。提交前请先在")}{' '}
+                            <Link to="/settings/platform-publish">{tr("平台刊登预设")}</Link>{' '}
+                            {tr("补齐类目、品牌、包裹尺寸等信息；进度可在")}{' '}
+                            <Link to="/product/publish-tasks">{tr("刊登任务")}</Link> {tr("查看。")}
+                            <TechnicalDetails label={tr("预设项说明")}>
                               <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
-                                各平台需配置对应刊登模板（如 TikTok、Shopee、Lazada、Amazon 的类目与物流选项）。内部预设键名：
-                                product_publish、platform_publish_tiktok、platform_publish_shopee、
-                                platform_publish_lazada、platform_publish_amazon。
+                                {tr("各平台需配置对应刊登模板（如 TikTok、Shopee、Lazada、Amazon 的类目与物流选项）。内部预设键名： product_publish、platform_publish_tiktok、platform_publish_shopee、 platform_publish_lazada、platform_publish_amazon。")}
                               </Typography.Paragraph>
                             </TechnicalDetails>
                           </>
                         }
                       />
                       <Descriptions bordered size="small" column={3}>
-                        <Descriptions.Item label="当前发布状态">
+                        <Descriptions.Item label={tr("当前发布状态")}>
                           <Tag color={data.publishStatus === 'success' ? 'green' : data.publishStatus === 'ready' ? 'blue' : 'default'}>
                             {commonStatusLabel(data.publishStatus || 'draft')}
                           </Tag>
                         </Descriptions.Item>
-                        <Descriptions.Item label="定价结果">
-                          {typeof data.salePrice === 'number' ? `${data.salePrice.toFixed(2)} ${data.currency || ''}` : '未设置售价'}
+                        <Descriptions.Item label={tr("定价结果")}>
+                          {typeof data.salePrice === 'number' ? `${data.salePrice.toFixed(2)} ${data.currency || ''}` : tr("未设置售价")}
                         </Descriptions.Item>
-                        <Descriptions.Item label="规格数">{data.skus?.length ?? 0}</Descriptions.Item>
-                        <Descriptions.Item label="图片同步">
-                          已同步 {imageSyncSummary.synced} / {imageSyncSummary.total}，外链 {imageSyncSummary.external}
+                        <Descriptions.Item label={tr("规格数")}>{data.skus?.length ?? 0}</Descriptions.Item>
+                        <Descriptions.Item label={tr("图片同步")}>
+                          {tr("已同步")} {imageSyncSummary.synced} / {imageSyncSummary.total}{tr("，外链")} {imageSyncSummary.external}
                         </Descriptions.Item>
-                        <Descriptions.Item label="主图外链">{imageSyncSummary.externalMain}</Descriptions.Item>
-                        <Descriptions.Item label="详情图外链">{imageSyncSummary.externalDetail}</Descriptions.Item>
+                        <Descriptions.Item label={tr("主图外链")}>{imageSyncSummary.externalMain}</Descriptions.Item>
+                        <Descriptions.Item label={tr("详情图外链")}>{imageSyncSummary.externalDetail}</Descriptions.Item>
                       </Descriptions>
                       {collectQualityWarnings.length > 0 ? (
                         <Alert
                           type="warning"
                           showIcon
-                          message="采集 warning 发布前需确认"
+                          message={tr("采集 warning 发布前需确认")}
                           description={collectQualityWarnings.slice(0, 6).join('；')}
                         />
                       ) : null}
@@ -4714,42 +4724,42 @@ export default function ProductDraftDetailPage() {
                           onClick={async () => {
                             try {
                               const res = await syncProductImages(id, { scope: 'main' });
-                              message.success(`已同步 ${res.synced} 张主图`);
+                              message.success(trFormat("已同步 {value0} 张主图", { value0: res.synced }));
                               await reloadDetail();
                             } catch (e: unknown) {
-                              message.error((e as Error)?.message || '同步失败');
+                              message.error((e as Error)?.message || tr("同步失败"));
                             }
                           }}
                         >
-                          同步主图到平台存储
+                          {tr("同步主图到平台存储")}
                         </Button>
                         <Button
                           onClick={async () => {
                             try {
                               const res = await syncProductImages(id, { scope: 'detail' });
-                              message.success(`已同步 ${res.synced} 张详情图`);
+                              message.success(trFormat("已同步 {value0} 张详情图", { value0: res.synced }));
                               await reloadDetail();
                             } catch (e: unknown) {
-                              message.error((e as Error)?.message || '同步失败');
+                              message.error((e as Error)?.message || tr("同步失败"));
                             }
                           }}
                         >
-                          同步详情图到平台存储
+                          {tr("同步详情图到平台存储")}
                         </Button>
                         <Button
                           onClick={async () => {
                             try {
                               const res = await syncProductImages(id, { scope: 'all' });
-                              message.success(`已同步 ${res.synced} 张图片到平台存储`);
+                              message.success(trFormat("已同步 {value0} 张图片到平台存储", { value0: res.synced }));
                               await reloadDetail();
                             } catch (e: unknown) {
-                              message.error((e as Error)?.message || '同步失败');
+                              message.error((e as Error)?.message || tr("同步失败"));
                             }
                           }}
                         >
-                          同步全部图片
+                          {tr("同步全部图片")}
                         </Button>
-                        <Button onClick={() => setPricingOpen(true)}>应用定价规则</Button>
+                        <Button onClick={() => setPricingOpen(true)}>{tr("应用定价规则")}</Button>
                       </Space>
                       <Table
                         size="small"
@@ -4757,27 +4767,27 @@ export default function ProductDraftDetailPage() {
                         pagination={false}
                         dataSource={skuMappingPreview}
                         columns={[
-                          { title: '规格', dataIndex: 'skuName', ellipsis: true },
-                          { title: '编码', dataIndex: 'skuCode', width: 160, ellipsis: true },
-                          { title: '售价', dataIndex: 'price', width: 100, render: (v) => (v != null ? Number(v).toFixed(2) : '—') },
-                          { title: '库存', dataIndex: 'stock', width: 80, render: (v) => (v != null ? v : '—') },
+                          { title: tr("规格"), dataIndex: 'skuName', ellipsis: true },
+                          { title: tr("编码"), dataIndex: 'skuCode', width: 160, ellipsis: true },
+                          { title: tr("售价"), dataIndex: 'price', width: 100, render: (v) => (v != null ? Number(v).toFixed(2) : '—') },
+                          { title: tr("库存"), dataIndex: 'stock', width: 80, render: (v) => (v != null ? v : '—') },
                         ]}
                       />
                       <div className="product-draft-douyin-flow">
                         <div className="product-draft-douyin-flow__title-block">
-                          <Typography.Title level={4}>抖店专项配置与创建商品草稿</Typography.Title>
+                          <Typography.Title level={4}>{tr("抖店专项配置与创建商品草稿")}</Typography.Title>
                           <Typography.Paragraph type="secondary">
-                            按抖店草稿创建的真实顺序处理店铺、类目、属性、映射、图片、规格绑定和创建任务；本区域不会自动正式发布。
+                            {tr("按抖店草稿创建的真实顺序处理店铺、类目、属性、映射、图片、规格绑定和创建任务；本区域不会自动正式发布。")}
                           </Typography.Paragraph>
                         </div>
                         <Space direction="vertical" style={{ width: '100%' }} size="middle">
                           <Alert
                             type="info"
                             showIcon
-                            message="抖店草稿流程说明"
-                            description="配置保存只保存店铺、类目和属性；生成映射只生成待编辑草稿；保存映射不等于校验通过；图片上传只是上传到抖店图片存储；创建抖店商品草稿不等于正式发布或商品上线。"
+                            message={tr("抖店草稿流程说明")}
+                            description={tr("配置保存只保存店铺、类目和属性；生成映射只生成待编辑草稿；保存映射不等于校验通过；图片上传只是上传到抖店图片存储；创建抖店商品草稿不等于正式发布或商品上线。")}
                           />
-                          <div className="product-draft-douyin-flow__status-grid" aria-label="抖店草稿创建前置条件摘要">
+                          <div className="product-draft-douyin-flow__status-grid" aria-label={tr("抖店草稿创建前置条件摘要")}>
                             {douyinDraftPrerequisiteItems.map((item) => (
                               <div key={item.label} className={`product-draft-douyin-flow__status-item product-draft-douyin-flow__status-item--${item.tone}`}>
                                 <div className="product-draft-douyin-flow__status-head">
@@ -4790,24 +4800,24 @@ export default function ProductDraftDetailPage() {
                           </div>
                           <div className="product-draft-douyin-flow__context-panel">
                             <div>
-                              <Typography.Text strong>当前抖店上下文</Typography.Text>
+                              <Typography.Text strong>{tr("当前抖店上下文")}</Typography.Text>
                               <Typography.Paragraph type="secondary">
-                                店铺来自已授权店铺列表，类目和属性来自抖店类目缓存；请求失败会保留错误提示，不会被显示成未配置。
+                                {tr("店铺来自已授权店铺列表，类目和属性来自抖店类目缓存；请求失败会保留错误提示，不会被显示成未配置。")}
                               </Typography.Paragraph>
                             </div>
                             <Descriptions size="small" column={{ xs: 1, md: 2, xl: 4 }} className="product-draft-douyin-flow__context-descriptions">
-                              <Descriptions.Item label="已授权抖店店铺">{douyinShops.length}</Descriptions.Item>
-                              <Descriptions.Item label="当前店铺">{selectedDouyinShop?.shopName || douyinConfig.shopId || '未选择'}</Descriptions.Item>
-                              <Descriptions.Item label="当前类目">{douyinConfig.categoryPath || douyinConfig.categoryId || '未选择'}</Descriptions.Item>
-                              <Descriptions.Item label="最近任务">{latestDouyinTask ? tagFromPublishStatus(latestDouyinTask.status) : '暂无'}</Descriptions.Item>
+                              <Descriptions.Item label={tr("已授权抖店店铺")}>{douyinShops.length}</Descriptions.Item>
+                              <Descriptions.Item label={tr("当前店铺")}>{selectedDouyinShop?.shopName || douyinConfig.shopId || tr("未选择")}</Descriptions.Item>
+                              <Descriptions.Item label={tr("当前类目")}>{douyinConfig.categoryPath || douyinConfig.categoryId || tr("未选择")}</Descriptions.Item>
+                              <Descriptions.Item label={tr("最近任务")}>{latestDouyinTask ? tagFromPublishStatus(latestDouyinTask.status) : tr("暂无")}</Descriptions.Item>
                             </Descriptions>
                           </div>
                           <div id="publish-config" className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--config">
                             <div className="product-draft-douyin-flow__panel-head">
                               <div>
-                                <Typography.Text strong>1. 店铺、类目与属性配置</Typography.Text>
+                                <Typography.Text strong>{tr("1. 店铺、类目与属性配置")}</Typography.Text>
                                 <Typography.Paragraph type="secondary">
-                                  保存配置会写入店铺、类目路径和当前属性值，不会生成映射，也不会创建抖店商品草稿。
+                                  {tr("保存配置会写入店铺、类目路径和当前属性值，不会生成映射，也不会创建抖店商品草稿。")}
                                 </Typography.Paragraph>
                               </div>
                               <Space wrap className="product-draft-douyin-flow__panel-actions">
@@ -4816,7 +4826,7 @@ export default function ProductDraftDetailPage() {
                                   loading={douyinCategoryLoading}
                                   onClick={() => void reloadDouyinCategories(douyinConfig.shopId, true)}
                                 >
-                                  刷新类目
+                                  {tr("刷新类目")}
                                 </Button>
                                 <Button
                                   loading={douyinAttrLoading}
@@ -4829,7 +4839,7 @@ export default function ProductDraftDetailPage() {
                                     )
                                   }
                                 >
-                                  刷新属性
+                                  {tr("刷新属性")}
                                 </Button>
                               </Space>
                             </div>
@@ -4838,11 +4848,11 @@ export default function ProductDraftDetailPage() {
                                 <Alert
                                   type="warning"
                                   showIcon
-                                  message="暂无抖店类目数据，请先点击「刷新类目」。"
+                                  message={tr("暂无抖店类目数据，请先点击「刷新类目」。")}
                                 />
                               ) : null}
                               {douyinShops.length === 0 && !pubCtxError ? (
-                                <Alert type="warning" showIcon message="暂无已授权抖店店铺" description="请先完成抖店店铺授权，再回到本页选择店铺和类目。" />
+                                <Alert type="warning" showIcon message={tr("暂无已授权抖店店铺")} description={tr("请先完成抖店店铺授权，再回到本页选择店铺和类目。")} />
                               ) : null}
                               <Form
                                 ref={(instance) => {
@@ -4875,12 +4885,12 @@ export default function ProductDraftDetailPage() {
                                 }}
                                 onFinish={async (vals) => {
                                   if (publishWriteDisabled) {
-                                    message.error('当前账号无刊登草稿写权限');
+                                    message.error(tr("当前账号无刊登草稿写权限"));
                                     return;
                                   }
                                   const cat = douyinCategoryFlat.find((x) => x.categoryId === vals.categoryId);
                                   if (vals.categoryId && !cat?.isLeaf) {
-                                    message.error('只能选择抖店叶子类目');
+                                    message.error(tr("只能选择抖店叶子类目"));
                                     return;
                                   }
                                   if (douyinConfirmingActionRef.current || douyinSaving) return;
@@ -4901,12 +4911,12 @@ export default function ProductDraftDetailPage() {
                                         categoryPath: saved.categoryPath,
                                         platformAttributes: saved.platformAttributes ?? {},
                                       });
-                                      message.success('抖店刊登配置已保存');
+                                      message.success(tr("抖店刊登配置已保存"));
                                       if (readinessPlat === 'douyin_shop') {
                                         void runReadinessForTab();
                                       }
                                     } catch (e: unknown) {
-                                      message.error((e as Error)?.message || '保存失败');
+                                      message.error((e as Error)?.message || tr("保存失败"));
                                     } finally {
                                       setDouyinSaving(false);
                                       setDouyinConfirmingAction('');
@@ -4915,9 +4925,9 @@ export default function ProductDraftDetailPage() {
                                 }}
                               >
                                 <div className="product-draft-douyin-flow__form-grid">
-                                  <Form.Item name="shopId" label="抖店店铺" rules={[{ required: true, message: '请选择抖店店铺' }]}>
+                                  <Form.Item name="shopId" label={tr("抖店店铺")} rules={[{ required: true, message: tr("请选择抖店店铺") }]}>
                                     <Select
-                                      placeholder="选择已授权抖店店铺"
+                                      placeholder={tr("选择已授权抖店店铺")}
                                       allowClear
                                       showSearch
                                       optionFilterProp="label"
@@ -4926,12 +4936,12 @@ export default function ProductDraftDetailPage() {
                                   </Form.Item>
                                   <Form.Item
                                     name="categoryId"
-                                    label="抖店类目"
-                                    rules={[{ required: true, message: '请先选择抖店商品类目' }]}
+                                    label={tr("抖店类目")}
+                                    rules={[{ required: true, message: tr("请先选择抖店商品类目") }]}
                                     extra={<Typography.Text type="secondary" className="product-draft-douyin-flow__long-text">{selectedDouyinCategory?.path}</Typography.Text>}
                                   >
                                     <Select
-                                      placeholder="搜索并选择叶子类目"
+                                      placeholder={tr("搜索并选择叶子类目")}
                                       loading={douyinCategoryLoading}
                                       showSearch
                                       allowClear
@@ -4946,14 +4956,14 @@ export default function ProductDraftDetailPage() {
                                   </Form.Item>
                                 </div>
                                 {douyinConfig.categoryId && douyinAttrs.length === 0 ? (
-                                  <Alert type="info" showIcon message="该类目暂无本地属性缓存，请点击「刷新属性」。" />
+                                  <Alert type="info" showIcon message={tr("该类目暂无本地属性缓存，请点击「刷新属性」。")} />
                                 ) : null}
                                 {douyinAttrs.length > 0 ? (
                                   <Spin spinning={douyinAttrLoading}>
                                     <div className="product-draft-douyin-flow__attr-summary">
-                                      <span>必填属性：{douyinAttrs.filter((a) => a.required).length || 0} 项</span>
-                                      <span>可选属性：{douyinAttrs.filter((a) => !a.required).length || 0} 项</span>
-                                      <span>未填写必填：{douyinMissingRequiredAttrs.length} 项</span>
+                                      <span>{tr("必填属性：")}{douyinAttrs.filter((a) => a.required).length || 0} {tr("项")}</span>
+                                      <span>{tr("可选属性：")}{douyinAttrs.filter((a) => !a.required).length || 0} {tr("项")}</span>
+                                      <span>{tr("未填写必填：")}{douyinMissingRequiredAttrs.length} {tr("项")}</span>
                                     </div>
                                     <Row gutter={16} className="product-draft-douyin-flow__attr-grid">
                                       {douyinAttrs.map((attr) => {
@@ -4965,12 +4975,12 @@ export default function ProductDraftDetailPage() {
                                               label={
                                                 <Space size={4} wrap className="product-draft-douyin-flow__attr-label">
                                                   <span>{attr.name || attr.attrId}</span>
-                                                  {attr.required ? <Tag color="red">必填</Tag> : <Tag>可选</Tag>}
+                                                  {attr.required ? <Tag color="red">{tr("必填")}</Tag> : <Tag>{tr("可选")}</Tag>}
                                                 </Space>
                                               }
                                               rules={
                                                 attr.required
-                                                  ? [{ required: true, message: `请填写${attr.name || attr.attrId}` }]
+                                                  ? [{ required: true, message: trFormat("请填写{value0}", { value0: attr.name || attr.attrId }) }]
                                                   : undefined
                                               }
                                             >
@@ -4985,7 +4995,7 @@ export default function ProductDraftDetailPage() {
                                                   }))}
                                                 />
                                               ) : (
-                                                <Input placeholder={attr.valueType || '填写属性值'} />
+                                                <Input placeholder={attr.valueType || tr("填写属性值")} />
                                               )}
                                             </Form.Item>
                                           </Col>
@@ -4997,7 +5007,7 @@ export default function ProductDraftDetailPage() {
                                 <Form.Item className="product-draft-douyin-flow__submit-row">
                                   <Space wrap className="product-draft-douyin-flow__panel-actions">
                                     <Button htmlType="submit" loading={douyinSaving} disabled={publishWriteDisabled || !!douyinConfirmingAction}>
-                                      保存抖店配置
+                                      {tr("保存抖店配置")}
                                     </Button>
                                     <Button
                                       onClick={() => {
@@ -5006,7 +5016,7 @@ export default function ProductDraftDetailPage() {
                                         openDraftLocation('readiness', 'publish-check');
                                       }}
                                     >
-                                      查看抖店发布检查
+                                      {tr("查看抖店发布检查")}
                                     </Button>
                                   </Space>
                                 </Form.Item>
@@ -5016,36 +5026,36 @@ export default function ProductDraftDetailPage() {
                           <div className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--mapping">
                             <div className="product-draft-douyin-flow__panel-head">
                               <div>
-                                <Typography.Text strong>2. 属性映射与草稿校验</Typography.Text>
+                                <Typography.Text strong>{tr("2. 属性映射与草稿校验")}</Typography.Text>
                                 <Typography.Paragraph type="secondary">
-                                  生成映射会先保存当前配置再生成草稿；保存映射只保存编辑内容；校验映射只返回错误和警告，不代表平台审核通过。
+                                  {tr("生成映射会先保存当前配置再生成草稿；保存映射只保存编辑内容；校验映射只返回错误和警告，不代表平台审核通过。")}
                                 </Typography.Paragraph>
                               </div>
                               {douyinMapping?.lastMappedAt ? (
-                                <Typography.Text type="secondary">最近生成：{formatDateTime(douyinMapping.lastMappedAt)}</Typography.Text>
+                                <Typography.Text type="secondary">{tr("最近生成：")}{formatDateTime(douyinMapping.lastMappedAt)}</Typography.Text>
                               ) : null}
                             </div>
                             <Space direction="vertical" style={{ width: '100%' }} size="middle">
                               <Space wrap className="product-draft-douyin-flow__panel-actions">
                                 <Button loading={douyinMappingLoading} disabled={publishWriteDisabled || !!douyinConfirmingAction} onClick={() => void handleBuildDouyinMapping()}>
-                                  生成抖店刊登草稿
+                                  {tr("生成抖店刊登草稿")}
                                 </Button>
                                 <Button disabled={publishWriteDisabled || !douyinMapping} loading={douyinMappingSaving} onClick={() => void handleSaveDouyinMapping()}>
-                                  保存刊登草稿
+                                  {tr("保存刊登草稿")}
                                 </Button>
                                 <Button disabled={publishWriteDisabled} loading={douyinMappingValidating} onClick={() => void handleValidateDouyinMapping()}>
-                                  校验刊登草稿
+                                  {tr("校验刊登草稿")}
                                 </Button>
                               </Space>
                               {!douyinMapping ? (
-                                <EmptyState compact title="还没有抖店刊登草稿" description="请先选择抖店店铺和叶子类目，再手动生成映射。" />
+                                <EmptyState compact title={tr("还没有抖店刊登草稿")} description={tr("请先选择抖店店铺和叶子类目，再手动生成映射。")} />
                               ) : (
                                 <>
                                   {douyinMapping.errors?.length ? (
                                     <Alert
                                       type="error"
                                       showIcon
-                                      message="这些信息不完整，暂时不能创建抖店商品"
+                                      message={tr("这些信息不完整，暂时不能创建抖店商品")}
                                       description={douyinIssueList(douyinMapping.errors)}
                                     />
                                   ) : null}
@@ -5053,7 +5063,7 @@ export default function ProductDraftDetailPage() {
                                     <Alert
                                       type="warning"
                                       showIcon
-                                      message="这些信息建议人工确认"
+                                      message={tr("这些信息建议人工确认")}
                                       description={douyinIssueList(douyinMapping.warnings)}
                                     />
                                   ) : null}
@@ -5066,10 +5076,10 @@ export default function ProductDraftDetailPage() {
                                     layout="vertical"
                                     className="product-draft-douyin-draft__form"
                                   >
-                                    <Form.Item name="title" label="抖店标题" rules={[{ required: true, message: '请填写抖店标题' }]}>
+                                    <Form.Item name="title" label={tr("抖店标题")} rules={[{ required: true, message: tr("请填写抖店标题") }]}>
                                       <Input showCount maxLength={80} />
                                     </Form.Item>
-                                    <Form.Item name="description" label="抖店描述">
+                                    <Form.Item name="description" label={tr("抖店描述")}>
                                       <Input.TextArea rows={4} />
                                     </Form.Item>
                                   </Form>
@@ -5081,9 +5091,9 @@ export default function ProductDraftDetailPage() {
                                     scroll={{ x: 720 }}
                                     dataSource={douyinMapping.attributes ?? []}
                                     columns={[
-                                      { title: '抖店要求填写的信息', render: (_, r) => <Typography.Text className="product-draft-douyin-flow__long-text">{r.name || r.attrId}</Typography.Text> },
-                                      { title: '状态', width: 90, render: (_, r) => (r.required ? <Tag color="red">必填</Tag> : <Tag>可选</Tag>) },
-                                      { title: '当前值', render: (_, r) => <Typography.Text className="product-draft-douyin-flow__long-text">{douyinAttrValueText(r.value)}</Typography.Text> },
+                                      { title: tr("抖店要求填写的信息"), render: (_, r) => <Typography.Text className="product-draft-douyin-flow__long-text">{r.name || r.attrId}</Typography.Text> },
+                                      { title: tr("状态"), width: 90, render: (_, r) => (r.required ? <Tag color="red">{tr("必填")}</Tag> : <Tag>{tr("可选")}</Tag>) },
+                                      { title: tr("当前值"), render: (_, r) => <Typography.Text className="product-draft-douyin-flow__long-text">{douyinAttrValueText(r.value)}</Typography.Text> },
                                     ]}
                                   />
                                 </>
@@ -5093,9 +5103,9 @@ export default function ProductDraftDetailPage() {
                           <div className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--images">
                             <div className="product-draft-douyin-flow__panel-head">
                               <div>
-                                <Typography.Text strong>3. 商品图片准备与上传</Typography.Text>
+                                <Typography.Text strong>{tr("3. 商品图片准备与上传")}</Typography.Text>
                                 <Typography.Paragraph type="secondary">
-                                  上传范围保持为主图和详情图，顺序来自当前映射；上传到抖店图片存储后才可用于创建抖店商品草稿。
+                                  {tr("上传范围保持为主图和详情图，顺序来自当前映射；上传到抖店图片存储后才可用于创建抖店商品草稿。")}
                                 </Typography.Paragraph>
                               </div>
                               <Space wrap className="product-draft-douyin-flow__panel-actions">
@@ -5105,7 +5115,7 @@ export default function ProductDraftDetailPage() {
                                   loading={douyinImageUploading}
                                   onClick={() => void handleUploadDouyinImages(false)}
                                 >
-                                  上传图片到抖店
+                                  {tr("上传图片到抖店")}
                                 </Button>
                                 <Button
                                   icon={<ReloadOutlined />}
@@ -5113,21 +5123,21 @@ export default function ProductDraftDetailPage() {
                                   loading={douyinImageUploading}
                                   onClick={() => void handleUploadDouyinImages(true)}
                                 >
-                                  重新上传全部图片
+                                  {tr("重新上传全部图片")}
                                 </Button>
                               </Space>
                             </div>
                             {!douyinMapping ? (
-                              <EmptyState compact title="待生成草稿映射" description="生成映射后会显示准备上传到抖店的主图和详情图。" />
+                              <EmptyState compact title={tr("待生成草稿映射")} description={tr("生成映射后会显示准备上传到抖店的主图和详情图。")} />
                             ) : (
                               <Space direction="vertical" style={{ width: '100%' }} size="middle">
                                 <div className="product-draft-douyin-flow__image-summary">
-                                  <span>主图 {douyinUploadedMainImages}/{douyinMainImages.length} 已上传</span>
-                                  <span>详情图 {douyinUploadedDetailImages}/{douyinDetailImages.length} 已上传</span>
+                                  <span>{tr("主图")} {douyinUploadedMainImages}/{douyinMainImages.length} {tr("已上传")}</span>
+                                  <span>{tr("详情图")} {douyinUploadedDetailImages}/{douyinDetailImages.length} {tr("已上传")}</span>
                                 </div>
                                 <div className="product-draft-publish__image-section">
-                                  <Typography.Title level={5}>主图</Typography.Title>
-                                  <Typography.Text type="secondary">图片需要先上传到抖店后，才能创建抖店商品草稿。</Typography.Text>
+                                  <Typography.Title level={5}>{tr("主图")}</Typography.Title>
+                                  <Typography.Text type="secondary">{tr("图片需要先上传到抖店后，才能创建抖店商品草稿。")}</Typography.Text>
                                   {(douyinMapping.mainImages ?? []).length ? (
                                     <Image.PreviewGroup>
                                       <div className="product-draft-douyin-flow__image-grid">
@@ -5138,9 +5148,9 @@ export default function ProductDraftDetailPage() {
                                               {douyinStorageStatusTag(img)}
                                               {douyinImageStatusTag(img)}
                                               {img.platformImageId ? (
-                                                <Tooltip title={`平台图片编号：${img.platformImageId}`}>
+                                                <Tooltip title={trFormat("平台图片编号：{value0}", { value0: String(img.platformImageId) })}>
                                                   <Typography.Text copyable={{ text: img.platformImageId }} type="secondary" style={{ fontSize: 12 }}>
-                                                    已获平台编号
+                                                    {tr("已获平台编号")}
                                                   </Typography.Text>
                                                 </Tooltip>
                                               ) : null}
@@ -5155,7 +5165,7 @@ export default function ProductDraftDetailPage() {
                                                   <Button size="small" icon={<EyeOutlined />} href={douyinImagePreviewUrl(img)} target="_blank" />
                                                 ) : null}
                                                 {img.platformImageUrl ? (
-                                                  <Button size="small" href={img.platformImageUrl} target="_blank">平台图</Button>
+                                                  <Button size="small" href={img.platformImageUrl} target="_blank">{tr("平台图")}</Button>
                                                 ) : null}
                                                 <Button
                                                   size="small"
@@ -5164,7 +5174,7 @@ export default function ProductDraftDetailPage() {
                                                   loading={douyinImageRetryingKey === douyinImageKey(img, 'main', idx)}
                                                   onClick={() => void handleRetryDouyinImage(douyinImageKey(img, 'main', idx))}
                                                 >
-                                                  重试
+                                                  {tr("重试")}
                                                 </Button>
                                               </Space>
                                             </Space>
@@ -5173,11 +5183,11 @@ export default function ProductDraftDetailPage() {
                                       </div>
                                     </Image.PreviewGroup>
                                   ) : (
-                                    <Typography.Text type="secondary">暂无主图</Typography.Text>
+                                    <Typography.Text type="secondary">{tr("暂无主图")}</Typography.Text>
                                   )}
                                 </div>
                                 <div className="product-draft-publish__image-section">
-                                  <Typography.Title level={5}>详情图</Typography.Title>
+                                  <Typography.Title level={5}>{tr("详情图")}</Typography.Title>
                                   {(douyinMapping.detailImages ?? []).length ? (
                                     <Image.PreviewGroup>
                                       <div className="product-draft-douyin-flow__image-grid">
@@ -5188,9 +5198,9 @@ export default function ProductDraftDetailPage() {
                                               {douyinStorageStatusTag(img)}
                                               {douyinImageStatusTag(img)}
                                               {img.platformImageId ? (
-                                                <Tooltip title={`平台图片编号：${img.platformImageId}`}>
+                                                <Tooltip title={trFormat("平台图片编号：{value0}", { value0: String(img.platformImageId) })}>
                                                   <Typography.Text copyable={{ text: img.platformImageId }} type="secondary" style={{ fontSize: 12 }}>
-                                                    已获平台编号
+                                                    {tr("已获平台编号")}
                                                   </Typography.Text>
                                                 </Tooltip>
                                               ) : null}
@@ -5205,7 +5215,7 @@ export default function ProductDraftDetailPage() {
                                                   <Button size="small" icon={<EyeOutlined />} href={douyinImagePreviewUrl(img)} target="_blank" />
                                                 ) : null}
                                                 {img.platformImageUrl ? (
-                                                  <Button size="small" href={img.platformImageUrl} target="_blank">平台图</Button>
+                                                  <Button size="small" href={img.platformImageUrl} target="_blank">{tr("平台图")}</Button>
                                                 ) : null}
                                                 <Button
                                                   size="small"
@@ -5214,7 +5224,7 @@ export default function ProductDraftDetailPage() {
                                                   loading={douyinImageRetryingKey === douyinImageKey(img, 'detail', idx)}
                                                   onClick={() => void handleRetryDouyinImage(douyinImageKey(img, 'detail', idx))}
                                                 >
-                                                  重试
+                                                  {tr("重试")}
                                                 </Button>
                                               </Space>
                                             </Space>
@@ -5223,7 +5233,7 @@ export default function ProductDraftDetailPage() {
                                       </div>
                                     </Image.PreviewGroup>
                                   ) : (
-                                    <Typography.Text type="secondary">暂无详情图</Typography.Text>
+                                    <Typography.Text type="secondary">{tr("暂无详情图")}</Typography.Text>
                                   )}
                                 </div>
                               </Space>
@@ -5233,17 +5243,17 @@ export default function ProductDraftDetailPage() {
                             <Spin spinning={douyinSkuBindingLoading}>
                               <div className="product-draft-douyin-flow__panel-head">
                                 <div>
-                                  <Typography.Text strong>4. 抖店规格绑定和 SKU 映射状态</Typography.Text>
+                                  <Typography.Text strong>{tr("4. 抖店规格绑定和 SKU 映射状态")}</Typography.Text>
                                   <Typography.Paragraph type="secondary">
-                                    绑定区只建立本地规格与已有抖店规格的关系，不创建平台 SKU，也不会自动同步库存。
+                                    {tr("绑定区只建立本地规格与已有抖店规格的关系，不创建平台 SKU，也不会自动同步库存。")}
                                   </Typography.Paragraph>
                                 </div>
                                 <Space wrap className="product-draft-douyin-bind__actions product-draft-douyin-flow__panel-actions">
                                   <Button size="small" onClick={() => setDouyinSkuCandidatesOpen(true)} disabled={!douyinSkuBinding?.platformSkus?.length}>
-                                    查看平台规格候选
+                                    {tr("查看平台规格候选")}
                                   </Button>
                                   <Button size="small" onClick={() => void reloadDouyinSkuBindings()}>
-                                    刷新绑定状态
+                                    {tr("刷新绑定状态")}
                                   </Button>
                                   <Button
                                     size="small"
@@ -5251,7 +5261,7 @@ export default function ProductDraftDetailPage() {
                                     disabled={skuBindDisabled || !douyinPublication?.id}
                                     onClick={() => void handleSyncDouyinSkuBindings()}
                                   >
-                                    重新校准
+                                    {tr("重新校准")}
                                   </Button>
                                 </Space>
                               </div>
@@ -5259,45 +5269,45 @@ export default function ProductDraftDetailPage() {
                                 <Alert
                                   type="error"
                                   showIcon
-                                  message="抖店规格绑定加载失败"
-                                  description={douyinSkuBindingError}
-                                  action={<Button size="small" onClick={() => void reloadDouyinSkuBindings()}>重新加载</Button>}
+                                  message={tr("抖店规格绑定加载失败")}
+                                  description={localizeProductError(douyinSkuBindingError)}
+                                  action={<Button size="small" onClick={() => void reloadDouyinSkuBindings()}>{tr("重新加载")}</Button>}
                                 />
                               ) : !douyinPublication?.id ? (
                                 <EmptyState
                                   compact
-                                  title="暂无抖店刊登记录"
-                                  description="创建抖店商品草稿后，可根据抖店商品详情校准平台规格编号，并对未匹配或待确认的本地规格建立映射。"
+                                  title={tr("暂无抖店刊登记录")}
+                                  description={tr("创建抖店商品草稿后，可根据抖店商品详情校准平台规格编号，并对未匹配或待确认的本地规格建立映射。")}
                                 />
                               ) : (
                                 <Space direction="vertical" style={{ width: '100%' }} size="middle">
                                   <div className="product-draft-douyin-bind__brief">
                                     <div className="product-draft-douyin-bind__brief-text">
-                                      <Typography.Text strong>抖店规格映射</Typography.Text>
+                                      <Typography.Text strong>{tr("抖店规格映射")}</Typography.Text>
                                       <Typography.Paragraph type="secondary">
-                                        候选规格来自当前抖店商品详情。手动绑定只建立本地规格与已有抖店规格的映射，不创建新的平台 SKU，也不会自动同步库存。
+                                        {tr("候选规格来自当前抖店商品详情。手动绑定只建立本地规格与已有抖店规格的映射，不创建新的平台 SKU，也不会自动同步库存。")}
                                       </Typography.Paragraph>
                                     </div>
                                     <div className="product-draft-douyin-bind__context">
-                                      <span>平台：抖店</span>
-                                      <span>店铺：{douyinPublication.shopName || douyinPublication.shopId || '—'}</span>
-                                      <span>刊登记录：{platformSkuValue(douyinPublication.id)}</span>
-                                      <span>抖店商品：{platformSkuValue(douyinPublication.externalProductId)}</span>
+                                      <span>{tr("平台：抖店")}</span>
+                                      <span>{tr("店铺：")}{douyinPublication.shopName || douyinPublication.shopId || '—'}</span>
+                                      <span>{tr("刊登记录：")}{platformSkuValue(douyinPublication.id)}</span>
+                                      <span>{tr("抖店商品：")}{platformSkuValue(douyinPublication.externalProductId)}</span>
                                     </div>
                                   </div>
                                   {douyinSkuBinding?.inventorySyncReady === false && douyinSkuBinding.inventorySyncBlockReason ? (
                                     <Alert type="warning" showIcon message={douyinSkuBinding.inventorySyncBlockReason} />
                                   ) : douyinSkuBinding?.inventorySyncReady ? (
-                                    <Alert type="info" showIcon message="全部规格已有抖店规格映射，可用于创建库存同步任务。" />
+                                    <Alert type="info" showIcon message={tr("全部规格已有抖店规格映射，可用于创建库存同步任务。")} />
                                   ) : null}
-                                  <div className="product-draft-douyin-bind__status-grid" aria-label="抖店规格绑定状态摘要">
-                                    <div><span>已绑定</span><strong>{douyinSkuBinding?.bound ?? '—'}</strong></div>
-                                    <div><span>未绑定</span><strong>{douyinSkuBinding?.unmatched ?? '—'}</strong></div>
-                                    <div><span>待确认</span><strong>{douyinSkuBinding?.ambiguous ?? '—'}</strong></div>
-                                    <div><span>失败</span><strong>{douyinSkuBinding?.failed ?? '—'}</strong></div>
-                                    <div><span>候选规格</span><strong>{douyinSkuBinding?.platformSkus?.length ?? '—'}</strong></div>
+                                  <div className="product-draft-douyin-bind__status-grid" aria-label={tr("抖店规格绑定状态摘要")}>
+                                    <div><span>{tr("已绑定")}</span><strong>{douyinSkuBinding?.bound ?? '—'}</strong></div>
+                                    <div><span>{tr("未绑定")}</span><strong>{douyinSkuBinding?.unmatched ?? '—'}</strong></div>
+                                    <div><span>{tr("待确认")}</span><strong>{douyinSkuBinding?.ambiguous ?? '—'}</strong></div>
+                                    <div><span>{tr("失败")}</span><strong>{douyinSkuBinding?.failed ?? '—'}</strong></div>
+                                    <div><span>{tr("候选规格")}</span><strong>{douyinSkuBinding?.platformSkus?.length ?? '—'}</strong></div>
                                     <div>
-                                      <span>最近校准</span>
+                                      <span>{tr("最近校准")}</span>
                                       <strong>
                                         {douyinSkuBinding?.skuBindingSyncedAt
                                           ? formatDateTime(douyinSkuBinding.skuBindingSyncedAt)
@@ -5316,25 +5326,25 @@ export default function ProductDraftDetailPage() {
                                       scroll={{ x: 1200 }}
                                       dataSource={douyinSkuBinding?.rows ?? []}
                                       columns={[
-                                        { title: '本地规格编码', dataIndex: 'skuCode', width: 150, render: (v, r) => <Space direction="vertical" size={2} className="product-draft-douyin-bind__sku-cell"><Typography.Text strong className="product-draft-douyin-bind__text">{v || '未填写规格编码'}</Typography.Text><span className="product-draft-douyin-bind__id">{platformSkuValue(r.productSkuId)}</span></Space> },
-                                        { title: '本地规格名称', dataIndex: 'specName', width: 180, render: (v) => <Typography.Text className="product-draft-douyin-bind__text">{v || '—'}</Typography.Text> },
-                                        { title: '本地价格', width: 96, render: (_, r) => (typeof r.price === 'number' ? r.price.toFixed(2) : '—') },
-                                        { title: '本地库存', width: 88, render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—') },
-                                        { title: '平台规格编号', dataIndex: 'externalSkuId', width: 170, render: (v) => platformSkuValue(v) },
-                                        { title: '抖店规格名称', dataIndex: 'platformSkuName', width: 180, render: (v) => <Typography.Text className="product-draft-douyin-bind__text">{v || '—'}</Typography.Text> },
-                                        { title: '绑定状态', dataIndex: 'bindStatus', width: 96, render: (v) => douyinBindStatusTag(v) },
-                                        { title: '置信度', dataIndex: 'bindConfidence', width: 72, render: (v) => (typeof v === 'number' ? v : '—') },
-                                        { title: '最近校准', dataIndex: 'lastSyncedAt', width: 156, render: (v) => (v ? formatDateTime(v) : '—') },
-                                        { title: '说明', dataIndex: 'bindMessage', width: 220, render: (v, r) => <Typography.Text className="product-draft-douyin-bind__text">{v || douyinBindStatusHint(r.bindStatus)}</Typography.Text> },
+                                        { title: tr("本地规格编码"), dataIndex: 'skuCode', width: 150, render: (v, r) => <Space direction="vertical" size={2} className="product-draft-douyin-bind__sku-cell"><Typography.Text strong className="product-draft-douyin-bind__text">{v || tr("未填写规格编码")}</Typography.Text><span className="product-draft-douyin-bind__id">{platformSkuValue(r.productSkuId)}</span></Space> },
+                                        { title: tr("本地规格名称"), dataIndex: 'specName', width: 180, render: (v) => <Typography.Text className="product-draft-douyin-bind__text">{v || '—'}</Typography.Text> },
+                                        { title: tr("本地价格"), width: 96, render: (_, r) => (typeof r.price === 'number' ? r.price.toFixed(2) : '—') },
+                                        { title: tr("本地库存"), width: 88, render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—') },
+                                        { title: tr("平台规格编号"), dataIndex: 'externalSkuId', width: 170, render: (v) => platformSkuValue(v) },
+                                        { title: tr("抖店规格名称"), dataIndex: 'platformSkuName', width: 180, render: (v) => <Typography.Text className="product-draft-douyin-bind__text">{v || '—'}</Typography.Text> },
+                                        { title: tr("绑定状态"), dataIndex: 'bindStatus', width: 96, render: (v) => douyinBindStatusTag(v) },
+                                        { title: tr("置信度"), dataIndex: 'bindConfidence', width: 72, render: (v) => (typeof v === 'number' ? v : '—') },
+                                        { title: tr("最近校准"), dataIndex: 'lastSyncedAt', width: 156, render: (v) => (v ? formatDateTime(v) : '—') },
+                                        { title: tr("说明"), dataIndex: 'bindMessage', width: 220, render: (v, r) => <Typography.Text className="product-draft-douyin-bind__text">{v || douyinBindStatusHint(r.bindStatus)}</Typography.Text> },
                                         {
-                                          title: '操作',
+                                          title: tr("操作"),
                                           width: 220,
                                           fixed: 'right',
                                           render: (_, r) => (
                                             <Space size={4} wrap>
-                                              <Button type="link" size="small" className="product-draft-douyin-bind__action" disabled={skuBindDisabled} onClick={() => { setDouyinSkuBindTarget(r); douyinSkuBindForm.setFieldsValue({ platformSkuId: r.externalSkuId || undefined }); setDouyinSkuBindOpen(true); }}>手动绑定</Button>
+                                              <Button type="link" size="small" className="product-draft-douyin-bind__action" disabled={skuBindDisabled} onClick={() => { setDouyinSkuBindTarget(r); douyinSkuBindForm.setFieldsValue({ platformSkuId: r.externalSkuId || undefined }); setDouyinSkuBindOpen(true); }}>{tr("手动绑定")}</Button>
                                               {r.externalSkuId ? (
-                                                <Button type="link" size="small" className="product-draft-douyin-bind__action" danger disabled={skuBindDisabled} onClick={() => confirmSkuUnbind(() => void unbindDouyinSku(r.publicationSkuId).then(async () => { message.success('已解除绑定'); await reloadDouyinSkuBindings(); await reloadPublicationSkus(); }).catch((e: Error) => message.error(e.message || '解除失败')))}>解除绑定</Button>
+                                                <Button type="link" size="small" className="product-draft-douyin-bind__action" danger disabled={skuBindDisabled} onClick={() => confirmSkuUnbind(() => void unbindDouyinSku(r.publicationSkuId).then(async () => { message.success(tr("已解除绑定")); await reloadDouyinSkuBindings(); await reloadPublicationSkus(); }).catch((e: Error) => message.error(e.message || tr("解除失败"))))}>{tr("解除绑定")}</Button>
                                               ) : null}
                                             </Space>
                                           ),
@@ -5342,7 +5352,7 @@ export default function ProductDraftDetailPage() {
                                       ]}
                                     />
                                   ) : (
-                                    <EmptyState compact title="暂无规格绑定结果" description="点击「重新校准」从抖店拉取规格并完成匹配；未匹配或待确认规格可手动绑定。" />
+                                    <EmptyState compact title={tr("暂无规格绑定结果")} description={tr("点击「重新校准」从抖店拉取规格并完成匹配；未匹配或待确认规格可手动绑定。")} />
                                   )}
                                 </Space>
                               )}
@@ -5351,19 +5361,19 @@ export default function ProductDraftDetailPage() {
                           <div className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--preview">
                             <div className="product-draft-douyin-flow__panel-head">
                               <div>
-                                <Typography.Text strong>5. 抖店商品草稿预览</Typography.Text>
-                                <Typography.Paragraph type="secondary">这里展示即将提交给抖店草稿创建接口的数据映射，不代表这些字段已经写入抖店平台。</Typography.Paragraph>
+                                <Typography.Text strong>{tr("5. 抖店商品草稿预览")}</Typography.Text>
+                                <Typography.Paragraph type="secondary">{tr("这里展示即将提交给抖店草稿创建接口的数据映射，不代表这些字段已经写入抖店平台。")}</Typography.Paragraph>
                               </div>
                             </div>
                             {!douyinMapping ? (
-                              <EmptyState compact title="暂无草稿预览" description="生成抖店刊登草稿后，会在这里展示标题、类目、价格、库存、属性和 SKU 预览。" />
+                              <EmptyState compact title={tr("暂无草稿预览")} description={tr("生成抖店刊登草稿后，会在这里展示标题、类目、价格、库存、属性和 SKU 预览。")} />
                             ) : (
                               <Space direction="vertical" style={{ width: '100%' }} size="middle">
                                 <Descriptions bordered size="small" column={2} className="product-draft-publish__descriptions product-draft-douyin-draft__descriptions">
-                                  <Descriptions.Item label="抖店店铺">{douyinMapping.shopId || '未选择'}</Descriptions.Item>
-                                  <Descriptions.Item label="抖店类目">{douyinMapping.categoryPath || douyinMapping.categoryId || '未选择'}</Descriptions.Item>
-                                  <Descriptions.Item label="价格">{douyinMoney(douyinMapping.price?.min, douyinMapping.price?.currency)}{douyinMapping.price?.max && douyinMapping.price.max !== douyinMapping.price.min ? ` - ${douyinMoney(douyinMapping.price.max, douyinMapping.price.currency)}` : ''}</Descriptions.Item>
-                                  <Descriptions.Item label="库存">{douyinMapping.stock?.total ?? '未确认'}{douyinMapping.stock?.unconfirmed ? <Tag color="orange" style={{ marginLeft: 8 }}>库存未确认</Tag> : null}</Descriptions.Item>
+                                  <Descriptions.Item label={tr("抖店店铺")}>{douyinMapping.shopId || tr("未选择")}</Descriptions.Item>
+                                  <Descriptions.Item label={tr("抖店类目")}>{douyinMapping.categoryPath || douyinMapping.categoryId || tr("未选择")}</Descriptions.Item>
+                                  <Descriptions.Item label={tr("价格")}>{douyinMoney(douyinMapping.price?.min, douyinMapping.price?.currency)}{douyinMapping.price?.max && douyinMapping.price.max !== douyinMapping.price.min ? ` - ${douyinMoney(douyinMapping.price.max, douyinMapping.price.currency)}` : ''}</Descriptions.Item>
+                                  <Descriptions.Item label={tr("库存")}>{douyinMapping.stock?.total ?? tr("未确认")}{douyinMapping.stock?.unconfirmed ? <Tag color="orange" style={{ marginLeft: 8 }}>{tr("库存未确认")}</Tag> : null}</Descriptions.Item>
                                 </Descriptions>
                                 <Table
                                   size="small"
@@ -5373,11 +5383,11 @@ export default function ProductDraftDetailPage() {
                                   scroll={{ x: 820 }}
                                   dataSource={douyinMapping.skus ?? []}
                                   columns={[
-                                    { title: '商品规格', dataIndex: 'name', render: (v) => <Typography.Text className="product-draft-douyin-flow__long-text">{v || '—'}</Typography.Text> },
-                                    { title: '规格值', render: (_, r) => <Typography.Text className="product-draft-douyin-flow__long-text">{douyinAttrValueText(r.attrs ?? {})}</Typography.Text> },
-                                    { title: '售价', width: 110, render: (_, r) => douyinMoney(r.price, douyinMapping.price?.currency) },
-                                    { title: '库存', width: 90, render: (_, r) => (r.stock == null ? '未确认' : r.stock) },
-                                    { title: '规格图', width: 90, render: (_, r) => (r.imageUrl ? <Image src={r.imageUrl} width={40} height={40} /> : '无') },
+                                    { title: tr("商品规格"), dataIndex: 'name', render: (v) => <Typography.Text className="product-draft-douyin-flow__long-text">{v || '—'}</Typography.Text> },
+                                    { title: tr("规格值"), render: (_, r) => <Typography.Text className="product-draft-douyin-flow__long-text">{douyinAttrValueText(r.attrs ?? {})}</Typography.Text> },
+                                    { title: tr("售价"), width: 110, render: (_, r) => douyinMoney(r.price, douyinMapping.price?.currency) },
+                                    { title: tr("库存"), width: 90, render: (_, r) => (r.stock == null ? tr("未确认") : r.stock) },
+                                    { title: tr("规格图"), width: 90, render: (_, r) => (r.imageUrl ? <Image src={r.imageUrl} width={40} height={40} /> : tr("无")) },
                                   ]}
                                 />
                               </Space>
@@ -5385,29 +5395,29 @@ export default function ProductDraftDetailPage() {
                           </div>
                           <div className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--create">
                             <div className="product-draft-douyin-flow__create-copy">
-                              <Typography.Text strong>6. 进入运营任务审核</Typography.Text>
-                              <Typography.Paragraph type="secondary">在运营任务中心冻结当前商品、映射与请求内容，经人工审核后才能创建抖店平台草稿；本页不会直接调用平台写接口。</Typography.Paragraph>
+                              <Typography.Text strong>{tr("6. 进入运营任务审核")}</Typography.Text>
+                              <Typography.Paragraph type="secondary">{tr("在运营任务中心冻结当前商品、映射与请求内容，经人工审核后才能创建抖店平台草稿；本页不会直接调用平台写接口。")}</Typography.Paragraph>
                             </div>
                             <Space wrap className="product-draft-douyin-flow__panel-actions">
                               <Button type="primary" disabled={douyinCreateDraftDisabled || !!douyinConfirmingAction} onClick={handleOpenDouyinOperationReview}>
-                                进入运营任务审核
+                                {tr("进入运营任务审核")}
                               </Button>
-                              <Button onClick={() => openDraftLocation('publish', 'douyin-sku-bindings')}>查看 SKU 绑定状态</Button>
+                              <Button onClick={() => openDraftLocation('publish', 'douyin-sku-bindings')}>{tr("查看 SKU 绑定状态")}</Button>
                             </Space>
                           </div>
                           <div className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--tasks">
                             <div className="product-draft-douyin-flow__panel-head">
                               <div>
-                                <Typography.Text strong>7. 创建任务与结果</Typography.Text>
-                                <Typography.Paragraph type="secondary">任务记录来自抖店刊登任务列表；任务成功只表示草稿创建流程完成，不表示平台商品已经正式上线。</Typography.Paragraph>
+                                <Typography.Text strong>{tr("7. 创建任务与结果")}</Typography.Text>
+                                <Typography.Paragraph type="secondary">{tr("任务记录来自抖店刊登任务列表；任务成功只表示草稿创建流程完成，不表示平台商品已经正式上线。")}</Typography.Paragraph>
                               </div>
-                              <Button size="small" onClick={() => void reloadDouyinPublishTasks()}>刷新任务</Button>
+                              <Button size="small" onClick={() => void reloadDouyinPublishTasks()}>{tr("刷新任务")}</Button>
                             </div>
                             <Spin spinning={douyinPublishTasksLoading}>
                               {douyinPublishTasksError ? (
-                                <Alert type="error" showIcon message="抖店刊登任务加载失败" description={douyinPublishTasksError} action={<Button size="small" onClick={() => void reloadDouyinPublishTasks()}>重新加载</Button>} />
+                                <Alert type="error" showIcon message={tr("抖店刊登任务加载失败")} description={localizeProductError(douyinPublishTasksError)} action={<Button size="small" onClick={() => void reloadDouyinPublishTasks()}>{tr("重新加载")}</Button>} />
                               ) : douyinPublishTasks.length === 0 ? (
-                                <EmptyState compact title="暂无抖店刊登任务" description="创建抖店商品草稿后会在这里显示任务处理状态。" />
+                                <EmptyState compact title={tr("暂无抖店刊登任务")} description={tr("创建抖店商品草稿后会在这里显示任务处理状态。")} />
                               ) : (
                                 <Table
                                   size="small"
@@ -5417,12 +5427,12 @@ export default function ProductDraftDetailPage() {
                                   scroll={{ x: 900 }}
                                   dataSource={douyinPublishTasks}
                                   columns={[
-                                    { title: '状态', dataIndex: 'status', width: 100, render: (_, r) => tagFromPublishStatus(r.status) },
-                                    { title: '发布模式', dataIndex: 'publishMode', width: 140, render: (v) => publishModeLabel(v) },
-                                    { title: '抖店商品 ID', dataIndex: 'platformProductId', ellipsis: true, render: (v) => v || '—' },
-                                    { title: '创建时间', dataIndex: 'createdAt', width: 168, render: (v) => formatDateTime(v) },
-                                    { title: '失败原因', dataIndex: 'errorMessage', ellipsis: true, render: (v, r) => { const text = (v as string) || formatUserErrorMessage(r.errorCode); return text || '—'; } },
-                                    { title: '操作', width: 120, render: () => <Link to={`/product/publish-tasks?productId=${id}`}>详情</Link> },
+                                    { title: tr("状态"), dataIndex: 'status', width: 100, render: (_, r) => tagFromPublishStatus(r.status) },
+                                    { title: tr("发布模式"), dataIndex: 'publishMode', width: 140, render: (v) => publishModeLabel(v) },
+                                    { title: tr("抖店商品 ID"), dataIndex: 'platformProductId', ellipsis: true, render: (v) => v || '—' },
+                                    { title: tr("创建时间"), dataIndex: 'createdAt', width: 168, render: (v) => formatDateTime(v) },
+                                    { title: tr("失败原因"), dataIndex: 'errorMessage', ellipsis: true, render: (v, r) => { const text = (v as string) || formatUserErrorMessage(r.errorCode); return text || '—'; } },
+                                    { title: tr("操作"), width: 120, render: () => <Link to={`/product/publish-tasks?productId=${id}`}>{tr("详情")}</Link> },
                                   ]}
                                 />
                               )}
@@ -5436,23 +5446,23 @@ export default function ProductDraftDetailPage() {
                         type="warning"
                         showIcon
                         className="product-draft-publish__legacy-warning"
-                        message="传统提交刊登是兼容入口"
-                        description="此入口会先打开确认，再执行 publish 模式发布检查；检查通过后提交刊登任务，可能触发真实平台写操作。检查通过不代表平台最终成功，结果以后续任务和刊登记录为准。"
+                        message={tr("传统提交刊登是兼容入口")}
+                        description={tr("此入口会先打开确认，再执行 publish 模式发布检查；检查通过后提交刊登任务，可能触发真实平台写操作。检查通过不代表平台最终成功，结果以后续任务和刊登记录为准。")}
                       />
                       {eligibleShopsForPublish.length === 0 && !pubCtxError ? (
                         <Alert
                           type="warning"
                           showIcon
-                          message="暂无可提交刊登的店铺"
-                          description="只有已授权且 product_publish 能力为可用或 beta 的店铺会出现在传统提交入口。"
+                          message={tr("暂无可提交刊登的店铺")}
+                          description={tr("只有已授权且 product_publish 能力为可用或 beta 的店铺会出现在传统提交入口。")}
                         />
                       ) : null}
                       {publishReadinessLoading ? (
                         <Alert
                           type="info"
                           showIcon
-                          message="正在执行 publish 模式发布检查"
-                          description="检查完成前不会提交刊登任务。"
+                          message={tr("正在执行 publish 模式发布检查")}
+                          description={tr("检查完成前不会提交刊登任务。")}
                         />
                       ) : null}
                       {publishReadiness ? (
@@ -5467,10 +5477,10 @@ export default function ProductDraftDetailPage() {
                           showIcon
                           message={
                             <Space wrap align="center">
-                              <span>发布检查</span>
+                              <span>{tr("发布检查")}</span>
                               {readinessStatusTag(publishReadiness)}
                               <Typography.Text type="secondary">
-                                分 {publishReadiness.score} · 错误 {publishReadiness.errorCount} · 警告{' '}
+                                {tr("分")} {publishReadiness.score} {tr("· 错误")} {publishReadiness.errorCount} {tr("· 警告")}{' '}
                                 {publishReadiness.warningCount}
                               </Typography.Text>
                               <Button
@@ -5479,7 +5489,7 @@ export default function ProductDraftDetailPage() {
                                 style={{ padding: 0 }}
                                 onClick={() => setDraftTabKey('readiness')}
                               >
-                                查看明细
+                                {tr("查看明细")}
                               </Button>
                             </Space>
                           }
@@ -5489,21 +5499,21 @@ export default function ProductDraftDetailPage() {
                                 {readinessCheckList(publishReadiness.checks, 5)}
                                 {publishReadiness.checks.length > 5 ? (
                                   <Typography.Text type="secondary">
-                                    … 共 {publishReadiness.checks.length} 项
+                                    {tr("… 共")} {publishReadiness.checks.length} {tr("项")}
                                   </Typography.Text>
                                 ) : null}
                               </div>
                             ) : (
-                              '未发现问题'
+                              tr("未发现问题")
                             )
                           }
                         />
                       ) : null}
                       <div className="product-draft-publish__legacy-panel">
                         <div className="product-draft-publish__legacy-copy">
-                          <Typography.Text strong>传统提交刊登</Typography.Text>
+                          <Typography.Text strong>{tr("传统提交刊登")}</Typography.Text>
                           <Typography.Paragraph type="secondary">
-                            选择店铺后会展示 publish readiness；点击提交后先确认，再重新检查并调用传统刊登提交接口。失败不会清空已有任务和刊登记录。
+                            {tr("选择店铺后会展示 publish readiness；点击提交后先确认，再重新检查并调用传统刊登提交接口。失败不会清空已有任务和刊登记录。")}
                           </Typography.Paragraph>
                         </div>
                       <Form
@@ -5513,33 +5523,33 @@ export default function ProductDraftDetailPage() {
                         className="product-draft-publish__legacy-form"
                         onFinish={async (vals: { shopId?: string }) => {
                           if (publishWriteDisabled) {
-                            message.error('当前账号无刊登草稿写权限');
+                            message.error(tr("当前账号无刊登草稿写权限"));
                             return;
                           }
                           const shopId = String(vals.shopId ?? '').trim();
                           if (!shopId) {
-                            message.error('请选择店铺');
+                            message.error(tr("请选择店铺"));
                             return;
                           }
                           const shop = eligibleShopsForPublish.find((s) => s.id === shopId);
                           if (!shop) {
-                            message.error('店铺不可用');
+                            message.error(tr("店铺不可用"));
                             return;
                           }
                           setPublishSubmitting(true);
                           try {
                             await new Promise<void>((resolve, reject) => {
                               Modal.confirm({
-                                title: '确认提交刊登？',
+                                title: tr("确认提交刊登？"),
                                 width: 640,
-                                okText: '确认提交刊登',
-                                cancelText: '取消',
+                                okText: tr("确认提交刊登"),
+                                cancelText: tr("取消"),
                                 okButtonProps: { danger: true },
                                 content: (
                                   <Space direction="vertical" size={8}>
-                                    <Typography.Text>该操作会执行 publish 模式发布检查，检查通过后提交刊登任务。</Typography.Text>
+                                    <Typography.Text>{tr("该操作会执行 publish 模式发布检查，检查通过后提交刊登任务。")}</Typography.Text>
                                     <Typography.Text type="secondary">
-                                      这不是本地保存，也不是只创建草稿；可能触发真实平台写操作，平台最终结果请以任务和刊登记录为准。
+                                      {tr("这不是本地保存，也不是只创建草稿；可能触发真实平台写操作，平台最终结果请以任务和刊登记录为准。")}
                                     </Typography.Text>
                                   </Space>
                                 ),
@@ -5555,7 +5565,7 @@ export default function ProductDraftDetailPage() {
                             setPublishReadiness(r);
                             if (!r.canPublish) {
                               Modal.error({
-                                title: '发布检查未通过',
+                                title: tr("发布检查未通过"),
                                 width: 600,
                                 content: <div>{readinessCheckList(r.checks)}</div>,
                               });
@@ -5564,10 +5574,10 @@ export default function ProductDraftDetailPage() {
                             if ((r.warningCount ?? 0) > 0) {
                               await new Promise<void>((resolve, reject) => {
                                 Modal.confirm({
-                                  title: '发布检查存在警告，确认继续？',
+                                  title: tr("发布检查存在警告，确认继续？"),
                                   width: 640,
-                                  okText: '确认创建刊登任务',
-                                  cancelText: '返回处理',
+                                  okText: tr("确认创建刊登任务"),
+                                  cancelText: tr("返回处理"),
                                   content: <div>{readinessCheckList((r.checks || []).filter((c) => c.level !== 'error'), 10)}</div>,
                                   onOk: () => resolve(),
                                   onCancel: () => reject(new Error('cancelled')),
@@ -5576,7 +5586,7 @@ export default function ProductDraftDetailPage() {
                             }
                             const task = await publishProduct(id, { shopId, options: {} });
                             if (task.readiness) setPublishReadiness(task.readiness);
-                            message.success('已提交刊登任务');
+                            message.success(tr("已提交刊登任务"));
                             publishForm.resetFields();
                             setPublishReadiness(null);
                             await reloadPublishContext();
@@ -5587,12 +5597,12 @@ export default function ProductDraftDetailPage() {
                               const r = ex.data as ProductReadinessResult;
                               setPublishReadiness(r);
                               Modal.error({
-                                title: '发布检查未通过',
+                                title: tr("发布检查未通过"),
                                 width: 600,
                                 content: <div>{readinessCheckList(r.checks || [])}</div>,
                               });
                             } else {
-                              message.error((ex as Error)?.message || '提交失败');
+                              message.error((ex as Error)?.message || tr("提交失败"));
                             }
                           } finally {
                             setPublishSubmitting(false);
@@ -5601,11 +5611,11 @@ export default function ProductDraftDetailPage() {
                       >
                         <Form.Item
                           name="shopId"
-                          label="目标店铺（已授权且刊登可用 / beta）"
-                          rules={[{ required: true, message: '请选择店铺' }]}
+                          label={tr("目标店铺（已授权且刊登可用 / beta）")}
+                          rules={[{ required: true, message: tr("请选择店铺") }]}
                         >
                           <Select
-                            placeholder="选择店铺"
+                            placeholder={tr("选择店铺")}
                             allowClear
                             showSearch
                             optionFilterProp="label"
@@ -5613,7 +5623,7 @@ export default function ProductDraftDetailPage() {
                             options={eligibleShopsForPublish.map((s) => {
                               const m = platformsMeta.find((x) => x.platform === s.platform);
                               const st = m?.capabilityStatus?.product_publish;
-                              const betaTag = st === 'beta' ? ' [测试中/beta]' : '';
+                              const betaTag = st === 'beta' ? tr(" [测试中/beta]") : '';
                               return {
                                 label: `${s.shopName} (${s.platform})${betaTag}`,
                                 value: s.id,
@@ -5630,9 +5640,9 @@ export default function ProductDraftDetailPage() {
                               loading={publishSubmitting}
                               disabled={publishWriteDisabled || (!!publishReadiness && !publishReadiness.canPublish)}
                             >
-                              提交刊登
+                              {tr("提交刊登")}
                             </Button>
-                            <Button onClick={() => void reloadPublishContext()}>刷新快照</Button>
+                            <Button onClick={() => void reloadPublishContext()}>{tr("刷新快照")}</Button>
                           </Space>
                         </Form.Item>
                       </Form>
@@ -5642,22 +5652,22 @@ export default function ProductDraftDetailPage() {
                       <div className="product-draft-publish__records-head">
                         <div>
                           <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 0 }}>
-                            本商品刊登记录
+                            {tr("本商品刊登记录")}
                           </Typography.Title>
-                          <Typography.Text type="secondary">记录展示草稿、任务或平台返回状态；草稿成功不等于正式上线，正式提交后也以后续状态为准。</Typography.Text>
+                          <Typography.Text type="secondary">{tr("记录展示草稿、任务或平台返回状态；草稿成功不等于正式上线，正式提交后也以后续状态为准。")}</Typography.Text>
                         </div>
-                        <Button size="small" onClick={() => void reloadPublishContext()}>刷新记录</Button>
+                        <Button size="small" onClick={() => void reloadPublishContext()}>{tr("刷新记录")}</Button>
                       </div>
                       {pubCtxError ? (
                         <Alert
                           type="error"
                           showIcon
-                          message="刊登记录加载失败"
-                          description={pubCtxError}
-                          action={<Button size="small" onClick={() => void reloadPublishContext()}>重新加载</Button>}
+                          message={tr("刊登记录加载失败")}
+                          description={localizeProductError(pubCtxError)}
+                          action={<Button size="small" onClick={() => void reloadPublishContext()}>{tr("重新加载")}</Button>}
                         />
                       ) : pubRows.length === 0 ? (
-                        <EmptyState compact title="暂无刊登记录" description="创建草稿或提交刊登任务后，刊登记录会在这里展示。" />
+                        <EmptyState compact title={tr("暂无刊登记录")} description={tr("创建草稿或提交刊登任务后，刊登记录会在这里展示。")} />
                       ) : (
                         <Table<ProductPublicationRow>
                           size="small"
@@ -5667,17 +5677,17 @@ export default function ProductDraftDetailPage() {
                           pagination={false}
                           scroll={{ x: 760 }}
                           columns={[
-                            { title: '店铺', width: 220, render: (_, r) => <Typography.Text className="product-draft-publish__long-text">{r.shopName || r.shopId}</Typography.Text> },
-                            { title: '平台', dataIndex: 'platform', width: 140, render: (v) => platformDisplayLabel(String(v ?? '')) },
-                            { title: '状态', dataIndex: 'publishStatus', width: 120, render: (v) => tagFromPublishStatus(String(v ?? '')) },
-                            { title: '外部商品 ID', dataIndex: 'externalProductId', width: 180, render: (v) => <Typography.Text className="product-draft-publish__long-text">{v || '—'}</Typography.Text> },
+                            { title: tr("店铺"), width: 220, render: (_, r) => <Typography.Text className="product-draft-publish__long-text">{r.shopName || r.shopId}</Typography.Text> },
+                            { title: tr("平台"), dataIndex: 'platform', width: 140, render: (v) => platformDisplayLabel(String(v ?? '')) },
+                            { title: tr("状态"), dataIndex: 'publishStatus', width: 120, render: (v) => tagFromPublishStatus(String(v ?? '')) },
+                            { title: tr("外部商品 ID"), dataIndex: 'externalProductId', width: 180, render: (v) => <Typography.Text className="product-draft-publish__long-text">{v || '—'}</Typography.Text> },
                             {
-                              title: '外链',
+                              title: tr("外链"),
                               width: 120,
                               render: (_, r) =>
                                 r.externalUrl ? (
                                   <Typography.Link href={r.externalUrl} target="_blank" rel="noreferrer">
-                                    打开
+                                    {tr("打开")}
                                   </Typography.Link>
                                 ) : (
                                   '—'
@@ -5699,7 +5709,7 @@ export default function ProductDraftDetailPage() {
       ) : null}
 
       <ModalForm
-        title={imgEdit ? '编辑商品图片' : '添加商品图片'}
+        title={imgEdit ? tr("编辑商品图片") : tr("添加商品图片")}
         open={!!id && (imgModalOpen || !!imgEdit)}
         onOpenChange={(open) => {
           if (!open) {
@@ -5730,7 +5740,7 @@ export default function ProductDraftDetailPage() {
                 originUrl: String(vals.originUrl ?? ''),
                 objectKey: String(vals.objectKey ?? ''),
               });
-              message.success('已更新');
+              message.success(tr("已更新"));
             } else {
               const body: Parameters<typeof createProductImage>[1] = {
                 imageType,
@@ -5746,7 +5756,7 @@ export default function ProductDraftDetailPage() {
                 if (!body.objectKey) body.objectKey = lastUpload.objectKey;
               }
               await createProductImage(id, body);
-              message.success('已添加');
+              message.success(tr("已添加"));
             }
             setImgModalOpen(false);
             setImgEdit(null);
@@ -5754,18 +5764,18 @@ export default function ProductDraftDetailPage() {
             await reloadDetail();
             return true;
           } catch (e: unknown) {
-            message.error((e as Error)?.message || '失败');
+            message.error((e as Error)?.message || tr("失败"));
             return false;
           } finally {
             setImgBusy(false);
           }
         }}
         submitter={{
-          searchConfig: { submitText: imgEdit ? '保存' : '添加' },
+          searchConfig: { submitText: imgEdit ? tr("保存") : tr("添加") },
           submitButtonProps: { loading: imgBusy },
         }}
       >
-        <ProFormSelect name="imageType" label="图片类型" options={IMAGE_TYPE_OPTIONS} rules={[{ required: true }]} />
+        <ProFormSelect name="imageType" label={tr("图片类型")} options={imageTypeOptions()} rules={[{ required: true }]} />
         <ProFormDigit
           name="sortOrder"
           label={PRODUCT_IMAGE_SORT_ORDER_LABEL}
@@ -5773,7 +5783,7 @@ export default function ProductDraftDetailPage() {
           fieldProps={{ style: { width: '100%' } }}
         />
         {!imgEdit ? (
-          <Form.Item label="上传文件（可选）">
+          <Form.Item label={tr("上传文件（可选）")}>
             <Upload
               maxCount={1}
               showUploadList
@@ -5783,36 +5793,36 @@ export default function ProductDraftDetailPage() {
                   const up = await uploadFile(f);
                   setLastUpload({ id: up.id, url: up.url, objectKey: up.objectKey });
                   opt.onSuccess?.(up, new XMLHttpRequest());
-                  message.success('已上传，保存时将关联到商品');
+                  message.success(tr("已上传，保存时将关联到商品"));
                 } catch (e: unknown) {
                   opt.onError?.(e as Error);
-                  message.error((e as Error)?.message || '上传失败');
+                  message.error((e as Error)?.message || tr("上传失败"));
                 }
               }}
             >
-              <Button icon={<PlusOutlined />}>选择图片并上传</Button>
+              <Button icon={<PlusOutlined />}>{tr("选择图片并上传")}</Button>
             </Upload>
           </Form.Item>
         ) : null}
         <ProFormText
           name="publicUrl"
           label={PRODUCT_IMAGE_PUBLIC_URL_LABEL}
-          placeholder="https:// 或 /static/…"
+          placeholder={tr("https:// 或 /static/…")}
         />
         <ProFormText
           name="originUrl"
           label={PRODUCT_IMAGE_ORIGIN_URL_LABEL}
-          placeholder="外部原图地址（可选）"
+          placeholder={tr("外部原图地址（可选）")}
         />
         <ProFormText
           name="objectKey"
           label={PRODUCT_IMAGE_OBJECT_KEY_LABEL}
-          placeholder="存储路径（可选）"
+          placeholder={tr("存储路径（可选）")}
         />
       </ModalForm>
 
       <Modal
-        title="AI 标题优化"
+        title={tr("AI 标题优化")}
         open={aiOpen}
         onCancel={() => setAiOpen(false)}
         footer={null}
@@ -5826,7 +5836,7 @@ export default function ProductDraftDetailPage() {
           type="info"
           showIcon
           className="product-draft-ai-modal__notice"
-          message="AI 生成可能消耗模型额度，生成结果不会自动覆盖商品内容。"
+          message={tr("AI 生成可能消耗模型额度，生成结果不会自动覆盖商品内容。")}
         />
         <Form
           form={aiForm}
@@ -5844,34 +5854,34 @@ export default function ProductDraftDetailPage() {
               });
               setAiResult(res);
               setAiPreparedTitle(res.optimizedTitle || '');
-              message.success('优化完成');
+              message.success(tr("优化完成"));
               await reloadTasks();
             } catch (e: unknown) {
-              message.error((e as Error)?.message || '优化失败');
+              message.error((e as Error)?.message || tr("优化失败"));
             } finally {
               setAiBusy(false);
             }
           }}
         >
           <div className="product-draft-ai-modal__fields">
-            <Form.Item name="language" label="语言" rules={[{ required: true }]}>
-              <Select options={AI_LANGUAGE_OPTIONS} placeholder="请选择生成语言" />
+            <Form.Item name="language" label={tr("语言")} rules={[{ required: true }]}>
+              <Select options={AI_LANGUAGE_OPTIONS} placeholder={tr("请选择生成语言")} />
             </Form.Item>
-            <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
+            <Form.Item name="platform" label={tr("平台")} rules={[{ required: true }]}>
               <Select
                 options={AI_TARGET_PLATFORM_OPTIONS}
-                placeholder="请选择目标平台"
+                placeholder={tr("请选择目标平台")}
                 showSearch
                 optionFilterProp="label"
               />
             </Form.Item>
-            <Form.Item name="maxLength" label="最长字符数" rules={[{ required: true }]}>
+            <Form.Item name="maxLength" label={tr("最长字符数")} rules={[{ required: true }]}>
               <InputNumber min={20} max={500} style={{ width: '100%' }} />
             </Form.Item>
           </div>
           <Form.Item className="product-draft-ai-modal__submit">
             <Button type="primary" htmlType="submit" loading={aiBusy}>
-              生成标题建议
+              {tr("生成标题建议")}
             </Button>
           </Form.Item>
         </Form>
@@ -5880,19 +5890,19 @@ export default function ProductDraftDetailPage() {
           <div className="product-draft-ai-modal__result">
             <div className="product-draft-ai-modal__result-head">
               <div>
-                <Typography.Text strong>标题建议结果</Typography.Text>
-                <Typography.Paragraph type="secondary">当前内容尚未应用到商品，可在下方微调后应用。</Typography.Paragraph>
+                <Typography.Text strong>{tr("标题建议结果")}</Typography.Text>
+                <Typography.Paragraph type="secondary">{tr("当前内容尚未应用到商品，可在下方微调后应用。")}</Typography.Paragraph>
               </div>
-              <Tag color="processing">AI 建议未应用</Tag>
+              <Tag color="processing">{tr("AI 建议未应用")}</Tag>
             </div>
             <div className="product-draft-ai-modal__compare">
               <div className="product-draft-ai-modal__compare-box">
-                <span>原文</span>
-                {aiTextPreview(data?.title || data?.originalTitle, '暂无标题')}
+                <span>{tr("原文")}</span>
+                {aiTextPreview(data?.title || data?.originalTitle, tr("暂无标题"))}
               </div>
               <div className="product-draft-ai-modal__compare-box product-draft-ai-modal__compare-box--ai">
-                <span>AI 建议</span>
-                {aiTextPreview(aiResult.optimizedTitle, '暂无建议')}
+                <span>{tr("AI 建议")}</span>
+                {aiTextPreview(aiResult.optimizedTitle, tr("暂无建议"))}
               </div>
             </div>
             {(aiResult.keywords ?? []).length || aiResult.reason ? (
@@ -5908,8 +5918,8 @@ export default function ProductDraftDetailPage() {
               </div>
             ) : null}
             <Form.Item
-              label="准备应用为 AI 标题"
-              extra="应用后写入商品草稿的 AI 标题；若商品在生成后被修改，会提示内容冲突。"
+              label={tr("准备应用为 AI 标题")}
+              extra={tr("应用后写入商品草稿的 AI 标题；若商品在生成后被修改，会提示内容冲突。")}
             >
               <Input.TextArea rows={3} value={aiPreparedTitle} onChange={(e) => setAiPreparedTitle(e.target.value)} />
             </Form.Item>
@@ -5921,7 +5931,7 @@ export default function ProductDraftDetailPage() {
                 loading={aiBusy}
                 onClick={() => {
                   if (!aiResult?.taskId) return;
-                  confirmApplyAiText('标题', async () => {
+                  confirmApplyAiText(tr("标题"), async () => {
                     setAiBusy(true);
                     try {
                       await applyProductAITitle(id, {
@@ -5929,7 +5939,7 @@ export default function ProductDraftDetailPage() {
                         taskId: aiResult.taskId,
                         expectedUpdatedAt: data?.updatedAt,
                       });
-                      message.success('已应用为 AI 标题');
+                      message.success(tr("已应用为 AI 标题"));
                       setAiOpen(false);
                       setAiResult(null);
                       setAiPreparedTitle('');
@@ -5938,33 +5948,33 @@ export default function ProductDraftDetailPage() {
                     } catch (e: unknown) {
                       const msg = (e as Error)?.message || '';
                       if (msg.includes('conflict')) {
-                        message.warning('商品标题在 AI 生成后已变化，请重新确认后再应用。');
+                        message.warning(tr("商品标题在 AI 生成后已变化，请重新确认后再应用。"));
                         return;
                       }
-                      message.error((e as Error)?.message || '应用失败');
+                      message.error((e as Error)?.message || tr("应用失败"));
                     } finally {
                       setAiBusy(false);
                     }
                   });
                 }}
               >
-                应用为 AI 标题
+                {tr("应用为 AI 标题")}
               </Button>
               <Button
                 icon={<UndoOutlined />}
                 loading={aiBusy}
                 onClick={() => {
-                  confirmUndoAiText('标题', async () => {
+                  confirmUndoAiText(tr("标题"), async () => {
                     setAiBusy(true);
                     try {
                       await undoProductAITitle(id, { expectedUpdatedAt: data?.updatedAt });
-                      message.success('已撤销最近一次 AI 标题应用');
+                      message.success(tr("已撤销最近一次 AI 标题应用"));
                       await reloadDetail();
                       await reloadTasks();
                     } catch (e: unknown) {
-                      const msg = (e as Error)?.message || '撤销失败';
+                      const msg = (e as Error)?.message || tr("撤销失败");
                       if (msg.includes('conflict')) {
-                        message.warning('AI 标题已经被再次修改，不能静默撤销。');
+                        message.warning(tr("AI 标题已经被再次修改，不能静默撤销。"));
                       } else {
                         message.error(msg);
                       }
@@ -5974,16 +5984,16 @@ export default function ProductDraftDetailPage() {
                   });
                 }}
               >
-                撤销最近一次应用
+                {tr("撤销最近一次应用")}
               </Button>
-              <Typography.Text type="secondary">任务 ID：{aiResult.taskId}</Typography.Text>
+              <Typography.Text type="secondary">{tr("任务 ID：")}{aiResult.taskId}</Typography.Text>
             </Space>
           </div>
         ) : null}
       </Modal>
 
       <Modal
-        title="AI 描述生成"
+        title={tr("AI 描述生成")}
         open={descOpen}
         onCancel={() => setDescOpen(false)}
         footer={null}
@@ -5997,7 +6007,7 @@ export default function ProductDraftDetailPage() {
           type="info"
           showIcon
           className="product-draft-ai-modal__notice"
-          message="AI 生成可能消耗模型额度，生成结果不会自动覆盖商品内容。"
+          message={tr("AI 生成可能消耗模型额度，生成结果不会自动覆盖商品内容。")}
         />
         <Form
           form={descForm}
@@ -6015,34 +6025,34 @@ export default function ProductDraftDetailPage() {
               });
               setDescResult(res);
               setDescPreparedText(buildAiDescriptionText(res));
-              message.success('生成完成');
+              message.success(tr("生成完成"));
               await reloadTasks();
             } catch (e: unknown) {
-              message.error((e as Error)?.message || '生成失败');
+              message.error((e as Error)?.message || tr("生成失败"));
             } finally {
               setDescBusy(false);
             }
           }}
         >
           <div className="product-draft-ai-modal__fields">
-            <Form.Item name="language" label="语言" rules={[{ required: true }]}>
-              <Select options={AI_LANGUAGE_OPTIONS} placeholder="请选择生成语言" />
+            <Form.Item name="language" label={tr("语言")} rules={[{ required: true }]}>
+              <Select options={AI_LANGUAGE_OPTIONS} placeholder={tr("请选择生成语言")} />
             </Form.Item>
-            <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
+            <Form.Item name="platform" label={tr("平台")} rules={[{ required: true }]}>
               <Select
                 options={AI_TARGET_PLATFORM_OPTIONS}
-                placeholder="请选择目标平台"
+                placeholder={tr("请选择目标平台")}
                 showSearch
                 optionFilterProp="label"
               />
             </Form.Item>
-            <Form.Item name="tone" label="语气" rules={[{ required: true }]}>
-              <Select options={AI_TONE_OPTIONS} placeholder="请选择文案语气" />
+            <Form.Item name="tone" label={tr("语气")} rules={[{ required: true }]}>
+              <Select options={AI_TONE_OPTIONS} placeholder={tr("请选择文案语气")} />
             </Form.Item>
           </div>
           <Form.Item className="product-draft-ai-modal__submit">
             <Button type="primary" htmlType="submit" loading={descBusy}>
-              生成描述建议
+              {tr("生成描述建议")}
             </Button>
           </Form.Item>
         </Form>
@@ -6051,19 +6061,19 @@ export default function ProductDraftDetailPage() {
           <div className="product-draft-ai-modal__result">
             <div className="product-draft-ai-modal__result-head">
               <div>
-                <Typography.Text strong>描述建议结果</Typography.Text>
-                <Typography.Paragraph type="secondary">当前内容尚未应用到商品，可在下方微调后应用。</Typography.Paragraph>
+                <Typography.Text strong>{tr("描述建议结果")}</Typography.Text>
+                <Typography.Paragraph type="secondary">{tr("当前内容尚未应用到商品，可在下方微调后应用。")}</Typography.Paragraph>
               </div>
-              <Tag color="processing">AI 建议未应用</Tag>
+              <Tag color="processing">{tr("AI 建议未应用")}</Tag>
             </div>
             <div className="product-draft-ai-modal__compare product-draft-ai-modal__compare--description">
               <div className="product-draft-ai-modal__compare-box">
-                <span>原文</span>
-                {aiTextPreview(data?.description, '暂无描述')}
+                <span>{tr("原文")}</span>
+                {aiTextPreview(data?.description, tr("暂无描述"))}
               </div>
               <div className="product-draft-ai-modal__compare-box product-draft-ai-modal__compare-box--ai">
-                <span>AI 建议</span>
-                {aiTextPreview(descResult.description, '暂无建议')}
+                <span>{tr("AI 建议")}</span>
+                {aiTextPreview(descResult.description, tr("暂无建议"))}
               </div>
             </div>
             <div className="product-draft-ai-modal__meta product-draft-ai-modal__meta--grid">
@@ -6099,8 +6109,8 @@ export default function ProductDraftDetailPage() {
               ) : null}
             </div>
             <Form.Item
-              label="准备应用为 AI 描述"
-              extra="应用后写入商品草稿的 AI 描述；若商品在生成后被修改，会提示内容冲突。"
+              label={tr("准备应用为 AI 描述")}
+              extra={tr("应用后写入商品草稿的 AI 描述；若商品在生成后被修改，会提示内容冲突。")}
             >
               <Input.TextArea rows={6} value={descPreparedText} onChange={(e) => setDescPreparedText(e.target.value)} />
             </Form.Item>
@@ -6114,7 +6124,7 @@ export default function ProductDraftDetailPage() {
                   if (!descResult?.taskId) return;
                   const text = descPreparedText.trim();
                   if (!text) return;
-                  confirmApplyAiText('描述', async () => {
+                  confirmApplyAiText(tr("描述"), async () => {
                     setDescBusy(true);
                     try {
                       await applyAiDescription(id, {
@@ -6122,7 +6132,7 @@ export default function ProductDraftDetailPage() {
                         taskId: descResult.taskId,
                         expectedUpdatedAt: data?.updatedAt,
                       });
-                      message.success('已应用为 AI 描述');
+                      message.success(tr("已应用为 AI 描述"));
                       setDescOpen(false);
                       setDescResult(null);
                       setDescPreparedText('');
@@ -6131,33 +6141,33 @@ export default function ProductDraftDetailPage() {
                     } catch (e: unknown) {
                       const msg = (e as Error)?.message || '';
                       if (msg.includes('conflict')) {
-                        message.warning('商品描述在 AI 生成后已变化，请重新确认后再应用。');
+                        message.warning(tr("商品描述在 AI 生成后已变化，请重新确认后再应用。"));
                         return;
                       }
-                      message.error((e as Error)?.message || '应用失败');
+                      message.error((e as Error)?.message || tr("应用失败"));
                     } finally {
                       setDescBusy(false);
                     }
                   });
                 }}
               >
-                应用为 AI 描述
+                {tr("应用为 AI 描述")}
               </Button>
               <Button
                 icon={<UndoOutlined />}
                 loading={descBusy}
                 onClick={() => {
-                  confirmUndoAiText('描述', async () => {
+                  confirmUndoAiText(tr("描述"), async () => {
                     setDescBusy(true);
                     try {
                       await undoAiDescription(id, { expectedUpdatedAt: data?.updatedAt });
-                      message.success('已撤销最近一次 AI 描述应用');
+                      message.success(tr("已撤销最近一次 AI 描述应用"));
                       await reloadDetail();
                       await reloadTasks();
                     } catch (e: unknown) {
-                      const msg = (e as Error)?.message || '撤销失败';
+                      const msg = (e as Error)?.message || tr("撤销失败");
                       if (msg.includes('conflict')) {
-                        message.warning('AI 描述已经被再次修改，不能静默撤销。');
+                        message.warning(tr("AI 描述已经被再次修改，不能静默撤销。"));
                       } else {
                         message.error(msg);
                       }
@@ -6167,16 +6177,16 @@ export default function ProductDraftDetailPage() {
                   });
                 }}
               >
-                撤销最近一次应用
+                {tr("撤销最近一次应用")}
               </Button>
-              <Typography.Text type="secondary">任务 ID：{descResult.taskId}</Typography.Text>
+              <Typography.Text type="secondary">{tr("任务 ID：")}{descResult.taskId}</Typography.Text>
             </Space>
           </div>
         ) : null}
       </Modal>
 
       <Drawer
-        title={logsSku ? `库存变更 · ${logsSku.skuCode || logsSku.id}` : '库存变更'}
+        title={logsSku ? `${tr("库存变更")} · ${logsSku.skuCode || logsSku.id}` : tr("库存变更")}
         open={logsOpen}
         width={720}
         rootClassName="tm-product-draft-detail product-draft-inventory__drawer-root"
@@ -6198,31 +6208,31 @@ export default function ProductDraftDetailPage() {
             dataSource={logsRows}
             columns={[
               {
-                title: '时间',
+                title: tr("时间"),
                 dataIndex: 'createdAt',
                 width: 168,
                 render: (v: string) => formatDateTime(v),
               },
-              { title: '类型', dataIndex: 'changeType', width: 136 },
-              { title: '前', width: 64, dataIndex: 'beforeStock', align: 'right' as const },
-              { title: '后', width: 64, dataIndex: 'afterStock', align: 'right' as const },
+              { title: tr("类型"), dataIndex: 'changeType', width: 136 },
+              { title: tr("前"), width: 64, dataIndex: 'beforeStock', align: 'right' as const },
+              { title: tr("后"), width: 64, dataIndex: 'afterStock', align: 'right' as const },
               { title: 'Δ', width: 64, dataIndex: 'delta', align: 'right' as const },
-              { title: '原因', width: 160, dataIndex: 'reason', className: 'product-draft-inventory__logs-text' },
-              { title: '备注', width: 200, dataIndex: 'remark', className: 'product-draft-inventory__logs-text' },
+              { title: tr("原因"), width: 160, dataIndex: 'reason', className: 'product-draft-inventory__logs-text' },
+              { title: tr("备注"), width: 200, dataIndex: 'remark', className: 'product-draft-inventory__logs-text' },
             ]}
           />
         </Spin>
       </Drawer>
 
       <Modal
-        title={adjustTarget ? `调整库存 · ${adjustTarget.skuCode}` : '调整库存'}
+        title={adjustTarget ? `${tr("调整库存")} · ${adjustTarget.skuCode}` : tr("调整库存")}
         open={adjustOpen && !!adjustTarget}
         forceRender
         destroyOnHidden
         width={640}
         rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
         className="product-draft-inventory__modal"
-        okText="保存"
+        okText={tr("保存")}
         confirmLoading={invAdjustSubmitting}
         onCancel={() => {
           invAdjustLoadSequence.current += 1;
@@ -6251,7 +6261,7 @@ export default function ProductDraftDetailPage() {
                       remark: String(v.remark ?? ''),
                       sync: false,
                     });
-                    message.success('库存已更新');
+                    message.success(tr("库存已更新"));
                     invAdjustLoadSequence.current += 1;
                     setAdjustOpen(false);
                     setAdjustTarget(null);
@@ -6263,7 +6273,7 @@ export default function ProductDraftDetailPage() {
                     await reloadPublicationSkus();
                     resolve();
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '调整失败');
+                    message.error((e as Error)?.message || tr("调整失败"));
                     reject(e);
                   } finally {
                     setInvAdjustSubmitting(false);
@@ -6279,17 +6289,17 @@ export default function ProductDraftDetailPage() {
           type="warning"
           showIcon
           className="product-draft-inventory__modal-alert"
-          message="库存调整会覆盖所选仓库的在手库存"
-          description="提交后更新所选仓库余额，并在同一事务写入库存流水和商品规格兼容聚合库存；未迁移历史量先进入默认仓或待分配仓，当前表单不会自动同步到平台。"
+          message={tr("库存调整会覆盖所选仓库的在手库存")}
+          description={tr("提交后更新所选仓库余额，并在同一事务写入库存流水和商品规格兼容聚合库存；未迁移历史量先进入默认仓或待分配仓，当前表单不会自动同步到平台。")}
         />
         <Form form={adjustForm} layout="vertical">
-          <Form.Item name="warehouseId" label="仓库" rules={[{ required: true, message: '请选择仓库' }]}>
+          <Form.Item name="warehouseId" label={tr("仓库")} rules={[{ required: true, message: tr("请选择仓库") }]}>
             <Select
               loading={invAdjustLoading}
-              placeholder="请选择启用的仓库"
+              placeholder={tr("请选择启用的仓库")}
               options={invAdjustWarehouses.map((item) => ({
                 value: item.id,
-                label: `${item.name}（${item.code}）${item.isDefault ? ' · 默认' : ''}`,
+                label: trFormat("{value0}（{value1}）{value2}", { value0: item.name, value1: item.code, value2: item.isDefault ? tr(" · 默认") : '' }),
               }))}
               onChange={(warehouseId) => {
                 const balance = invAdjustBalances.find((item) => item.warehouseId === warehouseId);
@@ -6301,27 +6311,27 @@ export default function ProductDraftDetailPage() {
               }}
             />
           </Form.Item>
-          <Form.Item name="stock" label="库存（≥0）" rules={[{ required: true }]}>
+          <Form.Item name="stock" label={tr("库存（≥0）")} rules={[{ required: true }]}>
             <InputNumber min={0} step={1} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="reason" label="原因标识">
+          <Form.Item name="reason" label={tr("原因标识")}>
             <Input placeholder="manual_adjust" />
           </Form.Item>
-          <Form.Item name="remark" label="备注">
-            <Input.TextArea rows={2} placeholder="盘点修正…" />
+          <Form.Item name="remark" label={tr("备注")}>
+            <Input.TextArea rows={2} placeholder={tr("盘点修正…")} />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title="同步刊登规格库存"
+        title={tr("同步刊登规格库存")}
         open={syncOpen && !!syncRow}
         forceRender
         destroyOnHidden
         width={640}
         rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
         className="product-draft-inventory__modal"
-        okText="提交任务"
+        okText={tr("提交任务")}
         confirmLoading={syncSubmitting}
         onCancel={() => {
           setSyncOpen(false);
@@ -6332,7 +6342,7 @@ export default function ProductDraftDetailPage() {
           if (!syncRow) return Promise.reject();
           return syncForm.validateFields().then((v) => {
             const stock = Number(v.stock);
-            const targetLabel = `${syncRow.platform ?? '平台'} / ${syncRow.shopName ?? syncRow.shopId ?? '—'}`;
+            const targetLabel = `${syncRow.platform ?? tr("平台")} / ${syncRow.shopName ?? syncRow.shopId ?? '—'}`;
             const externalCall = inventorySyncRunnable(syncRow.inventorySyncCapability);
             return new Promise<void>((resolve, reject) => {
               confirmInventorySync(targetLabel, externalCall, async () => {
@@ -6342,7 +6352,7 @@ export default function ProductDraftDetailPage() {
                     stock,
                     options: {},
                   });
-                  message.success('库存同步任务已创建');
+                  message.success(tr("库存同步任务已创建"));
                   setSyncOpen(false);
                   setSyncRow(null);
                   syncForm.resetFields();
@@ -6360,14 +6370,14 @@ export default function ProductDraftDetailPage() {
         }}
       >
         <Typography.Paragraph type="secondary" className="product-draft-inventory__modal-note">
-          平台：{syncRow?.platform ?? '—'}；店铺：{syncRow?.shopName ?? syncRow?.shopId ?? '—'}
+          {tr("平台：")}{syncRow?.platform ?? '—'}{tr("；店铺：")}{syncRow?.shopName ?? syncRow?.shopId ?? '—'}
         </Typography.Paragraph>
         <InventorySyncPlatformHint platform={syncRow?.platform} />
         <Form form={syncForm} layout="vertical">
           <Form.Item
             name="stock"
-            label="推送到平台的库存数量"
-            rules={[{ required: true, message: '必填且 ≥0' }]}
+            label={tr("推送到平台的库存数量")}
+            rules={[{ required: true, message: tr("必填且 ≥0") }]}
           >
             <InputNumber min={0} step={1} style={{ width: '100%' }} />
           </Form.Item>
@@ -6375,14 +6385,14 @@ export default function ProductDraftDetailPage() {
       </Modal>
 
       <Modal
-        title={stockSettingsTarget ? `预警线 · ${stockSettingsTarget.skuCode}` : '预警线'}
+        title={stockSettingsTarget ? `${tr("预警线")} · ${stockSettingsTarget.skuCode}` : tr("预警线")}
         open={stockSettingsOpen && !!stockSettingsTarget}
         forceRender
         destroyOnHidden
         width={520}
         rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
         className="product-draft-inventory__modal"
-        okText="保存"
+        okText={tr("保存")}
         confirmLoading={stockSettingsSubmitting}
         onCancel={() => {
           setStockSettingsOpen(false);
@@ -6393,7 +6403,7 @@ export default function ProductDraftDetailPage() {
           if (!stockSettingsTarget) return;
           const v = await stockSettingsForm.validateFields();
           if (v.safetyStock > v.warningStock) {
-            message.error('安全线不能大于预警线');
+            message.error(tr("安全线不能大于预警线"));
             return;
           }
           setStockSettingsSubmitting(true);
@@ -6402,40 +6412,40 @@ export default function ProductDraftDetailPage() {
               warningStock: v.warningStock,
               safetyStock: v.safetyStock,
             });
-            message.success('已保存');
+            message.success(tr("已保存"));
             setStockSettingsOpen(false);
             setStockSettingsTarget(null);
             stockSettingsForm.resetFields();
             await reloadDetail();
           } catch (e: unknown) {
-            message.error((e as Error)?.message || '失败');
+            message.error((e as Error)?.message || tr("失败"));
           } finally {
             setStockSettingsSubmitting(false);
           }
         }}
       >
         <Typography.Paragraph type="secondary" className="product-draft-inventory__modal-note">
-          预警线只用于识别低库存，不会调整实际库存，也不会同步到平台。
+          {tr("预警线只用于识别低库存，不会调整实际库存，也不会同步到平台。")}
         </Typography.Paragraph>
         <Form form={stockSettingsForm} layout="vertical">
-          <Form.Item name="warningStock" label="预警库存线" rules={[{ required: true }]}>
+          <Form.Item name="warningStock" label={tr("预警库存线")} rules={[{ required: true }]}>
             <InputNumber min={0} step={1} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="safetyStock" label="安全库存线" rules={[{ required: true }]}>
+          <Form.Item name="safetyStock" label={tr("安全库存线")} rules={[{ required: true }]}>
             <InputNumber min={0} step={1} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title={douyinSkuBindTarget ? `手动绑定抖店规格 · ${douyinSkuBindTarget.specName || douyinSkuBindTarget.skuCode || ''}` : '手动绑定抖店规格'}
+        title={douyinSkuBindTarget ? `${tr("手动绑定抖店规格")} · ${douyinSkuBindTarget.specName || douyinSkuBindTarget.skuCode || ''}` : tr("手动绑定抖店规格")}
         open={douyinSkuBindOpen && !!douyinSkuBindTarget}
         forceRender
         destroyOnHidden
         width={640}
         rootClassName="tm-product-draft-detail product-draft-douyin-bind__modal-root"
         className="product-draft-douyin-bind__modal"
-        okText="确认绑定"
+        okText={tr("确认绑定")}
         okButtonProps={{ disabled: skuBindDisabled }}
         confirmLoading={douyinSkuBindSubmitting}
         onCancel={() => {
@@ -6445,14 +6455,14 @@ export default function ProductDraftDetailPage() {
         }}
         onOk={() => {
           if (skuBindDisabled) {
-            message.error('当前账号无规格绑定权限');
+            message.error(tr("当前账号无规格绑定权限"));
             return Promise.reject();
           }
           if (!douyinSkuBindTarget) return Promise.reject();
           return douyinSkuBindForm.validateFields().then((v) => {
             const platformSkuId = String(v.platformSkuId ?? '').trim();
             if (!platformSkuId) {
-              message.error('请选择或填写平台规格编号');
+              message.error(tr("请选择或填写平台规格编号"));
               return Promise.reject(new Error('validation'));
             }
             const selected = (douyinSkuBinding?.platformSkus ?? []).find((c) => c.platformSkuId === platformSkuId);
@@ -6465,7 +6475,7 @@ export default function ProductDraftDetailPage() {
                     platformSkuName: String(v.platformSkuName ?? selected?.specName ?? '').trim(),
                     bindReason: 'manual',
                   });
-                  message.success('手动绑定成功');
+                  message.success(tr("手动绑定成功"));
                   setDouyinSkuBindOpen(false);
                   setDouyinSkuBindTarget(null);
                   douyinSkuBindForm.resetFields();
@@ -6473,7 +6483,7 @@ export default function ProductDraftDetailPage() {
                   await reloadPublicationSkus();
                   resolve();
                 } catch (e: unknown) {
-                  message.error((e as Error)?.message || '绑定失败');
+                  message.error((e as Error)?.message || tr("绑定失败"));
                   reject(e);
                 } finally {
                   setDouyinSkuBindSubmitting(false);
@@ -6484,33 +6494,33 @@ export default function ProductDraftDetailPage() {
         }}
       >
         <div className="product-draft-douyin-bind__modal-brief">
-          <Typography.Text strong>建立映射</Typography.Text>
+          <Typography.Text strong>{tr("建立映射")}</Typography.Text>
           <Typography.Paragraph type="secondary">
-            选择一个已有抖店规格，与当前本地规格建立映射。该操作不会创建平台 SKU，也不会自动触发库存同步。
+            {tr("选择一个已有抖店规格，与当前本地规格建立映射。该操作不会创建平台 SKU，也不会自动触发库存同步。")}
           </Typography.Paragraph>
           <div className="product-draft-douyin-bind__modal-pair">
             <div>
-              <span>本地规格</span>
+              <span>{tr("本地规格")}</span>
               <strong>{douyinSkuBindTarget?.specName || douyinSkuBindTarget?.skuCode || '—'}</strong>
               <span className="product-draft-douyin-bind__modal-id">{platformSkuValue(douyinSkuBindTarget?.productSkuId)}</span>
             </div>
             <div>
-              <span>当前平台规格</span>
+              <span>{tr("当前平台规格")}</span>
               <strong>{douyinSkuBindTarget?.platformSkuName || '—'}</strong>
               <span className="product-draft-douyin-bind__modal-id">{platformSkuValue(douyinSkuBindTarget?.externalSkuId)}</span>
             </div>
           </div>
         </div>
         <Form form={douyinSkuBindForm} layout="vertical" disabled={skuBindDisabled}>
-          <Form.Item name="platformSkuId" label="抖店规格" rules={[{ required: true, message: '请选择抖店规格' }]}>
+          <Form.Item name="platformSkuId" label={tr("抖店规格")} rules={[{ required: true, message: tr("请选择抖店规格") }]}>
             <Select
               showSearch
-              placeholder="从平台候选中选择"
+              placeholder={tr("从平台候选中选择")}
               optionFilterProp="label"
               className="product-draft-douyin-bind__select"
               options={(douyinSkuBinding?.platformSkus ?? []).map((c: DouyinPlatformSkuCandidate) => ({
                 value: c.platformSkuId,
-                label: `${c.platformSkuId} · ${c.specName || '—'}${c.boundToPublicationSkuId ? '（已绑定其他规格）' : ''}`,
+                label: trFormat("{value0} · {value1}{value2}", { value0: c.platformSkuId, value1: c.specName || '—', value2: c.boundToPublicationSkuId ? tr("（已绑定其他规格）") : '' }),
                 disabled: Boolean(c.boundToPublicationSkuId && c.boundToPublicationSkuId !== douyinSkuBindTarget?.publicationSkuId),
               }))}
               onChange={(v) => {
@@ -6519,20 +6529,20 @@ export default function ProductDraftDetailPage() {
               }}
             />
           </Form.Item>
-          <Form.Item name="platformSkuName" label="抖店规格名称">
-            <Input placeholder="可选，便于识别" />
+          <Form.Item name="platformSkuName" label={tr("抖店规格名称")}>
+            <Input placeholder={tr("可选，便于识别")} />
           </Form.Item>
         </Form>
-        <TechnicalDetails label="映射标识">
+        <TechnicalDetails label={tr("映射标识")}>
           <Descriptions size="small" column={1}>
-            <Descriptions.Item label="刊登规格">{platformSkuValue(douyinSkuBindTarget?.publicationSkuId)}</Descriptions.Item>
-            <Descriptions.Item label="抖店商品">{platformSkuValue(douyinPublication?.externalProductId)}</Descriptions.Item>
+            <Descriptions.Item label={tr("刊登规格")}>{platformSkuValue(douyinSkuBindTarget?.publicationSkuId)}</Descriptions.Item>
+            <Descriptions.Item label={tr("抖店商品")}>{platformSkuValue(douyinPublication?.externalProductId)}</Descriptions.Item>
           </Descriptions>
         </TechnicalDetails>
       </Modal>
 
       <Drawer
-        title="抖店平台规格候选"
+        title={tr("抖店平台规格候选")}
         open={douyinSkuCandidatesOpen}
         width="min(720px, calc(100vw - 16px))"
         rootClassName="tm-product-draft-detail product-draft-douyin-bind__drawer-root"
@@ -6540,13 +6550,13 @@ export default function ProductDraftDetailPage() {
         onClose={() => setDouyinSkuCandidatesOpen(false)}
       >
         <Typography.Paragraph type="secondary" className="product-draft-douyin-bind__drawer-note">
-          候选来自当前抖店商品详情，仅用于选择已有平台规格。候选列表不会自动绑定，也不会改变本地库存。
+          {tr("候选来自当前抖店商品详情，仅用于选择已有平台规格。候选列表不会自动绑定，也不会改变本地库存。")}
         </Typography.Paragraph>
         {(douyinSkuBinding?.platformSkus?.length ?? 0) === 0 ? (
           <EmptyState
             compact
-            title="暂无平台规格候选"
-            description="请先执行「重新校准」从抖店拉取商品详情；查询失败不会显示为空候选。"
+            title={tr("暂无平台规格候选")}
+            description={tr("请先执行「重新校准」从抖店拉取商品详情；查询失败不会显示为空候选。")}
           />
         ) : (
           <Table<DouyinPlatformSkuCandidate>
@@ -6557,17 +6567,17 @@ export default function ProductDraftDetailPage() {
             scroll={{ x: 680 }}
             dataSource={douyinSkuBinding?.platformSkus ?? []}
             columns={[
-              { title: '平台规格编号', dataIndex: 'platformSkuId', width: 180, render: (v) => platformSkuValue(v) },
+              { title: tr("平台规格编号"), dataIndex: 'platformSkuId', width: 180, render: (v) => platformSkuValue(v) },
               {
-                title: '规格名称',
+                title: tr("规格名称"),
                 dataIndex: 'specName',
                 width: 220,
                 render: (v) => <Typography.Text className="product-draft-douyin-bind__text">{v || '—'}</Typography.Text>,
               },
-              { title: '价格', width: 96, render: (_, r) => (typeof r.priceYuan === 'number' ? r.priceYuan.toFixed(2) : '—') },
-              { title: '库存', width: 72, render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—') },
+              { title: tr("价格"), width: 96, render: (_, r) => (typeof r.priceYuan === 'number' ? r.priceYuan.toFixed(2) : '—') },
+              { title: tr("库存"), width: 72, render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—') },
               {
-                title: '绑定状态',
+                title: tr("绑定状态"),
                 width: 156,
                 render: (_, r) => platformSkuCandidateStatusTag(r, douyinSkuBindTarget?.publicationSkuId),
               },

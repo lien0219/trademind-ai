@@ -1,3 +1,5 @@
+import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { BellOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
@@ -175,6 +177,7 @@ function ChannelPanel({
   groupEnabled: boolean;
   children: ReactNode;
 }) {
+  useLanguage();
   const active = groupEnabled && enabled;
   return (
     <div className="tm-alert-notify__channel-panel">
@@ -197,6 +200,7 @@ function ChannelPanel({
 }
 
 export default function AlertNotifySettingsPage() {
+  useLanguage();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
@@ -235,7 +239,7 @@ export default function AlertNotifySettingsPage() {
         wecom_webhook_url: an.wecom_webhook_url || '',
       });
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载失败');
+      message.error((e as Error)?.message || tr("加载失败"));
     } finally {
       setLoading(false);
     }
@@ -246,7 +250,7 @@ export default function AlertNotifySettingsPage() {
   }, [load]);
 
   return (
-    <TmPageContainer title="告警通知配置" subTitle="配置任务失败与异常时的通知方式，包括邮件与消息推送">
+    <TmPageContainer title={tr("告警通知配置")} subTitle={tr("配置任务失败与异常时的通知方式，包括邮件与消息推送")}>
       <div className="tm-system-settings">
         <ProCard variant="outlined" className="tm-system-settings__hero">
           <div className="tm-system-settings__hero-inner">
@@ -254,13 +258,8 @@ export default function AlertNotifySettingsPage() {
               <BellOutlined />
             </div>
             <div className="tm-system-settings__hero-body">
-              <Typography.Title level={5} className="tm-system-settings__hero-title">
-                出站告警通知
-              </Typography.Title>
-              <Paragraph type="secondary" className="tm-system-settings__hero-desc">
-                站内告警生成规则在「系统设置」中配置；SMTP 发信服务器在「邮箱设置」中配置。本页负责选择通知通道、触发条件，以及各通道的收件人 /
-                回调通知参数。敏感信息加密存库，接口脱敏展示。
-              </Paragraph>
+              <Typography.Title level={5} className="tm-system-settings__hero-title">{tr("出站告警通知")}</Typography.Title>
+              <Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("站内告警生成规则在「系统设置」中配置；SMTP 发信服务器在「邮箱设置」中配置。本页负责选择通知通道、触发条件，以及各通道的收件人 / 回调通知参数。敏感信息加密存库，接口脱敏展示。")}</Paragraph>
             </div>
           </div>
         </ProCard>
@@ -271,25 +270,23 @@ export default function AlertNotifySettingsPage() {
           onFinish={async (values) => {
             try {
               await saveSettingsItems(buildTcNotifyItems(values).concat(buildAlertNotifyItems(values)));
-              message.success('已保存');
+              message.success(tr("已保存"));
               await load();
             } catch (e: unknown) {
-              message.error((e as Error)?.message || '保存失败');
+              message.error((e as Error)?.message || tr("保存失败"));
             }
           }}
         >
           <ProCard
             variant="outlined"
-            title="通知策略"
+            title={tr("通知策略")}
             className="tm-system-settings__panel"
             style={{ marginTop: 16 }}
             extra={
-              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
-                重新加载
-              </Button>
+              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>{tr("重新加载")}</Button>
             }
           >
-            <Form.Item label="启用外部通知" name="enable_external_notifications" valuePropName="checked" extra="需与下方「通道总开关」同时开启">
+            <Form.Item label={tr("启用外部通知")} name="enable_external_notifications" valuePropName="checked" extra={tr("需与下方「通道总开关」同时开启")}>
               <Switch />
             </Form.Item>
 
@@ -304,29 +301,29 @@ export default function AlertNotifySettingsPage() {
                     <Row gutter={[24, 0]}>
                       <Col xs={24} md={12} lg={8}>
                         <Form.Item
-                          label="通知最低严重等级"
+                          label={tr("通知最低严重等级")}
                           name="notification_min_severity"
-                          tooltip="留空则不自动向外部渠道发送（仍可在告警列表手动触发）"
+                          tooltip={tr("留空则不自动向外部渠道发送（仍可在告警列表手动触发）")}
                         >
                           <Select
                             allowClear
-                            placeholder="未设置（不自动外发）"
-                            options={NOTIFICATION_SEVERITY_OPTIONS}
+                            placeholder={tr("未设置（不自动外发）")}
+                            options={NOTIFICATION_SEVERITY_OPTIONS.map((option) => ({ ...option, label: tr(option.label) }))}
                             disabled={!externalEnabled}
                           />
                         </Form.Item>
                       </Col>
                       <Col xs={24} md={12} lg={8}>
-                        <Form.Item label="新告警时通知" name="notify_on_alert_generated" valuePropName="checked">
+                        <Form.Item label={tr("新告警时通知")} name="notify_on_alert_generated" valuePropName="checked">
                           <Switch disabled={!externalEnabled} />
                         </Form.Item>
                       </Col>
                       <Col xs={24} md={12} lg={8}>
                         <Form.Item
-                          label="告警重复出现时通知"
+                          label={tr("告警重复出现时通知")}
                           name="notify_on_repeated_alert"
                           valuePropName="checked"
-                          tooltip="同一告警重复触发且计数递增时再次通知"
+                          tooltip={tr("同一告警重复触发且计数递增时再次通知")}
                         >
                           <Switch disabled={!externalEnabled} />
                         </Form.Item>
@@ -335,34 +332,32 @@ export default function AlertNotifySettingsPage() {
                     <Row gutter={[24, 0]}>
                       <Col xs={24} md={12}>
                         <Form.Item
-                          label="自动通知通道"
+                          label={tr("自动通知通道")}
                           name="notification_channels"
-                          rules={externalEnabled ? [{ required: true, message: '请至少选择一个通知通道' }] : []}
-                          tooltip="决定系统自动外发时尝试哪些通道；各通道细节在下方配置"
+                          rules={externalEnabled ? [{ required: true, message: tr("请至少选择一个通知通道") }] : []}
+                          tooltip={tr("决定系统自动外发时尝试哪些通道；各通道细节在下方配置")}
                         >
                           <Select
                             mode="multiple"
                             allowClear
-                            placeholder="选择邮件、回调通知等"
-                            options={NOTIFICATION_CHANNEL_OPTIONS}
+                            placeholder={tr("选择邮件、回调通知等")}
+                            options={NOTIFICATION_CHANNEL_OPTIONS.map((option) => ({ ...option, label: tr(option.label) }))}
                             disabled={!externalEnabled}
                           />
                         </Form.Item>
                       </Col>
                       <Col xs={24} md={12}>
                         <Form.Item
-                          label="详情链接公开前缀"
+                          label={tr("详情链接公开前缀")}
                           name="alert_detail_public_base"
-                          tooltip="拼接到站内路径前，用于邮件 / 回调通知中可点击的管理端地址"
+                          tooltip={tr("拼接到站内路径前，用于邮件 / 回调通知中可点击的管理端地址")}
                         >
                           <Input placeholder="https://ops.example.com" disabled={!externalEnabled} />
                         </Form.Item>
                       </Col>
                     </Row>
                     {!externalEnabled ? (
-                      <Text type="secondary" style={{ display: 'block', marginTop: -8, fontSize: 12 }}>
-                        开启外部通知后可配置等级、触发条件与通道
-                      </Text>
+                      <Text type="secondary" style={{ display: 'block', marginTop: -8, fontSize: 12 }}>{tr("开启外部通知后可配置等级、触发条件与通道")}</Text>
                     ) : null}
                   </>
                 );
@@ -370,21 +365,21 @@ export default function AlertNotifySettingsPage() {
             </Form.Item>
           </ProCard>
 
-          <ProCard variant="outlined" title="通道配置" className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title={tr("通道配置")} className="tm-system-settings__panel" style={{ marginTop: 16 }}>
             <Form.Item
-              label="通道总开关"
+              label={tr("通道总开关")}
               name="an_enabled"
               valuePropName="checked"
-              extra="关闭后所有通道配置保留，但不会实际发送"
+              extra={tr("关闭后所有通道配置保留，但不会实际发送")}
             >
               <Switch />
             </Form.Item>
 
-            <Form.Item label="管理端展示通道（可选）" name="an_channels" tooltip="仅影响后台展示，不影响实际发送逻辑">
-              <Select mode="multiple" allowClear placeholder="默认展示全部已配置通道" options={NOTIFICATION_CHANNEL_OPTIONS} />
+            <Form.Item label={tr("管理端展示通道（可选）")} name="an_channels" tooltip={tr("仅影响后台展示，不影响实际发送逻辑")}>
+              <Select mode="multiple" allowClear placeholder={tr("默认展示全部已配置通道")} options={NOTIFICATION_CHANNEL_OPTIONS.map((option) => ({ ...option, label: tr(option.label) }))} />
             </Form.Item>
 
-            <Divider plain>各通道参数</Divider>
+            <Divider plain>{tr("各通道参数")}</Divider>
 
             <Form.Item
               noStyle
@@ -402,94 +397,94 @@ export default function AlertNotifySettingsPage() {
                   <Row gutter={[16, 16]}>
                     <Col xs={24} lg={12}>
                       <ChannelPanel
-                        title={NOTIFICATION_CHANNEL_META.mail.label}
-                        desc={NOTIFICATION_CHANNEL_META.mail.desc}
+                        title={tr(NOTIFICATION_CHANNEL_META.mail.label ?? '')}
+                        desc={tr(NOTIFICATION_CHANNEL_META.mail.desc ?? '')}
                         switchName="mail_enabled"
                         enabled={!!getFieldValue('mail_enabled')}
                         groupEnabled={groupEnabled}
                       >
-                        <Form.Item label="收件人" name="mail_to" extra="多个地址用英文逗号分隔">
+                        <Form.Item label={tr("收件人")} name="mail_to" extra={tr("多个地址用英文逗号分隔")}>
                           <Input placeholder="ops@example.com, oncall@example.com" />
                         </Form.Item>
-                        <Form.Item label="抄送" name="mail_cc">
-                          <Input placeholder="可选" />
+                        <Form.Item label={tr("抄送")} name="mail_cc">
+                          <Input placeholder={tr("可选")} />
                         </Form.Item>
-                        <Form.Item label="主题前缀" name="mail_subject_prefix" extra="留空则仅使用 [等级][分类] 标题">
-                          <Input placeholder="例如 [TradeMind]" />
+                        <Form.Item label={tr("主题前缀")} name="mail_subject_prefix" extra={tr("留空则仅使用 [等级][分类] 标题")}>
+                          <Input placeholder={tr("例如 [TradeMind]")} />
                         </Form.Item>
                       </ChannelPanel>
                     </Col>
                     <Col xs={24} lg={12}>
                       <ChannelPanel
-                        title={NOTIFICATION_CHANNEL_META.webhook.label}
-                        desc={NOTIFICATION_CHANNEL_META.webhook.desc}
+                        title={tr(NOTIFICATION_CHANNEL_META.webhook.label ?? '')}
+                        desc={tr(NOTIFICATION_CHANNEL_META.webhook.desc ?? '')}
                         switchName="webhook_enabled"
                         enabled={!!getFieldValue('webhook_enabled')}
                         groupEnabled={groupEnabled}
                       >
-                        <Form.Item label="请求地址" name="webhook_url">
+                        <Form.Item label={tr("请求地址")} name="webhook_url">
                           <Input.Password placeholder="https://hooks.example.com/alerts" autoComplete="off" />
                         </Form.Item>
                         <Row gutter={12}>
                           <Col span={12}>
-                            <Form.Item label="HTTP 方法" name="webhook_method">
+                            <Form.Item label={tr("HTTP 方法")} name="webhook_method">
                               <Select allowClear placeholder="POST" options={WEBHOOK_METHOD_OPTIONS} />
                             </Form.Item>
                           </Col>
                           <Col span={12}>
-                            <Form.Item label="超时（秒）" name="webhook_timeout_seconds" tooltip="留空使用系统默认值">
-                              <InputNumber min={1} max={300} style={{ width: '100%' }} placeholder="可选" />
+                            <Form.Item label={tr("超时（秒）")} name="webhook_timeout_seconds" tooltip={tr("留空使用系统默认值")}>
+                              <InputNumber min={1} max={300} style={{ width: '100%' }} placeholder={tr("可选")} />
                             </Form.Item>
                           </Col>
                         </Row>
                         <Form.Item
-                          label="签名密钥"
+                          label={tr("签名密钥")}
                           name="webhook_secret"
-                          extra="可选；设置后请求头携带 X-TradeMind-Signature（HMAC-SHA256）"
+                          extra={tr("可选；设置后请求头携带 X-TradeMind-Signature（HMAC-SHA256）")}
                         >
-                          <Input.Password autoComplete="off" placeholder="留空则不签名" />
+                          <Input.Password autoComplete="off" placeholder={tr("留空则不签名")} />
                         </Form.Item>
                       </ChannelPanel>
                     </Col>
                     <Col xs={24} lg={12}>
                       <ChannelPanel
-                        title={NOTIFICATION_CHANNEL_META.feishu.label}
-                        desc={NOTIFICATION_CHANNEL_META.feishu.desc}
+                        title={tr(NOTIFICATION_CHANNEL_META.feishu.label ?? '')}
+                        desc={tr(NOTIFICATION_CHANNEL_META.feishu.desc ?? '')}
                         switchName="feishu_enabled"
                         enabled={!!getFieldValue('feishu_enabled')}
                         groupEnabled={groupEnabled}
                       >
                         <Form.Item
-                          label="机器人回调通知地址"
+                          label={tr("机器人回调通知地址")}
                           name="feishu_webhook_url"
                           rules={groupEnabled && getFieldValue('feishu_enabled')
-                            ? [{ required: true, message: '请输入飞书机器人回调通知地址' }]
+                            ? [{ required: true, message: tr("请输入飞书机器人回调通知地址") }]
                             : []}
                         >
                           <Input.Password autoComplete="off" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..." />
                         </Form.Item>
                         <Form.Item
-                          label="签名 Secret"
+                          label={tr("签名 Secret")}
                           name="feishu_secret"
-                          extra="飞书机器人开启签名校验时填写"
+                          extra={tr("飞书机器人开启签名校验时填写")}
                         >
-                          <Input.Password autoComplete="off" placeholder="未开启签名校验时留空" />
+                          <Input.Password autoComplete="off" placeholder={tr("未开启签名校验时留空")} />
                         </Form.Item>
                       </ChannelPanel>
                     </Col>
                     <Col xs={24} lg={12}>
                       <ChannelPanel
-                        title={NOTIFICATION_CHANNEL_META.wecom.label}
-                        desc={NOTIFICATION_CHANNEL_META.wecom.desc}
+                        title={tr(NOTIFICATION_CHANNEL_META.wecom.label ?? '')}
+                        desc={tr(NOTIFICATION_CHANNEL_META.wecom.desc ?? '')}
                         switchName="wecom_enabled"
                         enabled={!!getFieldValue('wecom_enabled')}
                         groupEnabled={groupEnabled}
                       >
                         <Form.Item
-                          label="机器人回调通知地址"
+                          label={tr("机器人回调通知地址")}
                           name="wecom_webhook_url"
                           rules={groupEnabled && getFieldValue('wecom_enabled')
-                            ? [{ required: true, message: '请输入企业微信机器人回调通知地址' }]
+                            ? [{ required: true, message: tr("请输入企业微信机器人回调通知地址") }]
                             : []}
                         >
                           <Input.Password autoComplete="off" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." />
@@ -503,9 +498,7 @@ export default function AlertNotifySettingsPage() {
           </ProCard>
 
           <ProCard variant="outlined" className="tm-system-settings__footer" style={{ marginTop: 16 }}>
-            <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
-              保存配置
-            </Button>
+            <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>{tr("保存配置")}</Button>
           </ProCard>
         </Form>
       </div>

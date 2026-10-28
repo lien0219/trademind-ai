@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useAntdConfigSetter } from '@umijs/max';
 import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
@@ -17,7 +17,12 @@ const dayjsLocales = { 'zh-CN': 'zh-cn', 'en-US': 'en', 'ja-JP': 'ja', 'zh-TW': 
 export default function LocaleBoundary({ children }: { children: ReactNode }) {
   const language = useLanguage();
   const setAntdConfig = useAntdConfigSetter();
+  const appliedLanguage = useRef<typeof language>();
   useEffect(() => {
+    // Umi replaces the setter after every config update. Apply only a new
+    // language so that writing the locale cannot trigger an update loop.
+    if (appliedLanguage.current === language) return;
+    appliedLanguage.current = language;
     applyLanguage(language);
     dayjs.locale(dayjsLocales[language]);
     setAntdConfig({ locale: locales[language] });

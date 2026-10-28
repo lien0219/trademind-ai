@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 /** 批量刊登配置字段与选项（Phase A2.2） */
 
 export type PublishPriceConfig = {
@@ -46,53 +47,53 @@ export type PublishConfigLayer = {
 };
 
 export const PRICE_STRATEGY_OPTIONS = [
-  { label: '使用商品当前售价', value: 'use_current_price' },
-  { label: '按成本加固定金额', value: 'cost_plus_fixed' },
-  { label: '按成本加百分比', value: 'cost_plus_percent' },
-  { label: '按倍率计算', value: 'multiplier' },
+  { get label() { return tr("使用商品当前售价"); }, value: 'use_current_price' },
+  { get label() { return tr("按成本加固定金额"); }, value: 'cost_plus_fixed' },
+  { get label() { return tr("按成本加百分比"); }, value: 'cost_plus_percent' },
+  { get label() { return tr("按倍率计算"); }, value: 'multiplier' },
 ];
 
 export const MARKUP_TYPE_OPTIONS = [
-  { label: '固定金额', value: 'fixed' },
-  { label: '百分比', value: 'percent' },
+  { get label() { return tr("固定金额"); }, value: 'fixed' },
+  { get label() { return tr("百分比"); }, value: 'percent' },
 ];
 
 export const DECIMAL_HANDLING_OPTIONS = [
-  { label: '四舍五入', value: 'round' },
-  { label: '向上取整', value: 'ceil' },
-  { label: '向下取整', value: 'floor' },
-  { label: '保留两位小数', value: 'two_decimal' },
+  { get label() { return tr("四舍五入"); }, value: 'round' },
+  { get label() { return tr("向上取整"); }, value: 'ceil' },
+  { get label() { return tr("向下取整"); }, value: 'floor' },
+  { get label() { return tr("保留两位小数"); }, value: 'two_decimal' },
 ];
 
 export const MAIN_IMAGE_STRATEGY_OPTIONS = [
-  { label: '使用当前商品图片', value: 'use_current' },
-  { label: '优先使用 AI 处理后的图片', value: 'prefer_ai_processed' },
-  { label: '仅使用已同步到平台的图片', value: 'platform_synced_only' },
+  { get label() { return tr("使用当前商品图片"); }, value: 'use_current' },
+  { get label() { return tr("优先使用 AI 处理后的图片"); }, value: 'prefer_ai_processed' },
+  { get label() { return tr("仅使用已同步到平台的图片"); }, value: 'platform_synced_only' },
 ];
 
 export const DETAIL_IMAGE_STRATEGY_OPTIONS = [
-  { label: '使用当前商品图片', value: 'use_current' },
-  { label: '优先使用 AI 处理后的图片', value: 'prefer_ai_processed' },
-  { label: '仅使用已同步到平台的图片', value: 'platform_synced_only' },
-  { label: '不使用详情图', value: 'skip' },
+  { get label() { return tr("使用当前商品图片"); }, value: 'use_current' },
+  { get label() { return tr("优先使用 AI 处理后的图片"); }, value: 'prefer_ai_processed' },
+  { get label() { return tr("仅使用已同步到平台的图片"); }, value: 'platform_synced_only' },
+  { get label() { return tr("不使用详情图"); }, value: 'skip' },
 ];
 
 export const INVENTORY_STRATEGY_OPTIONS = [
-  { label: '使用当前库存', value: 'use_current' },
-  { label: '统一设置库存', value: 'fixed_quantity' },
-  { label: '库存未知时跳过', value: 'skip_when_unknown' },
-  { label: '库存未知时标记为需要检查', value: 'mark_needs_check' },
+  { get label() { return tr("使用当前库存"); }, value: 'use_current' },
+  { get label() { return tr("统一设置库存"); }, value: 'fixed_quantity' },
+  { get label() { return tr("库存未知时跳过"); }, value: 'skip_when_unknown' },
+  { get label() { return tr("库存未知时标记为需要检查"); }, value: 'mark_needs_check' },
 ];
 
 export const OUT_OF_STOCK_OPTIONS = [
-  { label: '跳过刊登', value: 'skip' },
-  { label: '标记为需要检查', value: 'mark_needs_check' },
-  { label: '库存设为 0', value: 'zero' },
+  { get label() { return tr("跳过刊登"); }, value: 'skip' },
+  { get label() { return tr("标记为需要检查"); }, value: 'mark_needs_check' },
+  { get label() { return tr("库存设为 0"); }, value: 'zero' },
 ];
 
 export const WEIGHT_UNIT_OPTIONS = [
-  { label: '千克 (kg)', value: 'kg' },
-  { label: '克 (g)', value: 'g' },
+  { get label() { return tr("千克 (kg)"); }, value: 'kg' },
+  { get label() { return tr("克 (g)"); }, value: 'g' },
 ];
 
 export const CONFIG_SOURCE_LABEL: Record<string, string> = {

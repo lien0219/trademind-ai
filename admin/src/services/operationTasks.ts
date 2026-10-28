@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { ApiRequestError, getJSON, getWithParams, patchJSON, postJSON } from '@/services/request';
 
 export type AllowedTaskActions = {
@@ -218,15 +219,15 @@ export function extractOperationTaskAPIError(error: unknown): OperationTaskAPIEr
   if (error instanceof ApiRequestError) {
     const data = error.data as { errorCode?: string } | null | undefined;
     return {
-      message: error.message || '操作失败，请稍后重试',
+      message: error.message || tr('操作失败，请稍后重试'),
       errorCode: data?.errorCode,
       traceId: error.traceId,
     };
   }
   if (error instanceof Error) {
-    return { message: error.message || '操作失败，请稍后重试' };
+    return { message: error.message || tr('操作失败，请稍后重试') };
   }
-  return { message: '操作失败，请稍后重试' };
+  return { message: tr("操作失败，请稍后重试") };
 }
 
 export async function createTask(body: CreateTaskRequest, idempotencyKey: string) {

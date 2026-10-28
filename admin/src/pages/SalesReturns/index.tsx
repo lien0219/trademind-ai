@@ -1,3 +1,5 @@
+import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { AuditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { history, useSearchParams } from '@umijs/max';
@@ -25,22 +27,23 @@ export const SALES_RETURN_STATUS: Record<
   string,
   { text: string; color: string }
 > = {
-  draft: { text: '草稿', color: 'default' },
-  pending_approval: { text: '待审批', color: 'gold' },
-  approved: { text: '待处理', color: 'blue' },
-  completed: { text: '已完成', color: 'success' },
-  cancelled: { text: '已取消', color: 'error' },
+  draft: { get text() { return tr('草稿'); }, color: 'default' },
+  pending_approval: { get text() { return tr('待审批'); }, color: 'gold' },
+  approved: { get text() { return tr('待处理'); }, color: 'blue' },
+  completed: { get text() { return tr('已完成'); }, color: 'success' },
+  cancelled: { get text() { return tr('已取消'); }, color: 'error' },
 };
 
 export const SALES_RETURN_TYPE: Record<
   string,
   { text: string; color: string }
 > = {
-  refund_only: { text: '仅退款', color: 'cyan' },
-  return_refund: { text: '退货退款', color: 'purple' },
+  refund_only: { get text() { return tr('仅退款'); }, color: 'cyan' },
+  return_refund: { get text() { return tr('退货退款'); }, color: 'purple' },
 };
 
 export default function SalesReturnsPage() {
+  useLanguage();
   const { can, readonly } = usePermission();
   const canManage = !readonly && can(PERMISSIONS.SALES_RETURN_MANAGE);
   const actionRef = useRef<ActionType>();
@@ -56,7 +59,7 @@ export default function SalesReturnsPage() {
 
   const columns: ProColumns<SalesReturn>[] = [
     {
-      title: '售后单号',
+      title: tr("售后单号"),
       dataIndex: 'returnNo',
       width: 190,
       copyable: true,
@@ -72,7 +75,7 @@ export default function SalesReturnsPage() {
       ),
     },
     {
-      title: '订单号',
+      title: tr("订单号"),
       dataIndex: 'orderNo',
       width: 190,
       copyable: true,
@@ -80,7 +83,7 @@ export default function SalesReturnsPage() {
       render: (_, row) => row.orderNo || row.orderId,
     },
     {
-      title: '类型',
+      title: tr("类型"),
       dataIndex: 'type',
       width: 112,
       render: (_, row) => {
@@ -92,7 +95,7 @@ export default function SalesReturnsPage() {
       },
     },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 105,
       render: (_, row) => {
@@ -104,7 +107,7 @@ export default function SalesReturnsPage() {
       },
     },
     {
-      title: '退款金额',
+      title: tr("退款金额"),
       dataIndex: 'refundAmountMinor',
       width: 140,
       align: 'right',
@@ -112,21 +115,21 @@ export default function SalesReturnsPage() {
         formatSalesReturnAmount(row.refundAmountMinor, row.currency),
     },
     {
-      title: '收货仓库',
+      title: tr("收货仓库"),
       dataIndex: 'warehouseName',
       minWidth: 150,
       ellipsis: true,
       render: (_, row) => row.warehouseName || row.warehouseId,
     },
-    { title: '明细', dataIndex: 'itemCount', width: 72, align: 'right' },
+    { title: tr("明细"), dataIndex: 'itemCount', width: 72, align: 'right' },
     {
-      title: '创建时间',
+      title: tr("创建时间"),
       dataIndex: 'createdAt',
       valueType: 'dateTime',
       width: 180,
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 88,
       render: (_, row) => (
@@ -136,7 +139,7 @@ export default function SalesReturnsPage() {
           icon={<EyeOutlined />}
           onClick={() => history.push(`/orders/sales-returns/${row.id}`)}
         >
-          查看
+          {tr("查看")}
         </Button>
       ),
     },
@@ -146,15 +149,15 @@ export default function SalesReturnsPage() {
     <PermissionGuard require={PERMISSIONS.SALES_RETURN_VIEW} showForbiddenPage>
       <TmPageContainer
         className="tm-sales-return-page"
-        title="退货退款"
-        subTitle="订单售后记录"
+        title={tr("退货退款")}
+        subTitle={tr("订单售后记录")}
         extra={
           <TmPageHeaderExtra>
             <Button onClick={() => history.push('/orders/refund-executions')}>
-              退款执行
+              {tr("退款执行")}
             </Button>
             <Button icon={<AuditOutlined />} onClick={() => history.push('/orders/sales-return-reconciliation')}>
-              平台售后对账
+              {tr("平台售后对账")}
             </Button>
             <Button
               type="primary"
@@ -162,7 +165,7 @@ export default function SalesReturnsPage() {
               disabled={!canManage}
               onClick={() => history.push('/orders/list')}
             >
-              选择订单
+              {tr("选择订单")}
             </Button>
           </TmPageHeaderExtra>
         }
@@ -171,27 +174,27 @@ export default function SalesReturnsPage() {
           <Alert
             type="info"
             showIcon
-            message="当前账号为只读模式，可查看售后记录但不能发起或执行操作。"
+            message={tr("当前账号为只读模式，可查看售后记录但不能发起或执行操作。")}
           />
         ) : null}
         {orderId ? (
           <Alert
             type="info"
             showIcon
-            message="当前仅显示指定订单的售后记录。"
+            message={tr("当前仅显示指定订单的售后记录。")}
             action={
               <Button size="small" onClick={() => setSearchParams({})}>
-                查看全部
+                {tr("查看全部")}
               </Button>
             }
           />
         ) : null}
         {error ? (
           <ErrorAlert
-            title={error}
+            title={tr(error)}
             actionHint={
               <Button onClick={() => actionRef.current?.reload()}>
-                重新加载
+                {tr("重新加载")}
               </Button>
             }
           />
@@ -204,13 +207,13 @@ export default function SalesReturnsPage() {
           search={false}
           cardBordered
           scroll={{ x: 1320 }}
-          locale={{ emptyText: error ? '售后列表暂不可用' : '暂无售后记录。' }}
+          locale={{ emptyText: error ? tr('售后列表暂不可用') : tr('暂无售后记录。') }}
           filterBar={
             <Space wrap>
             <Select
-              aria-label="售后类型"
+              aria-label={tr("售后类型")}
               allowClear
-              placeholder="全部类型"
+              placeholder={tr("全部类型")}
               value={returnType}
               style={{ width: 140 }}
               options={Object.entries(SALES_RETURN_TYPE).map(
@@ -219,9 +222,9 @@ export default function SalesReturnsPage() {
               onChange={setReturnType}
             />
             <Select
-              aria-label="售后状态"
+              aria-label={tr("售后状态")}
               allowClear
-              placeholder="全部状态"
+              placeholder={tr("全部状态")}
               value={status}
               style={{ width: 140 }}
               options={Object.entries(SALES_RETURN_STATUS).map(

@@ -17,6 +17,7 @@
 
 - [ ] 静态检查 / 格式检查
 - [ ] `pnpm check:ui-copy --strict`
+- [ ] Admin 文案 / 国际化变更：`node admin/scripts/i18n-audit.mjs --strict --details`
 - [ ] `pnpm build:admin`
 - [ ] `pnpm build:collector`
 - [ ] `gofmt`

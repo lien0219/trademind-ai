@@ -1,5 +1,5 @@
 import { useLanguage } from '@/i18n/useLanguage';
-import { tr } from '@/i18n';
+import { tr, trFormat } from '@/i18n';
 import {
   DownloadOutlined,
   EyeOutlined,
@@ -68,28 +68,28 @@ const QUERY_KEYS = [
 ] as const;
 
 const STATUS_META: Record<ProfitabilityStatus, { text: string; color: string }> = {
-  complete: { text: '完整', color: 'success' },
-  pending: { text: '待补充', color: 'processing' },
-  mismatch: { text: '数据不一致', color: 'warning' },
-  blocked: { text: '已阻断', color: 'error' },
+  complete: { get text() { return tr('完整'); }, color: 'success' },
+  pending: { get text() { return tr('待补充'); }, color: 'processing' },
+  mismatch: { get text() { return tr('数据不一致'); }, color: 'warning' },
+  blocked: { get text() { return tr('已阻断'); }, color: 'error' },
 };
 
 const COMPONENT_STATUS_META: Record<string, { text: string; color: string }> = {
-  available: { text: '已取得', color: 'success' },
-  missing: { text: '缺失', color: 'default' },
-  pending: { text: '待终结', color: 'processing' },
-  mismatch: { text: '不一致', color: 'warning' },
-  blocked: { text: '不可计算', color: 'error' },
+  available: { get text() { return tr('已取得'); }, color: 'success' },
+  missing: { get text() { return tr('缺失'); }, color: 'default' },
+  pending: { get text() { return tr('待终结'); }, color: 'processing' },
+  mismatch: { get text() { return tr('不一致'); }, color: 'warning' },
+  blocked: { get text() { return tr('不可计算'); }, color: 'error' },
 };
 
 const COMPONENT_LABELS: Record<string, string> = {
-  revenue: '订单收入',
-  productCost: '商品成本',
-  freight: '本地运费',
-  refund: '成功退款',
-  platformFee: '平台费用',
-  advertisingFee: '广告费用',
-  warehouseFee: '仓库操作费',
+  get revenue() { return tr('订单收入'); },
+  get productCost() { return tr('商品成本'); },
+  get freight() { return tr('本地运费'); },
+  get refund() { return tr('成功退款'); },
+  get platformFee() { return tr('平台费用'); },
+  get advertisingFee() { return tr('广告费用'); },
+  get warehouseFee() { return tr('仓库操作费'); },
 };
 
 const CURRENCY_OPTIONS = ['CNY', 'USD', 'EUR', 'GBP', 'JPY', 'KRW', 'SGD', 'AUD', 'CAD'].map(
@@ -107,12 +107,12 @@ function parseDateRange(start?: string, end?: string): [Dayjs | null, Dayjs | nu
 
 function statusTag(status: ProfitabilityStatus) {
   const meta = STATUS_META[status] || { text: status, color: 'default' };
-  return <Tag color={meta.color}>{meta.text}</Tag>;
+  return <Tag color={meta.color}>{tr(meta.text)}</Tag>;
 }
 
 function componentStatusTag(status: string) {
   const meta = COMPONENT_STATUS_META[status] || { text: status, color: 'default' };
-  return <Tag color={meta.color}>{meta.text}</Tag>;
+  return <Tag color={meta.color}>{tr(meta.text)}</Tag>;
 }
 
 function componentAmount(component: ProfitMoneyComponent) {
@@ -120,26 +120,26 @@ function componentAmount(component: ProfitMoneyComponent) {
     return formatProfitAmount(component.amountMinor, component.currency);
   }
   if (component.knownAmountMinor !== 0) {
-    return `已知 ${formatProfitAmount(component.knownAmountMinor, component.currency)}`;
+    return trFormat('已知 {amount}', { amount: formatProfitAmount(component.knownAmountMinor, component.currency) });
   }
   return '—';
 }
 
 function sourceLabel(source: string) {
   const labels: Record<string, string> = {
-    order_total: '订单金额',
-    current_supplier_catalog: '当前供应商采购价',
-    current_supplier_catalog_estimate: '当前目录估算',
-    fulfillment_cost_snapshot: '履约成本快照',
-    confirmed_local_freight_quote: '已确认本地运费试算',
-    carrier_freight_ledger: '承运商运费实账',
-    refund_execution_ledger: '退款执行事实',
-    platform_settlement: '平台结算',
-    platform_settlement_ledger: '平台结算账单',
-    advertising_fee_ledger: '广告费用账',
-    warehouse_fee_ledger: '仓库操作费台账',
+    order_total: tr('订单金额'),
+    current_supplier_catalog: tr('当前供应商采购价'),
+    current_supplier_catalog_estimate: tr('当前目录估算'),
+    fulfillment_cost_snapshot: tr('履约成本快照'),
+    confirmed_local_freight_quote: tr('已确认本地运费试算'),
+    carrier_freight_ledger: tr('承运商运费实账'),
+    refund_execution_ledger: tr('退款执行事实'),
+    platform_settlement: tr('平台结算'),
+    platform_settlement_ledger: tr('平台结算账单'),
+    advertising_fee_ledger: tr('广告费用账'),
+    warehouse_fee_ledger: tr('仓库操作费台账'),
   };
-  return labels[source] || source || '—';
+  return labels[source] ? tr(labels[source]) : source || '—';
 }
 
 export default function OrderProfitsPage() {
@@ -190,7 +190,7 @@ export default function OrderProfitsPage() {
         setFilterSourceError('');
       })
       .catch((error) => {
-        if (active) setFilterSourceError((error as Error)?.message || '店铺或仓库筛选项加载失败');
+        if (active) setFilterSourceError((error as Error)?.message || tr('店铺或仓库筛选项加载失败'));
       });
     return () => {
       active = false;
@@ -221,7 +221,7 @@ export default function OrderProfitsPage() {
       setDetail(await getOrderProfit(orderId));
     } catch (error) {
       setDetail(undefined);
-      setDetailError((error as Error)?.message || '预估利润详情加载失败');
+      setDetailError((error as Error)?.message || tr('预估利润详情加载失败'));
     } finally {
       setDetailLoading(false);
     }
@@ -265,9 +265,9 @@ export default function OrderProfitsPage() {
     try {
       const { page: _page, pageSize: _pageSize, ...filters } = queryParams();
       await downloadOrderProfits(filters);
-      message.success('预估利润明细已导出');
+      message.success(tr('预估利润明细已导出'));
     } catch (error) {
-      message.error((error as Error)?.message || '导出失败，请收窄筛选条件后重试');
+      message.error((error as Error)?.message || tr('导出失败，请收窄筛选条件后重试'));
     } finally {
       setExporting(false);
     }
@@ -288,43 +288,43 @@ export default function OrderProfitsPage() {
       ),
     },
     {
-      title: '平台 / 店铺',
+      title: tr('平台 / 店铺'),
       width: 190,
       ellipsis: true,
       render: (_, row) => `${platformDisplayLabel(row.platform)}${row.shopName ? ` · ${row.shopName}` : ''}`,
     },
     {
-      title: '仓库',
+      title: tr('仓库'),
       width: 170,
       ellipsis: true,
-      render: (_, row) => [row.warehouseCode, row.warehouseName].filter(Boolean).join(' · ') || '未绑定',
+      render: (_, row) => [row.warehouseCode, row.warehouseName].filter(Boolean).join(' · ') || tr('未绑定'),
     },
     {
-      title: '订单收入',
+      title: tr('订单收入'),
       width: 135,
       align: 'right',
       render: (_, row) => formatProfitAmount(row.components.revenue.amountMinor, row.currency),
     },
     {
-      title: '已知商品成本',
+      title: tr('已知商品成本'),
       width: 145,
       align: 'right',
       render: (_, row) => formatProfitAmount(row.components.productCost.knownAmountMinor, row.currency),
     },
     {
-      title: '已知运费',
+      title: tr('已知运费'),
       width: 125,
       align: 'right',
       render: (_, row) => formatProfitAmount(row.components.freight.knownAmountMinor, row.currency),
     },
     {
-      title: '成功退款',
+      title: tr('成功退款'),
       width: 125,
       align: 'right',
       render: (_, row) => formatProfitAmount(row.components.refund.knownAmountMinor, row.currency),
     },
     {
-      title: '已知贡献额',
+      title: tr('已知贡献额'),
       width: 140,
       align: 'right',
       render: (_, row) => (
@@ -334,42 +334,42 @@ export default function OrderProfitsPage() {
       ),
     },
     {
-      title: '预估利润',
+      title: tr('预估利润'),
       width: 135,
       align: 'right',
       render: (_, row) => formatProfitAmount(row.estimatedProfitMinor, row.currency),
     },
     {
-      title: '完整性',
+      title: tr('完整性'),
       dataIndex: 'status',
       width: 120,
       render: (_, row) => statusTag(row.status),
     },
     {
-      title: '费用缺口',
+      title: tr('费用缺口'),
       width: 120,
       render: (_, row) => (
         <Tooltip title={row.issues.map((issue) => issue.message).join('；')}>
           <Typography.Text type={row.issues.length ? 'warning' : 'secondary'}>
-            {row.issues.length ? `${row.issues.length} 项` : '无'}
+            {row.issues.length ? trFormat("{value0} 项", { value0: String(row.issues.length) }) : tr('无')}
           </Typography.Text>
         </Tooltip>
       ),
     },
     {
-      title: '下单时间',
+      title: tr('下单时间'),
       dataIndex: 'orderedAt',
       width: 170,
       render: (_, row) => (row.orderedAt ? formatDateTime(row.orderedAt) : '—'),
     },
     {
-      title: '操作',
+      title: tr('操作'),
       valueType: 'option',
       width: 88,
       fixed: 'right',
       render: (_, row) => (
         <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => drawer.openDrawer(row.orderId)}>
-          查看
+          {tr('查看')}
         </Button>
       ),
     },
@@ -377,37 +377,37 @@ export default function OrderProfitsPage() {
 
   const costColumns: TableColumnsType<ProductCostLine> = [
     { title: tr("商品"), dataIndex: 'productTitle', width: 210, ellipsis: true },
-    { title: '规格编码', dataIndex: 'skuCode', width: 140, ellipsis: true, render: (value) => value || '—' },
-    { title: '数量', dataIndex: 'quantity', width: 72, align: 'right' },
+    { title: tr('规格编码'), dataIndex: 'skuCode', width: 140, ellipsis: true, render: (value) => value || '—' },
+    { title: tr('数量'), dataIndex: 'quantity', width: 72, align: 'right' },
     {
-      title: '成本单价',
+      title: tr('成本单价'),
       width: 150,
       align: 'right',
       render: (_, row) => formatProfitAmount(row.unitCostMinor, row.currency),
     },
     {
-      title: '商品成本',
+      title: tr('商品成本'),
       width: 150,
       align: 'right',
       render: (_, row) => formatProfitAmount(row.lineCostMinor, row.currency),
     },
-    { title: '成本依据', dataIndex: 'source', width: 150, render: (value) => sourceLabel(value) },
-    { title: '快照时间', dataIndex: 'capturedAt', width: 180, render: (value) => (value ? formatDateTime(value) : '—') },
-    { title: '来源状态', dataIndex: 'status', width: 108, render: (value) => componentStatusTag(value) },
-    { title: '供应商', dataIndex: 'supplierName', width: 170, ellipsis: true, render: (value) => value || '—' },
-    { title: '缺口说明', dataIndex: 'reason', width: 220, ellipsis: true, render: (value) => value || '—' },
+    { title: tr('成本依据'), dataIndex: 'source', width: 150, render: (value) => sourceLabel(value) },
+    { title: tr('快照时间'), dataIndex: 'capturedAt', width: 180, render: (value) => (value ? formatDateTime(value) : '—') },
+    { title: tr('来源状态'), dataIndex: 'status', width: 108, render: (value) => componentStatusTag(value) },
+    { title: tr('供应商'), dataIndex: 'supplierName', width: 170, ellipsis: true, render: (value) => value || '—' },
+    { title: tr('缺口说明'), dataIndex: 'reason', width: 220, ellipsis: true, render: (value) => value || '—' },
   ];
 
   const componentRows = detail
-    ? Object.entries(detail.components).map(([key, value]) => ({ key, label: COMPONENT_LABELS[key] || key, ...value }))
+    ? Object.entries(detail.components).map(([key, value]) => ({ key, label: COMPONENT_LABELS[key] ? tr(COMPONENT_LABELS[key]) : key, ...value }))
     : [];
   const componentColumns: TableColumnsType<(typeof componentRows)[number]> = [
-    { title: '费用项', dataIndex: 'label', width: 120 },
-    { title: '来源状态', dataIndex: 'status', width: 108, render: (value) => componentStatusTag(value) },
-    { title: '金额', width: 160, align: 'right', render: (_, row) => componentAmount(row) },
-    { title: '来源', dataIndex: 'source', width: 190, render: (value) => sourceLabel(value) },
-    { title: '来源时间', dataIndex: 'sourceAt', width: 180, render: (value) => (value ? formatDateTime(value) : '—') },
-    { title: '说明', dataIndex: 'reason', width: 240, ellipsis: true, render: (value) => value || '—' },
+    { title: tr('费用项'), dataIndex: 'label', width: 120 },
+    { title: tr('来源状态'), dataIndex: 'status', width: 108, render: (value) => componentStatusTag(value) },
+    { title: tr('金额'), width: 160, align: 'right', render: (_, row) => componentAmount(row) },
+    { title: tr('来源'), dataIndex: 'source', width: 190, render: (value) => sourceLabel(value) },
+    { title: tr('来源时间'), dataIndex: 'sourceAt', width: 180, render: (value) => (value ? formatDateTime(value) : '—') },
+    { title: tr('说明'), dataIndex: 'reason', width: 240, ellipsis: true, render: (value) => value || '—' },
   ];
 
   return (
@@ -415,17 +415,17 @@ export default function OrderProfitsPage() {
       <TmPageContainer
         className="tm-order-profit-page"
         title={tr("订单预估利润")}
-        subTitle="已履约订单使用履约成本快照，未履约订单使用当前目录估算；缺失费用不计为零"
+        subTitle={tr("已履约订单使用履约成本快照，未履约订单使用当前目录估算；缺失费用不计为零")}
         extra={
           <TmPageHeaderExtra>
-            <Tooltip title={canExport ? '导出当前筛选结果，最多 5000 条' : '当前账号无导出权限'}>
+            <Tooltip title={canExport ? tr('导出当前筛选结果，最多 5000 条') : tr('当前账号无导出权限')}>
               <Button
                 icon={<DownloadOutlined />}
                 disabled={!canExport}
                 loading={exporting}
                 onClick={() => void exportCurrent()}
               >
-                导出明细
+                {tr('导出明细')}
               </Button>
             </Tooltip>
           </TmPageHeaderExtra>
@@ -434,14 +434,14 @@ export default function OrderProfitsPage() {
         <Alert
           type="warning"
           showIcon
-          message="本页为动态预估，不是会计利润"
-          description="履约快照冻结的是发货当时的本地供应商目录成本，不等于会计实际成本；历史已履约订单缺少快照时不会用当前价格回填。平台、广告和仓储费用缺失时，仅展示已知贡献额。"
+          message={tr("本页为动态预估，不是会计利润")}
+          description={tr("履约快照冻结的是发货当时的本地供应商目录成本，不等于会计实际成本；历史已履约订单缺少快照时不会用当前价格回填。平台、广告和仓储费用缺失时，仅展示已知贡献额。")}
         />
         {filterSourceError ? <Alert type="warning" showIcon message={filterSourceError} /> : null}
         {listError ? (
           <ErrorAlert
             title={listError}
-            actionHint={<Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>重新加载</Button>}
+            actionHint={<Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>{tr('重新加载')} </Button>}
           />
         ) : null}
         <TmProTable<OrderProfit>
@@ -451,13 +451,13 @@ export default function OrderProfitsPage() {
           search={false}
           cardBordered
           scroll={{ x: 1840 }}
-          locale={{ emptyText: listError ? '预估利润数据暂不可用' : '暂无符合条件的订单预估利润记录' }}
+          locale={{ emptyText: listError ? tr('预估利润数据暂不可用') : tr('暂无符合条件的订单预估利润记录') }}
           filterBar={
             <Space className="tm-order-profit-toolbar" wrap>
               <Input.Search
                 allowClear
-                aria-label="订单号"
-                placeholder="搜索订单号"
+                aria-label={tr("订单号")}
+                placeholder={tr("搜索订单号")}
                 value={orderNoInput}
                 className="tm-order-profit-filter tm-order-profit-filter--search"
                 onChange={(event) => setOrderNoInput(event.target.value)}
@@ -465,8 +465,8 @@ export default function OrderProfitsPage() {
               />
               <Select
                 allowClear
-                aria-label="平台"
-                placeholder="全部平台"
+                aria-label={tr("平台")}
+                placeholder={tr("全部平台")}
                 value={urlState.platform}
                 className="tm-order-profit-filter"
                 options={platformOptions}
@@ -477,7 +477,7 @@ export default function OrderProfitsPage() {
                 showSearch
                 optionFilterProp="label"
                 aria-label={tr("店铺")}
-                placeholder="全部店铺"
+                placeholder={tr("全部店铺")}
                 value={urlState.shopId}
                 className="tm-order-profit-filter"
                 options={shopOptions}
@@ -487,8 +487,8 @@ export default function OrderProfitsPage() {
                 allowClear
                 showSearch
                 optionFilterProp="label"
-                aria-label="仓库"
-                placeholder="全部仓库"
+                aria-label={tr("仓库")}
+                placeholder={tr("全部仓库")}
                 value={urlState.warehouseId}
                 className="tm-order-profit-filter"
                 options={warehouseOptions}
@@ -497,8 +497,8 @@ export default function OrderProfitsPage() {
               <Select
                 allowClear
                 showSearch
-                aria-label="币种"
-                placeholder="全部币种"
+                aria-label={tr("币种")}
+                placeholder={tr("全部币种")}
                 value={urlState.currency}
                 className="tm-order-profit-filter"
                 options={CURRENCY_OPTIONS}
@@ -506,15 +506,15 @@ export default function OrderProfitsPage() {
               />
               <Select
                 allowClear
-                aria-label="完整性"
-                placeholder="全部完整性"
+                aria-label={tr("完整性")}
+                placeholder={tr("全部完整性")}
                 value={urlState.status}
                 className="tm-order-profit-filter"
                 options={Object.entries(STATUS_META).map(([value, meta]) => ({ value, label: meta.text }))}
                 onChange={(value) => updateFilter('status', value)}
               />
               <RangePicker
-                aria-label="下单日期范围"
+                aria-label={tr("下单日期范围")}
                 value={dateRange}
                 className="tm-order-profit-filter tm-order-profit-filter--range"
                 onChange={(value) =>
@@ -534,7 +534,7 @@ export default function OrderProfitsPage() {
                   setOrderNoInput('');
                 }}
               >
-                重置
+                {tr('重置')}
               </Button>
             </Space>
           }
@@ -558,21 +558,21 @@ export default function OrderProfitsPage() {
               setListError('');
               return { data: result.list || [], success: true, total: result.total || 0 };
             } catch (error) {
-              setListError((error as Error)?.message || '预估利润列表加载失败');
+              setListError((error as Error)?.message || tr('预估利润列表加载失败'));
               return { data: [], success: false, total: 0 };
             }
           }}
         />
 
         <AppDrawer
-          title={detail?.orderNo ? `订单 ${detail.orderNo} · 预估利润` : '订单预估利润详情'}
+          title={detail?.orderNo ? trFormat("订单 {value0} · 预估利润", { value0: String(detail.orderNo) }) : tr('订单预估利润详情')}
           open={drawer.open}
           onClose={drawer.closeDrawer}
           loading={detailLoading}
           extra={
             drawer.id ? (
               <Button icon={<EyeOutlined />} onClick={() => history.push(`/orders/${encodeURIComponent(drawer.id!)}`)}>
-                订单详情
+                {tr('订单详情')}
               </Button>
             ) : null
           }
@@ -581,20 +581,20 @@ export default function OrderProfitsPage() {
           {detail ? (
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
-                <Descriptions.Item label="完整性">{statusTag(detail.status)}</Descriptions.Item>
-                <Descriptions.Item label="计算版本">{detail.formulaVersion}</Descriptions.Item>
-                <Descriptions.Item label="订单收入">{formatProfitAmount(detail.components.revenue.amountMinor, detail.currency)}</Descriptions.Item>
-                <Descriptions.Item label="已知贡献额">{formatProfitAmount(detail.knownContributionMinor, detail.currency)}</Descriptions.Item>
-                <Descriptions.Item label="预估利润">{formatProfitAmount(detail.estimatedProfitMinor, detail.currency)}</Descriptions.Item>
-                <Descriptions.Item label="预估利润率">{formatMarginBps(detail.estimatedMarginBps)}</Descriptions.Item>
-                <Descriptions.Item label="计算时间">{formatDateTime(detail.calculatedAt)}</Descriptions.Item>
-                <Descriptions.Item label="下单时间">{detail.orderedAt ? formatDateTime(detail.orderedAt) : '—'}</Descriptions.Item>
+                <Descriptions.Item label={tr("完整性")}>{statusTag(detail.status)}</Descriptions.Item>
+                <Descriptions.Item label={tr("计算版本")}>{detail.formulaVersion}</Descriptions.Item>
+                <Descriptions.Item label={tr("订单收入")}>{formatProfitAmount(detail.components.revenue.amountMinor, detail.currency)}</Descriptions.Item>
+                <Descriptions.Item label={tr("已知贡献额")}>{formatProfitAmount(detail.knownContributionMinor, detail.currency)}</Descriptions.Item>
+                <Descriptions.Item label={tr("预估利润")}>{formatProfitAmount(detail.estimatedProfitMinor, detail.currency)}</Descriptions.Item>
+                <Descriptions.Item label={tr("预估利润率")}>{formatMarginBps(detail.estimatedMarginBps)}</Descriptions.Item>
+                <Descriptions.Item label={tr("计算时间")}>{formatDateTime(detail.calculatedAt)}</Descriptions.Item>
+                <Descriptions.Item label={tr("下单时间")}>{detail.orderedAt ? formatDateTime(detail.orderedAt) : '—'}</Descriptions.Item>
               </Descriptions>
               {detail.issues.length ? (
                 <Alert
                   type={detail.status === 'blocked' ? 'error' : detail.status === 'mismatch' ? 'warning' : 'info'}
                   showIcon
-                  message="费用口径尚未完整"
+                  message={tr("费用口径尚未完整")}
                   description={detail.issues.map((issue) => `${COMPONENT_LABELS[issue.component] || issue.component}：${issue.message}`).join('；')}
                 />
               ) : null}
@@ -606,7 +606,7 @@ export default function OrderProfitsPage() {
                 columns={componentColumns}
                 dataSource={componentRows}
               />
-              <Typography.Title level={5}>商品成本明细</Typography.Title>
+              <Typography.Title level={5}>{tr('商品成本明细')} </Typography.Title>
               <Table<ProductCostLine>
                 rowKey="orderItemId"
                 size="small"
@@ -614,18 +614,18 @@ export default function OrderProfitsPage() {
                 scroll={{ x: 1510 }}
                 columns={costColumns}
                 dataSource={detail.productCostLines || []}
-                locale={{ emptyText: '暂无订单商品明细' }}
+                locale={{ emptyText: tr('暂无订单商品明细') }}
               />
               <Space wrap>
                 <Button icon={<LinkOutlined />} onClick={() => history.push(`/orders/${encodeURIComponent(detail.orderId)}`)}>
-                  订单
+                  {tr('订单')}
                 </Button>
                 {detail.related.fulfillmentWaveId ? (
                   <Button
                     icon={<LinkOutlined />}
                     onClick={() => history.push(`/orders/fulfillment-waves?drawer=fulfillment-wave&id=${encodeURIComponent(detail.related.fulfillmentWaveId!)}`)}
                   >
-                    履约波次
+                    {tr('履约波次')}
                   </Button>
                 ) : null}
                 {detail.productCostLines
@@ -637,12 +637,12 @@ export default function OrderProfitsPage() {
                       icon={<LinkOutlined />}
                       onClick={() => history.push(`/procurement/suppliers?keyword=${encodeURIComponent(line.supplierName || '')}`)}
                     >
-                      {line.supplierName || '供应商'}
+                      {line.supplierName || tr('供应商')}
                     </Button>
                   ))}
                 {detail.related.refundExecutionIds.map((id, index) => (
                   <Button key={id} icon={<LinkOutlined />} onClick={() => history.push(`/orders/refund-executions/${encodeURIComponent(id)}`)}>
-                    退款执行 {index + 1}
+                    {tr('退款执行')} {index + 1}
                   </Button>
                 ))}
                 {detail.related.advertisingFeeAllocationId ? (
@@ -650,7 +650,7 @@ export default function OrderProfitsPage() {
                     icon={<LinkOutlined />}
                     onClick={() => history.push(`/finance/advertising-fees?drawer=advertising-fee&id=${encodeURIComponent(detail.related.advertisingFeeAllocationId!)}`)}
                   >
-                    广告费用归属
+                    {tr('广告费用归属')}
                   </Button>
                 ) : null}
                 {detail.related.warehouseFeeSnapshotId ? (
@@ -658,7 +658,7 @@ export default function OrderProfitsPage() {
                     icon={<LinkOutlined />}
                     onClick={() => history.push(`/finance/warehouse-fees?drawer=warehouse-fee&id=${encodeURIComponent(detail.related.warehouseFeeSnapshotId!)}`)}
                   >
-                    仓库操作费
+                    {tr('仓库操作费')}
                   </Button>
                 ) : null}
                 {detail.related.freightFeeChargeIds.map((id, index) => (
@@ -667,12 +667,12 @@ export default function OrderProfitsPage() {
                     icon={<LinkOutlined />}
                     onClick={() => history.push(`/finance/freight-fees?drawer=freight-fee&id=${encodeURIComponent(id)}`)}
                   >
-                    承运商运费账单 {index + 1}
+                    {tr('承运商运费账单')} {index + 1}
                   </Button>
                 ))}
                 {detail.related.freightShipmentCount > 0 && detail.related.freightBilledShipmentCount < detail.related.freightShipmentCount ? (
                   <Typography.Text type="warning">
-                    运费账单已覆盖 {detail.related.freightBilledShipmentCount}/{detail.related.freightShipmentCount} 个包裹；当前利润仍使用本地估价。
+                    {tr('运费账单已覆盖')} {detail.related.freightBilledShipmentCount}/{detail.related.freightShipmentCount} {tr('个包裹；当前利润仍使用本地估价。')}
                   </Typography.Text>
                 ) : null}
               </Space>

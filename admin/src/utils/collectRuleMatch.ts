@@ -1,3 +1,4 @@
+import { trFormat } from '@/i18n';
 /** Mirrors backend collectrule.NormalizeRuleDomain + domainMatches for UI hints. */
 export function normalizeRuleDomain(raw: string): string {
   let s = raw.trim().toLowerCase();
@@ -39,11 +40,11 @@ export function formatRuleDomainMismatchMessage(
   try {
     host = new URL(rawUrl.trim()).hostname.toLowerCase();
   } catch {
-    return `链接与所选规则域名不匹配（当前规则：${normalizeRuleDomain(ruleDomain)}）`;
+    return trFormat('链接与所选规则域名不匹配（当前规则：{domain}）', { domain: normalizeRuleDomain(ruleDomain) });
   }
   const suggested = suggestRuleDomainForHost(host);
   const normalized = normalizeRuleDomain(ruleDomain);
-  return `链接主机名为 ${host}，与规则域名「${normalized}」不匹配。请将规则域名改为 ${suggested}（可匹配 ${host} 等子域，勿只填 www.${suggested}）`;
+  return trFormat('链接主机名为 {host}，与规则域名「{domain}」不匹配。请将规则域名改为 {suggested}（可匹配 {host} 等子域，勿只填 www.{suggested}）', { host, domain: normalized, suggested });
 }
 
 export function ruleMatchesURL(

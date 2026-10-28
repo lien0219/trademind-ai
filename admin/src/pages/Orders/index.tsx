@@ -1,5 +1,5 @@
 import { useLanguage } from '@/i18n/useLanguage';
-import { tr } from '@/i18n';
+import { tr, trFormat } from '@/i18n';
 import {
   ModalForm,
   ProFormDigit,
@@ -69,6 +69,7 @@ import {
 import OrderSkuMatchTab from "@/pages/Orders/SkuMatchTab";
 import {
   listInventoryWarehouses,
+  type InventoryWarehouse,
   type OrderInventoryEffectRow,
 } from "@/services/inventory";
 import { fetchSettingsList } from "@/services/settings";
@@ -112,33 +113,15 @@ function truthyInventorySetting(v: string | undefined): boolean {
 
 function summarizeInvResp(sum?: Record<string, unknown>) {
   if (!sum) return "";
-  if (sum.skipped) return `跳过：${String(sum.skipReason || "")}`;
+  if (sum.skipped) return trFormat("跳过：{reason}", { reason: tr(String(sum.skipReason || "")) });
   const action = String(sum.action || "");
-  if (action === "reserve") return "库存预占已完成";
-  if (action === "deduct") return "实际出库扣减已完成";
-  if (action === "release") return "库存预占已释放";
-  if (action === "restore") return "库存已回补";
-  if (typeof sum.message === "string" && sum.message) return sum.message;
-  return "已完成";
+  if (action === "reserve") return tr("库存预占已完成");
+  if (action === "deduct") return tr("实际出库扣减已完成");
+  if (action === "release") return tr("库存预占已释放");
+  if (action === "restore") return tr("库存已回补");
+  if (typeof sum.message === "string" && sum.message) return tr(sum.message);
+  return tr("已完成");
 }
-
-const ORDER_STATUS_OPTS = Object.keys(ORDER_STATUS).map((v) => ({
-  label: ORDER_STATUS[v as keyof typeof ORDER_STATUS].text,
-  value: v,
-}));
-const PAY_OPTS = Object.keys(ORDER_PAYMENT_STATUS).map((v) => ({
-  label: ORDER_PAYMENT_STATUS[v as keyof typeof ORDER_PAYMENT_STATUS].text,
-  value: v,
-}));
-const FULL_OPTS = Object.keys(ORDER_FULFILLMENT_STATUS).map((v) => ({
-  label:
-    ORDER_FULFILLMENT_STATUS[v as keyof typeof ORDER_FULFILLMENT_STATUS].text,
-  value: v,
-}));
-const SHIP_OPTS = Object.keys(ORDER_SHIPMENT_STATUS).map((v) => ({
-  label: ORDER_SHIPMENT_STATUS[v as keyof typeof ORDER_SHIPMENT_STATUS].text,
-  value: v,
-}));
 
 type StatusTagMap = Record<string, { text: string; color: string }>;
 
@@ -150,6 +133,34 @@ function statusTag(raw: string, map: StatusTagMap) {
 
 export default function OrdersPage() {
   const language = useLanguage();
+  const ORDER_STATUS_OPTS = useMemo(
+    () => Object.keys(ORDER_STATUS).map((v) => ({
+      label: ORDER_STATUS[v as keyof typeof ORDER_STATUS].text,
+      value: v,
+    })),
+    [language],
+  );
+  const PAY_OPTS = useMemo(
+    () => Object.keys(ORDER_PAYMENT_STATUS).map((v) => ({
+      label: ORDER_PAYMENT_STATUS[v as keyof typeof ORDER_PAYMENT_STATUS].text,
+      value: v,
+    })),
+    [language],
+  );
+  const FULL_OPTS = useMemo(
+    () => Object.keys(ORDER_FULFILLMENT_STATUS).map((v) => ({
+      label: ORDER_FULFILLMENT_STATUS[v as keyof typeof ORDER_FULFILLMENT_STATUS].text,
+      value: v,
+    })),
+    [language],
+  );
+  const SHIP_OPTS = useMemo(
+    () => Object.keys(ORDER_SHIPMENT_STATUS).map((v) => ({
+      label: ORDER_SHIPMENT_STATUS[v as keyof typeof ORDER_SHIPMENT_STATUS].text,
+      value: v,
+    })),
+    [language],
+  );
   const { user, canWriteOrders } = usePermission();
   const mayReadSettings = mayReadGlobalSettings(user);
   const emptyLocale = useListEmptyLocale("orderList", {
@@ -192,9 +203,19 @@ export default function OrdersPage() {
   const [shopOptions, setShopOptions] = useState<
     { label: string; value: string }[]
   >([]);
-  const [warehouseOptions, setWarehouseOptions] = useState<
-    { label: string; value: string; isDefault: boolean }[]
-  >([]);
+  const [warehouses, setWarehouses] = useState<InventoryWarehouse[]>([]);
+  const warehouseOptions = useMemo(
+    () => warehouses.map((warehouse) => ({
+      label: trFormat("{value0} ({value1}){value2}", {
+        value0: warehouse.name,
+        value1: warehouse.code,
+        value2: warehouse.isDefault ? tr(" / 默认") : "",
+      }),
+      value: warehouse.id,
+      isDefault: warehouse.isDefault,
+    })),
+    [language, warehouses],
+  );
   const { search: ordersSearch } = useLocation();
   const [createInvDefaults, setCreateInvDefaults] = useState<{
     deduct: boolean;
@@ -238,17 +259,9 @@ export default function OrdersPage() {
     void (async () => {
       try {
         const res = await listInventoryWarehouses();
-        setWarehouseOptions(
-          res.list
-            .filter((warehouse) => warehouse.status === "active")
-            .map((warehouse) => ({
-              label: `${warehouse.name} (${warehouse.code})${warehouse.isDefault ? " / 默认" : ""}`,
-              value: warehouse.id,
-              isDefault: warehouse.isDefault,
-            })),
-        );
+        setWarehouses(res.list.filter((warehouse) => warehouse.status === "active"));
       } catch {
-        setWarehouseOptions([]);
+        setWarehouses([]);
       }
     })();
   }, []);
@@ -304,7 +317,7 @@ export default function OrdersPage() {
       });
       setInvEffectRows(r.list);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || "加载库存影响失败");
+      message.error(tr((e as Error)?.message || tr("加载库存影响失败")));
     }
   }, []);
 
@@ -349,7 +362,7 @@ export default function OrdersPage() {
   const columns: ProColumns<OrderListRow>[] = useMemo(
     () => [
       {
-        title: "关联店铺",
+        title: tr("关联店铺"),
         dataIndex: "shopId",
         hideInTable: true,
         valueType: "select",
@@ -360,17 +373,17 @@ export default function OrdersPage() {
         },
       },
       {
-        title: "关键词",
+        title: tr("关键词"),
         dataIndex: "keyword",
         hideInTable: true,
         fieldProps: {
-          placeholder: "订单号 / 买家 / 平台单号",
+          placeholder: tr("订单号 / 买家 / 平台单号"),
           ...keywordFieldProps,
         },
       },
-      { title: "订单号", dataIndex: "orderNo", copyable: true, width: 148 },
+      { title: tr("订单号"), dataIndex: "orderNo", copyable: true, width: 148 },
       {
-        title: "外部单号",
+        title: tr("外部单号"),
         dataIndex: "externalOrderId",
         width: 140,
         search: false,
@@ -379,7 +392,7 @@ export default function OrdersPage() {
         render: (_, r) => r.externalOrderId || "—",
       },
       {
-        title: "平台",
+        title: tr("平台"),
         dataIndex: "platform",
         width: 96,
         fieldProps: { allowClear: true },
@@ -400,9 +413,9 @@ export default function OrdersPage() {
             "—"
           ),
       },
-      { title: "客户", dataIndex: "customerName", ellipsis: true, width: 120 },
+      { title: tr("客户"), dataIndex: "customerName", ellipsis: true, width: 120 },
       {
-        title: "订单状态",
+        title: tr("订单状态"),
         dataIndex: "status",
         width: 108,
         valueType: "select",
@@ -410,7 +423,7 @@ export default function OrdersPage() {
         render: (_, r) => statusTag(r.status, ORDER_STATUS),
       },
       {
-        title: "支付",
+        title: tr("支付"),
         dataIndex: "paymentStatus",
         width: 94,
         valueType: "select",
@@ -418,7 +431,7 @@ export default function OrdersPage() {
         render: (_, r) => statusTag(r.paymentStatus, ORDER_PAYMENT_STATUS),
       },
       {
-        title: "商品数",
+        title: tr("商品数"),
         dataIndex: "itemCount",
         search: false,
         width: 72,
@@ -449,7 +462,7 @@ export default function OrdersPage() {
         },
       },
       {
-        title: "库存扣减",
+        title: tr("库存扣减"),
         dataIndex: "inventoryDeductStatus",
         width: 100,
         valueType: "select",
@@ -465,7 +478,7 @@ export default function OrdersPage() {
         },
       },
       {
-        title: "履约对账",
+        title: tr("履约对账"),
         dataIndex: "reconciliationStatus",
         width: 108,
         valueType: "select",
@@ -477,7 +490,7 @@ export default function OrdersPage() {
         },
       },
       {
-        title: "同步",
+        title: tr("同步"),
         dataIndex: "syncStatus",
         width: 96,
         valueType: "select",
@@ -490,44 +503,44 @@ export default function OrdersPage() {
         },
       },
       {
-        title: "是否有异常",
+        title: tr("是否有异常"),
         dataIndex: "hasException",
         hideInTable: true,
         valueType: "select",
         valueEnum: {
-          true: { text: "有异常" },
-          false: { text: "无异常" },
+          true: { text: tr("有异常") },
+          false: { text: tr("无异常") },
         },
       },
       {
-        title: "异常",
+        title: tr("异常"),
         dataIndex: "openExceptionCount",
         width: 72,
         search: false,
         render: (_, r) =>
           (r.openExceptionCount ?? 0) > 0 ? (
             <Badge count={r.openExceptionCount} size="small">
-              <Tag color="error">待处理</Tag>
+              <Tag color="error">{tr("待处理")}</Tag>
             </Badge>
           ) : (
-            <Tag>无</Tag>
+            <Tag>{tr("无")}</Tag>
           ),
       },
       {
-        title: "履约",
+        title: tr("履约"),
         dataIndex: "fulfillmentStatus",
         hideInTable: true,
         valueType: "select",
         valueEnum: ORDER_FULFILLMENT_STATUS,
       },
       {
-        title: "金额",
+        title: tr("金额"),
         search: false,
         width: 120,
         render: (_, r) => `${r.currency} ${r.totalAmount}`,
       },
       {
-        title: "物流",
+        title: tr("物流"),
         dataIndex: "latestShipmentStatus",
         search: false,
         width: 96,
@@ -537,14 +550,14 @@ export default function OrdersPage() {
             : "—",
       },
       {
-        title: "下单时间",
+        title: tr("下单时间"),
         dataIndex: "orderedAt",
         search: false,
         width: 160,
         render: (_, r) => (r.orderedAt ? formatDateTime(r.orderedAt) : "—"),
       },
       {
-        title: "创建时间",
+        title: tr("创建时间"),
         dataIndex: "createdAt",
         width: 160,
         valueType: "dateTimeRange",
@@ -557,14 +570,14 @@ export default function OrdersPage() {
         render: (_, r) => formatDateTime(r.createdAt),
       },
       {
-        title: "更新时间",
+        title: tr("更新时间"),
         dataIndex: "updatedAt",
         width: 160,
         search: false,
         render: (_, r) => (r.updatedAt ? formatDateTime(r.updatedAt) : "—"),
       },
       {
-        title: "操作",
+        title: tr("操作"),
         valueType: "option",
         width: 220,
         fixed: "right",
@@ -575,7 +588,7 @@ export default function OrdersPage() {
                 history.push(`/orders/${encodeURIComponent(r.id)}`)
               }
             >
-              详情
+              {tr("详情")}
             </a>
             {(r.openExceptionCount ?? 0) > 0 ? (
               <a
@@ -588,7 +601,7 @@ export default function OrdersPage() {
                   )
                 }
               >
-                异常
+                {tr("异常")}
               </a>
             ) : null}
             <a
@@ -598,7 +611,7 @@ export default function OrdersPage() {
                 )
               }
             >
-              同步
+              {tr("同步")}
             </a>
           </Space>
         ),
@@ -621,27 +634,27 @@ export default function OrdersPage() {
 
   const itemColumns = detail
     ? [
-        { title: "商品标题", dataIndex: "productTitle", ellipsis: true },
-        { title: "规格编号", dataIndex: "skuCode", width: 120 },
-        { title: "数量", dataIndex: "quantity", width: 72 },
-        { title: "单价", dataIndex: "unitPrice", width: 88 },
-        { title: "小计", dataIndex: "totalPrice", width: 88 },
+        { title: tr("商品标题"), dataIndex: "productTitle", ellipsis: true },
+        { title: tr("规格编号"), dataIndex: "skuCode", width: 120 },
+        { title: tr("数量"), dataIndex: "quantity", width: 72 },
+        { title: tr("单价"), dataIndex: "unitPrice", width: 88 },
+        { title: tr("小计"), dataIndex: "totalPrice", width: 88 },
         {
-          title: "操作",
+          title: tr("操作"),
           key: "op",
           width: 132,
           render: (_: unknown, row: OrderItemRow) => (
             <Space>
-              <a onClick={() => openItemModal(row)}>编辑</a>
+              <a onClick={() => openItemModal(row)}>{tr("编辑")}</a>
               <Popconfirm
-                title="删除？"
+                title={tr("删除？")}
                 onConfirm={async () => {
                   await deleteOrderItem(detail.id, row.id);
-                  message.success("已删除");
+                  message.success(tr("已删除"));
                   await refreshDetail();
                 }}
               >
-                <a>删除</a>
+                <a>{tr("删除")}</a>
               </Popconfirm>
             </Space>
           ),
@@ -651,41 +664,41 @@ export default function OrdersPage() {
 
   const shipColumns = detail
     ? [
-        { title: "承运商", dataIndex: "carrier", width: 110 },
-        { title: "运单号", dataIndex: "trackingNo", width: 150 },
+        { title: tr("承运商"), dataIndex: "carrier", width: 110 },
+        { title: tr("运单号"), dataIndex: "trackingNo", width: 150 },
         {
-          title: "状态",
+          title: tr("状态"),
           dataIndex: "status",
           width: 94,
           render: (v: string) => statusTag(v, ORDER_SHIPMENT_STATUS),
         },
         {
-          title: "追踪",
+          title: tr("追踪"),
           dataIndex: "trackingUrl",
           render: (u: string) =>
             u ? (
               <a href={u} target="_blank" rel="noopener noreferrer">
-                打开
+                {tr("打开")}
               </a>
             ) : (
               "—"
             ),
         },
         {
-          title: "操作",
+          title: tr("操作"),
           width: 132,
           render: (_: unknown, row: OrderShipmentRow) => (
             <Space>
-              <a onClick={() => openShipModal(row)}>编辑</a>
+              <a onClick={() => openShipModal(row)}>{tr("编辑")}</a>
               <Popconfirm
-                title="删除？"
+                title={tr("删除？")}
                 onConfirm={async () => {
                   await deleteOrderShipment(detail.id, row.id);
-                  message.success("已删除");
+                  message.success(tr("已删除"));
                   await refreshDetail();
                 }}
               >
-                <a>删除</a>
+                <a>{tr("删除")}</a>
               </Popconfirm>
             </Space>
           ),
@@ -696,30 +709,30 @@ export default function OrdersPage() {
   const inventoryEffectCols = useMemo(
     () => [
       {
-        title: "规格编号",
+        title: tr("规格编号"),
         dataIndex: "productSkuId",
         ellipsis: true,
         width: 120,
       },
-      { title: "仓库", dataIndex: "warehouseId", ellipsis: true, width: 120 },
-      { title: "类型", dataIndex: "effectType", width: 100 },
-      { title: "状态", dataIndex: "status", width: 92 },
-      { title: "数量", dataIndex: "quantity", width: 64 },
+      { title: tr("仓库"), dataIndex: "warehouseId", ellipsis: true, width: 120 },
+      { title: tr("类型"), dataIndex: "effectType", width: 100 },
+      { title: tr("状态"), dataIndex: "status", width: 92 },
+      { title: tr("数量"), dataIndex: "quantity", width: 64 },
       {
-        title: "原因 / 错误",
+        title: tr("原因 / 错误"),
         key: "msg",
         ellipsis: true,
         render: (_: unknown, r: OrderInventoryEffectRow) =>
           r.errorMessage || r.reason || "—",
       },
       {
-        title: "时间",
+        title: tr("时间"),
         dataIndex: "createdAt",
         width: 152,
         render: (v: string) => formatDateTime(v),
       },
     ],
-    [],
+    [language],
   );
 
   return (
@@ -765,17 +778,17 @@ export default function OrdersPage() {
                 (warehouse) => warehouse.isDefault,
               )?.value,
             }}
-            title="新建手工订单"
-            trigger={<Button type="primary">新建订单</Button>}
+            title={tr("新建手工订单")}
+            trigger={<Button type="primary">{tr("新建订单")}</Button>}
             onFinish={async (vals) => {
               try {
                 await createOrder(vals as Record<string, unknown>);
-                message.success("已创建");
+                message.success(tr("已创建"));
               } catch (error) {
                 const partial = partialOrderCreateFromError(error);
                 if (!partial) throw error;
                 message.warning(
-                  "订单已创建，但库存处理失败，请打开订单详情重试库存操作",
+                  tr("订单已创建，但库存处理失败，请打开订单详情重试库存操作"),
                 );
               }
               actionRef.current?.reload();
@@ -784,92 +797,92 @@ export default function OrdersPage() {
           >
             <ProFormText
               name="platform"
-              label="平台"
+              label={tr("平台")}
               placeholder="manual"
-              extra="手工订单可填 manual 或留空"
+              extra={tr("手工订单可填 manual 或留空")}
             />
             <ProFormSelect
               name="shopId"
-              label="关联店铺（可选）"
+              label={tr("关联店铺（可选）")}
               options={shopOptions}
               fieldProps={{ allowClear: true, showSearch: true }}
             />
             <ProFormText
               name="orderNo"
-              label="订单号"
+              label={tr("订单号")}
               rules={[{ required: true }]}
             />
             <ProFormSelect
               name="warehouseId"
-              label="履约仓库"
+              label={tr("履约仓库")}
               options={warehouseOptions}
-              rules={[{ required: true, message: "请选择履约仓库" }]}
+              rules={[{ required: true, message: tr("请选择履约仓库") }]}
               fieldProps={{ showSearch: true, optionFilterProp: "label" }}
             />
             <ProFormText
               name="customerName"
-              label="客户名称"
+              label={tr("客户名称")}
               rules={[{ required: true }]}
             />
-            <ProFormText name="customerEmail" label="邮箱" />
-            <ProFormText name="customerPhone" label="电话" />
+            <ProFormText name="customerEmail" label={tr("邮箱")} />
+            <ProFormText name="customerPhone" label={tr("电话")} />
             <ProFormText
               name="destinationCountryCode"
-              label="目的国家/地区代码"
-              placeholder="例如 CN"
+              label={tr("目的国家/地区代码")}
+              placeholder={tr("例如 CN")}
               fieldProps={{ maxLength: 2 }}
               rules={[
                 {
                   pattern: /^[A-Za-z]{2}$/,
-                  message: "请输入 2 位国家/地区代码",
+                  message: tr("请输入 2 位国家/地区代码"),
                 },
               ]}
             />
             <ProFormText
               name="destinationRegion"
-              label="目的省/州"
+              label={tr("目的省/州")}
               fieldProps={{ maxLength: 120 }}
             />
             <ProFormText
               name="destinationPostalCode"
-              label="目的邮编"
+              label={tr("目的邮编")}
               fieldProps={{ maxLength: 32 }}
             />
             <ProFormSelect
               name="status"
-              label="订单状态"
+              label={tr("订单状态")}
               options={ORDER_STATUS_OPTS}
               initialValue="pending"
             />
             <ProFormSelect
               name="paymentStatus"
-              label="支付状态"
+              label={tr("支付状态")}
               options={PAY_OPTS}
               initialValue="unpaid"
             />
             <ProFormSelect
               name="fulfillmentStatus"
-              label="履约状态"
+              label={tr("履约状态")}
               options={FULL_OPTS}
               initialValue="unfulfilled"
             />
-            <ProFormText name="currency" label="币种" initialValue="USD" />
+            <ProFormText name="currency" label={tr("币种")} initialValue="USD" />
             <ProFormDigit
               name="totalAmount"
-              label="订单总额"
+              label={tr("订单总额")}
               min={0}
               fieldProps={{ precision: 2 }}
               initialValue={0}
             />
             <ProFormSwitch
               name="deductInventory"
-              label="创建后应用预占 / 出库"
-              tooltip="根据订单状态执行预占或实际出库，与库存策略中的手工订单开关联动"
+              label={tr("创建后应用预占 / 出库")}
+              tooltip={tr("根据订单状态执行预占或实际出库，与库存策略中的手工订单开关联动")}
             />
             <ProFormSwitch
               name="syncInventory"
-              label="扣减后触发平台出库同步队列"
-              tooltip="需在策略中放行并具备刊登出库路由"
+              label={tr("扣减后触发平台出库同步队列")}
+              tooltip={tr("需在策略中放行并具备刊登出库路由")}
             />
           </ModalForm>,
         ] : []}
@@ -956,7 +969,7 @@ export default function OrdersPage() {
       />
 
       <Drawer
-        title={detail ? `订单 ${detail.orderNo}` : "订单详情"}
+        title={detail ? trFormat("订单 {value0}", { value0: detail.orderNo }) : tr("订单详情")}
         width={720}
         open={drawerOpen}
         onClose={() => {
@@ -973,20 +986,20 @@ export default function OrdersPage() {
               {detail.shopSummary ? (
                 <Badge
                   status="default"
-                  text={`店铺 ${detail.shopSummary.shopName} (${detail.shopSummary.platform})`}
+                  text={trFormat("店铺 {value0} ({value1})", { value0: String(detail.shopSummary.shopName), value1: String(detail.shopSummary.platform) })}
                 />
               ) : null}
               <Popconfirm
-                title="软删除此订单？"
+                title={tr("软删除此订单？")}
                 onConfirm={async () => {
                   await deleteOrder(detail.id);
-                  message.success("已删除");
+                  message.success(tr("已删除"));
                   setDrawerOpen(false);
                   actionRef.current?.reload();
                 }}
               >
                 <Button danger size="small">
-                  删除
+                  {tr("删除")}
                 </Button>
               </Popconfirm>
             </Space>
@@ -997,7 +1010,7 @@ export default function OrdersPage() {
               items={[
                 {
                   key: "b",
-                  label: "基础",
+                  label: tr("基础"),
                   children: (
                     <Form
                       layout="vertical"
@@ -1028,55 +1041,55 @@ export default function OrdersPage() {
                         if (warehouseId) payload.warehouseId = warehouseId;
                         else payload.setWarehouseIdNil = true;
                         await updateOrder(detail.id, payload);
-                        message.success("已保存");
+                        message.success(tr("已保存"));
                         await refreshDetail();
                         actionRef.current?.reload();
                       }}
                     >
                       <Form.Item
                         name="customerName"
-                        label="客户名称"
+                        label={tr("客户名称")}
                         rules={[{ required: true }]}
                       >
                         <Input />
                       </Form.Item>
-                      <Form.Item name="customerEmail" label="邮箱">
+                      <Form.Item name="customerEmail" label={tr("邮箱")}>
                         <Input />
                       </Form.Item>
-                      <Form.Item name="customerPhone" label="电话">
+                      <Form.Item name="customerPhone" label={tr("电话")}>
                         <Input />
                       </Form.Item>
                       <Form.Item
                         name="destinationCountryCode"
-                        label="目的国家/地区代码"
+                        label={tr("目的国家/地区代码")}
                         rules={[
                           {
                             pattern: /^[A-Za-z]{2}$/,
-                            message: "请输入 2 位国家/地区代码",
+                            message: tr("请输入 2 位国家/地区代码"),
                           },
                         ]}
                       >
-                        <Input maxLength={2} placeholder="例如 CN" />
+                        <Input maxLength={2} placeholder={tr("例如 CN")} />
                       </Form.Item>
-                      <Form.Item name="destinationRegion" label="目的省/州">
+                      <Form.Item name="destinationRegion" label={tr("目的省/州")}>
                         <Input maxLength={120} />
                       </Form.Item>
-                      <Form.Item name="destinationPostalCode" label="目的邮编">
+                      <Form.Item name="destinationPostalCode" label={tr("目的邮编")}>
                         <Input maxLength={32} />
                       </Form.Item>
-                      <Form.Item name="shopId" label="关联店铺">
+                      <Form.Item name="shopId" label={tr("关联店铺")}>
                         <Select
                           allowClear
                           showSearch
                           optionFilterProp="label"
-                          placeholder="可选"
+                          placeholder={tr("可选")}
                           options={shopOptions}
                         />
                       </Form.Item>
                       <Form.Item
                         name="warehouseId"
-                        label="履约仓库"
-                        rules={[{ required: true, message: "请选择履约仓库" }]}
+                        label={tr("履约仓库")}
+                        rules={[{ required: true, message: tr("请选择履约仓库") }]}
                       >
                         <Select
                           showSearch
@@ -1086,48 +1099,48 @@ export default function OrdersPage() {
                       </Form.Item>
                       <Form.Item
                         name="status"
-                        label="订单状态"
+                        label={tr("订单状态")}
                         rules={[{ required: true }]}
                       >
                         <Select options={ORDER_STATUS_OPTS} />
                       </Form.Item>
                       <Form.Item
                         name="paymentStatus"
-                        label="支付"
+                        label={tr("支付")}
                         rules={[{ required: true }]}
                       >
                         <Select options={PAY_OPTS} />
                       </Form.Item>
                       <Form.Item
                         name="fulfillmentStatus"
-                        label="履约"
+                        label={tr("履约")}
                         rules={[{ required: true }]}
                       >
                         <Select options={FULL_OPTS} />
                       </Form.Item>
                       <Form.Item
                         name="currency"
-                        label="币种"
+                        label={tr("币种")}
                         rules={[{ required: true }]}
                       >
                         <Input style={{ width: 120 }} />
                       </Form.Item>
                       <Form.Item
                         name="totalAmount"
-                        label="总额"
+                        label={tr("总额")}
                         rules={[{ required: true }]}
                       >
                         <InputNumber style={{ width: "100%" }} min={0} />
                       </Form.Item>
                       <Button type="primary" htmlType="submit">
-                        保存
+                        {tr("保存")}
                       </Button>
                     </Form>
                   ),
                 },
                 {
                   key: "i",
-                  label: "商品明细",
+                  label: tr("商品明细"),
                   children: (
                     <>
                       {!detail.warehouseId ? (
@@ -1135,7 +1148,7 @@ export default function OrdersPage() {
                           type="warning"
                           showIcon
                           style={{ marginBottom: 12 }}
-                          message="请先在基础信息中选择履约仓库"
+                          message={tr("请先在基础信息中选择履约仓库")}
                         />
                       ) : null}
                       <Button
@@ -1143,7 +1156,7 @@ export default function OrdersPage() {
                         style={{ marginBottom: 8 }}
                         onClick={() => openItemModal()}
                       >
-                        添加明细
+                        {tr("添加明细")}
                       </Button>
                       <Table<OrderItemRow>
                         rowKey="id"
@@ -1156,7 +1169,7 @@ export default function OrdersPage() {
                 },
                 {
                   key: "s",
-                  label: "物流",
+                  label: tr("物流"),
                   children: (
                     <>
                       <Button
@@ -1164,7 +1177,7 @@ export default function OrdersPage() {
                         style={{ marginBottom: 8 }}
                         onClick={() => openShipModal()}
                       >
-                        添加物流
+                        {tr("添加物流")}
                       </Button>
                       <Table<OrderShipmentRow>
                         rowKey="id"
@@ -1185,11 +1198,10 @@ export default function OrdersPage() {
                           type="warning"
                           showIcon
                           style={{ marginBottom: 12 }}
-                          message="存在失败的库存扣减或恢复记录"
+                          message={tr("存在失败的库存扣减或恢复记录")}
                           description={
                             <span>
-                              请在异常工作台查看是否需要重新绑定
-                              SKU、补库存或重试扣减。{" "}
+                              {tr("请在异常工作台查看是否需要重新绑定\r\n                              SKU、补库存或重试扣减。")}{" "}
                               <Typography.Link
                                 onClick={() =>
                                   history.push(
@@ -1197,7 +1209,7 @@ export default function OrdersPage() {
                                   )
                                 }
                               >
-                                打开异常工作台
+                                {tr("打开异常工作台")}
                               </Typography.Link>
                             </span>
                           }
@@ -1213,10 +1225,10 @@ export default function OrdersPage() {
                                   : "default"
                               }
                             >
-                              预占
+                              {tr("预占")}
                               {detail.inventorySummary.hasReservationSuccess
-                                ? "：已有成功记录"
-                                : "：尚未成功"}
+                                ? tr("：已有成功记录")
+                                : tr("：尚未成功")}
                             </Tag>
                             <Tag
                               color={
@@ -1225,10 +1237,10 @@ export default function OrdersPage() {
                                   : "default"
                               }
                             >
-                              出库
+                              {tr("出库")}
                               {detail.inventorySummary.hasDeductionSuccess
-                                ? "：已有成功记录"
-                                : "：尚未成功"}
+                                ? tr("：已有成功记录")
+                                : tr("：尚未成功")}
                             </Tag>
                             <Tag
                               color={
@@ -1237,10 +1249,10 @@ export default function OrdersPage() {
                                   : "default"
                               }
                             >
-                              释放
+                              {tr("释放")}
                               {detail.inventorySummary.hasReleaseSuccess
-                                ? "：已有成功记录"
-                                : "：未记录"}
+                                ? tr("：已有成功记录")
+                                : tr("：未记录")}
                             </Tag>
                             <Tag
                               color={
@@ -1249,17 +1261,17 @@ export default function OrdersPage() {
                                   : "default"
                               }
                             >
-                              回补
+                              {tr("回补")}
                               {detail.inventorySummary.hasRestoreSuccess
-                                ? "：有过成功记录"
-                                : "：未记录"}
+                                ? tr("：有过成功记录")
+                                : tr("：未记录")}
                             </Tag>
                           </>
                         ) : (
-                          <Tag>库存摘要不可用</Tag>
+                          <Tag>{tr("库存摘要不可用")}</Tag>
                         )}
                         <Popconfirm
-                          title="扣减绑定 SKU 的本地库存（幂等；见错误提示）"
+                          title={tr("扣减绑定 SKU 的本地库存（幂等；见错误提示）")}
                           onConfirm={async () => {
                             setInvActionLoading(true);
                             try {
@@ -1279,7 +1291,7 @@ export default function OrdersPage() {
                               await loadInvEffects(detail.id);
                               actionRef.current?.reload();
                             } catch (e: unknown) {
-                              message.error((e as Error)?.message || "失败");
+                              message.error(tr((e as Error)?.message || tr("失败")));
                             } finally {
                               setInvActionLoading(false);
                             }
@@ -1290,11 +1302,11 @@ export default function OrdersPage() {
                             loading={invActionLoading}
                             disabled={!detail.warehouseId}
                           >
-                            应用预占 / 出库
+                            {tr("应用预占 / 出库")}
                           </Button>
                         </Popconfirm>
                         <Popconfirm
-                          title="扣库存并触发平台出库同步队列（仍需刊登与 outbound 就绪）"
+                          title={tr("扣库存并触发平台出库同步队列（仍需刊登与 outbound 就绪）")}
                           onConfirm={async () => {
                             setInvActionLoading(true);
                             try {
@@ -1314,7 +1326,7 @@ export default function OrdersPage() {
                               await loadInvEffects(detail.id);
                               actionRef.current?.reload();
                             } catch (e: unknown) {
-                              message.error((e as Error)?.message || "失败");
+                              message.error(tr((e as Error)?.message || tr("失败")));
                             } finally {
                               setInvActionLoading(false);
                             }
@@ -1325,11 +1337,11 @@ export default function OrdersPage() {
                             loading={invActionLoading}
                             disabled={!detail.warehouseId}
                           >
-                            应用出库 + 推平台任务
+                            {tr("应用出库 + 推平台任务")}
                           </Button>
                         </Popconfirm>
                         <Popconfirm
-                          title="回滚本订单已成功扣掉的库存（需尚未被标记为「已完全对冲」等特殊状态）"
+                          title={tr("回滚本订单已成功扣掉的库存（需尚未被标记为「已完全对冲」等特殊状态）")}
                           onConfirm={async () => {
                             setInvActionLoading(true);
                             try {
@@ -1350,7 +1362,7 @@ export default function OrdersPage() {
                               await loadInvEffects(detail.id);
                               actionRef.current?.reload();
                             } catch (e: unknown) {
-                              message.error((e as Error)?.message || "失败");
+                              message.error(tr((e as Error)?.message || tr("失败")));
                             } finally {
                               setInvActionLoading(false);
                             }
@@ -1362,7 +1374,7 @@ export default function OrdersPage() {
                             loading={invActionLoading}
                             disabled={!detail.warehouseId}
                           >
-                            释放 / 回补库存
+                            {tr("释放 / 回补库存")}
                           </Button>
                         </Popconfirm>
                       </Space>
@@ -1370,20 +1382,19 @@ export default function OrdersPage() {
                         <Typography.Link
                           href={`/inventory/effects?orderId=${encodeURIComponent(detail.id)}`}
                         >
-                          全局影响流水
+                          {tr("全局影响流水")}
                         </Typography.Link>
                         <Typography.Link
                           href={`/inventory/logs?orderId=${encodeURIComponent(detail.id)}`}
                         >
-                          全局库存变更
+                          {tr("全局库存变更")}
                         </Typography.Link>
                       </Space>
                       <Typography.Paragraph
                         type="secondary"
                         style={{ fontSize: 12 }}
                       >
-                        策略见「设置 → 库存 /
-                        订单」。平台同步失败不参与本地数据库事务。
+                        {tr("策略见「设置 → 库存 /\r\n                        订单」。平台同步失败不参与本地数据库事务。")}
                       </Typography.Paragraph>
                       <Table<OrderInventoryEffectRow>
                         rowKey="id"
@@ -1415,7 +1426,7 @@ export default function OrdersPage() {
       </Drawer>
 
       <Modal
-        title={itemModal.row ? "编辑明细" : "新增明细"}
+        title={itemModal.row ? tr("编辑明细") : tr("新增明细")}
         open={itemModal.open}
         onCancel={() => setItemModal({ open: false })}
         destroyOnHidden
@@ -1429,7 +1440,7 @@ export default function OrdersPage() {
               v as Record<string, unknown>,
             );
           else await createOrderItem(detail.id, v as Record<string, unknown>);
-          message.success("已保存");
+          message.success(tr("已保存"));
           setItemModal({ open: false });
           await refreshDetail();
         }}
@@ -1437,36 +1448,36 @@ export default function OrdersPage() {
         <Form form={itemForm} layout="vertical">
           <Form.Item
             name="productTitle"
-            label="标题"
-            rules={[{ required: true, message: "必填" }]}
+            label={tr("标题")}
+            rules={[{ required: true, message: tr("必填") }]}
           >
             <Input />
           </Form.Item>
-          <Form.Item name="skuCode" label="规格编码">
+          <Form.Item name="skuCode" label={tr("规格编码")}>
             <Input />
           </Form.Item>
-          <Form.Item name="skuName" label="规格名称">
+          <Form.Item name="skuName" label={tr("规格名称")}>
             <Input />
           </Form.Item>
           <Form.Item
             name="quantity"
-            label="数量"
+            label={tr("数量")}
             initialValue={1}
             rules={[{ required: true }]}
           >
             <InputNumber min={1} style={{ width: "100%" }} />
           </Form.Item>
-          <Form.Item name="unitPrice" label="单价">
+          <Form.Item name="unitPrice" label={tr("单价")}>
             <InputNumber min={0} style={{ width: "100%" }} />
           </Form.Item>
-          <Form.Item name="totalPrice" label="小计">
+          <Form.Item name="totalPrice" label={tr("小计")}>
             <InputNumber min={0} style={{ width: "100%" }} />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title={shipModal.row ? "编辑物流" : "新增物流"}
+        title={shipModal.row ? tr("编辑物流") : tr("新增物流")}
         open={shipModal.open}
         onCancel={() => setShipModal({ open: false })}
         destroyOnHidden
@@ -1481,24 +1492,24 @@ export default function OrdersPage() {
             );
           else
             await createOrderShipment(detail.id, v as Record<string, unknown>);
-          message.success("已保存");
+          message.success(tr("已保存"));
           setShipModal({ open: false });
           await refreshDetail();
         }}
       >
         <Form form={shipForm} layout="vertical">
-          <Form.Item name="carrier" label="承运商" rules={[{ required: true }]}>
+          <Form.Item name="carrier" label={tr("承运商")} rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="trackingNo" label="运单号">
+          <Form.Item name="trackingNo" label={tr("运单号")}>
             <Input />
           </Form.Item>
-          <Form.Item name="trackingUrl" label="追踪 URL">
+          <Form.Item name="trackingUrl" label={tr("追踪 URL")}>
             <Input />
           </Form.Item>
           <Form.Item
             name="status"
-            label="状态"
+            label={tr("状态")}
             rules={[{ required: true }]}
             initialValue="pending"
           >

@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 /**
  * Tenant extensions are opaque metadata, not feature flags or a secrets vault.
  * Never include their values in a summary or a toast.
@@ -78,11 +79,11 @@ export function summarizeTenantSettings(raw: string): { valid: boolean; label: s
   try {
     const value: unknown = JSON.parse(raw || '{}') as unknown;
     if (!value || Array.isArray(value) || typeof value !== 'object') {
-      return { valid: false, label: '数据格式异常' };
+      return { valid: false, label: tr("数据格式异常") };
     }
     const count = Object.keys(value).length;
-    return { valid: true, label: count ? `已保存 ${count} 项扩展字段` : '未配置扩展项' };
+    return { valid: true, label: count ? trFormat('已保存 {count} 项扩展字段', { count }) : tr('未配置扩展项') };
   } catch {
-    return { valid: false, label: '数据格式异常' };
+    return { valid: false, label: tr("数据格式异常") };
   }
 }

@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import { Link } from '@umijs/renderer-react';
 import { formatDateTime } from '@/utils/formatTime';
 import { TechnicalDetails, TaskJsonBlock } from '@/components/ui';
@@ -57,6 +59,7 @@ function statusTag(status?: string | null) {
 }
 
 export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
+  useLanguage();
   const { taskId, open, onClose } = props;
   const [loading, setLoading] = useState(false);
   const [task, setTask] = useState<CollectTaskRow | null>(null);
@@ -82,7 +85,7 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
         }
       } catch (e) {
         if (!cancelled) {
-          message.error(e instanceof Error ? e.message : '加载失败');
+          message.error(e instanceof Error ? e.message : tr("加载失败"));
           setTask(null);
           setEvents([]);
         }
@@ -97,7 +100,7 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
 
   return (
     <Drawer
-      title={task ? `任务事件 · ${task.id.slice(0, 8)}…` : '任务事件'}
+      title={task ? trFormat("任务事件 · {value}…", { value: task.id.slice(0, 8) }) : tr("任务事件")}
       open={open && !!taskId}
       onClose={onClose}
       destroyOnHidden
@@ -109,32 +112,32 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
       ) : task ? (
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <Descriptions column={1} size="small" bordered>
-            <Descriptions.Item label="来源">{task.source}</Descriptions.Item>
-            <Descriptions.Item label="链接">
+            <Descriptions.Item label={tr("来源")}>{task.source}</Descriptions.Item>
+            <Descriptions.Item label={tr("链接")}>
               <Typography.Paragraph style={{ marginBottom: 0 }} copyable ellipsis={{ rows: 2 }}>
                 {task.sourceUrl}
               </Typography.Paragraph>
             </Descriptions.Item>
-            <Descriptions.Item label="批次">
+            <Descriptions.Item label={tr("批次")}>
               {task.batchId ? (
                 <Link to={`/collect/batches?batchId=${encodeURIComponent(task.batchId)}`}>{task.batchId}</Link>
               ) : (
                 '—'
               )}
             </Descriptions.Item>
-            <Descriptions.Item label="状态">{statusTag(task.status)}</Descriptions.Item>
-            <Descriptions.Item label="草稿">
+            <Descriptions.Item label={tr("状态")}>{statusTag(task.status)}</Descriptions.Item>
+            <Descriptions.Item label={tr("草稿")}>
               {task.resultProductId ? (
                 <Link to={`/product/drafts/${task.resultProductId}`}>{task.resultProductId}</Link>
               ) : (
                 '—'
               )}
             </Descriptions.Item>
-            <Descriptions.Item label="自动重试">
-              {(task.retryCount ?? 0).toString()}/{task.maxRetries ?? '—'} · 下次{' '}
+            <Descriptions.Item label={tr("自动重试")}>
+              {(task.retryCount ?? 0).toString()}/{task.maxRetries ?? '—'} {tr("· 下次")}{' '}
               <Typography.Text type="secondary">{formatDateTime(task.nextRetryAt)}</Typography.Text>
             </Descriptions.Item>
-            <Descriptions.Item label="当前错误">
+            <Descriptions.Item label={tr("当前错误")}>
               {task.errorMessage ? (
                 <Typography.Text type="danger">{task.errorMessage}</Typography.Text>
               ) : (
@@ -142,36 +145,35 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
               )}
             </Descriptions.Item>
             {task.collectorErrorCode ? (
-              <Descriptions.Item label="失败原因">
+              <Descriptions.Item label={tr("失败原因")}>
                 <div>
                   <Typography.Text strong>
-                    {mapCollectorErrorCodeLabel(task.collectorErrorCode) || task.collectorErrorCode}
+                    {tr(mapCollectorErrorCodeLabel(task.collectorErrorCode)) || task.collectorErrorCode}
                   </Typography.Text>
-                  {mapCollectorErrorCodeDetail(task.collectorErrorCode) ? (
+                  {tr(mapCollectorErrorCodeDetail(task.collectorErrorCode)) ? (
                     <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
-                      {mapCollectorErrorCodeDetail(task.collectorErrorCode)}
+                      {tr(mapCollectorErrorCodeDetail(task.collectorErrorCode))}
                     </Typography.Paragraph>
                   ) : null}
-                  <TechnicalDetails label="错误码">
+                  <TechnicalDetails label={tr("错误码")}>
                     <Typography.Text code>{task.collectorErrorCode}</Typography.Text>
                   </TechnicalDetails>
                 </div>
               </Descriptions.Item>
             ) : null}
             {task.retryable !== undefined ? (
-              <Descriptions.Item label="可自动重试">{task.retryable ? '是' : '否'}</Descriptions.Item>
+              <Descriptions.Item label={tr("可自动重试")}>{task.retryable ? tr("是") : tr("否")}</Descriptions.Item>
             ) : null}
             {task.failureHint ? (
-              <Descriptions.Item label="排查提示">{task.failureHint}</Descriptions.Item>
+              <Descriptions.Item label={tr("排查提示")}>{task.failureHint}</Descriptions.Item>
             ) : null}
           </Descriptions>
 
           <Typography.Title level={5} style={{ marginTop: 8, marginBottom: 0 }}>
-            事件时间线
-          </Typography.Title>
+            {tr("事件时间线")}</Typography.Title>
 
           {!events?.length ? (
-            <Typography.Text type="secondary">暂无事件记录</Typography.Text>
+            <Typography.Text type="secondary">{tr("暂无事件记录")}</Typography.Text>
           ) : (
             <Timeline
               items={events.map((ev) => ({
@@ -192,8 +194,8 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
                     ) : null}
                     {(ev.retryCount != null || ev.maxRetries != null || ev.nextRetryAt) && (
                       <Typography.Paragraph type="secondary" style={{ marginBottom: 4, fontSize: 12 }}>
-                        重试 {ev.retryCount ?? '—'} / {ev.maxRetries ?? '—'}
-                        {ev.nextRetryAt ? ` · 下次 ${formatDateTime(ev.nextRetryAt)}` : ''}
+                        {tr("重试")}{ev.retryCount ?? '—'} / {ev.maxRetries ?? '—'}
+                        {ev.nextRetryAt ? trFormat(" · 下次 {value}", { value: formatDateTime(ev.nextRetryAt) }) : ''}
                       </Typography.Paragraph>
                     )}
                     {ev.errorMessage ? (
@@ -205,8 +207,8 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
                     ev.payload !== null &&
                     typeof ev.payload === 'object' &&
                     Object.keys(ev.payload as object).length ? (
-                      <TechnicalDetails label="事件详情">
-                        <TaskJsonBlock title="原始信息" value={ev.payload} last />
+                      <TechnicalDetails label={tr("事件详情")}>
+                        <TaskJsonBlock title={tr("原始信息")} value={ev.payload} last />
                       </TechnicalDetails>
                     ) : null}
                   </div>
@@ -216,7 +218,7 @@ export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
           )}
         </Space>
       ) : (
-        <Typography.Text type="secondary">无数据</Typography.Text>
+        <Typography.Text type="secondary">{tr("无数据")}</Typography.Text>
       )}
     </Drawer>
   );

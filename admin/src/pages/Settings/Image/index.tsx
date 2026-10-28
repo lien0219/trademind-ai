@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { Link } from '@umijs/renderer-react';
 import {
   ApiOutlined,
@@ -78,15 +80,15 @@ function buildFieldsSpec(): Record<string, FieldSpec> {
 const FIELDS = buildFieldsSpec();
 
 const OCR_PROVIDER_OPTIONS = [
-  { label: 'AI 视觉 OCR', value: 'ai_vision' },
-  { label: '本地 PaddleOCR', value: 'paddleocr' },
-  { label: '阿里云 OCR', value: 'aliyun' },
-  { label: '腾讯云 OCR', value: 'tencent' },
+  { get label() { return tr("AI 视觉 OCR"); }, value: 'ai_vision' },
+  { get label() { return tr("本地 PaddleOCR"); }, value: 'paddleocr' },
+  { get label() { return tr("阿里云 OCR"); }, value: 'aliyun' },
+  { get label() { return tr("腾讯云 OCR"); }, value: 'tencent' },
 ];
 
 const TENCENT_OCR_API_OPTIONS = [
-  { label: 'GeneralBasicOCR：通用印刷体识别，推荐默认', value: 'GeneralBasicOCR' },
-  { label: 'GeneralFastOCR：通用印刷体识别高速版，可选', value: 'GeneralFastOCR' },
+  { get label() { return tr("GeneralBasicOCR：通用印刷体识别，推荐默认"); }, value: 'GeneralBasicOCR' },
+  { get label() { return tr("GeneralFastOCR：通用印刷体识别高速版，可选"); }, value: 'GeneralFastOCR' },
 ];
 
 const SCENARIO_ICONS: Record<ImageScenarioId, ComponentType<{ style?: CSSProperties }>> = {
@@ -105,12 +107,13 @@ function currentOrSaved(values: Record<string, unknown>, key: string, savedKeys:
 }
 
 function ProviderMetaTags({ cap }: { cap: ImageProviderCapability }) {
+  useLanguage();
   return (
     <Space size={4} wrap style={{ marginTop: 4 }}>
       <Tag>{providerDifficultyLabel(cap.difficulty)}</Tag>
       <Tag color="blue">{providerRegionLabel(cap.regionFriendly)}</Tag>
-      {cap.requiresApiKey ? <Tag>需接口密钥</Tag> : null}
-      {cap.requiresSelfHosted ? <Tag color="orange">需自部署</Tag> : null}
+      {cap.requiresApiKey ? <Tag>{tr("需接口密钥")}</Tag> : null}
+      {cap.requiresSelfHosted ? <Tag color="orange">{tr("需自部署")}</Tag> : null}
       {cap.status !== 'available' ? <Tag color="default">{providerStatusLabel(cap.status)}</Tag> : null}
       {cap.supportedTasks.map((t) => (
         <Tag key={t} color="geekblue">
@@ -122,6 +125,7 @@ function ProviderMetaTags({ cap }: { cap: ImageProviderCapability }) {
 }
 
 export default function ImageSettingsPage() {
+  const language = useLanguage();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -218,7 +222,7 @@ export default function ImageSettingsPage() {
         ai_inpaint_comfyui_output_node_id: g.ai_inpaint_comfyui_output_node_id || '',
       });
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载失败');
+      message.error((e as Error)?.message || tr("加载失败"));
     } finally {
       setLoading(false);
     }
@@ -231,7 +235,7 @@ export default function ImageSettingsPage() {
 
   const currentCap = useMemo(
     () => caps.find((c) => c.provider === (provider || '').trim()),
-    [caps, provider],
+    [caps, provider, language],
   );
 
   useEffect(() => {
@@ -247,14 +251,14 @@ export default function ImageSettingsPage() {
       const recommended = rec?.includes(c.provider);
       const disabled = !isProviderSelectable(c);
       const suffix =
-        c.status === 'planned' ? '（后续支持）' : recommended ? '（推荐）' : '';
+        c.status === 'planned' ? tr("（后续支持）") : recommended ? tr("（推荐）") : '';
       return {
         value: c.provider,
         disabled,
         label: `${c.displayName}${suffix}`,
       };
     });
-  }, [caps, scenario]);
+  }, [caps, scenario, language]);
 
   const visibleFieldKeys = PROVIDER_FIELD_KEYS[provider || 'noop'] ?? ['timeout_sec'];
 
@@ -348,10 +352,10 @@ export default function ImageSettingsPage() {
           key={key}
           label={spec.label}
           name={key}
-          extra={saved ? `${spec.extra ?? ''} 已加密保存；为安全起见不回显明文，留空不会覆盖。` : spec.extra}
+          extra={saved ? trFormat("{value0} 已加密保存；为安全起见不回显明文，留空不会覆盖。", { value0: spec.extra ?? '' }) : spec.extra}
         >
           <Input.Password
-            placeholder={saved ? '已保存，留空不修改；填写新 Key 才会覆盖' : '填写后保存'}
+            placeholder={saved ? tr("已保存，留空不修改；填写新 Key 才会覆盖") : tr("填写后保存")}
             autoComplete="new-password"
           />
         </Form.Item>
@@ -371,8 +375,8 @@ export default function ImageSettingsPage() {
           type="info"
           showIcon
           className="tm-image-settings__provider-alert"
-          message="使用当前 AI 设置中的视觉模型识别图片文字"
-          description="无需填写 OCR 服务地址。请确保「设置 → AI 设置」里配置的是支持图片输入的视觉模型，例如 qwen3-vl-plus、gpt-4o-mini 等。"
+          message={tr("使用当前 AI 设置中的视觉模型识别图片文字")}
+          description={tr("无需填写 OCR 服务地址。请确保「设置 → AI 设置」里配置的是支持图片输入的视觉模型，例如 qwen3-vl-plus、gpt-4o-mini 等。")}
         />
       );
     }
@@ -382,8 +386,8 @@ export default function ImageSettingsPage() {
           type="info"
           showIcon
           className="tm-image-settings__provider-alert"
-          message="PaddleOCR 使用本地或内网服务"
-          description="请填写可由后端访问的服务地址，例如 http://127.0.0.1:xxxx。开启失败自动降级后，PaddleOCR 不可用时图片文字翻译会使用 AI 视觉 OCR 兜底。"
+          message={tr("PaddleOCR 使用本地或内网服务")}
+          description={tr("请填写可由后端访问的服务地址，例如 http://127.0.0.1:xxxx。开启失败自动降级后，PaddleOCR 不可用时图片文字翻译会使用 AI 视觉 OCR 兜底。")}
         />
       );
     }
@@ -393,8 +397,8 @@ export default function ImageSettingsPage() {
           type="info"
           showIcon
           className="tm-image-settings__provider-alert"
-          message="阿里云 OCR 适合国内生产环境"
-          description="请在阿里云控制台开通 OCR 服务并创建 AccessKeyId / AccessKeySecret。"
+          message={tr("阿里云 OCR 适合国内生产环境")}
+          description={tr("请在阿里云控制台开通 OCR 服务并创建 AccessKeyId / AccessKeySecret。")}
         />
       );
     }
@@ -404,8 +408,8 @@ export default function ImageSettingsPage() {
           type="info"
           showIcon
           className="tm-image-settings__provider-alert"
-          message="腾讯云 OCR 适合国内生产环境"
-          description="请先在腾讯云控制台开通文字识别 OCR 服务，并创建 SecretId / SecretKey。"
+          message={tr("腾讯云 OCR 适合国内生产环境")}
+          description={tr("请先在腾讯云控制台开通文字识别 OCR 服务，并创建 SecretId / SecretKey。")}
         />
       );
     }
@@ -414,8 +418,8 @@ export default function ImageSettingsPage() {
 
   return (
     <TmPageContainer
-      title="图片处理设置"
-      subTitle="配置去背景、场景图生成、图片文字翻译等服务连接与默认参数"
+      title={tr("图片处理设置")}
+      subTitle={tr("配置去背景、场景图生成、图片文字翻译等服务连接与默认参数")}
     >
       <div className="tm-image-settings">
         <ProCard variant="outlined" className="tm-image-settings__hero">
@@ -424,18 +428,14 @@ export default function ImageSettingsPage() {
               <PictureOutlined />
             </div>
             <div className="tm-image-settings__hero-body">
-              <Typography.Title level={5} className="tm-image-settings__hero-title">
-                商品图 AI 与 OCR
-              </Typography.Title>
-              <Typography.Paragraph type="secondary" className="tm-image-settings__hero-desc">
-                用于去背景、生成场景图、替换背景与图片文字翻译。所有请求由系统后端发起；API 密钥需自行到对应控制台申请，测试与生成可能产生费用。
-              </Typography.Paragraph>
+              <Typography.Title level={5} className="tm-image-settings__hero-title">{tr("商品图 AI 与 OCR")}</Typography.Title>
+              <Typography.Paragraph type="secondary" className="tm-image-settings__hero-desc">{tr("用于去背景、生成场景图、替换背景与图片文字翻译。所有请求由系统后端发起；API 密钥需自行到对应控制台申请，测试与生成可能产生费用。")}</Typography.Paragraph>
               <Space wrap size={[8, 8]}>
-                <Tag color="purple">去背景</Tag>
-                <Tag>场景图</Tag>
-                <Tag>文字翻译</Tag>
+                <Tag color="purple">{tr("去背景")}</Tag>
+                <Tag>{tr("场景图")}</Tag>
+                <Tag>{tr("文字翻译")}</Tag>
                 <Tag>ComfyUI</Tag>
-                <Link to="/settings/integrations">第三方集成总览 →</Link>
+                <Link to="/settings/integrations">{tr("第三方集成总览 →")}</Link>
               </Space>
             </div>
           </div>
@@ -461,17 +461,15 @@ export default function ImageSettingsPage() {
                 ocr_max_retries: String(values.ocr_max_retries ?? ''),
               };
               await saveSettingsItems(toPutItems(GROUP, FIELDS, payload));
-              message.success('已保存。敏感密钥已加密保存，页面不会回显明文。');
+              message.success(tr("已保存。敏感密钥已加密保存，页面不会回显明文。"));
               await load();
             } catch (e: unknown) {
-              message.error((e as Error)?.message || '保存失败');
+              message.error((e as Error)?.message || tr("保存失败"));
             }
           }}
         >
-          <ProCard variant="outlined" title="使用场景" className="tm-image-settings__panel">
-            <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-              选择最接近你需求的场景，系统将推荐合适的图片服务（可再手动调整）。
-            </Typography.Paragraph>
+          <ProCard variant="outlined" title={tr("使用场景")} className="tm-image-settings__panel">
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>{tr("选择最接近你需求的场景，系统将推荐合适的图片服务（可再手动调整）。")}</Typography.Paragraph>
             <div className="tm-image-scenario-grid">
               {IMAGE_SCENARIOS.map((sc) => {
                 const Icon = SCENARIO_ICONS[sc.id];
@@ -500,9 +498,7 @@ export default function ImageSettingsPage() {
                       </div>
                     </div>
                     <div className="tm-image-scenario-card__tags">
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        推荐
-                      </Typography.Text>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>{tr("推荐")}</Typography.Text>
                       {sc.recommendedProviders
                         .filter((p) => !isProductionBuild || caps.some((cap) => cap.provider === p))
                         .map((p) => {
@@ -522,16 +518,14 @@ export default function ImageSettingsPage() {
 
           <ProCard
             variant="outlined"
-            title="图片处理服务"
+            title={tr("图片处理服务")}
             className="tm-image-settings__panel"
             extra={
-              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
-                重新加载
-              </Button>
+              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>{tr("重新加载")}</Button>
             }
           >
             <Form.Item
-              label="默认图片服务"
+              label={tr("默认图片服务")}
               name="provider"
               rules={[
                 { required: true },
@@ -539,12 +533,12 @@ export default function ImageSettingsPage() {
                   validator: async (_, v) => {
                     const c = caps.find((x) => x.provider === v);
                     if (c?.status === 'planned') {
-                      throw new Error('该图片服务尚未开放，不能设为默认');
+                      throw new Error(tr("该图片服务尚未开放，不能设为默认"));
                     }
                   },
                 },
               ]}
-              extra="请到对应服务商控制台申请接口密钥；留空占位 **** 不会覆盖已保存的密钥"
+              extra={tr("请到对应服务商控制台申请接口密钥；留空占位 **** 不会覆盖已保存的密钥")}
             >
               <Select options={providerOptions} size="large" />
             </Form.Item>
@@ -561,7 +555,7 @@ export default function ImageSettingsPage() {
                   <>
                     <div>{currentCap.description}</div>
                     {currentCap.recommendedFor?.length ? (
-                      <div style={{ marginTop: 4 }}>适合：{currentCap.recommendedFor.join('、')}</div>
+                      <div style={{ marginTop: 4 }}>{trFormat("适合：{value0}", { value0: currentCap.recommendedFor.join('、') })}</div>
                     ) : null}
                     <ProviderMetaTags cap={currentCap} />
                   </>
@@ -572,14 +566,14 @@ export default function ImageSettingsPage() {
 
           <Row gutter={[16, 16]} className="tm-image-settings__row">
             <Col xs={24} lg={15}>
-              <ProCard variant="outlined" title="服务连接" className="tm-image-settings__panel tm-image-settings__panel--fill">
+              <ProCard variant="outlined" title={tr("服务连接")} className="tm-image-settings__panel tm-image-settings__panel--fill">
                 {currentCap?.status === 'planned' ? (
                   <Alert
                     type="warning"
                     showIcon
                     className="tm-image-settings__provider-alert"
-                    message="该图片服务为预留项"
-                    description="可保存配置项，但无法创建真实图片任务，请等待后续版本。"
+                    message={tr("该图片服务为预留项")}
+                    description={tr("可保存配置项，但无法创建真实图片任务，请等待后续版本。")}
                   />
                 ) : null}
                 <Row gutter={16}>
@@ -597,30 +591,26 @@ export default function ImageSettingsPage() {
               </ProCard>
             </Col>
             <Col xs={24} lg={9}>
-              <ProCard variant="outlined" title="说明与提示" className="tm-image-settings__panel tm-image-settings__panel--fill">
+              <ProCard variant="outlined" title={tr("说明与提示")} className="tm-image-settings__panel tm-image-settings__panel--fill">
                 <div className="tm-image-settings__tips">
-                  <Typography.Text type="secondary" className="tm-image-settings__tips-title">
-                    配置建议
-                  </Typography.Text>
+                  <Typography.Text type="secondary" className="tm-image-settings__tips-title">{tr("配置建议")}</Typography.Text>
                   <ul className="tm-image-settings__tips-list">
-                    <li>去背景：推荐 remove.bg，需单独申请接口密钥</li>
-                    <li>场景图：通义万相、OpenAI Image 等按尺寸计费</li>
-                    <li>ComfyUI：需内网可访问实例与工作流 JSON</li>
-                    <li>图片文字翻译：须在本页配置 OCR 并测试通过</li>
+                    <li>{tr("去背景：推荐 remove.bg，需单独申请接口密钥")}</li>
+                    <li>{tr("场景图：通义万相、OpenAI Image 等按尺寸计费")}</li>
+                    <li>{tr("ComfyUI：需内网可访问实例与工作流 JSON")}</li>
+                    <li>{tr("图片文字翻译：须在本页配置 OCR 并测试通过")}</li>
                   </ul>
                 </div>
                 <Divider style={{ margin: '16px 0' }} />
-                <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
-                  真实调用测试与图片生成可能产生费用；敏感密钥保存后不回显明文。
-                </Typography.Paragraph>
+                <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>{tr("真实调用测试与图片生成可能产生费用；敏感密钥保存后不回显明文。")}</Typography.Paragraph>
               </ProCard>
             </Col>
           </Row>
 
           <ProCard
             variant="outlined"
-            title="OCR 配置"
-            subTitle="用于图片文字翻译与中英文识别"
+            title={tr("OCR 配置")}
+            subTitle={tr("用于图片文字翻译与中英文识别")}
             className="tm-image-settings__panel"
           >
             <Row gutter={16}>
@@ -628,8 +618,8 @@ export default function ImageSettingsPage() {
                 <Form.Item
                   label={ALL_IMAGE_FIELD_SPECS.ocr_provider.label}
                   name="ocr_provider"
-                  extra="OCR 主要用于图片文字翻译、图片中文字识别和翻译后结果校验"
-                  rules={[{ required: true, message: '请选择 OCR 服务' }]}
+                  extra={tr("OCR 主要用于图片文字翻译、图片中文字识别和翻译后结果校验")}
+                  rules={[{ required: true, message: tr("请选择 OCR 服务") }]}
                 >
                   <Select options={OCR_PROVIDER_OPTIONS} />
                 </Form.Item>
@@ -650,7 +640,7 @@ export default function ImageSettingsPage() {
                         label={ALL_IMAGE_FIELD_SPECS.ocr_paddleocr_service_url.label}
                         name="ocr_paddleocr_service_url"
                         extra={ALL_IMAGE_FIELD_SPECS.ocr_paddleocr_service_url.extra}
-                        rules={[{ required: true, message: '请填写 PaddleOCR 服务地址' }]}
+                        rules={[{ required: true, message: tr("请填写 PaddleOCR 服务地址") }]}
                       >
                         <Input placeholder={ALL_IMAGE_FIELD_SPECS.ocr_paddleocr_service_url.placeholder} />
                       </Form.Item>
@@ -662,9 +652,7 @@ export default function ImageSettingsPage() {
                 return (
                   <div className="tm-image-settings__sub-panel">
                     <div className="tm-image-settings__sub-panel-title">
-                      <ScanOutlined className="tm-image-settings__sub-panel-icon" />
-                      阿里云连接与凭证
-                    </div>
+                      <ScanOutlined className="tm-image-settings__sub-panel-icon" />{tr("阿里云连接与凭证")}</div>
                     <Row gutter={16}>
                       <Col xs={24} md={12}>{renderField('ocr_aliyun_endpoint')}</Col>
                       <Col xs={24} md={12}>{renderField('ocr_aliyun_region')}</Col>
@@ -675,20 +663,20 @@ export default function ImageSettingsPage() {
                           name="ocr_aliyun_access_key_id"
                           extra={
                             savedEncryptedKeys.has('ocr_aliyun_access_key_id')
-                              ? '已加密保存；为安全起见不回显明文，留空不会覆盖。'
+                              ? tr("已加密保存；为安全起见不回显明文，留空不会覆盖。")
                               : undefined
                           }
                           rules={
                             savedEncryptedKeys.has('ocr_aliyun_access_key_id')
                               ? []
-                              : [{ required: true, message: '请填写阿里云 AccessKeyId' }]
+                              : [{ required: true, message: tr("请填写阿里云 AccessKeyId") }]
                           }
                         >
                           <Input.Password
                             placeholder={
                               savedEncryptedKeys.has('ocr_aliyun_access_key_id')
-                                ? '已保存，留空不修改；填写新 AccessKeyId 才会覆盖'
-                                : '填写 AccessKeyId 后保存或直接测试'
+                                ? tr("已保存，留空不修改；填写新 AccessKeyId 才会覆盖")
+                                : tr("填写 AccessKeyId 后保存或直接测试")
                             }
                             autoComplete="new-password"
                           />
@@ -700,20 +688,20 @@ export default function ImageSettingsPage() {
                           name="ocr_aliyun_access_key_secret"
                           extra={
                             savedEncryptedKeys.has('ocr_aliyun_access_key_secret')
-                              ? '已加密保存；为安全起见不回显明文，留空不会覆盖。'
+                              ? tr("已加密保存；为安全起见不回显明文，留空不会覆盖。")
                               : undefined
                           }
                           rules={
                             savedEncryptedKeys.has('ocr_aliyun_access_key_secret')
                               ? []
-                              : [{ required: true, message: '请填写阿里云 AccessKeySecret' }]
+                              : [{ required: true, message: tr("请填写阿里云 AccessKeySecret") }]
                           }
                         >
                           <Input.Password
                             placeholder={
                               savedEncryptedKeys.has('ocr_aliyun_access_key_secret')
-                                ? '已保存，留空不修改；填写新 AccessKeySecret 才会覆盖'
-                                : '填写 AccessKeySecret 后保存或直接测试'
+                                ? tr("已保存，留空不修改；填写新 AccessKeySecret 才会覆盖")
+                                : tr("填写 AccessKeySecret 后保存或直接测试")
                             }
                             autoComplete="new-password"
                           />
@@ -727,15 +715,13 @@ export default function ImageSettingsPage() {
                 return (
                   <div className="tm-image-settings__sub-panel">
                     <div className="tm-image-settings__sub-panel-title">
-                      <ScanOutlined className="tm-image-settings__sub-panel-icon" />
-                      腾讯云连接与凭证
-                    </div>
+                      <ScanOutlined className="tm-image-settings__sub-panel-icon" />{tr("腾讯云连接与凭证")}</div>
                     <Row gutter={16}>
                       <Col xs={24} md={12}>
                         <Form.Item
                           label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_endpoint.label}
                           name="ocr_tencent_endpoint"
-                          rules={[{ required: true, message: '请填写腾讯云 OCR 接口地址' }]}
+                          rules={[{ required: true, message: tr("请填写腾讯云 OCR 接口地址") }]}
                         >
                           <Input placeholder={ALL_IMAGE_FIELD_SPECS.ocr_tencent_endpoint.placeholder} />
                         </Form.Item>
@@ -744,7 +730,7 @@ export default function ImageSettingsPage() {
                         <Form.Item
                           label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_region.label}
                           name="ocr_tencent_region"
-                          rules={[{ required: true, message: '请填写腾讯云 OCR Region' }]}
+                          rules={[{ required: true, message: tr("请填写腾讯云 OCR Region") }]}
                         >
                           <Input placeholder={ALL_IMAGE_FIELD_SPECS.ocr_tencent_region.placeholder} />
                         </Form.Item>
@@ -755,20 +741,20 @@ export default function ImageSettingsPage() {
                           name="ocr_tencent_secret_id"
                           extra={
                             savedEncryptedKeys.has('ocr_tencent_secret_id')
-                              ? '已加密保存；为安全起见不回显明文，留空不会覆盖。'
+                              ? tr("已加密保存；为安全起见不回显明文，留空不会覆盖。")
                               : undefined
                           }
                           rules={
                             savedEncryptedKeys.has('ocr_tencent_secret_id')
                               ? []
-                              : [{ required: true, message: '请填写腾讯云 SecretId' }]
+                              : [{ required: true, message: tr("请填写腾讯云 SecretId") }]
                           }
                         >
                           <Input.Password
                             placeholder={
                               savedEncryptedKeys.has('ocr_tencent_secret_id')
-                                ? '已保存，留空不修改；填写新 SecretId 才会覆盖'
-                                : '填写 SecretId 后保存'
+                                ? tr("已保存，留空不修改；填写新 SecretId 才会覆盖")
+                                : tr("填写 SecretId 后保存")
                             }
                             autoComplete="new-password"
                           />
@@ -780,20 +766,20 @@ export default function ImageSettingsPage() {
                           name="ocr_tencent_secret_key"
                           extra={
                             savedEncryptedKeys.has('ocr_tencent_secret_key')
-                              ? '已加密保存；为安全起见不回显明文，留空不会覆盖。'
+                              ? tr("已加密保存；为安全起见不回显明文，留空不会覆盖。")
                               : undefined
                           }
                           rules={
                             savedEncryptedKeys.has('ocr_tencent_secret_key')
                               ? []
-                              : [{ required: true, message: '请填写腾讯云 SecretKey' }]
+                              : [{ required: true, message: tr("请填写腾讯云 SecretKey") }]
                           }
                         >
                           <Input.Password
                             placeholder={
                               savedEncryptedKeys.has('ocr_tencent_secret_key')
-                                ? '已保存，留空不修改；填写新 SecretKey 才会覆盖'
-                                : '填写 SecretKey 后保存'
+                                ? tr("已保存，留空不修改；填写新 SecretKey 才会覆盖")
+                                : tr("填写 SecretKey 后保存")
                             }
                             autoComplete="new-password"
                           />
@@ -803,7 +789,7 @@ export default function ImageSettingsPage() {
                         <Form.Item
                           label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_api_name.label}
                           name="ocr_tencent_api_name"
-                          rules={[{ required: true, message: '请选择腾讯云 OCR 接口类型' }]}
+                          rules={[{ required: true, message: tr("请选择腾讯云 OCR 接口类型") }]}
                         >
                           <Select options={TENCENT_OCR_API_OPTIONS} />
                         </Form.Item>
@@ -817,9 +803,7 @@ export default function ImageSettingsPage() {
           </Form.Item>
           <div className="tm-image-settings__sub-panel">
             <div className="tm-image-settings__sub-panel-title">
-              <ExperimentOutlined className="tm-image-settings__sub-panel-icon" />
-              识别参数与限流
-            </div>
+              <ExperimentOutlined className="tm-image-settings__sub-panel-icon" />{tr("识别参数与限流")}</div>
             <Row gutter={16}>
             <Col xs={24} sm={8}>{renderField('ocr_timeout_sec')}</Col>
             <Col xs={24} sm={8}>{renderField('ocr_min_confidence')}</Col>
@@ -827,12 +811,12 @@ export default function ImageSettingsPage() {
               <Form.Item
                 label={ALL_IMAGE_FIELD_SPECS.ocr_fallback_to_vision.label}
                 name="ocr_fallback_to_vision"
-                extra="生产模式不使用 OCR 降级；保留该字段仅用于历史兼容"
+                extra={tr("生产模式不使用 OCR 降级；保留该字段仅用于历史兼容")}
               >
                 <Select
                   options={[
-                    { label: '开启', value: 'true' },
-                    { label: '关闭', value: 'false' },
+                    { label: tr("开启"), value: 'true' },
+                    { label: tr("关闭"), value: 'false' },
                   ]}
                 />
               </Form.Item>
@@ -879,21 +863,21 @@ export default function ImageSettingsPage() {
                     const selectedProvider = String(values.ocr_provider ?? '').trim();
                     if (selectedProvider === 'aliyun') {
                       if (!currentOrSaved(values, 'ocr_aliyun_access_key_id', savedEncryptedKeys)) {
-                        message.error('请先填写阿里云 AccessKeyId，或保存后再测试 OCR。');
+                        message.error(tr("请先填写阿里云 AccessKeyId，或保存后再测试 OCR。"));
                         return;
                       }
                       if (!currentOrSaved(values, 'ocr_aliyun_access_key_secret', savedEncryptedKeys)) {
-                        message.error('请先填写阿里云 AccessKeySecret，或保存后再测试 OCR。');
+                        message.error(tr("请先填写阿里云 AccessKeySecret，或保存后再测试 OCR。"));
                         return;
                       }
                     }
                     if (selectedProvider === 'tencent') {
                       if (!currentOrSaved(values, 'ocr_tencent_secret_id', savedEncryptedKeys)) {
-                        message.error('请先填写腾讯云 SecretId，或保存后再测试 OCR。');
+                        message.error(tr("请先填写腾讯云 SecretId，或保存后再测试 OCR。"));
                         return;
                       }
                       if (!currentOrSaved(values, 'ocr_tencent_secret_key', savedEncryptedKeys)) {
-                        message.error('请先填写腾讯云 SecretKey，或保存后再测试 OCR。');
+                        message.error(tr("请先填写腾讯云 SecretKey，或保存后再测试 OCR。"));
                         return;
                       }
                     }
@@ -902,29 +886,27 @@ export default function ImageSettingsPage() {
                       settings: buildOCRTestSettingsPayload(values),
                     });
                     const latency = res.latencyMs !== undefined ? `（${res.latencyMs} ms）` : '';
-                    const blocks = res.blocks !== undefined ? `，识别到 ${res.blocks} 个文字块` : '';
+                    const blocks = res.blocks !== undefined ? trFormat("，识别到 {value0} 个文字块", { value0: res.blocks }) : '';
                     const avg =
                       res.averageConfidence !== undefined
-                        ? `，平均置信度 ${(res.averageConfidence * 100).toFixed(1)}%`
+                        ? trFormat("，平均置信度 {value0}%", { value0: (res.averageConfidence * 100).toFixed(1) })
                         : '';
-                    message.success(`${res.message || '当前 OCR 服务可用'}${blocks}${avg}${latency}`);
+                    message.success(trFormat("{value0}{value1}{value2}{value3}", { value0: res.message || tr('当前 OCR 服务可用'), value1: blocks, value2: avg, value3: latency }));
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || 'OCR 配置测试失败');
+                    message.error((e as Error)?.message || tr("OCR 配置测试失败"));
                   } finally {
                     setOcrTesting(false);
                   }
                 }}
-              >
-                真实测试 OCR 调用
-              </Button>
+              >{tr("真实测试 OCR 调用")}</Button>
             </div>
           ) : null}
           </ProCard>
 
           <ProCard
             variant="outlined"
-            title="局部擦除"
-            subTitle="用于图片文字翻译前去除原文字"
+            title={tr("局部擦除")}
+            subTitle={tr("用于图片文字翻译前去除原文字")}
             className="tm-image-settings__panel"
           >
           <Row gutter={16}>
@@ -975,19 +957,17 @@ export default function ImageSettingsPage() {
                     });
                     const latency = res.latencyMs !== undefined ? `（${res.latencyMs} ms）` : '';
                     if (res.ok) {
-                      message.success(`${res.message || '图片服务配置检查通过'}${latency}`);
+                      message.success(trFormat("{value0}{value1}", { value0: res.message || tr('图片服务配置检查通过'), value1: latency }));
                     } else {
-                      message.warning(`${res.message || '配置不完整'}${latency}`);
+                      message.warning(trFormat("{value0}{value1}", { value0: res.message || tr('配置不完整'), value1: latency }));
                     }
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '测试失败');
+                    message.error((e as Error)?.message || tr("测试失败"));
                   } finally {
                     setTesting(false);
                   }
                 }}
-              >
-                检查图片服务配置
-              </Button>
+              >{tr("检查图片服务配置")}</Button>
             </Space>
           </ProCard>
         </Form>

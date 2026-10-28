@@ -1,4 +1,5 @@
 ﻿import { type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { tr } from '@/i18n';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { Tag } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
@@ -33,7 +34,7 @@ export default function InventoryLogsPage() {
   const columns: ProColumns<InventoryChangeLogRow>[] = useMemo(
     () => [
       {
-        title: '时间范围',
+        title: tr("时间范围"),
         dataIndex: 'timeRange',
         hideInTable: true,
         valueType: 'dateTimeRange',
@@ -45,42 +46,42 @@ export default function InventoryLogsPage() {
         },
       },
       {
-        title: '创建时间',
+        title: tr("创建时间"),
         dataIndex: 'createdAt',
         width: 168,
         search: false,
         render: (_, r) => formatDateTime(r.createdAt),
       },
-      { title: '商品 ID', dataIndex: 'productId', hideInTable: true },
-      { title: '规格编号', dataIndex: 'productSkuId', hideInTable: true },
-      { title: '订单 ID', dataIndex: 'orderId', hideInTable: true },
+      { title: tr("商品 ID"), dataIndex: 'productId', hideInTable: true },
+      { title: tr("规格编号"), dataIndex: 'productSkuId', hideInTable: true },
+      { title: tr("订单 ID"), dataIndex: 'orderId', hideInTable: true },
       {
-        title: '变更类型',
+        title: tr("变更类型"),
         dataIndex: 'changeType',
         width: 132,
         ellipsis: true,
       },
       {
-        title: '变更前',
+        title: tr("变更前"),
         dataIndex: 'beforeStock',
         width: 88,
         search: false,
       },
       {
-        title: '变更后',
+        title: tr("变更后"),
         dataIndex: 'afterStock',
         width: 88,
         search: false,
       },
       {
-        title: '变化',
+        title: tr("变化"),
         dataIndex: 'delta',
         width: 88,
         search: false,
         render: (_, r) => renderDelta(r.delta),
       },
       {
-        title: '原因',
+        title: tr("原因"),
         dataIndex: 'reason',
         width: 140,
         ellipsis: true,
@@ -88,14 +89,14 @@ export default function InventoryLogsPage() {
         render: (_, r) => r.reason || '—',
       },
       {
-        title: '备注',
+        title: tr("备注"),
         dataIndex: 'remark',
         ellipsis: true,
         search: false,
         render: (_, r) => r.remark || '—',
       },
       {
-        title: '关联订单',
+        title: tr("关联订单"),
         dataIndex: 'refOrderId',
         width: 140,
         ellipsis: true,
@@ -104,7 +105,7 @@ export default function InventoryLogsPage() {
         render: (_, r) => r.refOrderId || '—',
       },
       {
-        title: '关联订单行',
+        title: tr("关联订单行"),
         dataIndex: 'refOrderItemId',
         width: 140,
         ellipsis: true,
@@ -117,7 +118,7 @@ export default function InventoryLogsPage() {
   );
 
   return (
-    <TmPageContainer title="库存流水" subTitle="查看本地库存变更记录，便于核对扣减、恢复与手动调整。">
+    <TmPageContainer title={tr("库存流水")} subTitle={tr("查看本地库存变更记录，便于核对扣减、恢复与手动调整。")}>
       <ProTable<InventoryChangeLogRow>
         rowKey="id"
         actionRef={actionRef}

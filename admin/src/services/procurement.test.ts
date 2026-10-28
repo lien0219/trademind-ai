@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createProcurementIdempotencyKey, procurementErrorMessage } from './procurement';
+import { createProcurementIdempotencyKey, extractProcurementAPIError, procurementErrorMessage } from './procurement';
+import { ApiRequestError } from './request';
+import { supportedLanguages, translateMessage } from '@/i18n/dictionaries';
 
 describe('procurement service helpers', () => {
   it('creates bounded action-scoped idempotency keys', () => {
@@ -24,5 +26,25 @@ describe('procurement service helpers', () => {
     expect(procurementErrorMessage({ code: 40901, message: 'purchase return approver cannot complete the return' })).toBe(
       '审批人与退货执行人必须为不同账号。',
     );
+  });
+
+  it('classifies raw API errors before display translation and preserves unknown upstream text', () => {
+    const error = new ApiRequestError({
+      code: 40901,
+      message: 'Purchase Return Revision Conflict',
+      data: null,
+      traceId: 'trace-test',
+    });
+    const extracted = extractProcurementAPIError(error);
+    expect(extracted.message).toBe('Purchase Return Revision Conflict');
+
+    const source = procurementErrorMessage(extracted);
+    expect(source).toContain('采购退货单');
+    for (const language of supportedLanguages.slice(1)) {
+      expect(translateMessage(language, source)).not.toContain('采购退货单');
+    }
+
+    const unknown = { code: 40901, message: 'Vendor-private conflict detail' };
+    expect(procurementErrorMessage(unknown, 'Custom fallback')).toBe('Custom fallback');
   });
 });

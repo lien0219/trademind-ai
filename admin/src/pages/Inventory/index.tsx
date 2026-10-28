@@ -1,5 +1,5 @@
 import { useLanguage } from '@/i18n/useLanguage';
-import { tr } from '@/i18n';
+import { tr, trFormat } from '@/i18n';
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import InventorySyncDisabledBanner from '@/components/inventory/InventorySyncDisabledBanner';
@@ -18,6 +18,7 @@ import {
   listInventoryWarehouses,
   queryInventoryCenter,
   type InventoryCenterRow,
+  type InventoryWarehouse,
 } from '@/services/inventory';
 import { Alert, Button, Space, Tag, Typography, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
@@ -60,7 +61,7 @@ export default function InventoryCenterPage() {
     );
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(20);
-  const [warehouseOptions, setWarehouseOptions] = useState<{ label: string; value: string }[]>([]);
+  const [warehouseOptions, setWarehouseOptions] = useState<InventoryWarehouse[]>([]);
   const [warehouseOptionsError, setWarehouseOptionsError] = useState('');
   const {
     fieldProps: keywordFieldProps,
@@ -80,14 +81,7 @@ export default function InventoryCenterPage() {
   const loadWarehouseOptions = useCallback(async () => {
     try {
       const response = await listInventoryWarehouses();
-      setWarehouseOptions(
-        (response.list ?? [])
-          .filter((warehouse) => warehouse.status === 'active')
-          .map((warehouse) => ({
-            value: warehouse.id,
-            label: `${warehouse.name}（${warehouse.code}）${warehouse.isDefault ? ' · 默认' : ''}`,
-          })),
-      );
+      setWarehouseOptions((response.list ?? []).filter((warehouse) => warehouse.status === 'active'));
       setWarehouseOptionsError('');
     } catch (error) {
       setWarehouseOptions([]);
@@ -135,29 +129,36 @@ export default function InventoryCenterPage() {
   const columns: ProColumns<InventoryCenterRow>[] = useMemo(
     () => [
       {
-        title: '关键词',
+        title: tr("关键词"),
         dataIndex: 'keyword',
         hideInTable: true,
-        fieldProps: { placeholder: '商品标题 / 规格编码 / 名称', ...keywordFieldProps },
+        fieldProps: { placeholder: tr("商品标题 / 规格编码 / 名称"), ...keywordFieldProps },
       },
-      { title: '规格 ID', dataIndex: 'productSkuId', hideInTable: true },
-      { title: '店铺 ID', dataIndex: 'shopId', hideInTable: true },
-      { title: '平台', dataIndex: 'platform', hideInTable: true },
+      { title: tr("规格 ID"), dataIndex: 'productSkuId', hideInTable: true },
+      { title: tr("店铺 ID"), dataIndex: 'shopId', hideInTable: true },
+      { title: tr("平台"), dataIndex: 'platform', hideInTable: true },
       {
-        title: '仓库范围',
+        title: tr("仓库范围"),
         dataIndex: 'warehouseId',
         hideInTable: true,
         valueType: 'select',
         fieldProps: {
           allowClear: true,
-          options: warehouseOptions,
-          placeholder: '全部仓库',
+          options: warehouseOptions.map((warehouse) => ({
+            value: warehouse.id,
+            label: trFormat("{value0}（{value1}）{value2}", {
+              value0: warehouse.name,
+              value1: warehouse.code,
+              value2: warehouse.isDefault ? tr(" · 默认") : '',
+            }),
+          })),
+          placeholder: tr("全部仓库"),
           showSearch: true,
           optionFilterProp: 'label',
         },
       },
       {
-        title: '库存状态',
+        title: tr("库存状态"),
         dataIndex: 'stockStatus',
         hideInTable: true,
         valueType: 'select',
@@ -171,28 +172,28 @@ export default function InventoryCenterPage() {
         valueEnum: Object.fromEntries(Object.entries(INVENTORY_BIND_STATUS).map(([k, v]) => [k, { text: v.text }])),
       },
       {
-        title: '同步状态',
+        title: tr("同步状态"),
         dataIndex: 'syncStatus',
         hideInTable: true,
         valueType: 'select',
         valueEnum: Object.fromEntries(Object.entries(INVENTORY_SYNC_STATUS).map(([k, v]) => [k, { text: v.text }])),
       },
       {
-        title: '仅有异常',
+        title: tr("仅有异常"),
         dataIndex: 'hasException',
         hideInTable: true,
         valueType: 'select',
-        valueEnum: { true: { text: '是' }, false: { text: '否' } },
+        valueEnum: { true: { text: tr("是") }, false: { text: tr("否") } },
       },
       {
-        title: '库存范围',
+        title: tr("库存范围"),
         dataIndex: 'inventoryScope',
         width: 140,
         search: false,
         ellipsis: true,
         render: (_, row) => row.inventoryScope === 'warehouse'
-          ? `${row.warehouseName || '指定仓库'}${row.warehouseCode ? `（${row.warehouseCode}）` : ''}`
-          : '全部仓库',
+          ? `${row.warehouseName || tr("指定仓库")}${row.warehouseCode ? `（${row.warehouseCode}）` : ''}`
+          : tr("全部仓库"),
       },
       {
         title: tr("商品"),
@@ -213,30 +214,30 @@ export default function InventoryCenterPage() {
         render: (_, r) => r.skuCode || '—',
       },
       {
-        title: '规格',
+        title: tr("规格"),
         dataIndex: 'skuName',
         width: 120,
         search: false,
         ellipsis: true,
         render: (_, r) => r.skuName || '—',
       },
-      { title: '兼容投影', dataIndex: 'projectionStock', width: 96, search: false },
-      { title: '在手', dataIndex: 'onHandStock', width: 72, search: false },
-      { title: '预占', dataIndex: 'reservedStock', width: 72, search: false },
-      { title: '残次', dataIndex: 'damagedStock', width: 72, search: false },
-      { title: '在途', dataIndex: 'inTransitStock', width: 72, search: false },
-      { title: '可售', dataIndex: 'sellableStock', width: 72, search: false },
-      { title: '可用', dataIndex: 'availableStock', width: 72, search: false },
-      { title: '预警阈值', dataIndex: 'warningStock', width: 88, search: false },
+      { title: tr("兼容投影"), dataIndex: 'projectionStock', width: 96, search: false },
+      { title: tr("在手"), dataIndex: 'onHandStock', width: 72, search: false },
+      { title: tr("预占"), dataIndex: 'reservedStock', width: 72, search: false },
+      { title: tr("残次"), dataIndex: 'damagedStock', width: 72, search: false },
+      { title: tr("在途"), dataIndex: 'inTransitStock', width: 72, search: false },
+      { title: tr("可售"), dataIndex: 'sellableStock', width: 72, search: false },
+      { title: tr("可用"), dataIndex: 'availableStock', width: 72, search: false },
+      { title: tr("预警阈值"), dataIndex: 'warningStock', width: 88, search: false },
       {
-        title: '库存状态',
+        title: tr("库存状态"),
         dataIndex: 'stockStatus',
         width: 100,
         search: false,
         render: (_, r) => tagFrom(r.stockStatus, INVENTORY_STOCK_STATUS),
       },
       {
-        title: '投影对账',
+        title: tr("投影对账"),
         dataIndex: 'reconciliationStatus',
         width: 108,
         search: false,
@@ -250,28 +251,28 @@ export default function InventoryCenterPage() {
         render: (_, r) => tagFrom(r.skuBindStatus, INVENTORY_BIND_STATUS),
       },
       {
-        title: '平台同步',
+        title: tr("平台同步"),
         dataIndex: 'platformSyncStatus',
         width: 96,
         search: false,
         render: (_, r) => tagFrom(r.platformSyncStatus, INVENTORY_SYNC_STATUS),
       },
       {
-        title: '最近扣减',
+        title: tr("最近扣减"),
         dataIndex: 'lastDeductAt',
         width: 156,
         search: false,
         render: (_, r) => (r.lastDeductAt ? formatDateTime(r.lastDeductAt) : '—'),
       },
       {
-        title: '最近同步',
+        title: tr("最近同步"),
         dataIndex: 'lastSyncAt',
         width: 156,
         search: false,
         render: (_, r) => (r.lastSyncAt ? formatDateTime(r.lastSyncAt) : '—'),
       },
       {
-        title: '异常',
+        title: tr("异常"),
         dataIndex: 'exceptionCount',
         width: 72,
         search: false,
@@ -279,21 +280,21 @@ export default function InventoryCenterPage() {
           r.exceptionCount > 0 ? <Tag color="red">{r.exceptionCount}</Tag> : <Tag>0</Tag>,
       },
       {
-        title: '操作',
+        title: tr("操作"),
         valueType: 'option',
         width: 280,
         fixed: 'right',
         render: (_, r) => (
           <Space wrap size="small">
-            <Link to={`/product/drafts/${r.productId}?tab=inventory`}>分仓明细</Link>
+            <Link to={`/product/drafts/${r.productId}?tab=inventory`}>{tr("分仓明细")}</Link>
             <Link to={`/inventory/deductions?productSkuId=${encodeURIComponent(r.productSkuId)}`}>
-              扣减记录
+              {tr("扣减记录")}
             </Link>
             <Link to={`/inventory/sync-tasks?productSkuId=${encodeURIComponent(r.productSkuId)}`}>
-              同步任务
+              {tr("同步任务")}
             </Link>
             {r.exceptionCount > 0 ? (
-              <Link to={`/ops/task-center/failures?taskType=inventory_sync`}>失败任务</Link>
+              <Link to={`/ops/task-center/failures?taskType=inventory_sync`}>{tr("失败任务")}</Link>
             ) : null}
           </Space>
         ),
@@ -305,22 +306,22 @@ export default function InventoryCenterPage() {
   return (
     <TmPageContainer
       title={tr("库存中心")}
-      subTitle="按仓库查看可用库存与兼容投影对账；不自动同步、不自动补货。"
+      subTitle={tr("按仓库查看可用库存与兼容投影对账；不自动同步、不自动补货。")}
     >
       <InventorySyncDisabledBanner />
       <Alert
         type="info"
         showIcon
-        message="库存口径说明"
-        description="可售库存为在手扣除残次后的数量；可用库存还会扣除预占。兼容投影只用于迁移期对账和既有平台同步流程，不代表当前可用库存。"
+        message={tr("库存口径说明")}
+        description={tr("可售库存为在手扣除残次后的数量；可用库存还会扣除预占。兼容投影只用于迁移期对账和既有平台同步流程，不代表当前可用库存。")}
         style={{ marginBottom: 16 }}
       />
       {warehouseOptionsError ? (
         <Alert
           type="warning"
           showIcon
-          message="仓库筛选暂不可用"
-          description={warehouseOptionsError}
+          message={tr("仓库筛选暂不可用")}
+          description={tr(warehouseOptionsError)}
           action={<Button onClick={() => void loadWarehouseOptions()}>{tr("重试")}</Button>}
           style={{ marginBottom: 16 }}
         />
@@ -403,7 +404,7 @@ export default function InventoryCenterPage() {
             });
             return { data: res.list ?? [], success: true, total: res.pagination?.total ?? 0 };
           } catch (e: unknown) {
-            message.error((e as Error)?.message || '加载失败');
+            message.error((e as Error)?.message || tr('加载失败'));
             return { data: [], success: false, total: 0 };
           }
         }}

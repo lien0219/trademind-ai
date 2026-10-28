@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import { CheckCircleOutlined, CloseCircleOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import { Progress, Space, Tag, Typography } from 'antd';
 import type { CollectRuleAIQualityGate } from '@/services/collectRuleAI';
@@ -10,12 +12,13 @@ type Props = {
 };
 
 function hitStatus(hit: NonNullable<CollectRuleAIQualityGate['fieldHits']>[number]) {
-  if (hit.extracted) return { icon: <CheckCircleOutlined />, color: 'success' as const, text: '已识别' };
-  if (hit.inRule) return { icon: <MinusCircleOutlined />, color: 'warning' as const, text: '规则有·未识别' };
-  return { icon: <CloseCircleOutlined />, color: 'default' as const, text: '未生成' };
+  if (hit.extracted) return { icon: <CheckCircleOutlined />, color: 'success' as const, text: tr("已识别") };
+  if (hit.inRule) return { icon: <MinusCircleOutlined />, color: 'warning' as const, text: tr("规则有·未识别") };
+  return { icon: <CloseCircleOutlined />, color: 'default' as const, text: tr("未生成") };
 }
 
 export function RuleQualityScoreCard({ gate, confidence }: Props) {
+  useLanguage();
   const score = gate.score ?? 0;
   const progressStatus = score >= 60 ? 'success' : score >= 30 ? 'normal' : 'exception';
 
@@ -31,17 +34,17 @@ export function RuleQualityScoreCard({ gate, confidence }: Props) {
             format={(p) => (
               <div className="tm-ai-rule-modal__score-ring-inner">
                 <span className="tm-ai-rule-modal__score-value">{p ?? 0}</span>
-                <span className="tm-ai-rule-modal__score-label">质量分</span>
+                <span className="tm-ai-rule-modal__score-label">{tr("质量分")}</span>
               </div>
             )}
           />
         </div>
         <div className="tm-ai-rule-modal__score-meta">
           {typeof confidence === 'number' ? (
-            <Text type="secondary">AI 置信度 {Math.round(confidence * 100)}%</Text>
+            <Text type="secondary">{tr("AI 置信度")}{Math.round(confidence * 100)}%</Text>
           ) : null}
           <Text type={score >= 60 ? 'success' : 'warning'}>
-            {score >= 60 ? '识别效果达标，可保存并启用' : '识别效果未达标，建议重新生成或手动调整'}
+            {score >= 60 ? tr("识别效果达标，可保存并启用") : tr("识别效果未达标，建议重新生成或手动调整")}
           </Text>
         </div>
       </div>
@@ -49,8 +52,7 @@ export function RuleQualityScoreCard({ gate, confidence }: Props) {
       {gate.fieldHits?.length ? (
         <div className="tm-ai-rule-modal__field-hits">
           <Text type="secondary" className="tm-ai-rule-modal__field-hits-title">
-            字段命中
-          </Text>
+            {tr("字段命中")}</Text>
           <Space wrap size={[8, 8]}>
             {gate.fieldHits.map((hit) => {
               const st = hitStatus(hit);

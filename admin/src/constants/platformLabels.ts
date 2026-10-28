@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 /** 平台与店铺展示名（扩展 userFriendly.platformLabel） */
 
 export const PLATFORM_DISPLAY_LABEL: Record<string, string> = {
@@ -28,12 +29,12 @@ export const SHOP_AUTH_STATUS_LABEL: Record<string, string> = {
 export function platformDisplayLabel(platform?: string | null): string {
   const k = (platform ?? '').trim().toLowerCase();
   if (!k) return '—';
-  return PLATFORM_DISPLAY_LABEL[k] ?? platform ?? '—';
+  return PLATFORM_DISPLAY_LABEL[k] ? tr(PLATFORM_DISPLAY_LABEL[k]) : platform ?? '—';
 }
 
 export function shopAuthStatusLabel(status?: string | null): string {
   const k = (status ?? '').trim().toLowerCase();
-  return SHOP_AUTH_STATUS_LABEL[k] ?? status ?? '—';
+  return SHOP_AUTH_STATUS_LABEL[k] ? tr(SHOP_AUTH_STATUS_LABEL[k]) : status ?? '—';
 }
 
 /** 商品字段英文名 → 中文 */
@@ -55,5 +56,5 @@ export const PRODUCT_FIELD_LABEL: Record<string, string> = {
 
 export function productFieldLabel(field?: string | null): string {
   const k = (field ?? '').trim().toLowerCase();
-  return PRODUCT_FIELD_LABEL[k] ?? field ?? '—';
+  return PRODUCT_FIELD_LABEL[k] ? tr(PRODUCT_FIELD_LABEL[k]) : field ?? '—';
 }

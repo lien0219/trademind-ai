@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import { TmPageContainer } from '@/components/ui';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { useUrlQueryState } from '@/hooks/useUrlState';
@@ -23,6 +25,7 @@ const AI_IMAGE_BATCH_QUERY_KEYS = [
 ] as const;
 
 export default function AIImageBatchListPage() {
+  const language = useLanguage();
   const emptyLocale = useListEmptyLocale('aiImageBatches');
   const { state: urlState, setState: setUrlState } =
     useUrlQueryState<Record<(typeof AI_IMAGE_BATCH_QUERY_KEYS)[number], string | undefined>>(
@@ -61,22 +64,22 @@ export default function AIImageBatchListPage() {
 
   const warningOptions = useMemo(
     () => [
-      { label: '全部 warning', value: '' },
+      { label: tr("全部 warning"), value: '' },
       ...AI_IMAGE_WARNING_CODES.map((code) => ({
         label: AI_IMAGE_WARNING_LABEL[code] || code,
         value: code,
       })),
     ],
-    [],
+    [language],
   );
 
   return (
     <TmPageContainer
-      title="批量图片任务"
-      subTitle="批量 AI 图片处理与复核"
+      title={tr("批量图片任务")}
+      subTitle={tr("批量 AI 图片处理与复核")}
       extra={
         <Button type="primary" onClick={() => history.push('/product/drafts')}>
-          从商品列表发起
+          {tr("从商品列表发起")}
         </Button>
       }
     >
@@ -85,22 +88,22 @@ export default function AIImageBatchListPage() {
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="warning 筛选已写入 URL，进入批次详情后将用于定位相关子项。"
+          message={tr("warning 筛选已写入 URL，进入批次详情后将用于定位相关子项。")}
         />
       ) : null}
       <Space wrap style={{ marginBottom: 16 }}>
         <Select
           allowClear
-          placeholder="批次状态"
+          placeholder={tr("批次状态")}
           style={{ minWidth: 160 }}
           value={statusFilter || undefined}
           options={[
-            { label: '全部状态', value: '' },
-            { label: '运行中', value: 'running' },
-            { label: '待复核', value: 'pending_review' },
-            { label: '部分成功', value: 'partial_success' },
-            { label: '失败', value: 'failed' },
-            { label: '已完成', value: 'completed' },
+            { label: tr("全部状态"), value: '' },
+            { label: tr("运行中"), value: 'running' },
+            { label: tr("待复核"), value: 'pending_review' },
+            { label: tr("部分成功"), value: 'partial_success' },
+            { label: tr("失败"), value: 'failed' },
+            { label: tr("已完成"), value: 'completed' },
           ]}
           onChange={(v) =>
             setUrlState({
@@ -111,7 +114,7 @@ export default function AIImageBatchListPage() {
         />
         <Select
           allowClear
-          placeholder="质量 warning"
+          placeholder={tr("质量 warning")}
           style={{ minWidth: 200 }}
           options={warningOptions}
           value={warningFilter || undefined}
@@ -141,9 +144,9 @@ export default function AIImageBatchListPage() {
           },
         }}
         columns={[
-          { title: '批次号', dataIndex: 'batchNo', width: 140 },
+          { title: tr("批次号"), dataIndex: 'batchNo', width: 140 },
           {
-            title: '状态',
+            title: tr("状态"),
             dataIndex: 'statusLabel',
             width: 100,
             render: (_, row) => {
@@ -151,15 +154,15 @@ export default function AIImageBatchListPage() {
               return <Tag color={meta.color}>{meta.text}</Tag>;
             },
           },
-          { title: '商品数', dataIndex: 'productCount', width: 80 },
-          { title: '图片数', dataIndex: 'imageCount', width: 80 },
-          { title: '子项数', dataIndex: 'itemCount', width: 80 },
-          { title: '待复核', dataIndex: 'successCount', width: 70 },
-          { title: '失败', dataIndex: 'failedCount', width: 70 },
-          { title: '已应用', dataIndex: 'appliedCount', width: 80 },
-          { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(v) },
+          { title: tr("商品数"), dataIndex: 'productCount', width: 80 },
+          { title: tr("图片数"), dataIndex: 'imageCount', width: 80 },
+          { title: tr("子项数"), dataIndex: 'itemCount', width: 80 },
+          { title: tr("待复核"), dataIndex: 'successCount', width: 70 },
+          { title: tr("失败"), dataIndex: 'failedCount', width: 70 },
+          { title: tr("已应用"), dataIndex: 'appliedCount', width: 80 },
+          { title: tr("创建时间"), dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(v) },
           {
-            title: '操作',
+            title: tr("操作"),
             width: 120,
             render: (_, row) => {
               const qs = new URLSearchParams();
@@ -168,7 +171,7 @@ export default function AIImageBatchListPage() {
               const suffix = qs.toString() ? `?${qs.toString()}` : '';
               return (
                 <Space>
-                  <Link to={`/product/ai-image-batches/${row.id}${suffix}`}>复核</Link>
+                  <Link to={`/product/ai-image-batches/${row.id}${suffix}`}>{tr("复核")}</Link>
                 </Space>
               );
             },

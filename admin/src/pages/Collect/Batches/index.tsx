@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
@@ -60,6 +62,7 @@ function parseUrlsFromTextarea(raw: string): string[] {
 }
 
 export default function CollectBatchesPage() {
+  const language = useLanguage();
   const location = useLocation();
   const actionRef = useRef<ActionType>();
   const taskActionRef = useRef<ActionType>();
@@ -153,8 +156,8 @@ export default function CollectBatchesPage() {
     providers.forEach((p) => {
       rec[p.source] = { text: `${p.name}` };
     });
-    return Object.keys(rec).length ? rec : { '1688': { text: '1688采集器' } };
-  }, [providers]);
+    return Object.keys(rec).length ? rec : { '1688': { text: tr("1688采集器") } };
+  }, [providers, language]);
 
   const batchSelectOpts = useMemo(
     () => batchProviders.map((p) => ({ label: `${p.name}`, value: p.source })),
@@ -182,7 +185,7 @@ export default function CollectBatchesPage() {
         if (cancelled) return;
         openDrawer(row);
       } catch {
-        message.error('批次不存在或暂不可用');
+        message.error(tr("批次不存在或暂不可用"));
       } finally {
         if (!cancelled) {
           q.delete('batchId');
@@ -199,14 +202,14 @@ export default function CollectBatchesPage() {
   const batchColumns: ProColumns<CollectBatchRow>[] = useMemo(
     () => [
       {
-        title: '创建时间',
+        title: tr("创建时间"),
         dataIndex: 'createdAt',
         width: 168,
         search: false,
         render: (_, row) => formatDateTime(row.createdAt),
       },
       {
-        title: '采集服务',
+        title: tr("采集服务"),
         dataIndex: 'source',
         width: 120,
         valueType: 'select',
@@ -214,7 +217,7 @@ export default function CollectBatchesPage() {
         renderText: (_, row) => providers.find((p) => p.source === row.source)?.name ?? row.source,
       },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 112,
       valueType: 'select',
@@ -227,44 +230,43 @@ export default function CollectBatchesPage() {
       },
     },
     {
-      title: '总数',
+      title: tr("总数"),
       dataIndex: 'totalCount',
       width: 64,
       search: false,
     },
     {
-      title: '排队',
+      title: tr("排队"),
       dataIndex: 'pendingCount',
       width: 64,
       search: false,
     },
     {
-      title: '执行中',
+      title: tr("执行中"),
       dataIndex: 'runningCount',
       width: 76,
       search: false,
     },
     {
-      title: '成功',
+      title: tr("成功"),
       dataIndex: 'successCount',
       width: 64,
       search: false,
     },
     {
-      title: '失败',
+      title: tr("失败"),
       dataIndex: 'failedCount',
       width: 64,
       search: false,
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 200,
       search: false,
       render: (_, row) => [
         <Button key="view" type="link" size="small" onClick={() => openDrawer(row)}>
-          查看任务
-        </Button>,
+          {tr("查看任务")}</Button>,
         <Button
           key="retry"
           type="link"
@@ -274,24 +276,23 @@ export default function CollectBatchesPage() {
             if (row.failedCount <= 0) return;
             try {
               const r = await retryFailedBatchTasks(row.id);
-              message.success(`已重新入队 ${r.retried} 条失败任务`);
+              message.success(trFormat("已重新入队 {retried} 条失败任务", { retried: r.retried }));
               actionRef.current?.reload();
             } catch (e) {
-              message.error(e instanceof Error ? e.message : '重试失败');
+              message.error(e instanceof Error ? e.message : tr("重试失败"));
             }
           }}
         >
-          重试失败
-        </Button>,
+          {tr("重试失败")}</Button>,
       ],
     },
   ],
-    [batchTableSourceEnum, openDrawer, providers],
+    [batchTableSourceEnum, language, openDrawer, providers],
   );
 
   const taskColumns: ProColumns<CollectTaskRow>[] = [
     {
-      title: '商品标题',
+      title: tr("商品标题"),
       width: 160,
       ellipsis: true,
       search: false,
@@ -301,7 +302,7 @@ export default function CollectBatchesPage() {
       },
     },
     {
-      title: '链接',
+      title: tr("链接"),
       dataIndex: 'sourceUrl',
       width: 220,
       ellipsis: true,
@@ -310,17 +311,17 @@ export default function CollectBatchesPage() {
       search: false,
     },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 108,
       valueType: 'select',
       valueEnum: {
-        pending: { text: '排队' },
-        running: { text: '执行中' },
-        retrying: { text: '等待重试' },
-        success: { text: '成功' },
-        failed: { text: '失败' },
-        cancelled: { text: '取消' },
+        pending: { text: tr("排队") },
+        running: { text: tr("执行中") },
+        retrying: { text: tr("等待重试") },
+        success: { text: tr("成功") },
+        failed: { text: tr("失败") },
+        cancelled: { text: tr("取消") },
       },
       render: (_, row) => {
         const m = COLLECT_TASK_STATUS[row.status as keyof typeof COLLECT_TASK_STATUS];
@@ -328,7 +329,7 @@ export default function CollectBatchesPage() {
       },
     },
     {
-      title: '重试',
+      title: tr("重试"),
       width: 88,
       search: false,
       render: (_, row) => (
@@ -338,14 +339,14 @@ export default function CollectBatchesPage() {
       ),
     },
     {
-      title: '下次重试',
+      title: tr("下次重试"),
       dataIndex: 'nextRetryAt',
       width: 156,
       search: false,
       render: (_, row) => formatDateTime(row.nextRetryAt),
     },
     {
-      title: '商品草稿',
+      title: tr("商品草稿"),
       dataIndex: 'resultProductId',
       width: 120,
       ellipsis: true,
@@ -360,7 +361,7 @@ export default function CollectBatchesPage() {
         ),
     },
     {
-      title: '错误码',
+      title: tr("错误码"),
       dataIndex: 'collectorErrorCode',
       width: 176,
       ellipsis: true,
@@ -368,14 +369,14 @@ export default function CollectBatchesPage() {
       render: (_, row) => row.collectorErrorCode || '—',
     },
     {
-      title: '可重试',
+      title: tr("可重试"),
       width: 72,
       search: false,
       render: (_, row) =>
-        row.retryable === undefined ? '—' : row.retryable ? <Tag color="warning">是</Tag> : <Tag>否</Tag>,
+        row.retryable === undefined ? '—' : row.retryable ? <Tag color="warning">{tr("是")}</Tag> : <Tag>{tr("否")}</Tag>,
     },
     {
-      title: '错误',
+      title: tr("错误"),
       dataIndex: 'errorMessage',
       width: 200,
       ellipsis: true,
@@ -391,7 +392,7 @@ export default function CollectBatchesPage() {
       },
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 112,
       fixed: 'right',
@@ -407,8 +408,7 @@ export default function CollectBatchesPage() {
               setEventDrawerOpen(true);
             }}
           >
-            事件
-          </Button>,
+            {tr("事件")}</Button>,
         ];
         if (row.status === 'failed') {
           actions.push(
@@ -419,16 +419,15 @@ export default function CollectBatchesPage() {
               onClick={async () => {
                 try {
                   await retryCollectTask(row.id);
-                  message.success('已重新入队');
+                  message.success(tr("已重新入队"));
                   taskActionRef.current?.reload();
                   actionRef.current?.reload();
                 } catch (e) {
-                  message.error(e instanceof Error ? e.message : '重试失败');
+                  message.error(e instanceof Error ? e.message : tr("重试失败"));
                 }
               }}
             >
-              重试
-            </Button>,
+              {tr("重试")}</Button>,
           );
         }
         if (row.sourceUrl) {
@@ -441,8 +440,7 @@ export default function CollectBatchesPage() {
               target="_blank"
               rel="noreferrer"
             >
-              原链接
-            </Button>,
+              {tr("原链接")}</Button>,
           );
         }
         return actions;
@@ -452,8 +450,8 @@ export default function CollectBatchesPage() {
 
   return (
     <TmPageContainer
-      title="批量采集"
-      subTitle="一次提交多条商品链接，批量采集并生成商品草稿。"
+      title={tr("批量采集")}
+      subTitle={tr("一次提交多条商品链接，批量采集并生成商品草稿。")}
     >
       <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
         {sourceFromQuery &&
@@ -463,7 +461,7 @@ export default function CollectBatchesPage() {
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
-            message="所选采集服务暂不支持批量采集，已切换到当前可用的批量平台。"
+            message={tr("所选采集服务暂不支持批量采集，已切换到当前可用的批量平台。")}
           />
         ) : null}
         {batchProviders.length === 0 && providers.length > 0 ? (
@@ -471,7 +469,7 @@ export default function CollectBatchesPage() {
             type="warning"
             showIcon
             style={{ marginBottom: 16 }}
-            message="当前没有支持批量采集的可用平台。"
+            message={tr("当前没有支持批量采集的可用平台。")}
           />
         ) : null}
         <Form
@@ -482,7 +480,7 @@ export default function CollectBatchesPage() {
             const src = vals.source?.trim() || '';
             const allowed = batchProviders.some((p) => p.source === src);
             if (!allowed) {
-              message.warning('该平台暂不支持批量采集');
+              message.warning(tr("该平台暂不支持批量采集"));
               return;
             }
 
@@ -493,15 +491,15 @@ export default function CollectBatchesPage() {
               if (parsed.invalid.length > 0 || parsed.unsupported.length > 0) {
                 const skipped = [...parsed.invalid, ...parsed.unsupported];
                 message.warning(
-                  `已跳过 ${skipped.length} 条无效或不支持的链接，仅提交 ${urls.length} 条有效商品详情页链接`,
+                  trFormat("已跳过 {count} 条无效或不支持的链接，仅提交 {count1} 条有效商品详情页链接", { count: skipped.length, count1: urls.length }),
                 );
               }
               if (urls.length === 0) {
-                message.warning('请至少填写一条有效的淘宝/天猫商品详情页链接');
+                message.warning(tr("请至少填写一条有效的淘宝/天猫商品详情页链接"));
                 return;
               }
               if (urls.length > batchMaxItems) {
-                message.warning(`每批最多 ${batchMaxItems} 条，请分批提交`);
+                message.warning(trFormat("每批最多 {batchMaxItems} 条，请分批提交", { batchMaxItems: batchMaxItems }));
                 return;
               }
               setSubmitting(true);
@@ -516,7 +514,7 @@ export default function CollectBatchesPage() {
                   return;
                 }
               } catch (e) {
-                message.error(e instanceof Error ? e.message : '登录状态检测失败');
+                message.error(e instanceof Error ? e.message : tr("登录状态检测失败"));
                 return;
               } finally {
                 setSubmitting(false);
@@ -524,11 +522,11 @@ export default function CollectBatchesPage() {
             } else {
               urls = parseUrlsFromTextarea(vals.urls ?? '');
               if (urls.length === 0) {
-                message.warning('请至少填写一条链接');
+                message.warning(tr("请至少填写一条链接"));
                 return;
               }
               if (urls.length > batchMaxItems) {
-                message.warning(`每批最多 ${batchMaxItems} 条，请分批提交`);
+                message.warning(trFormat("每批最多 {batchMaxItems} 条，请分批提交", { batchMaxItems: batchMaxItems }));
                 return;
               }
             }
@@ -539,13 +537,13 @@ export default function CollectBatchesPage() {
               const skipped = res.skippedCount ?? 0;
               message.success(
                 skipped > 0
-                  ? `批量采集已提交：有效 ${res.taskCount} 条，跳过 ${skipped} 条无效链接`
-                  : `批量采集任务已提交，共 ${res.taskCount} 条，正在后台处理`,
+                  ? trFormat("批量采集已提交：有效 {taskCount} 条，跳过 {skipped} 条无效链接", { taskCount: res.taskCount, skipped: skipped })
+                  : trFormat("批量采集任务已提交，共 {taskCount} 条，正在后台处理", { taskCount: res.taskCount }),
               );
               form.setFieldsValue({ urls: '' });
               actionRef.current?.reload();
             } catch (e) {
-              const msg = e instanceof Error ? e.message : '提交失败';
+              const msg = e instanceof Error ? e.message : tr("提交失败");
               if (msg.includes('登录')) {
                 message.error(TAOBAO_TMALL_BATCH_LOGIN_BLOCK_MSG);
               } else if (msg.includes('安全验证') || msg.includes('验证')) {
@@ -567,27 +565,27 @@ export default function CollectBatchesPage() {
               <Alert
                 type="warning"
                 showIcon
-                message={`检测到 ${taobaoUrlPreview.invalid.length + taobaoUrlPreview.unsupported.length} 条无效或不支持的链接，提交时将自动跳过`}
+                message={trFormat("检测到 {count} 条无效或不支持的链接，提交时将自动跳过", { count: taobaoUrlPreview.invalid.length + taobaoUrlPreview.unsupported.length })}
               />
             ) : null}
-            <Form.Item label="采集平台" name="source" rules={[{ required: true }]}>
+            <Form.Item label={tr("采集平台")} name="source" rules={[{ required: true }]}>
               <Select
                 style={{ maxWidth: 320 }}
                 options={batchSelectOpts}
-                placeholder="选择批量采集平台"
+                placeholder={tr("选择批量采集平台")}
               />
             </Form.Item>
             <Form.Item
               label={
                 <span>
-                  商品链接（每行一条） <Tag>有效 {displayCount} 条</Tag>
+                  {tr("商品链接（每行一条）")}<Tag>{tr("有效")}{displayCount} {tr("条")}</Tag>
                   {isTaobaoTmallSource(formSourceWatch) ? (
-                    <Tag color="blue">每批最多 {batchMaxItems} 条</Tag>
+                    <Tag color="blue">{tr("每批最多")}{batchMaxItems} {tr("条")}</Tag>
                   ) : null}
                 </span>
               }
               name="urls"
-              rules={[{ required: true, message: '请填写链接' }]}
+              rules={[{ required: true, message: tr("请填写链接") }]}
             >
               <Input.TextArea
                 rows={12}
@@ -602,8 +600,7 @@ export default function CollectBatchesPage() {
                 loading={submitting}
                 disabled={batchSelectOpts.length === 0}
               >
-                提交批量采集
-              </Button>
+                {tr("提交批量采集")}</Button>
             </Form.Item>
           </Space>
         </Form>
@@ -617,7 +614,7 @@ export default function CollectBatchesPage() {
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
         options={{ reload: true, density: true, setting: true }}
         polling={polling}
-        headerTitle="批次列表"
+        headerTitle={tr("批次列表")}
         request={async (params) => {
           const res = await queryCollectBatches({
             page: params.current,
@@ -634,7 +631,7 @@ export default function CollectBatchesPage() {
       />
 
       <Drawer
-        title={activeBatch ? `批次 · ${activeBatch.source} · ${activeBatch.id.slice(0, 8)}…` : '批次任务'}
+        title={activeBatch ? trFormat("批次 · {source} · {value}…", { source: activeBatch.source, value: activeBatch.id.slice(0, 8) }) : tr("批次任务")}
         placement="right"
         width={1100}
         open={drawerOpen}
@@ -649,11 +646,11 @@ export default function CollectBatchesPage() {
                 type="warning"
                 showIcon
                 style={{ marginBottom: 16 }}
-                message="本批次部分链接失败（部分成功）"
+                message={tr("本批次部分链接失败（部分成功）")}
                 description={
                   isTaobaoTmallSource(activeBatch.source)
-                    ? '成功的链接已生成商品草稿；失败链接可在下方重试，或到失败任务中心处理。若出现登录/验证失败，请先在采集浏览器完成后再重试。'
-                    : '若同一链接单独采集成功，批量失败通常与并发、访问频率或目标站点风控有关。可在「采集设置」降低批量并发，或稍后重试失败任务。'
+                    ? tr("成功的链接已生成商品草稿；失败链接可在下方重试，或到失败任务中心处理。若出现登录/验证失败，请先在采集浏览器完成后再重试。")
+                    : tr("若同一链接单独采集成功，批量失败通常与并发、访问频率或目标站点风控有关。可在「采集设置」降低批量并发，或稍后重试失败任务。")
                 }
               />
             ) : null}
@@ -662,15 +659,15 @@ export default function CollectBatchesPage() {
                 type="info"
                 showIcon
                 style={{ marginBottom: 16 }}
-                message="批次汇总"
+                message={tr("批次汇总")}
                 description={
                   <Space wrap>
-                    <span>总链接 {activeBatch.totalCount}</span>
-                    <span>成功 {activeBatch.successCount}</span>
-                    <span>失败 {activeBatch.failedCount}</span>
-                    <span>取消 {activeBatch.cancelledCount}</span>
+                    <span>{tr("总链接")}{activeBatch.totalCount}</span>
+                    <span>{tr("成功")}{activeBatch.successCount}</span>
+                    <span>{tr("失败")}{activeBatch.failedCount}</span>
+                    <span>{tr("取消")}{activeBatch.cancelledCount}</span>
                     <span>
-                      耗时{' '}
+                      {tr("耗时")}{' '}
                       {Math.max(
                         0,
                         Math.round(
@@ -679,34 +676,33 @@ export default function CollectBatchesPage() {
                             1000,
                         ),
                       )}
-                      秒
-                    </span>
+                      {tr("秒")}</span>
                   </Space>
                 }
               />
             ) : null}
             <ProCard variant="outlined" size="small" style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px' }}>
               <Space wrap size="middle">
-                <Tag>总数 {activeBatch.totalCount}</Tag>
-                <Tag>排队 {activeBatch.pendingCount}</Tag>
-                <Tag>执行中 {activeBatch.runningCount}</Tag>
-                <Tag color="processing">重试中 {activeBatch.retryingCount ?? 0}</Tag>
-                <Tag color="success">成功 {activeBatch.successCount}</Tag>
-                <Tag color="error">失败 {activeBatch.failedCount}</Tag>
-                <Tag>取消 {activeBatch.cancelledCount}</Tag>
+                <Tag>{tr("总数")}{activeBatch.totalCount}</Tag>
+                <Tag>{tr("排队")}{activeBatch.pendingCount}</Tag>
+                <Tag>{tr("执行中")}{activeBatch.runningCount}</Tag>
+                <Tag color="processing">{tr("重试中")}{activeBatch.retryingCount ?? 0}</Tag>
+                <Tag color="success">{tr("成功")}{activeBatch.successCount}</Tag>
+                <Tag color="error">{tr("失败")}{activeBatch.failedCount}</Tag>
+                <Tag>{tr("取消")}{activeBatch.cancelledCount}</Tag>
                 {(activeBatch.blockedCount ?? 0) > 0 ? (
-                  <Tag color="orange">风控 {activeBatch.blockedCount}</Tag>
+                  <Tag color="orange">{tr("风控")}{activeBatch.blockedCount}</Tag>
                 ) : null}
                 {(activeBatch.timeoutCount ?? 0) > 0 ? (
-                  <Tag color="volcano">超时 {activeBatch.timeoutCount}</Tag>
+                  <Tag color="volcano">{tr("超时")}{activeBatch.timeoutCount}</Tag>
                 ) : null}
                 {(activeBatch.parseFailedCount ?? 0) > 0 ? (
-                  <Tag color="magenta">解析失败 {activeBatch.parseFailedCount}</Tag>
+                  <Tag color="magenta">{tr("解析失败")}{activeBatch.parseFailedCount}</Tag>
                 ) : null}
               </Space>
               {activeBatch.errorSummary && Object.keys(activeBatch.errorSummary).length > 0 ? (
-                <TechnicalDetails label="失败统计详情">
-                  <TaskJsonBlock title="按错误类型汇总" value={activeBatch.errorSummary} last />
+                <TechnicalDetails label={tr("失败统计详情")}>
+                  <TaskJsonBlock title={tr("按错误类型汇总")} value={activeBatch.errorSummary} last />
                 </TechnicalDetails>
               ) : null}
             </ProCard>
@@ -759,4 +755,3 @@ export default function CollectBatchesPage() {
     </TmPageContainer>
   );
 }
-

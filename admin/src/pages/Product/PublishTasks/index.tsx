@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { Alert, Button, Drawer, Popconfirm, Space, Tabs, Tag, Typography, message } from 'antd';
@@ -49,6 +51,7 @@ function tagFromStatus(raw: string) {
 }
 
 export default function ProductPublishTasksPage() {
+  const language = useLanguage();
   const { can } = usePermission();
   const canRetry = can(PERMISSIONS.TASK_RETRY);
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
@@ -116,7 +119,7 @@ export default function ProductPublishTasksPage() {
         setDetail(row);
         setDetailOpen(true);
       } catch (e: unknown) {
-        message.error((e as Error)?.message || '加载任务失败');
+        message.error((e as Error)?.message || tr("加载任务失败"));
       }
     })();
   }, [taskIdFromUrl]);
@@ -137,7 +140,7 @@ export default function ProductPublishTasksPage() {
   const columns: ProColumns<ProductPublishTaskDTO>[] = useMemo(
     () => [
       {
-        title: '创建时间范围',
+        title: tr("创建时间范围"),
         dataIndex: 'createdRange',
         hideInTable: true,
         valueType: 'dateTimeRange',
@@ -149,26 +152,26 @@ export default function ProductPublishTasksPage() {
         },
       },
       {
-        title: '创建时间',
+        title: tr("创建时间"),
         dataIndex: 'createdAt',
         width: 168,
         search: false,
         render: (_, r) => formatDateTime(r.createdAt),
       },
       {
-        title: '商品 ID',
+        title: tr("商品 ID"),
         dataIndex: 'productId',
         hideInTable: true,
         valueType: 'text',
       },
       {
-        title: '店铺 ID',
+        title: tr("店铺 ID"),
         dataIndex: 'shopId',
         hideInTable: true,
         valueType: 'text',
       },
       {
-        title: '店铺',
+        title: tr("店铺"),
         dataIndex: 'shopName',
         width: 140,
         search: false,
@@ -176,7 +179,7 @@ export default function ProductPublishTasksPage() {
         render: (_, r) => r.shopName || '—',
       },
       {
-        title: '商品',
+        title: tr("商品"),
         dataIndex: 'productTitle',
         width: 160,
         search: false,
@@ -184,13 +187,13 @@ export default function ProductPublishTasksPage() {
         render: (_, r) => r.productTitle || '—',
       },
       {
-        title: '平台',
+        title: tr("平台"),
         dataIndex: 'platform',
         width: 100,
         render: (_, r) => platformLabel(r.platform),
       },
       {
-        title: '状态',
+        title: tr("状态"),
         dataIndex: 'status',
         width: 96,
         valueType: 'select',
@@ -198,76 +201,76 @@ export default function ProductPublishTasksPage() {
         render: (_, r) => tagFromStatus(r.status),
       },
       {
-        title: '开始',
+        title: tr("开始"),
         dataIndex: 'startedAt',
         width: 156,
         search: false,
         render: (_, r) => (r.startedAt ? formatDateTime(r.startedAt) : '—'),
       },
       {
-        title: '结束',
+        title: tr("结束"),
         dataIndex: 'finishedAt',
         width: 156,
         search: false,
         render: (_, r) => (r.finishedAt ? formatDateTime(r.finishedAt) : '—'),
       },
       {
-        title: '错误',
+        title: tr("错误"),
         dataIndex: 'errorMessage',
         ellipsis: true,
         search: false,
         render: (_, r) => r.errorMessage || '—',
       },
       {
-        title: '操作',
+        title: tr("操作"),
         valueType: 'option',
         width: 140,
         render: (_, r) => (
           <Space>
-            <a onClick={() => void openTaskDetail(r.id)}>查看</a>
+            <a onClick={() => void openTaskDetail(r.id)}>{tr("查看")}</a>
             {!isProductionBuild && r.status === 'failed' && r.platform !== 'douyin_shop' && r.platform !== 'douyin' ? (canRetry ? (
               <Popconfirm
-                title="确认重试该刊登任务？"
+                title={tr("确认重试该刊登任务？")}
                 onConfirm={async () => {
                   await retryProductPublishTask(r.id);
-                  message.success('已提交重试');
+                  message.success(tr("已提交重试"));
                   actionRef.current?.reload();
                 }}
               >
                 <Button type="link" size="small" style={{ padding: 0 }}>
-                  重试
+                  {tr("重试")}
                 </Button>
               </Popconfirm>
             ) : (
               <Button type="link" size="small" style={{ padding: 0 }} disabled>
-                重试
+                {tr("重试")}
               </Button>
             )) : null}
           </Space>
         ),
       },
     ],
-    [canRetry],
+    [canRetry, language],
   );
 
   const batchColumns: ProColumns<PublishBatchListItem>[] = useMemo(
     () => [
       {
-        title: '创建时间',
+        title: tr("创建时间"),
         dataIndex: 'createdAt',
         width: 168,
         search: false,
         render: (_, r) => formatDateTime(r.createdAt),
       },
       {
-        title: '批次名称',
+        title: tr("批次名称"),
         dataIndex: 'name',
         ellipsis: true,
         search: false,
-        render: (_, r) => r.name || `批次 ${r.id.slice(0, 8)}`,
+        render: (_, r) => r.name || trFormat("批次 {value0}", { value0: r.id.slice(0, 8) }),
       },
       {
-        title: '状态',
+        title: tr("状态"),
         dataIndex: 'status',
         width: 110,
         search: false,
@@ -276,24 +279,24 @@ export default function ProductPublishTasksPage() {
           return <Tag color={meta.color}>{meta.text}</Tag>;
         },
       },
-      { title: '商品数', dataIndex: 'productCount', width: 80, search: false },
-      { title: '目标数', dataIndex: 'targetCount', width: 80, search: false },
-      { title: '任务数', dataIndex: 'taskCount', width: 80, search: false },
-      { title: '成功', dataIndex: 'successCount', width: 72, search: false },
-      { title: '失败', dataIndex: 'failedCount', width: 72, search: false },
+      { title: tr("商品数"), dataIndex: 'productCount', width: 80, search: false },
+      { title: tr("目标数"), dataIndex: 'targetCount', width: 80, search: false },
+      { title: tr("任务数"), dataIndex: 'taskCount', width: 80, search: false },
+      { title: tr("成功"), dataIndex: 'successCount', width: 72, search: false },
+      { title: tr("失败"), dataIndex: 'failedCount', width: 72, search: false },
       {
-        title: '操作',
+        title: tr("操作"),
         valueType: 'option',
         width: 100,
         render: (_, r) => {
           const detailHref = navSource
             ? `/product/publish-batches/${r.id}?source=${encodeURIComponent(navSource)}`
             : `/product/publish-batches/${r.id}`;
-          return <Link to={detailHref}>查看</Link>;
+          return <Link to={detailHref}>{tr("查看")}</Link>;
         },
       },
     ],
-    [navSource],
+    [navSource, language],
   );
 
   const buildListQuery = (params: Record<string, unknown>, page: number, pageSize: number) => ({
@@ -308,13 +311,13 @@ export default function ProductPublishTasksPage() {
   });
 
   return (
-    <TmPageContainer title="商品刊登任务" subTitle="查看刊登子任务与批量刊登批次进度。">
+    <TmPageContainer title={tr("商品刊登任务")} subTitle={tr("查看刊登子任务与批量刊登批次进度。")}>
       {batchIdFromUrl ? (
         <Alert
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message={`当前批次筛选：${batchIdFromUrl}`}
+          message={trFormat("当前批次筛选：{value0}", { value0: String(batchIdFromUrl) })}
         />
       ) : null}
       <Tabs
@@ -336,7 +339,7 @@ export default function ProductPublishTasksPage() {
         items={[
           {
             key: 'tasks',
-            label: '子任务',
+            label: tr("子任务"),
             children: (
               <ProTable<ProductPublishTaskDTO>
                 rowKey="id"
@@ -363,7 +366,7 @@ export default function ProductPublishTasksPage() {
                     });
                   },
                 }}
-                headerTitle="刊登记录"
+                headerTitle={tr("刊登记录")}
                 locale={emptyLocale}
                 request={async (params) => {
                   const qp = buildListQuery(params, params.current ?? tablePage, params.pageSize ?? tablePageSize);
@@ -392,7 +395,7 @@ export default function ProductPublishTasksPage() {
           },
           {
             key: 'batches',
-            label: '刊登批次',
+            label: tr("刊登批次"),
             children: (
               <ProTable<PublishBatchListItem>
                 rowKey="id"
@@ -414,7 +417,7 @@ export default function ProductPublishTasksPage() {
                     });
                   },
                 }}
-                headerTitle="批量刊登批次"
+                headerTitle={tr("批量刊登批次")}
                 locale={emptyLocale}
                 request={async (params) => {
                   const page = params.current ?? batchPage;
@@ -439,7 +442,7 @@ export default function ProductPublishTasksPage() {
 
       <Drawer
         width={560}
-        title={detail ? `刊登任务 ${detail.id}` : '详情'}
+        title={detail ? `${tr("刊登任务")} ${detail.id}` : tr("详情")}
         open={detailOpen}
         destroyOnHidden
         onClose={closeTaskDetail}
@@ -447,44 +450,44 @@ export default function ProductPublishTasksPage() {
         {detail && (
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <div>
-              <Typography.Text strong>状态：</Typography.Text> {tagFromStatus(detail.status)}
+              <Typography.Text strong>{tr("状态：")}</Typography.Text> {tagFromStatus(detail.status)}
             </div>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
-              <Typography.Text strong>店铺：</Typography.Text> {detail.shopName || detail.shopId}{' '}
+              <Typography.Text strong>{tr("店铺：")}</Typography.Text> {detail.shopName || detail.shopId}{' '}
               <Typography.Text type="secondary">({detail.platform})</Typography.Text>
             </Typography.Paragraph>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
-              <Typography.Text strong>商品：</Typography.Text>{' '}
+              <Typography.Text strong>{tr("商品：")}</Typography.Text>{' '}
               {detail.productTitle || detail.productId}
             </Typography.Paragraph>
             {detail.errorMessage ? (
               <Typography.Paragraph>
-                <Typography.Text strong>失败原因：</Typography.Text> {detail.errorMessage}
+                <Typography.Text strong>{tr("失败原因：")}</Typography.Text> {detail.errorMessage}
               </Typography.Paragraph>
             ) : null}
             {detail.platformProductId ? (
               <Typography.Paragraph copyable={{ text: detail.platformProductId }}>
-                <Typography.Text strong>平台商品编号：</Typography.Text> {detail.platformProductId}
+                <Typography.Text strong>{tr("平台商品编号：")}</Typography.Text> {detail.platformProductId}
               </Typography.Paragraph>
             ) : null}
             {detail.retryable != null ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>
-                <Typography.Text strong>可以重试：</Typography.Text> {detail.retryable ? '是' : '否'}
+                <Typography.Text strong>{tr("可以重试：")}</Typography.Text> {detail.retryable ? tr("是") : tr("否")}
               </Typography.Paragraph>
             ) : null}
             <TechnicalDetails>
               {detail.requestId ? (
                 <Typography.Paragraph copyable={{ text: detail.requestId }} style={{ marginBottom: 8 }}>
-                  <Typography.Text strong>请求编号：</Typography.Text> {detail.requestId}
+                  <Typography.Text strong>{tr("请求编号：")}</Typography.Text> {detail.requestId}
                 </Typography.Paragraph>
               ) : null}
               <Typography.Paragraph copyable={{ text: detail.id }} style={{ marginBottom: 8 }}>
-                <Typography.Text strong>任务编号：</Typography.Text> {detail.id}
+                <Typography.Text strong>{tr("任务编号：")}</Typography.Text> {detail.id}
               </Typography.Paragraph>
-              <TaskJsonBlock title="平台提交内容" value={detail.platformPayload} />
-              <TaskJsonBlock title="平台返回结果" value={detail.platformResult ?? detail.output} />
-              <TaskJsonBlock title="任务输入" value={detail.input} />
-              <TaskJsonBlock title="任务输出" value={detail.output} last />
+              <TaskJsonBlock title={tr("平台提交内容")} value={detail.platformPayload} />
+              <TaskJsonBlock title={tr("平台返回结果")} value={detail.platformResult ?? detail.output} />
+              <TaskJsonBlock title={tr("任务输入")} value={detail.input} />
+              <TaskJsonBlock title={tr("任务输出")} value={detail.output} last />
             </TechnicalDetails>
           </Space>
         )}

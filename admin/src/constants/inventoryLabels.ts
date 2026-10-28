@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 /** 库存域统一文案（F3）：阻断提示、状态、来源、推荐操作 */
 
 export const INVENTORY_SKU_NOT_BOUND_MESSAGE =
@@ -10,47 +11,47 @@ export const INVENTORY_SYNC_DISABLED_MESSAGE =
   '当前店铺未开启平台库存同步。开启后，系统可在人工确认后将本地库存同步到平台。';
 
 export const INVENTORY_STOCK_STATUS: Record<string, { text: string; color: string }> = {
-  normal: { text: '正常', color: 'green' },
-  low_stock: { text: '低库存', color: 'orange' },
-  out_of_stock: { text: '库存为 0', color: 'red' },
-  below_safety_stock: { text: '低于安全线', color: 'gold' },
-  stock_unknown: { text: '库存未知', color: 'default' },
+  normal: { get text() { return tr("正常"); }, color: 'green' },
+  low_stock: { get text() { return tr("低库存"); }, color: 'orange' },
+  out_of_stock: { get text() { return tr("库存为 0"); }, color: 'red' },
+  below_safety_stock: { get text() { return tr("低于安全线"); }, color: 'gold' },
+  stock_unknown: { get text() { return tr("库存未知"); }, color: 'default' },
 };
 
 export const INVENTORY_ALERT_STATUS: Record<string, { text: string; color: string }> = {
-  normal: { text: '正常', color: 'green' },
-  out_of_stock: { text: '库存为 0', color: 'red' },
-  low_stock: { text: '低库存', color: 'orange' },
-  below_safety_stock: { text: '低于安全线', color: 'gold' },
-  platform_stock_unknown: { text: '库存未知', color: 'default' },
-  platform_stock_mismatch: { text: '平台不一致', color: 'orange' },
-  inventory_sync_failed: { text: '同步失败', color: 'red' },
-  sku_unbound: { text: 'SKU 未绑定', color: 'volcano' },
+  normal: { get text() { return tr("正常"); }, color: 'green' },
+  out_of_stock: { get text() { return tr("库存为 0"); }, color: 'red' },
+  low_stock: { get text() { return tr("低库存"); }, color: 'orange' },
+  below_safety_stock: { get text() { return tr("低于安全线"); }, color: 'gold' },
+  platform_stock_unknown: { get text() { return tr("库存未知"); }, color: 'default' },
+  platform_stock_mismatch: { get text() { return tr("平台不一致"); }, color: 'orange' },
+  inventory_sync_failed: { get text() { return tr("同步失败"); }, color: 'red' },
+  sku_unbound: { get text() { return tr("SKU 未绑定"); }, color: 'volcano' },
 };
 
 export const INVENTORY_BIND_STATUS: Record<string, { text: string; color: string }> = {
-  bound: { text: '已绑定', color: 'green' },
-  unbound: { text: '未绑定', color: 'orange' },
-  ambiguous: { text: '待确认', color: 'gold' },
-  none: { text: '无刊登', color: 'default' },
+  bound: { get text() { return tr("已绑定"); }, color: 'green' },
+  unbound: { get text() { return tr("未绑定"); }, color: 'orange' },
+  ambiguous: { get text() { return tr("待确认"); }, color: 'gold' },
+  none: { get text() { return tr("无刊登"); }, color: 'default' },
 };
 
 export const INVENTORY_SYNC_STATUS: Record<string, { text: string; color: string }> = {
-  success: { text: '成功', color: 'green' },
-  failed: { text: '失败', color: 'red' },
-  pending: { text: '等待中', color: 'default' },
-  running: { text: '执行中', color: 'processing' },
-  blocked: { text: '被阻断', color: 'volcano' },
-  disabled: { text: '未开启', color: 'default' },
-  none: { text: '未同步', color: 'default' },
-  partial_success: { text: '部分成功', color: 'warning' },
-  cancelled: { text: '已取消', color: 'default' },
+  success: { get text() { return tr("成功"); }, color: 'green' },
+  failed: { get text() { return tr("失败"); }, color: 'red' },
+  pending: { get text() { return tr("等待中"); }, color: 'default' },
+  running: { get text() { return tr("执行中"); }, color: 'processing' },
+  blocked: { get text() { return tr("被阻断"); }, color: 'volcano' },
+  disabled: { get text() { return tr("未开启"); }, color: 'default' },
+  none: { get text() { return tr("未同步"); }, color: 'default' },
+  partial_success: { get text() { return tr("部分成功"); }, color: 'warning' },
+  cancelled: { get text() { return tr("已取消"); }, color: 'default' },
 };
 
 export const INVENTORY_RECONCILIATION_STATUS: Record<string, { text: string; color: string }> = {
-  matched: { text: '投影一致', color: 'green' },
-  unmigrated: { text: '待建仓库账', color: 'gold' },
-  mismatch: { text: '需要对账', color: 'red' },
+  matched: { get text() { return tr("投影一致"); }, color: 'green' },
+  unmigrated: { get text() { return tr("待建仓库账"); }, color: 'gold' },
+  mismatch: { get text() { return tr("需要对账"); }, color: 'red' },
 };
 
 export const INVENTORY_DEDUCT_SOURCE: Record<string, string> = {
@@ -62,10 +63,10 @@ export const INVENTORY_DEDUCT_SOURCE: Record<string, string> = {
 };
 
 export const INVENTORY_DEDUCT_STATUS: Record<string, { text: string; color: string }> = {
-  success: { text: '成功', color: 'green' },
-  failed: { text: '失败', color: 'red' },
-  skipped: { text: '跳过', color: 'default' },
-  pending: { text: '等待中', color: 'processing' },
+  success: { get text() { return tr("成功"); }, color: 'green' },
+  failed: { get text() { return tr("失败"); }, color: 'red' },
+  skipped: { get text() { return tr("跳过"); }, color: 'default' },
+  pending: { get text() { return tr("等待中"); }, color: 'processing' },
 };
 
 export const INVENTORY_SYNC_BLOCK_REASON: Record<string, string> = {

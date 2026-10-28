@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { aiTextProviderLabel } from '@/constants/aiPrompts';
 
 /** 存储方式中文映射（与「设置 → 存储」kind 一致） */
@@ -37,20 +38,20 @@ export const IMAGE_PROVIDER_DISPLAY: Record<string, string> = {
 export function imageProviderLabel(provider?: string): string {
   const k = (provider || '').trim().toLowerCase();
   if (!k) return '';
-  return IMAGE_PROVIDER_DISPLAY[k] || provider || '';
+  return IMAGE_PROVIDER_DISPLAY[k] ? tr(IMAGE_PROVIDER_DISPLAY[k]) : provider || '';
 }
 
 export function integrationConfiguredTag(configured: boolean): { text: string; color: 'success' | 'default' | 'warning' } {
   return configured
-    ? { text: '已配置', color: 'success' }
-    : { text: '未配置', color: 'warning' };
+    ? { text: tr("已配置"), color: 'success' }
+    : { text: tr("未配置"), color: 'warning' };
 }
 
 export function imageSubServiceStatusLabel(filled: boolean, kind: 'key' | 'url'): string {
   if (filled) {
-    return kind === 'url' ? '地址已填' : '密钥已填';
+    return kind === 'url' ? tr('地址已填') : tr('密钥已填');
   }
-  return kind === 'url' ? '未填地址' : '未填密钥';
+  return kind === 'url' ? tr('未填地址') : tr('未填密钥');
 }
 
 export { aiTextProviderLabel };

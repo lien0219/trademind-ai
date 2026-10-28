@@ -70,3 +70,20 @@ describe('backend integration workflow isolation', () => {
     }
   });
 });
+
+describe('internationalization workflow', () => {
+  const audit = parse(readFileSync(path.join(root, '.github', 'workflows', 'i18n-coverage-audit.yml'), 'utf8')) as Workflow;
+  const steps = audit.jobs.coverage.steps;
+
+  it('installs the locked parser dependencies before running the audit', () => {
+    const install = steps.findIndex(step => step.run === 'pnpm install --frozen-lockfile');
+    const parser = steps.findIndex(step => step.run === 'node --test admin/scripts/i18n-audit.test.mjs');
+    expect(install).toBeGreaterThanOrEqual(0);
+    expect(parser).toBeGreaterThan(install);
+  });
+
+  it('blocks existing untranslated UI debt as well as changed-line regressions', () => {
+    expect(steps.some(step => /node scripts\/i18n-audit\.mjs --strict\b/.test(step.run || ''))).toBe(true);
+    expect(steps.some(step => step.run?.includes('--diff-base='))).toBe(true);
+  });
+});

@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import {
   BellOutlined,
   CheckCircleOutlined,
@@ -26,28 +28,28 @@ type StatusMeta = {
 };
 
 const STATUS_META: Record<string, StatusMeta> = {
-  healthy: { color: 'success', text: '运行正常', intent: 'success' },
-  needs_attention: { color: 'error', text: '需要处理', intent: 'danger' },
-  waiting: { color: 'processing', text: '等待首次评估', intent: 'warning' },
-  warming_up: { color: 'processing', text: '评估器预热中', intent: 'warning' },
-  succeeded: { color: 'success', text: '最近评估成功', intent: 'success' },
-  failed: { color: 'error', text: '最近评估失败', intent: 'danger' },
-  disabled: { color: 'default', text: '未启用', intent: 'default' },
-  active: { color: 'success', text: '运行中', intent: 'success' },
-  unavailable: { color: 'error', text: '不可用', intent: 'danger' },
-  unprotected: { color: 'error', text: '保护不完整', intent: 'danger' },
-  achieved: { color: 'success', text: '目标内', intent: 'success' },
-  violated: { color: 'error', text: '目标外', intent: 'danger' },
-  insufficient_data: { color: 'warning', text: '数据不足', intent: 'warning' },
-  standard_protocol_ready: { color: 'success', text: '最近导出成功', intent: 'success' },
-  export_pending: { color: 'processing', text: '等待首次导出', intent: 'warning' },
-  real_backend_deferred: { color: 'default', text: '未配置导出后端', intent: 'default' },
-  export_degraded: { color: 'error', text: '导出异常', intent: 'danger' },
-  incomplete: { color: 'error', text: '配置不完整', intent: 'danger' },
+  healthy: { color: 'success', get text() { return tr("运行正常"); }, intent: 'success' },
+  needs_attention: { color: 'error', get text() { return tr("需要处理"); }, intent: 'danger' },
+  waiting: { color: 'processing', get text() { return tr("等待首次评估"); }, intent: 'warning' },
+  warming_up: { color: 'processing', get text() { return tr("评估器预热中"); }, intent: 'warning' },
+  succeeded: { color: 'success', get text() { return tr("最近评估成功"); }, intent: 'success' },
+  failed: { color: 'error', get text() { return tr("最近评估失败"); }, intent: 'danger' },
+  disabled: { color: 'default', get text() { return tr("未启用"); }, intent: 'default' },
+  active: { color: 'success', get text() { return tr("运行中"); }, intent: 'success' },
+  unavailable: { color: 'error', get text() { return tr("不可用"); }, intent: 'danger' },
+  unprotected: { color: 'error', get text() { return tr("保护不完整"); }, intent: 'danger' },
+  achieved: { color: 'success', get text() { return tr("目标内"); }, intent: 'success' },
+  violated: { color: 'error', get text() { return tr("目标外"); }, intent: 'danger' },
+  insufficient_data: { color: 'warning', get text() { return tr("数据不足"); }, intent: 'warning' },
+  standard_protocol_ready: { color: 'success', get text() { return tr("最近导出成功"); }, intent: 'success' },
+  export_pending: { color: 'processing', get text() { return tr("等待首次导出"); }, intent: 'warning' },
+  real_backend_deferred: { color: 'default', get text() { return tr("未配置导出后端"); }, intent: 'default' },
+  export_degraded: { color: 'error', get text() { return tr("导出异常"); }, intent: 'danger' },
+  incomplete: { color: 'error', get text() { return tr("配置不完整"); }, intent: 'danger' },
 };
 
 function statusMeta(status?: string): StatusMeta {
-  return STATUS_META[status ?? ''] ?? { color: 'default', text: status || '未知', intent: 'default' };
+  return STATUS_META[status ?? ''] ?? { color: 'default', text: status || tr("未知"), intent: 'default' };
 }
 
 function StatusValue({ status }: { status?: string }) {
@@ -56,6 +58,7 @@ function StatusValue({ status }: { status?: string }) {
 }
 
 export default function ObservabilityCenterPage() {
+  const language = useLanguage();
   const [overview, setOverview] = useState<ObservabilityOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -67,7 +70,7 @@ export default function ObservabilityCenterPage() {
       setOverview(result?.data ?? null);
       setLoadError(false);
     } catch {
-      message.error('加载可观测性数据失败');
+      message.error(tr("加载可观测性数据失败"));
       setLoadError(true);
     } finally {
       setLoading(false);
@@ -85,17 +88,17 @@ export default function ObservabilityCenterPage() {
   const activeAlerts = overview?.alerts?.active ?? 0;
   const alertValue = overview?.alerts?.status === 'active' ? activeAlerts : alertMeta.text;
   const alertDescription = overview?.alerts?.status === 'active'
-    ? `严重 ${overview?.alerts?.critical ?? 0} · 警告 ${overview?.alerts?.warning ?? 0}`
-    : overview?.alerts?.status === 'disabled' ? '系统告警未启用' : '无法读取系统告警';
+    ? trFormat("严重 {value0} · 警告 {value1}", { value0: overview?.alerts?.critical ?? 0, value1: overview?.alerts?.warning ?? 0 })
+    : overview?.alerts?.status === 'disabled' ? tr("系统告警未启用") : tr("无法读取系统告警");
   const alertIntent = overview?.alerts?.status === 'active'
     ? activeAlerts > 0 ? 'danger' : 'success'
     : alertMeta.intent;
-  const lastUpdated = useMemo(() => formatDateTime(overview?.timestamp), [overview?.timestamp]);
+  const lastUpdated = useMemo(() => formatDateTime(overview?.timestamp), [overview?.timestamp, language]);
 
   return (
     <TmPageContainer
-      title="可观测性中心"
-      subTitle="查看系统指标、告警评估、SLO 与遥测导出运行状态"
+      title={tr("可观测性中心")}
+      subTitle={tr("查看系统指标、告警评估、SLO 与遥测导出运行状态")}
       className={styles.page}
       extra={[
         <Button
@@ -103,11 +106,11 @@ export default function ObservabilityCenterPage() {
           icon={<BellOutlined />}
           onClick={() => history.push('/ops/task-center/alerts?source=system')}
         >
-          查看系统告警
+          {tr("查看系统告警")}
         </Button>,
-        <Tooltip key="reload" title="刷新运行状态">
+        <Tooltip key="reload" title={tr("刷新运行状态")}>
           <Button
-            aria-label="刷新运行状态"
+            aria-label={tr("刷新运行状态")}
             icon={<ReloadOutlined />}
             onClick={() => void load()}
             loading={loading}
@@ -117,14 +120,14 @@ export default function ObservabilityCenterPage() {
     >
       {loadError ? (
         <ErrorAlert
-          title="可观测性概览加载失败"
-          actionHint="请检查后端健康状态后重试。"
+          title={tr("可观测性概览加载失败")}
+          actionHint={tr("请检查后端健康状态后重试。")}
           className={styles.error}
         />
       ) : null}
 
       {!overview && loading ? (
-        <div className={styles.loading} aria-label="正在加载可观测性概览">
+        <div className={styles.loading} aria-label={tr("正在加载可观测性概览")}>
           <Spin size="large" />
         </div>
       ) : null}
@@ -133,14 +136,14 @@ export default function ObservabilityCenterPage() {
         <div className={styles.content}>
           <div className={styles.metricsGrid}>
             <MetricCard
-              title="总体运行状态"
+              title={tr("总体运行状态")}
               value={overallMeta.text}
-              description={`环境：${overview?.environment || '未知'}`}
+              description={trFormat("环境：{value0}", { value0: String(overview?.environment || tr('未知')) })}
               icon={overview?.overallStatus === 'healthy' ? <CheckCircleOutlined /> : <ExclamationCircleOutlined />}
               intent={overallMeta.intent}
             />
             <MetricCard
-              title="活跃系统告警"
+              title={tr("活跃系统告警")}
               value={alertValue}
               description={alertDescription}
               icon={<BellOutlined />}
@@ -148,82 +151,82 @@ export default function ObservabilityCenterPage() {
               onClick={() => history.push('/ops/task-center/alerts?source=system')}
             />
             <MetricCard
-              title="告警评估器"
+              title={tr("告警评估器")}
               value={evaluationMeta.text}
-              description={`已检查 ${overview?.evaluation?.rulesChecked ?? 0} 条规则`}
+              description={trFormat("已检查 {value0} 条规则", { value0: String(overview?.evaluation?.rulesChecked ?? 0) })}
               icon={<SafetyCertificateOutlined />}
               intent={evaluationMeta.intent}
             />
             <MetricCard
-              title="指标注册表"
+              title={tr("指标注册表")}
               value={metricMeta.text}
-              description={overview?.metrics?.internalOnly ? '内部端点已保护' : '端点未限制内部访问'}
+              description={overview?.metrics?.internalOnly ? tr("内部端点已保护") : tr("端点未限制内部访问")}
               icon={<CloudServerOutlined />}
               intent={metricMeta.intent}
             />
           </div>
 
           <div className={styles.detailGrid}>
-            <SectionCard title="告警与服务目标" variant="outlined" compact>
+            <SectionCard title={tr("告警与服务目标")} variant="outlined" compact>
               <div className={styles.statusList}>
                 <div className={styles.statusRow}>
                   <div>
-                    <Text strong>告警规则评估</Text>
-                    <Text type="secondary">窗口指标、样本保护与恢复检测</Text>
+                    <Text strong>{tr("告警规则评估")}</Text>
+                    <Text type="secondary">{tr("窗口指标、样本保护与恢复检测")}</Text>
                   </div>
                   <StatusValue status={overview?.evaluation?.status} />
                 </div>
                 <div className={styles.statusRow}>
                   <div>
-                    <Text strong>SLO 评估</Text>
-                    <Text type="secondary">可用性、延迟和关键后台任务目标</Text>
+                    <Text strong>{tr("SLO 评估")}</Text>
+                    <Text type="secondary">{tr("可用性、延迟和关键后台任务目标")}</Text>
                   </div>
                   <StatusValue status={overview?.slo?.status} />
                 </div>
               </div>
               <Descriptions className={styles.descriptions} column={{ xs: 1, sm: 2 }} size="small">
-                <Descriptions.Item label="最近告警评估">
+                <Descriptions.Item label={tr("最近告警评估")}>
                   {formatDateTime(overview?.evaluation?.lastEvaluatedAt)}
                 </Descriptions.Item>
-                <Descriptions.Item label="最近 SLO 评估">
+                <Descriptions.Item label={tr("最近 SLO 评估")}>
                   {formatDateTime(overview?.slo?.lastEvaluatedAt)}
                 </Descriptions.Item>
-                <Descriptions.Item label="本轮触发">
+                <Descriptions.Item label={tr("本轮触发")}>
                   {overview?.evaluation?.alertsFired ?? 0}
                 </Descriptions.Item>
-                <Descriptions.Item label="本轮恢复">
+                <Descriptions.Item label={tr("本轮恢复")}>
                   {overview?.evaluation?.alertsResolved ?? 0}
                 </Descriptions.Item>
               </Descriptions>
             </SectionCard>
 
-            <SectionCard title="指标与遥测" variant="outlined" compact>
+            <SectionCard title={tr("指标与遥测")} variant="outlined" compact>
               <div className={styles.statusList}>
                 <div className={styles.statusRow}>
                   <div>
-                    <Text strong>Prometheus 指标</Text>
+                    <Text strong>{tr("Prometheus 指标")}</Text>
                     <Text type="secondary" copyable={{ text: overview?.metrics?.path || '' }}>
-                      {overview?.metrics?.path || '未配置路径'}
+                      {overview?.metrics?.path || tr("未配置路径")}
                     </Text>
                   </div>
                   <StatusValue status={overview?.metrics?.status} />
                 </div>
                 <div className={styles.statusRow}>
                   <div>
-                    <Text strong>遥测导出</Text>
-                    <Text type="secondary">{overview?.telemetry?.protocol || '未配置协议'}</Text>
+                    <Text strong>{tr("遥测导出")}</Text>
+                    <Text type="secondary">{overview?.telemetry?.protocol || tr("未配置协议")}</Text>
                   </div>
                   <StatusValue status={overview?.telemetry?.status} />
                 </div>
               </div>
               <Descriptions className={styles.descriptions} column={{ xs: 1, sm: 2 }} size="small">
-                <Descriptions.Item label="导出成功">
+                <Descriptions.Item label={tr("导出成功")}>
                   {overview?.telemetry?.exportSuccess ?? 0}
                 </Descriptions.Item>
-                <Descriptions.Item label="导出失败">
+                <Descriptions.Item label={tr("导出失败")}>
                   {overview?.telemetry?.exportFailures ?? 0}
                 </Descriptions.Item>
-                <Descriptions.Item label="失败丢弃">
+                <Descriptions.Item label={tr("失败丢弃")}>
                   {overview?.telemetry?.dropped ?? 0}
                 </Descriptions.Item>
               </Descriptions>
@@ -232,10 +235,10 @@ export default function ObservabilityCenterPage() {
 
           <div className={styles.runtimeBand}>
             <div className={styles.runtimeItems}>
-              <span><Text type="secondary">模式</Text><Text strong>{overview?.mode || '未知'}</Text></span>
-              <span><Text type="secondary">环境</Text><Text strong>{overview?.environment || '未知'}</Text></span>
-              <span><Text type="secondary">指标端点</Text><Text strong>{overview?.metrics?.internalOnly ? '仅内部访问' : '未保护'}</Text></span>
-              <span><Text type="secondary">最近刷新</Text><Text strong>{lastUpdated}</Text></span>
+              <span><Text type="secondary">{tr("模式")}</Text><Text strong>{overview?.mode || tr("未知")}</Text></span>
+              <span><Text type="secondary">{tr("环境")}</Text><Text strong>{overview?.environment || tr("未知")}</Text></span>
+              <span><Text type="secondary">{tr("指标端点")}</Text><Text strong>{overview?.metrics?.internalOnly ? tr("仅内部访问") : tr("未保护")}</Text></span>
+              <span><Text type="secondary">{tr("最近刷新")}</Text><Text strong>{lastUpdated}</Text></span>
             </div>
             <StatusValue status={overview?.telemetry?.status} />
           </div>

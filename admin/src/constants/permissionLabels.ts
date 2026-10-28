@@ -1,10 +1,11 @@
+import { tr } from '@/i18n';
 import { PERMISSIONS, type PermissionKey } from '@/utils/permission';
 
 export const ROLE_OPTIONS = [
-  { label: '管理员', value: 'admin' },
-  { label: '运营', value: 'operator' },
-  { label: '只读', value: 'readonly' },
-  { label: '审核', value: 'reviewer' },
+  { get label() { return tr("管理员"); }, value: 'admin' },
+  { get label() { return tr("运营"); }, value: 'operator' },
+  { get label() { return tr("只读"); }, value: 'readonly' },
+  { get label() { return tr("审核"); }, value: 'reviewer' },
 ];
 
 export function roleLabel(code: string, name?: string): string {

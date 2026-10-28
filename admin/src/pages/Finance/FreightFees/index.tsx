@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import {
   DownloadOutlined,
   EyeOutlined,
@@ -64,9 +66,9 @@ function nativeFile(fileList: UploadFile[]) {
 }
 
 function statusTag(status: string) {
-  if (status === 'confirmed') return <Tag color="success">已确认</Tag>;
-  if (status === 'mismatch') return <Tag color="warning">币种不一致</Tag>;
-  return <Tag color="error">已阻断</Tag>;
+  if (status === 'confirmed') return <Tag color="success">{tr('已确认')} </Tag>;
+  if (status === 'mismatch') return <Tag color="warning">{tr('币种不一致')} </Tag>;
+  return <Tag color="error">{tr('已阻断')} </Tag>;
 }
 
 function issueTable(rows: FreightValidationIssue[]) {
@@ -74,6 +76,7 @@ function issueTable(rows: FreightValidationIssue[]) {
 }
 
 export default function FreightFeesPage() {
+  useLanguage();
   const { can } = usePermission();
   const canImport = can(PERMISSIONS.FREIGHT_FEE_IMPORT);
   const canManage = can(PERMISSIONS.FREIGHT_FEE_MANAGE);
@@ -124,7 +127,7 @@ export default function FreightFeesPage() {
       const result = await queryShops({ page: 1, pageSize: 500 });
       setShops(result.list || []);
     } catch (error) {
-      setShopError((error as Error)?.message || '店铺列表加载失败');
+      setShopError((error as Error)?.message || tr('店铺列表加载失败'));
     }
   }, []);
 
@@ -156,7 +159,7 @@ export default function FreightFeesPage() {
       }
     } catch (error) {
       if (requestID === listRequestIDRef.current) {
-        setLoadError((error as Error)?.message || '运费账单加载失败');
+        setLoadError((error as Error)?.message || tr('运费账单加载失败'));
         if (tab === 'imports') setImports([]);
         else setCharges([]);
         setTotal(0);
@@ -181,7 +184,7 @@ export default function FreightFeesPage() {
     } catch (error) {
       if (requestID === detailRequestIDRef.current) {
         setDetail(undefined);
-        setDetailError((error as Error)?.message || '运费账单详情加载失败');
+        setDetailError((error as Error)?.message || tr('运费账单详情加载失败'));
       }
     } finally {
       if (requestID === detailRequestIDRef.current) setDetailLoading(false);
@@ -222,7 +225,7 @@ export default function FreightFeesPage() {
       setPreview(result);
       setImportKey(freightFeeIdempotencyKey('import'));
     } catch (error) {
-      if (requestID === requestIDRef.current) message.error((error as Error)?.message || 'CSV 校验失败');
+      if (requestID === requestIDRef.current) message.error((error as Error)?.message || tr('CSV 校验失败'));
     } finally {
       if (requestID === requestIDRef.current) setPreviewing(false);
     }
@@ -235,14 +238,14 @@ export default function FreightFeesPage() {
     setSubmitting(true);
     try {
       await confirmFreightFeeImport(file, importShopID, preview.fileHash, preview.calculationHash, importKey);
-      message.success('运费账单已确认');
+      message.success(tr('运费账单已确认'));
       setImportOpen(false);
       resetImport();
       setTab('charges');
       setPage(1);
       setListRevision((revision) => revision + 1);
     } catch (error) {
-      message.error((error as Error)?.message || '运费账单确认失败');
+      message.error((error as Error)?.message || tr('运费账单确认失败'));
     } finally {
       inFlightRef.current = false;
       setSubmitting(false);
@@ -266,98 +269,98 @@ export default function FreightFeesPage() {
       if (adjustmentMode === 'adjust') {
         const amountMinor = values.amountMinor;
         if (!Number.isSafeInteger(amountMinor) || amountMinor === 0) {
-          message.error('调整金额必须为非零安全整数');
+          message.error(tr('调整金额必须为非零安全整数'));
           return;
         }
         await createFreightFeeAdjustment(detail.id, { amountMinor: amountMinor!, reason, idempotencyKey: adjustmentKey });
       } else if (reverseTarget) {
         await reverseFreightFeeAdjustment(detail.id, reverseTarget.id, { reason, idempotencyKey: adjustmentKey });
       }
-      message.success(adjustmentMode === 'adjust' ? '调整已追加' : '冲正已追加');
+      message.success(adjustmentMode === 'adjust' ? tr('调整已追加') : tr('冲正已追加'));
       setAdjustmentOpen(false);
       await loadDetail(detail.id);
       await loadList();
     } catch (error) {
-      message.error((error as Error)?.message || '运费调整失败');
+      message.error((error as Error)?.message || tr('运费调整失败'));
     } finally {
       setAdjusting(false);
     }
   }, [adjustmentKey, adjustmentMode, adjusting, detail, loadDetail, loadList, reverseTarget]);
 
   const chargeColumns: TableColumnsType<FreightCharge> = [
-    { title: '订单号', dataIndex: 'orderNo', width: 160, ellipsis: true },
-    { title: '店铺', dataIndex: 'shopId', width: 170, ellipsis: true, render: (id) => shopNames.get(String(id)) || String(id) },
-    { title: '承运商', dataIndex: 'carrier', width: 130, ellipsis: true },
-    { title: '运单号', dataIndex: 'trackingNo', width: 180, ellipsis: true },
-    { title: '原始费用编号', dataIndex: 'externalLineId', width: 160, ellipsis: true },
-    { title: '实账净额', dataIndex: 'netAmountMinor', width: 145, render: (value, row) => formatProfitAmount(value, row.currency) },
-    { title: '订单币种', dataIndex: 'orderCurrency', width: 95 },
-    { title: '账单时间', dataIndex: 'billedAt', width: 170, render: (value) => formatDateTime(value) },
-    { title: '状态', dataIndex: 'status', width: 110, render: (value) => statusTag(String(value)) },
+    { title: tr('订单号'), dataIndex: 'orderNo', width: 160, ellipsis: true },
+    { title: tr('店铺'), dataIndex: 'shopId', width: 170, ellipsis: true, render: (id) => shopNames.get(String(id)) || String(id) },
+    { title: tr('承运商'), dataIndex: 'carrier', width: 130, ellipsis: true },
+    { title: tr('运单号'), dataIndex: 'trackingNo', width: 180, ellipsis: true },
+    { title: tr('原始费用编号'), dataIndex: 'externalLineId', width: 160, ellipsis: true },
+    { title: tr('实账净额'), dataIndex: 'netAmountMinor', width: 145, render: (value, row) => formatProfitAmount(value, row.currency) },
+    { title: tr('订单币种'), dataIndex: 'orderCurrency', width: 95 },
+    { title: tr('账单时间'), dataIndex: 'billedAt', width: 170, render: (value) => formatDateTime(value) },
+    { title: tr('状态'), dataIndex: 'status', width: 110, render: (value) => statusTag(String(value)) },
     {
-      title: '操作', fixed: 'right', width: 92,
-      render: (_, row) => <Button type="link" icon={<EyeOutlined />} onClick={() => drawer.openDrawer(row.id)}>详情</Button>,
+      title: tr('操作'), fixed: 'right', width: 92,
+      render: (_, row) => <Button type="link" icon={<EyeOutlined />} onClick={() => drawer.openDrawer(row.id)}>{tr('详情')} </Button>,
     },
   ];
 
   const previewColumns: TableColumnsType<FreightChargePreviewRow> = [
-    { title: '行', dataIndex: 'line', width: 54 },
-    { title: '订单号', dataIndex: 'orderNo', width: 150 },
-    { title: '运单号', dataIndex: 'trackingNo', width: 160 },
-    { title: '承运商', dataIndex: 'carrier', width: 120 },
-    { title: '账单金额', dataIndex: 'amountMinor', width: 135, render: (value, row) => formatProfitAmount(value, row.currency) },
-    { title: '账单币种', dataIndex: 'currency', width: 90 },
-    { title: '导入结果', dataIndex: 'disposition', width: 95, render: (value) => value === 'duplicate' ? <Tag>重复</Tag> : <Tag color="processing">新增</Tag> },
-    { title: '对账状态', dataIndex: 'status', width: 120, render: (value) => statusTag(String(value)) },
-    { title: '说明', dataIndex: 'reason', width: 240, ellipsis: true },
+    { title: tr('行'), dataIndex: 'line', width: 54 },
+    { title: tr('订单号'), dataIndex: 'orderNo', width: 150 },
+    { title: tr('运单号'), dataIndex: 'trackingNo', width: 160 },
+    { title: tr('承运商'), dataIndex: 'carrier', width: 120 },
+    { title: tr('账单金额'), dataIndex: 'amountMinor', width: 135, render: (value, row) => formatProfitAmount(value, row.currency) },
+    { title: tr('账单币种'), dataIndex: 'currency', width: 90 },
+    { title: tr('导入结果'), dataIndex: 'disposition', width: 95, render: (value) => value === 'duplicate' ? <Tag>{tr('重复')} </Tag> : <Tag color="processing">{tr('新增')} </Tag> },
+    { title: tr('对账状态'), dataIndex: 'status', width: 120, render: (value) => statusTag(String(value)) },
+    { title: tr('说明'), dataIndex: 'reason', width: 240, ellipsis: true },
   ];
 
   const importColumns: TableColumnsType<FreightImport> = [
-    { title: '确认时间', dataIndex: 'confirmedAt', width: 175, render: (value) => formatDateTime(value) },
-    { title: '店铺', dataIndex: 'shopId', width: 170, ellipsis: true, render: (id) => shopNames.get(String(id)) || String(id) },
-    { title: '文件名', dataIndex: 'fileName', width: 220, ellipsis: true },
-    { title: '来源行数', dataIndex: 'sourceRowCount', width: 100 },
-    { title: '新增账单', dataIndex: 'importedRows', width: 100 },
-    { title: '重复行', dataIndex: 'duplicateRows', width: 100 },
-    { title: '文件 SHA-256', dataIndex: 'fileHash', width: 250, ellipsis: true },
+    { title: tr('确认时间'), dataIndex: 'confirmedAt', width: 175, render: (value) => formatDateTime(value) },
+    { title: tr('店铺'), dataIndex: 'shopId', width: 170, ellipsis: true, render: (id) => shopNames.get(String(id)) || String(id) },
+    { title: tr('文件名'), dataIndex: 'fileName', width: 220, ellipsis: true },
+    { title: tr('来源行数'), dataIndex: 'sourceRowCount', width: 100 },
+    { title: tr('新增账单'), dataIndex: 'importedRows', width: 100 },
+    { title: tr('重复行'), dataIndex: 'duplicateRows', width: 100 },
+    { title: tr('文件 SHA-256'), dataIndex: 'fileHash', width: 250, ellipsis: true },
   ];
 
   return (
     <PermissionGuard require={PERMISSIONS.FREIGHT_FEE_VIEW} showForbiddenPage>
       <TmPageContainer
-        title="承运商运费账单"
+        title={tr("承运商运费账单")}
         extra={(
           <TmPageHeaderExtra>
             <Space wrap>
-              <Tooltip title="下载 CSV 模板">
-                <Button icon={<DownloadOutlined />} onClick={downloadFreightFeeCSVTemplate}>模板</Button>
+              <Tooltip title={tr("下载 CSV 模板")}>
+                <Button icon={<DownloadOutlined />} onClick={downloadFreightFeeCSVTemplate}>{tr('模板')} </Button>
               </Tooltip>
-              <Button icon={<ReloadOutlined />} onClick={() => void loadList()} loading={loading}>刷新</Button>
-              {canImport ? <Button type="primary" icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>导入账单</Button> : null}
+              <Button icon={<ReloadOutlined />} onClick={() => void loadList()} loading={loading}>{tr('刷新')} </Button>
+              {canImport ? <Button type="primary" icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>{tr('导入账单')} </Button> : null}
             </Space>
           </TmPageHeaderExtra>
         )}
       >
-        {shopError ? <ErrorAlert title={shopError} actionHint={<Button icon={<ReloadOutlined />} onClick={() => void loadShops()}>重新加载店铺</Button>} /> : null}
-        {loadError ? <ErrorAlert title={loadError} actionHint={<Button icon={<ReloadOutlined />} onClick={() => void loadList()}>重新加载</Button>} /> : null}
+        {shopError ? <ErrorAlert title={shopError} actionHint={<Button icon={<ReloadOutlined />} onClick={() => void loadShops()}>{tr('重新加载店铺')} </Button>} /> : null}
+        {loadError ? <ErrorAlert title={loadError} actionHint={<Button icon={<ReloadOutlined />} onClick={() => void loadList()}>{tr('重新加载')} </Button>} /> : null}
         <Tabs
           activeKey={tab}
           onChange={(key) => { setPage(1); setTab(key); }}
           items={[
-            { key: 'charges', label: '运费账单' },
-            { key: 'imports', label: '导入批次' },
+            { key: 'charges', label: tr('运费账单') },
+            { key: 'imports', label: tr('导入批次') },
           ]}
         />
         {tab === 'charges' ? (
           <>
             <Space wrap className="freight-fee-filters">
-              <Input placeholder="订单号" value={draftFilters.orderNo} maxLength={128} onChange={(event) => setDraftFilters({ ...draftFilters, orderNo: event.target.value })} />
-              <Input placeholder="运单号" value={draftFilters.trackingNo} maxLength={255} onChange={(event) => setDraftFilters({ ...draftFilters, trackingNo: event.target.value })} />
-              <Select allowClear placeholder="全部店铺" value={draftFilters.shopId || undefined} options={shopOptions} onChange={(shopId) => setDraftFilters({ ...draftFilters, shopId: shopId || '' })} />
-              <Select allowClear placeholder="全部币种" value={draftFilters.currency || undefined} options={['CNY', 'USD', 'EUR', 'GBP', 'JPY', 'SGD'].map((value) => ({ value, label: value }))} onChange={(currency) => setDraftFilters({ ...draftFilters, currency: currency || '' })} />
-              <Select allowClear placeholder="全部状态" value={draftFilters.status || undefined} options={[{ value: 'confirmed', label: '已确认' }, { value: 'mismatch', label: '币种不一致' }]} onChange={(status) => setDraftFilters({ ...draftFilters, status: status || '' })} />
-              <Button type="primary" onClick={() => { setPage(1); setFilters(draftFilters); }}>查询</Button>
-              <Button onClick={() => { const empty = { orderNo: '', trackingNo: '', shopId: '', currency: '', status: '' }; setDraftFilters(empty); setFilters(empty); setPage(1); }}>重置</Button>
+              <Input placeholder={tr("订单号")} value={draftFilters.orderNo} maxLength={128} onChange={(event) => setDraftFilters({ ...draftFilters, orderNo: event.target.value })} />
+              <Input placeholder={tr("运单号")} value={draftFilters.trackingNo} maxLength={255} onChange={(event) => setDraftFilters({ ...draftFilters, trackingNo: event.target.value })} />
+              <Select allowClear placeholder={tr("全部店铺")} value={draftFilters.shopId || undefined} options={shopOptions} onChange={(shopId) => setDraftFilters({ ...draftFilters, shopId: shopId || '' })} />
+              <Select allowClear placeholder={tr("全部币种")} value={draftFilters.currency || undefined} options={['CNY', 'USD', 'EUR', 'GBP', 'JPY', 'SGD'].map((value) => ({ value, label: value }))} onChange={(currency) => setDraftFilters({ ...draftFilters, currency: currency || '' })} />
+              <Select allowClear placeholder={tr("全部状态")} value={draftFilters.status || undefined} options={[{ value: 'confirmed', label: tr('已确认') }, { value: 'mismatch', label: tr('币种不一致') }]} onChange={(status) => setDraftFilters({ ...draftFilters, status: status || '' })} />
+              <Button type="primary" onClick={() => { setPage(1); setFilters(draftFilters); }}>{tr('查询')} </Button>
+              <Button onClick={() => { const empty = { orderNo: '', trackingNo: '', shopId: '', currency: '', status: '' }; setDraftFilters(empty); setFilters(empty); setPage(1); }}>{tr('重置')} </Button>
             </Space>
             <Table<FreightCharge>
               rowKey="id"
@@ -366,7 +369,7 @@ export default function FreightFeesPage() {
               columns={chargeColumns}
               dataSource={charges}
               scroll={{ x: 1350 }}
-              locale={{ emptyText: <EmptyState title="暂无运费账单" description="确认导入后，承运商实账会出现在这里。" /> }}
+              locale={{ emptyText: <EmptyState title={tr("暂无运费账单")} description={tr("确认导入后，承运商实账会出现在这里。")} /> }}
               pagination={{ current: page, pageSize, total, showSizeChanger: true, onChange: (nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize); } }}
             />
           </>
@@ -378,13 +381,13 @@ export default function FreightFeesPage() {
             columns={importColumns}
             dataSource={imports}
             scroll={{ x: 1100 }}
-            locale={{ emptyText: <EmptyState title="暂无导入批次" /> }}
+            locale={{ emptyText: <EmptyState title={tr("暂无导入批次")} /> }}
             pagination={{ current: page, pageSize, total, showSizeChanger: true, onChange: (nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize); } }}
           />
         )}
 
         <Modal
-          title="导入承运商运费账单"
+          title={tr("导入承运商运费账单")}
           open={importOpen}
           width={1000}
           destroyOnHidden
@@ -394,18 +397,18 @@ export default function FreightFeesPage() {
           onCancel={() => { if (!submitting) { setImportOpen(false); resetImport(); } }}
           footer={(
             <Space>
-              <Button disabled={submitting} onClick={() => { setImportOpen(false); resetImport(); }}>取消</Button>
-              <Button icon={<ImportOutlined />} onClick={() => void runPreview()} loading={previewing} disabled={!importShopID || fileList.length === 0}>校验预览</Button>
-              <Button type="primary" onClick={() => Modal.confirm({ title: '确认导入这批运费账单？', content: `新增 ${preview?.newCharges || 0} 条，重复 ${preview?.duplicateCharges || 0} 条。确认后账单事实不可删除。`, onOk: confirmImport, okButtonProps: { loading: submitting, disabled: !preview?.valid } })} loading={submitting} disabled={!preview?.valid || !canImport}>确认导入</Button>
+              <Button disabled={submitting} onClick={() => { setImportOpen(false); resetImport(); }}>{tr('取消')} </Button>
+              <Button icon={<ImportOutlined />} onClick={() => void runPreview()} loading={previewing} disabled={!importShopID || fileList.length === 0}>{tr('校验预览')} </Button>
+              <Button type="primary" onClick={() => Modal.confirm({ title: tr('确认导入这批运费账单？'), content: trFormat('新增 {newCount} 条，重复 {duplicateCount} 条。确认后账单事实不可删除。', { newCount: preview?.newCharges || 0, duplicateCount: preview?.duplicateCharges || 0 }), onOk: confirmImport, okButtonProps: { loading: submitting, disabled: !preview?.valid } })} loading={submitting} disabled={!preview?.valid || !canImport}>{tr('确认导入')} </Button>
             </Space>
           )}
         >
           <Space direction="vertical" size="middle" className="freight-fee-full-width">
-            {shopError ? <ErrorAlert title={shopError} actionHint={<Button icon={<ReloadOutlined />} onClick={() => void loadShops()}>重新加载店铺</Button>} /> : null}
+            {shopError ? <ErrorAlert title={shopError} actionHint={<Button icon={<ReloadOutlined />} onClick={() => void loadShops()}>{tr('重新加载店铺')} </Button>} /> : null}
             <Select
               showSearch
               optionFilterProp="label"
-              placeholder="选择账单所属店铺"
+              placeholder={tr("选择账单所属店铺")}
               value={importShopID}
               options={shopOptions}
               onChange={(shopId) => { setImportShopID(shopId); invalidatePreview(); }}
@@ -420,23 +423,23 @@ export default function FreightFeesPage() {
               onRemove={() => { setFileList([]); invalidatePreview(); return true; }}
               disabled={submitting}
             >
-              <Button icon={<UploadOutlined />} disabled={submitting}>选择 CSV</Button>
+              <Button icon={<UploadOutlined />} disabled={submitting}>{tr('选择 CSV')} </Button>
             </Upload>
-            <Typography.Text type="secondary">CSV 必须包含严格模板表头；金额为整数最小货币单位，账单时间使用带时区的 RFC3339。单文件最多 2 MiB、1000 行。</Typography.Text>
+            <Typography.Text type="secondary">{tr('CSV 必须包含严格模板表头；金额为整数最小货币单位，账单时间使用带时区的 RFC3339。单文件最多 2 MiB、1000 行。')} </Typography.Text>
             {preview ? (
               <>
                 <Alert
                   type={preview.valid ? (preview.warnings.length ? 'warning' : 'success') : 'error'}
                   showIcon
-                  message={preview.valid ? `校验通过：${preview.newCharges} 条新增，${preview.duplicateCharges} 条重复` : '存在阻断问题，整批不能确认'}
-                  description={`店铺：${preview.shopName}；来源行：${preview.sourceRows}；文件 SHA-256：${preview.fileHash}`}
+                  message={preview.valid ? trFormat('校验通过：{newCount} 条新增，{duplicateCount} 条重复', { newCount: preview.newCharges, duplicateCount: preview.duplicateCharges }) : tr('存在阻断问题，整批不能确认')}
+                  description={trFormat('店铺：{shopName}；来源行：{sourceRows}；文件 SHA-256：{fileHash}', { shopName: preview.shopName, sourceRows: preview.sourceRows, fileHash: preview.fileHash })}
                 />
-                {preview.warnings.length ? <Alert type="warning" message="账单币种与订单币种不一致的行会留档，但不会替代利润中的本地运费估价。" /> : null}
+                {preview.warnings.length ? <Alert type="warning" message={tr("账单币种与订单币种不一致的行会留档，但不会替代利润中的本地运费估价。")} /> : null}
                 {preview.issues.length ? <Table size="small" rowKey={(row) => `${row.line}:${row.code}`} pagination={{ pageSize: 5 }} columns={[
-                  { title: '行', dataIndex: 'line', width: 60 }, { title: '字段', dataIndex: 'field', width: 130 }, { title: '错误', dataIndex: 'message' },
+                  { title: tr('行'), dataIndex: 'line', width: 60 }, { title: tr('字段'), dataIndex: 'field', width: 130 }, { title: tr('错误'), dataIndex: 'message' },
                 ]} dataSource={issueTable(preview.issues)} /> : null}
                 {preview.warnings.length ? <Table size="small" rowKey={(row) => `${row.line}:${row.code}`} pagination={{ pageSize: 5 }} columns={[
-                  { title: '行', dataIndex: 'line', width: 60 }, { title: '提示', dataIndex: 'message' },
+                  { title: tr('行'), dataIndex: 'line', width: 60 }, { title: tr('提示'), dataIndex: 'message' },
                 ]} dataSource={issueTable(preview.warnings)} /> : null}
                 <Table<FreightChargePreviewRow> size="small" rowKey="line" pagination={{ pageSize: 8 }} columns={previewColumns} dataSource={preview.rows} scroll={{ x: 1100 }} />
               </>
@@ -444,43 +447,43 @@ export default function FreightFeesPage() {
           </Space>
         </Modal>
 
-        <Drawer title="运费账单详情" open={drawer.open} width="min(720px, 100vw)" onClose={drawer.closeDrawer} destroyOnHidden>
-          {detailError ? <ErrorAlert title={detailError} actionHint={drawer.id ? <Button icon={<ReloadOutlined />} onClick={() => { const id = drawer.id; if (id) void loadDetail(id); }}>重新加载</Button> : undefined} /> : null}
-          {detailLoading ? <div className="freight-fee-detail-loading">加载中…</div> : null}
+        <Drawer title={tr("运费账单详情")} open={drawer.open} width="min(720px, 100vw)" onClose={drawer.closeDrawer} destroyOnHidden>
+          {detailError ? <ErrorAlert title={detailError} actionHint={drawer.id ? <Button icon={<ReloadOutlined />} onClick={() => { const id = drawer.id; if (id) void loadDetail(id); }}>{tr('重新加载')} </Button> : undefined} /> : null}
+          {detailLoading ? <div className="freight-fee-detail-loading">{tr('加载中…')} </div> : null}
           {detail ? (
             <Space direction="vertical" size="large" className="freight-fee-full-width">
-              {detail.status === 'mismatch' ? <Alert type="warning" showIcon message="账单币种不一致，不会进入订单利润实账。" description={detail.reason} /> : null}
+              {detail.status === 'mismatch' ? <Alert type="warning" showIcon message={tr("账单币种不一致，不会进入订单利润实账。")} description={detail.reason} /> : null}
               <Descriptions bordered size="small" column={1}>
-                <Descriptions.Item label="订单号">{detail.orderNo}</Descriptions.Item>
-                <Descriptions.Item label="店铺">{shopNames.get(detail.shopId) || detail.shopId}</Descriptions.Item>
-                <Descriptions.Item label="承运商">{detail.carrier}</Descriptions.Item>
-                <Descriptions.Item label="运单号">{detail.trackingNo}</Descriptions.Item>
-                <Descriptions.Item label="费用编号">{detail.externalLineId}</Descriptions.Item>
-                <Descriptions.Item label="账单实额">{formatProfitAmount(detail.amountMinor, detail.currency)}</Descriptions.Item>
-                <Descriptions.Item label="调整净额">{formatProfitAmount(detail.netAmountMinor, detail.currency)}</Descriptions.Item>
-                <Descriptions.Item label="订单币种">{detail.orderCurrency}</Descriptions.Item>
-                <Descriptions.Item label="账单时间">{formatDateTime(detail.billedAt)}</Descriptions.Item>
-                <Descriptions.Item label="导入批次">{detail.importId}</Descriptions.Item>
+                <Descriptions.Item label={tr("订单号")}>{detail.orderNo}</Descriptions.Item>
+                <Descriptions.Item label={tr("店铺")}>{shopNames.get(detail.shopId) || detail.shopId}</Descriptions.Item>
+                <Descriptions.Item label={tr("承运商")}>{detail.carrier}</Descriptions.Item>
+                <Descriptions.Item label={tr("运单号")}>{detail.trackingNo}</Descriptions.Item>
+                <Descriptions.Item label={tr("费用编号")}>{detail.externalLineId}</Descriptions.Item>
+                <Descriptions.Item label={tr("账单实额")}>{formatProfitAmount(detail.amountMinor, detail.currency)}</Descriptions.Item>
+                <Descriptions.Item label={tr("调整净额")}>{formatProfitAmount(detail.netAmountMinor, detail.currency)}</Descriptions.Item>
+                <Descriptions.Item label={tr("订单币种")}>{detail.orderCurrency}</Descriptions.Item>
+                <Descriptions.Item label={tr("账单时间")}>{formatDateTime(detail.billedAt)}</Descriptions.Item>
+                <Descriptions.Item label={tr("导入批次")}>{detail.importId}</Descriptions.Item>
               </Descriptions>
               <Space wrap>
-                {canManage ? <Button type="primary" icon={<PlusOutlined />} onClick={() => openAdjustment('adjust')}>追加调整</Button> : null}
-                <Typography.Text type="secondary">调整使用整数最小单位；净额不能小于零。</Typography.Text>
+                {canManage ? <Button type="primary" icon={<PlusOutlined />} onClick={() => openAdjustment('adjust')}>{tr('追加调整')} </Button> : null}
+                <Typography.Text type="secondary">{tr('调整使用整数最小单位；净额不能小于零。')} </Typography.Text>
               </Space>
               <Table<FreightAdjustment>
                 rowKey="id"
                 size="small"
                 pagination={false}
                 dataSource={detail.adjustments || []}
-                locale={{ emptyText: '暂无更正事实' }}
+                locale={{ emptyText: tr('暂无更正事实') }}
                 columns={[
-                  { title: '类型', dataIndex: 'factType', width: 95, render: (value) => value === 'reversal' ? '冲正' : '调整' },
-                  { title: '金额', dataIndex: 'amountMinor', width: 135, render: (value, row) => formatProfitAmount(value, row.currency) },
-                  { title: '原因', dataIndex: 'reason', ellipsis: true },
-                  { title: '时间', dataIndex: 'createdAt', width: 165, render: (value) => formatDateTime(value) },
+                  { title: tr('类型'), dataIndex: 'factType', width: 95, render: (value) => value === 'reversal' ? tr('冲正') : tr('调整') },
+                  { title: tr('金额'), dataIndex: 'amountMinor', width: 135, render: (value, row) => formatProfitAmount(value, row.currency) },
+                  { title: tr('原因'), dataIndex: 'reason', ellipsis: true },
+                  { title: tr('时间'), dataIndex: 'createdAt', width: 165, render: (value) => formatDateTime(value) },
                   {
-                    title: '操作', width: 92,
+                    title: tr('操作'), width: 92,
                     render: (_, row) => canManage && row.factType === 'adjustment' ? (
-                      <Button type="link" icon={<RollbackOutlined />} onClick={() => openAdjustment('reverse', row)}>冲正</Button>
+                      <Button type="link" icon={<RollbackOutlined />} onClick={() => openAdjustment('reverse', row)}>{tr('冲正')} </Button>
                     ) : null,
                   },
                 ]}
@@ -490,23 +493,23 @@ export default function FreightFeesPage() {
         </Drawer>
 
         <Modal
-          title={adjustmentMode === 'adjust' ? '追加运费调整' : '冲正调整'}
+          title={adjustmentMode === 'adjust' ? tr('追加运费调整') : tr('冲正调整')}
           open={adjustmentOpen}
           confirmLoading={adjusting}
           closable={!adjusting}
           keyboard={!adjusting}
           maskClosable={!adjusting}
-          okText={adjustmentMode === 'adjust' ? '追加' : '确认冲正'}
+          okText={adjustmentMode === 'adjust' ? tr('追加') : tr('确认冲正')}
           onCancel={() => { if (!adjusting) setAdjustmentOpen(false); }}
           onOk={() => adjustmentForm.submit()}
         >
           <Form form={adjustmentForm} layout="vertical" onFinish={(values) => void submitAdjustment(values)}>
             {adjustmentMode === 'adjust' ? (
-              <Form.Item name="amountMinor" label={`调整金额（${detail?.currency || ''} 最小单位，可正可负）`} rules={[{ required: true, message: '请输入非零整数金额' }]}>
+              <Form.Item name="amountMinor" label={trFormat('调整金额（{currency} 最小单位，可正可负）', { currency: detail?.currency || '' })} rules={[{ required: true, message: tr('请输入非零整数金额') }]}>
                 <InputNumber className="freight-fee-full-width" precision={0} min={-Number.MAX_SAFE_INTEGER} max={Number.MAX_SAFE_INTEGER} />
               </Form.Item>
-            ) : <Alert type="warning" message={`将追加 ${reverseTarget ? formatProfitAmount(-Number(reverseTarget.amountMinor), reverseTarget.currency) : ''} 的冲正事实。`} />}
-            <Form.Item name="reason" label="更正原因" rules={[{ required: true, min: 2, max: 500, whitespace: true, message: '请输入 2 至 500 个字符的原因' }]}>
+            ) : <Alert type="warning" message={trFormat('将追加 {amount} 的冲正事实', { amount: reverseTarget ? formatProfitAmount(-Number(reverseTarget.amountMinor), reverseTarget.currency) : '' })} />}
+            <Form.Item name="reason" label={tr("更正原因")} rules={[{ required: true, min: 2, max: 500, whitespace: true, message: tr('请输入 2 至 500 个字符的原因') }]}>
               <Input.TextArea rows={3} maxLength={500} showCount />
             </Form.Item>
           </Form>

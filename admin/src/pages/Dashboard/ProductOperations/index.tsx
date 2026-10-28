@@ -1,5 +1,5 @@
 import { useLanguage } from '@/i18n/useLanguage';
-import { tr } from '@/i18n';
+import { tr, trFormat } from '@/i18n';
 import {
   ArrowRightOutlined,
   CheckCircleOutlined,
@@ -71,24 +71,24 @@ const { RangePicker } = DatePicker;
 
 const SOURCE_OPTIONS = [
   { label: '1688', value: '1688' },
-  { label: '拼多多', value: 'pinduoduo' },
-  { label: '自定义链接', value: 'custom' },
-  { label: '速卖通', value: 'aliexpress' },
-  { label: '手动创建', value: 'manual' },
+  { get label() { return tr("拼多多"); }, value: 'pinduoduo' },
+  { get label() { return tr("自定义链接"); }, value: 'custom' },
+  { get label() { return tr("速卖通"); }, value: 'aliexpress' },
+  { get label() { return tr("手动创建"); }, value: 'manual' },
 ];
 
 const RECENT_TYPE_META: Record<string, { icon: ReactNode; color: string; bg: string }> = {
-  采集: { icon: <CloudUploadOutlined />, color: 'var(--ant-color-primary)', bg: 'var(--ant-color-primary-bg)' },
-  'AI 文本': { icon: <RobotOutlined />, color: 'var(--tm-ai-accent)', bg: 'var(--ant-color-primary-bg)' },
-  'AI 批次': { icon: <FileTextOutlined />, color: 'var(--tm-ai-accent)', bg: 'var(--ant-color-primary-bg)' },
-  'AI 图片': { icon: <PictureOutlined />, color: 'var(--ant-color-info)', bg: 'var(--ant-color-info-bg)' },
-  刊登: { icon: <ShopOutlined />, color: 'var(--ant-color-success)', bg: 'var(--ant-color-success-bg)' },
-  库存: { icon: <WarningOutlined />, color: 'var(--ant-color-warning)', bg: 'var(--ant-color-warning-bg)' },
-  刊登失败: { icon: <ShopOutlined />, color: 'var(--ant-color-error)', bg: 'var(--ant-color-error-bg)' },
-  库存同步失败: { icon: <WarningOutlined />, color: 'var(--ant-color-error)', bg: 'var(--ant-color-error-bg)' },
-  采集失败: { icon: <CloudUploadOutlined />, color: 'var(--ant-color-error)', bg: 'var(--ant-color-error-bg)' },
-  告警: { icon: <NotificationOutlined />, color: 'var(--ant-color-warning)', bg: 'var(--ant-color-warning-bg)' },
-  失败: { icon: <WarningOutlined />, color: 'var(--ant-color-error)', bg: 'var(--ant-color-error-bg)' },
+  collect: { icon: <CloudUploadOutlined />, color: 'var(--ant-color-primary)', bg: 'var(--ant-color-primary-bg)' },
+  ai_text: { icon: <RobotOutlined />, color: 'var(--tm-ai-accent)', bg: 'var(--ant-color-primary-bg)' },
+  ai_batch: { icon: <FileTextOutlined />, color: 'var(--tm-ai-accent)', bg: 'var(--ant-color-primary-bg)' },
+  ai_image: { icon: <PictureOutlined />, color: 'var(--ant-color-info)', bg: 'var(--ant-color-info-bg)' },
+  publish: { icon: <ShopOutlined />, color: 'var(--ant-color-success)', bg: 'var(--ant-color-success-bg)' },
+  inventory: { icon: <WarningOutlined />, color: 'var(--ant-color-warning)', bg: 'var(--ant-color-warning-bg)' },
+  publish_failed: { icon: <ShopOutlined />, color: 'var(--ant-color-error)', bg: 'var(--ant-color-error-bg)' },
+  inventory_sync_failed: { icon: <WarningOutlined />, color: 'var(--ant-color-error)', bg: 'var(--ant-color-error-bg)' },
+  collect_failed: { icon: <CloudUploadOutlined />, color: 'var(--ant-color-error)', bg: 'var(--ant-color-error-bg)' },
+  alert: { icon: <NotificationOutlined />, color: 'var(--ant-color-warning)', bg: 'var(--ant-color-warning-bg)' },
+  failed: { icon: <WarningOutlined />, color: 'var(--ant-color-error)', bg: 'var(--ant-color-error-bg)' },
 };
 
 const ellipsizedText: React.CSSProperties = {
@@ -163,7 +163,7 @@ function RecentActivityRow({
             bordered={false}
             style={{ margin: 0, background: meta.bg, color: meta.color, fontSize: 12 }}
           >
-            {bucket}
+            {recentTypeLabel(bucket)}
           </Tag>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {formatDateTime(item.occurredAt)}
@@ -192,24 +192,41 @@ function RecentActivityRow({
           history.push(appendSourceToUrl(item.link));
         }}
       >
-        查看
+        {tr('查看')}
       </Button>
     </div>
   );
 }
 
-const RECENT_TYPE_LABEL: Record<string, string> = {
-  collect: '采集',
-  ai_task: 'AI 文本',
-  ai_batch: 'AI 批次',
-  image_task: 'AI 图片',
-  product_publish: '刊登',
-  inventory_alert: '库存',
-  failed_publish: '刊登失败',
-  failed_inventory_sync: '库存同步失败',
-  failed_collect: '采集失败',
-  task_alert: '告警',
+const RECENT_TYPE_KEY: Record<string, string> = {
+  collect: 'collect',
+  ai_task: 'ai_text',
+  ai_batch: 'ai_batch',
+  image_task: 'ai_image',
+  product_publish: 'publish',
+  inventory_alert: 'inventory',
+  failed_publish: 'publish_failed',
+  failed_inventory_sync: 'inventory_sync_failed',
+  failed_collect: 'collect_failed',
+  task_alert: 'alert',
 };
+
+function recentTypeLabel(bucket: string): string {
+  switch (bucket) {
+    case 'collect': return tr('采集');
+    case 'ai_text': return tr('AI 文本');
+    case 'ai_batch': return tr('AI 批次');
+    case 'ai_image': return tr('AI 图片');
+    case 'publish': return tr('刊登');
+    case 'inventory': return tr('库存');
+    case 'publish_failed': return tr('刊登失败');
+    case 'inventory_sync_failed': return tr('库存同步失败');
+    case 'collect_failed': return tr('采集失败');
+    case 'alert': return tr('告警');
+    case 'failed': return tr('失败');
+    default: return tr('AI 图片');
+  }
+}
 
 const TODO_ACTION_LABEL: Record<string, string> = {
   missing_ai_title: '去优化',
@@ -277,7 +294,7 @@ function parseRange(start?: string, end?: string): [Dayjs, Dayjs] | undefined {
 }
 
 function TodoCardItem({ item }: { item: DashboardTodo }) {
-  const actionLabel = TODO_ACTION_LABEL[item.key] ?? '去处理';
+  const actionLabel = tr(TODO_ACTION_LABEL[item.key] ?? '去处理');
   const hasCount = (item.count ?? 0) > 0;
   return (
     <ProCard
@@ -287,7 +304,7 @@ function TodoCardItem({ item }: { item: DashboardTodo }) {
     >
       <Space direction="vertical" size={8} style={{ width: '100%' }}>
         <Space align="center" style={{ justifyContent: 'space-between', width: '100%' }}>
-          <Typography.Text strong>{item.title}</Typography.Text>
+          <Typography.Text strong>{tr(item.title)}</Typography.Text>
           <Typography.Title level={3} style={{ margin: 0 }}>
             {item.count ?? 0}
           </Typography.Title>
@@ -313,19 +330,19 @@ function ExceptionRow({ item }: { item: DashboardException }) {
         <Col flex="auto">
           <Space direction="vertical" size={6}>
             <Space>
-              <Typography.Text strong>{item.title}</Typography.Text>
+            <Typography.Text strong>{tr(item.title)}</Typography.Text>
               <Tag color={item.count > 0 ? 'error' : 'default'}>{item.count ?? 0}</Tag>
             </Space>
             {item.lastOccurredAt ? (
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                最近：{formatDateTime(item.lastOccurredAt)}
+                {trFormat('最近：{value0}', { value0: formatDateTime(item.lastOccurredAt) })}
               </Typography.Text>
             ) : null}
           </Space>
         </Col>
         <Col>
           <Button type="link" icon={<ArrowRightOutlined />}>
-            去处理
+            {tr('去处理')}
           </Button>
         </Col>
       </Row>
@@ -350,7 +367,7 @@ const QUICK_LINK_META: Record<string, { icon: ReactNode; color: string; bg: stri
 
 const QUICK_LINK_GROUPS: { label: string; links: string[] }[] = [
   {
-    label: '商品运营',
+    get label() { return tr("商品运营"); },
     links: [
       '/collect/hub',
       '/product/drafts',
@@ -364,7 +381,7 @@ const QUICK_LINK_GROUPS: { label: string; links: string[] }[] = [
     links: ['/ai/text-batches', '/ai/image-tasks'],
   },
   {
-    label: '运维与设置',
+    get label() { return tr("运维与设置"); },
     links: [
       '/ops/task-center/failures',
       '/orders/exceptions',
@@ -481,75 +498,75 @@ function buildKpiCards(summary: DashboardSummary): {
 }[] {
   return [
     {
-      title: '今日采集任务',
+      title: tr("今日采集任务"),
       value: summary.collectFailedCount ?? 0,
       link: '/collect/tasks',
       intent: 'data',
-      emptyHint: '暂无采集任务',
+      emptyHint: tr('暂无采集任务'),
     },
     {
       title: tr("商品草稿"),
       value: summary.draftTotal ?? summary.draftProducts + summary.readyProducts,
       link: '/product/drafts',
-      emptyHint: '还没有商品草稿',
+      emptyHint: tr('还没有商品草稿'),
     },
     {
-      title: 'AI 待复核',
+      title: tr("AI 待复核"),
       value: (summary.aiPendingProducts ?? 0) + (summary.aiReplySuggestionPendingCount ?? 0),
       link: '/ai/operation-workbench',
       intent: 'ai',
-      emptyHint: '暂无待复核项',
+      emptyHint: tr('暂无待复核项'),
     },
     {
-      title: '发布检查问题',
+      title: tr("发布检查问题"),
       value: summary.readinessBlocked ?? summary.readinessBlockedProducts ?? 0,
       link: '/product/drafts?readiness=blocked',
       intent: 'warning',
-      emptyHint: '发布检查均通过',
+      emptyHint: tr('发布检查均通过'),
     },
     {
-      title: '刊登任务异常',
+      title: tr("刊登任务异常"),
       value: summary.publishFailedTasks ?? 0,
       link: '/product/publish-tasks?status=failed',
       intent: 'danger',
-      emptyHint: '暂无刊登异常',
+      emptyHint: tr('暂无刊登异常'),
     },
     {
-      title: '订单异常',
+      title: tr("订单异常"),
       value: summary.orderExceptions ?? summary.orderExceptionTotal ?? 0,
       link: '/orders/exceptions',
       intent: 'danger',
-      emptyHint: '暂无订单异常',
+      emptyHint: tr('暂无订单异常'),
     },
     {
-      title: '库存异常',
+      title: tr("库存异常"),
       value:
         (summary.inventoryAlerts ?? summary.lowStockSkus + summary.outOfStockSkus) +
         (summary.inventorySyncFailedCount ?? 0),
       link: '/inventory/alerts',
       intent: 'danger',
-      emptyHint: '库存状态正常',
+      emptyHint: tr('库存状态正常'),
     },
     {
-      title: '客服待回复',
+      title: tr("客服待回复"),
       value: summary.customerPendingReplyCount ?? summary.customerPendingConversations ?? 0,
       link: '/customer/conversations?status=pending_reply',
       intent: 'data',
-      emptyHint: '暂无待回复会话',
+      emptyHint: tr('暂无待回复会话'),
     },
     {
-      title: '失败任务',
+      title: tr("失败任务"),
       value: summary.failedTaskTotal ?? summary.failedTasks ?? 0,
       link: '/ops/task-center/failures',
       intent: 'danger',
-      emptyHint: '暂无失败任务',
+      emptyHint: tr('暂无失败任务'),
     },
     {
-      title: '配置风险',
+      title: tr("配置风险"),
       value: summary.configRiskCount ?? 0,
       link: '/settings/config-status',
       intent: 'warning',
-      emptyHint: '核心配置已完成',
+      emptyHint: tr('核心配置已完成'),
     },
   ];
 }
@@ -559,17 +576,17 @@ function mergeRecentItems(
 ): (DashboardRecentItem & { bucket: string })[] {
   if (!recent) return [];
   const buckets: { items: DashboardRecentItem[]; label: string }[] = [
-    { items: recent.collectedProducts ?? [], label: tr("采集") },
-    { items: recent.aiTasks ?? [], label: 'AI 文本' },
-    { items: recent.imageTasks ?? [], label: 'AI 图片' },
-    { items: recent.publishTasks ?? [], label: '刊登' },
-    { items: recent.failedTasks ?? [], label: '失败' },
+    { items: recent.collectedProducts ?? [], label: 'collect' },
+    { items: recent.aiTasks ?? [], label: 'ai_text' },
+    { items: recent.imageTasks ?? [], label: 'ai_image' },
+    { items: recent.publishTasks ?? [], label: 'publish' },
+    { items: recent.failedTasks ?? [], label: 'failed' },
   ];
   return buckets
     .flatMap(({ items, label }) =>
       items.map((x) => ({
         ...x,
-        bucket: RECENT_TYPE_LABEL[x.type] ?? label,
+        bucket: RECENT_TYPE_KEY[x.type] ?? label,
       })),
     )
     .sort((a, b) => dayjs(b.occurredAt).valueOf() - dayjs(a.occurredAt).valueOf())
@@ -832,10 +849,10 @@ export default function ProductOperationsDashboardPage() {
   }, [autoRefresh, loadBoard]);
 
   const welcomeActions: { label: string; icon: ReactNode; link: string }[] = [
-    { label: '采集商品', icon: <CloudUploadOutlined />, link: '/collect/hub' },
+    { label: tr("采集商品"), icon: <CloudUploadOutlined />, link: '/collect/hub' },
     { label: tr("批量 AI 优化"), icon: <RobotOutlined />, link: '/ai/text-batches' },
-    { label: 'AI 图片任务', icon: <PictureOutlined />, link: '/ai/image-tasks' },
-    { label: '查看发布检查', icon: <SafetyCertificateOutlined />, link: '/product/drafts?readiness=blocked' },
+    { label: tr("AI 图片任务"), icon: <PictureOutlined />, link: '/ai/image-tasks' },
+    { label: tr("查看发布检查"), icon: <SafetyCertificateOutlined />, link: '/product/drafts?readiness=blocked' },
   ];
 
   return (
@@ -851,10 +868,10 @@ export default function ProductOperationsDashboardPage() {
             size="small"
             onClick={() => setAutoRefresh((v) => !v)}
           >
-            {autoRefresh ? '自动刷新中' : '已暂停自动刷新'}
+            {autoRefresh ? tr('自动刷新中') : tr('已暂停自动刷新')}
           </Button>
           <Button icon={<ReloadOutlined />} onClick={doRefresh} loading={loading}>
-            重新加载
+            {tr('重新加载')}
           </Button>
         </OperationToolbar>
       }
@@ -866,11 +883,11 @@ export default function ProductOperationsDashboardPage() {
             value={filters.range}
             onChange={(v) => setFilters((f) => ({ ...f, range: v as [Dayjs, Dayjs] | undefined }))}
             allowClear
-            placeholder={['开始日期', '结束日期']}
+            placeholder={[tr('开始日期'), tr('结束日期')]}
           />
           <Select
             allowClear
-            placeholder="平台"
+            placeholder={tr("平台")}
             style={{ width: 140 }}
             options={PLATFORM_OPTIONS}
             value={filters.platform}
@@ -891,7 +908,7 @@ export default function ProductOperationsDashboardPage() {
           />
           <Select
             allowClear
-            placeholder="商品来源"
+            placeholder={tr("商品来源")}
             style={{ width: 140 }}
             options={SOURCE_OPTIONS}
             value={filters.source}
@@ -908,7 +925,7 @@ export default function ProductOperationsDashboardPage() {
               clearUrlState(DASHBOARD_QUERY_KEYS, { replace: true });
             }}
           >
-            重置筛选
+            {tr('重置筛选')}
           </Button>
         </Space>
       </ProCard>
@@ -916,11 +933,11 @@ export default function ProductOperationsDashboardPage() {
       {error ? (
         <Result
           status="error"
-          title="看板数据加载失败，请稍后重试"
-          subTitle={error instanceof Error ? error.message : '网络或服务异常'}
+          title={tr("看板数据加载失败，请稍后重试")}
+          subTitle={error instanceof Error ? error.message : tr('网络或服务异常')}
           extra={
             <Button type="primary" onClick={doRefresh}>
-              重新加载
+              {tr('重新加载')}
             </Button>
           }
         />
@@ -933,7 +950,7 @@ export default function ProductOperationsDashboardPage() {
             <Row align="middle" gutter={[16, 16]} wrap style={{ marginBottom: 20 }}>
               <Col flex="auto">
                 <Typography.Title level={4} style={{ margin: 0 }}>
-                  今日商品运营概览
+                  {tr('今日商品运营概览')}
                 </Typography.Title>
               </Col>
               <Col>
@@ -962,7 +979,7 @@ export default function ProductOperationsDashboardPage() {
           </ProCard>
 
           {/* 2. 今日待办 */}
-          <ProCard title="今日待办" variant="outlined" style={{ marginBottom: 16 }}>
+          <ProCard title={tr("今日待办")} variant="outlined" style={{ marginBottom: 16 }}>
             <Row gutter={[16, 16]}>
               {todos.map((item) => (
                 <Col xs={24} sm={12} md={8} lg={6} xl={6} key={item.key || item.id}>
@@ -975,14 +992,14 @@ export default function ProductOperationsDashboardPage() {
           <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
             {/* 4. AI 商品运营进度漏斗 */}
             <Col xs={24} lg={10}>
-              <ProCard title="AI 商品运营进度" variant="outlined" bodyStyle={{ padding: '16px 20px 12px' }}>
+              <ProCard title={tr("AI 商品运营进度")} variant="outlined" bodyStyle={{ padding: '16px 20px 12px' }}>
                 <FunnelSteps steps={funnelSteps} />
               </ProCard>
             </Col>
 
             {/* 5. 异常与失败提醒 */}
             <Col xs={24} lg={14}>
-              <ProCard title="异常与失败提醒" variant="outlined">
+              <ProCard title={tr("异常与失败提醒")} variant="outlined">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {exceptions.map((item) => (
                     <ExceptionRow key={item.key} item={item} />
@@ -993,7 +1010,7 @@ export default function ProductOperationsDashboardPage() {
           </Row>
 
           {/* 最近动态 */}
-          <ProCard title="最近动态" variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px 16px' }}>
+          <ProCard title={tr("最近动态")} variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ padding: '12px 16px 16px' }}>
             {recentFlat.length ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {recentFlat.map((item, idx) => (
@@ -1010,7 +1027,7 @@ export default function ProductOperationsDashboardPage() {
           </ProCard>
 
           {/* 快捷入口 */}
-          <ProCard title="快捷入口" variant="outlined" bodyStyle={{ padding: '16px 20px 20px' }}>
+          <ProCard title={tr("快捷入口")} variant="outlined" bodyStyle={{ padding: '16px 20px 20px' }}>
             <QuickLinkGroups links={quickLinks} />
           </ProCard>
         </>

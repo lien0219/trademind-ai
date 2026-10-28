@@ -4,6 +4,13 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Six-language Admin localization and tenant branding (2026-10-28)
+
+- Completed the strict Admin source audit with six-locale coverage, dynamic language-switch labels, localized API error guidance, and regression checks that preserve raw business identifiers and diagnostics.
+- Connected tenant branding to the workspace header, including tenant-scoped refresh after save and restore, HTTPS-only custom logos, and responsive header coverage.
+- Hardened the existing internationalization audit and made its CI job install pinned workspace dependencies before the strict inventory and changed-line checks.
+- Local acceptance passed for 340 Admin source files with zero strict-audit candidates, Admin Vitest, TypeScript, production build, and localization browser scenarios. Umi/renderer was upgraded to `4.7.28` with exact patched dependency overrides; the production dependency audit is now 0 Critical/0 High, with 22 Moderate and 8 Low findings remaining. Full production-preview E2E and external security acceptance remain tracked in the current acceptance report.
+
 ### User and permission security maintenance (2026-10-24)
 
 - Added a consistent 12–72 character ASCII password policy for new credentials, secure local password generation and explicit copying, including one-time reset credentials.

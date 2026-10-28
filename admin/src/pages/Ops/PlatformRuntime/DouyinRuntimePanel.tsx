@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 import {
   ApiOutlined,
   BellOutlined,
@@ -59,23 +60,23 @@ import styles from './index.less';
 const { Text, Paragraph } = Typography;
 
 const HEALTH_META: Record<HealthLayerStatus, { color: string; text: string }> = {
-  healthy: { color: 'success', text: '正常' },
-  degraded: { color: 'warning', text: '需检查' },
-  unhealthy: { color: 'error', text: '异常' },
-  disabled: { color: 'default', text: '已停用' },
+  healthy: { color: 'success', get text() { return tr("正常"); } },
+  degraded: { color: 'warning', get text() { return tr("需检查"); } },
+  unhealthy: { color: 'error', get text() { return tr("异常"); } },
+  disabled: { color: 'default', get text() { return tr("已停用"); } },
 };
 
 const GATE_META: Record<ReleaseGateStatus, { color: string; text: string }> = {
-  passed: { color: 'success', text: '通过' },
-  warning: { color: 'warning', text: '警告' },
-  failed: { color: 'error', text: '未通过' },
-  blocked: { color: 'default', text: '阻塞' },
-  not_checked: { color: 'default', text: '未检查' },
+  passed: { color: 'success', get text() { return tr("通过"); } },
+  warning: { color: 'warning', get text() { return tr("警告"); } },
+  failed: { color: 'error', get text() { return tr("未通过"); } },
+  blocked: { color: 'default', get text() { return tr("阻塞"); } },
+  not_checked: { color: 'default', get text() { return tr("未检查"); } },
 };
 
 function healthTag(status?: string) {
   const st = (status || '') as HealthLayerStatus;
-  const m = HEALTH_META[st] ?? { color: 'default', text: status || '未知' };
+  const m = HEALTH_META[st] ?? { color: 'default', text: status || tr("未知") };
   return (
     <Tag color={m.color} style={{ margin: 0 }}>
       {m.text}
@@ -85,7 +86,7 @@ function healthTag(status?: string) {
 
 function gateTag(status?: string) {
   const st = (status || '') as ReleaseGateStatus;
-  const m = GATE_META[st] ?? { color: 'default', text: status || '未知' };
+  const m = GATE_META[st] ?? { color: 'default', text: status || tr("未知") };
   return (
     <Tag color={m.color} style={{ margin: 0 }}>
       {m.text}
@@ -96,13 +97,13 @@ function gateTag(status?: string) {
 function runtimeStatusTag(status?: string) {
   switch (status) {
     case 'normal':
-      return <Tag color="success">正常运行</Tag>;
+      return <Tag color="success">{tr("正常运行")}</Tag>;
     case 'paused':
-      return <Tag color="warning">已暂停</Tag>;
+      return <Tag color="warning">{tr("已暂停")}</Tag>;
     case 'emergency_disabled':
-      return <Tag color="error">紧急停用</Tag>;
+      return <Tag color="error">{tr("紧急停用")}</Tag>;
     default:
-      return <Tag>等待数据</Tag>;
+      return <Tag>{tr("等待数据")}</Tag>;
   }
 }
 
@@ -140,7 +141,7 @@ const DOUYIN_TASK_HEALTH_DETAIL_ORDER = [
 ] as const;
 
 function douyinTaskHealthDetailLabel(key: string): string {
-  return DOUYIN_TASK_HEALTH_DETAIL_LABEL[key] || key;
+  return tr(DOUYIN_TASK_HEALTH_DETAIL_LABEL[key] || key);
 }
 
 type IssueRow = {
@@ -162,7 +163,7 @@ function buildIssues(health: DouyinHealth | null, metrics: DouyinMetricsSummary 
   if (num('stale24h') > 0) {
     rows.push({
       key: 'stale',
-      label: '任务执行时间过长',
+      label: tr("任务执行时间过长"),
       count: num('stale24h'),
       href: failuresHref({ platform: 'douyin_shop', recoveryStatus: 'stale' }),
       severity: 'warning',
@@ -198,7 +199,7 @@ function buildIssues(health: DouyinHealth | null, metrics: DouyinMetricsSummary 
   if ((metrics?.recoveryFailedTotal ?? 0) > 0) {
     rows.push({
       key: 'recovery_failed',
-      label: '恢复失败',
+      label: tr("恢复失败"),
       count: metrics!.recoveryFailedTotal,
       href: failuresHref({ platform: 'douyin_shop', recoveryStatus: 'recovery_failed' }),
       severity: 'error',
@@ -207,7 +208,7 @@ function buildIssues(health: DouyinHealth | null, metrics: DouyinMetricsSummary 
   if ((metrics?.tokenRefreshFailedTotal ?? 0) >= 3) {
     rows.push({
       key: 'token_refresh',
-      label: '访问令牌刷新失败（24h）',
+      label: tr("访问令牌刷新失败（24h）"),
       count: metrics!.tokenRefreshFailedTotal,
       href: '/shops/manage',
       severity: 'warning',
@@ -216,7 +217,7 @@ function buildIssues(health: DouyinHealth | null, metrics: DouyinMetricsSummary 
   if (health?.auth?.status === 'unhealthy') {
     rows.push({
       key: 'auth_expired',
-      label: health.auth.label || '店铺授权异常',
+      label: health.auth.label || tr("店铺授权异常"),
       count: Number(td.expiredShops) || 0,
       href: '/shops/manage',
       severity: 'error',
@@ -251,7 +252,7 @@ function HealthSectionCard({
     >
       {section ? (
         <Space direction="vertical" size={10} className={styles.healthCardBody}>
-          <Text className={styles.healthSummary}>{section.label}</Text>
+          <Text className={styles.healthSummary}>{tr(section.label)}</Text>
           {extra}
           {section.details && Object.keys(section.details).length > 0 ? (
             <TechnicalDetails>
@@ -262,60 +263,60 @@ function HealthSectionCard({
           ) : null}
         </Space>
       ) : (
-        <Text type="secondary">暂无数据</Text>
+        <Text type="secondary">{tr("暂无数据")}</Text>
       )}
     </SectionCard>
   );
 }
 
 function MetricsGrid({ metrics }: { metrics: DouyinMetricsSummary | null }) {
-  if (!metrics) return <Text type="secondary">正在载入指标...</Text>;
+  if (!metrics) return <Text type="secondary">{tr("正在载入指标...")}</Text>;
   const items = [
-    { title: '接口请求', value: metrics.apiRequestsTotal, tone: 'default' },
+    { title: tr("接口请求"), value: metrics.apiRequestsTotal, tone: 'default' },
     {
-      title: '接口成功率',
+      title: tr("接口成功率"),
       value: `${metrics.apiSuccessRate.toFixed(1)}%`,
       tone: 'success',
     },
     {
-      title: '停滞标记',
+      title: tr("停滞标记"),
       value: metrics.staleTasksTotal,
       tone: metrics.staleTasksTotal > 0 ? 'warning' : 'default',
     },
-    { title: '恢复成功', value: metrics.recoverySuccessTotal, tone: 'success' },
+    { title: tr("恢复成功"), value: metrics.recoverySuccessTotal, tone: 'success' },
     {
-      title: '恢复失败',
+      title: tr("恢复失败"),
       value: metrics.recoveryFailedTotal,
       tone: metrics.recoveryFailedTotal > 0 ? 'danger' : 'default',
     },
     {
-      title: '草稿创建',
+      title: tr("草稿创建"),
       value: metrics.productDraftCreateTotal,
       tone: 'default',
     },
     {
-      title: '草稿失败',
+      title: tr("草稿失败"),
       value: metrics.productDraftCreateFailedTotal,
       tone: metrics.productDraftCreateFailedTotal > 0 ? 'danger' : 'default',
     },
-    { title: '订单拉取', value: metrics.orderFetchedTotal, tone: 'default' },
+    { title: tr("订单拉取"), value: metrics.orderFetchedTotal, tone: 'default' },
     {
-      title: '库存同步成功',
+      title: tr("库存同步成功"),
       value: metrics.inventorySyncSuccessTotal,
       tone: 'success',
     },
     {
-      title: '库存同步失败',
+      title: tr("库存同步失败"),
       value: metrics.inventorySyncFailedTotal,
       tone: metrics.inventorySyncFailedTotal > 0 ? 'danger' : 'default',
     },
     {
-      title: '待处理失败',
+      title: tr("待处理失败"),
       value: metrics.failureTasksPending,
       tone: metrics.failureTasksPending > 0 ? 'danger' : 'default',
     },
     {
-      title: '限流次数',
+      title: tr("限流次数"),
       value: metrics.apiRateLimitedTotal,
       tone: metrics.apiRateLimitedTotal > 0 ? 'warning' : 'default',
     },
@@ -332,13 +333,13 @@ function MetricsGrid({ metrics }: { metrics: DouyinMetricsSummary | null }) {
 }
 
 function ReleaseGatePanel({ gate }: { gate: DouyinReleaseGate | null }) {
-  if (!gate) return <Text type="secondary">正在载入门禁清单...</Text>;
+  if (!gate) return <Text type="secondary">{tr("正在载入门禁清单...")}</Text>;
   return (
     <Space direction="vertical" size={12} className={styles.releaseGatePanel}>
       <Space wrap className={styles.releaseGateSummary}>
-        <Text strong>发布结论</Text>
+        <Text strong>{tr("发布结论")}</Text>
         <Tag color="processing">{releaseGateConclusionLabel(gate.overallConclusion)}</Tag>
-        <Text type="secondary">检查时间：{formatDateTime(gate.checkedAt)}</Text>
+        <Text type="secondary">{tr("检查时间：")}{formatDateTime(gate.checkedAt)}</Text>
       </Space>
       <List<DouyinReleaseGateItem>
         size="small"
@@ -387,7 +388,7 @@ export default function DouyinRuntimePanel() {
       setLoadError(false);
     } catch (e: unknown) {
       setLoadError(true);
-      message.error((e as Error)?.message || '加载运行状态失败');
+      message.error((e as Error)?.message || tr('加载运行状态失败'));
     } finally {
       setLoading(false);
     }
@@ -401,19 +402,19 @@ export default function DouyinRuntimePanel() {
 
   const confirmRuntimeChange = (title: string, onOk: () => Promise<void>) => {
     if (!reason.trim()) {
-      message.warning('请填写变更原因');
+      message.warning(tr("请填写变更原因"));
       return;
     }
     Modal.confirm({
-      title,
+      title: tr(title),
       content: (
         <div>
-          <Paragraph type="secondary">此操作将影响抖店任务执行，请确认原因已记录。</Paragraph>
-          <Text>原因：{reason}</Text>
+          <Paragraph type="secondary">{tr("此操作将影响抖店任务执行，请确认原因已记录。")}</Paragraph>
+          <Text>{tr("原因：")}{reason}</Text>
         </div>
       ),
-      okText: '确认',
-      cancelText: '取消',
+      okText: tr("确认"),
+      cancelText: tr("取消"),
       onOk,
     });
   };
@@ -423,11 +424,11 @@ export default function DouyinRuntimePanel() {
     try {
       const h = await runDouyinHealthCheck();
       setHealth(h);
-      message.success('健康检查完成，已触发告警扫描');
+      message.success(tr("健康检查完成，已触发告警扫描"));
       const g = await getDouyinReleaseGate();
       setGate(g);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '健康检查失败');
+      message.error((e as Error)?.message || tr('健康检查失败'));
     } finally {
       setHealthChecking(false);
     }
@@ -439,14 +440,14 @@ export default function DouyinRuntimePanel() {
       try {
         const res = await testStoragePublicAccess();
         if (res.ok) {
-          message.success(res.message || '存储公网访问正常');
+          message.success(res.message || tr('存储公网访问正常'));
         } else {
-          message.warning(res.message || '存储公网访问需检查');
+          message.warning(res.message || tr('存储公网访问需检查'));
         }
         const h = await getDouyinHealth();
         setHealth(h);
       } catch (e: unknown) {
-        message.error((e as Error)?.message || '存储公网访问测试失败');
+        message.error((e as Error)?.message || tr('存储公网访问测试失败'));
       } finally {
         setStorageTesting(false);
       }
@@ -465,50 +466,50 @@ export default function DouyinRuntimePanel() {
           <Alert
             showIcon
             type="error"
-            message="运行状态加载失败"
-            description="已保留当前页面内容，请检查后端服务后重试。"
+            message={tr("运行状态加载失败")}
+            description={tr("已保留当前页面内容，请检查后端服务后重试。")}
             action={
               <Button size="small" onClick={() => void loadAll()}>
-                重新加载
+                {tr("重新加载")}
               </Button>
             }
           />
         ) : null}
 
-        <section className={styles.statusOverview} data-status={health?.overallStatus ?? 'unknown'} aria-label="抖店运行概览">
+        <section className={styles.statusOverview} data-status={health?.overallStatus ?? 'unknown'} aria-label={tr("抖店运行概览")}>
           <div className={styles.statusMain}>
             <span className={styles.statusIcon} data-status={health?.overallStatus ?? 'unknown'}>
               {healthOverviewIcon(health?.overallStatus)}
             </span>
             <div className={styles.statusCopy}>
               <Text type="secondary" className={styles.statusEyebrow}>
-                抖店运行概览
+                {tr("抖店运行概览")}
               </Text>
               <div className={styles.statusTitleRow}>
                 <Text strong className={styles.statusTitle}>
-                  {health?.overallLabel || '等待状态数据'}
+                  {health?.overallLabel || tr("等待状态数据")}
                 </Text>
                 {healthTag(health?.overallStatus)}
               </div>
-              <Text type="secondary">{health?.checkedAt ? `最近检查：${formatDateTime(health.checkedAt)}` : '尚未完成健康检查'}</Text>
+              <Text type="secondary">{health?.checkedAt ? trFormat("最近检查：{value0}", { value0: formatDateTime(health.checkedAt) }) : tr("尚未完成健康检查")}</Text>
             </div>
           </div>
           <div className={styles.summaryActions}>
             <Space wrap size={8}>
               <Button type="primary" icon={<ReloadOutlined />} loading={healthChecking} onClick={() => void runHealthCheck()}>
-                运行健康检查
+                {tr("运行健康检查")}
               </Button>
-              <Tooltip title="刷新全部状态">
-                <Button aria-label="刷新全部状态" icon={<ReloadOutlined />} onClick={() => void loadAll()} loading={loading} />
+              <Tooltip title={tr("刷新全部状态")}>
+                <Button aria-label={tr("刷新全部状态")} icon={<ReloadOutlined />} onClick={() => void loadAll()} loading={loading} />
               </Tooltip>
               <Button icon={<BellOutlined />} onClick={() => history.push('/ops/task-center/alerts')}>
-                告警中心
+                {tr("告警中心")}
               </Button>
               <Button icon={<WarningOutlined />} onClick={() => history.push('/ops/task-center/failures?platform=douyin_shop')}>
-                失败任务
+                {tr("失败任务")}
               </Button>
               <Link to="/settings/platforms">
-                <Button icon={<SettingOutlined />}>平台接入设置</Button>
+                <Button icon={<SettingOutlined />}>{tr("平台接入设置")}</Button>
               </Link>
             </Space>
           </div>
@@ -517,84 +518,84 @@ export default function DouyinRuntimePanel() {
               className={styles.grayReleaseAlert}
               showIcon
               type="info"
-              message="灰度发布已启用"
+              message={tr("灰度发布已启用")}
               description={
                 <Space direction="vertical" size={4}>
                   <Text>
-                    写操作：{gray.writeOperationsEnabled ? '已开启' : '已关闭'} · 定时订单同步：
-                    {gray.scheduledOrderSyncEnabled ? '已开启' : '已关闭'} · 定时库存同步：
-                    {gray.scheduledInventorySyncEnabled ? '已开启' : '已关闭'}
+                    {tr("写操作：")}{gray.writeOperationsEnabled ? tr("已开启") : tr("已关闭")} {tr("· 定时订单同步：")}
+                    {gray.scheduledOrderSyncEnabled ? tr("已开启") : tr("已关闭")} {tr("· 定时库存同步：")}
+                    {gray.scheduledInventorySyncEnabled ? tr("已开启") : tr("已关闭")}
                   </Text>
-                  {gray.shopIds?.length ? <Text type="secondary">灰度店铺：{gray.shopIds.join(', ')}</Text> : <Text type="secondary">未配置灰度店铺列表</Text>}
+                  {gray.shopIds?.length ? <Text type="secondary">{tr("灰度店铺：")}{gray.shopIds.join(', ')}</Text> : <Text type="secondary">{tr("未配置灰度店铺列表")}</Text>}
                 </Space>
               }
             />
           ) : null}
         </section>
 
-        <SectionCard title="运行控制" description="暂停或紧急停用后，后台任务进程将不再调用抖店写接口。" className={styles.controlCard}>
+        <SectionCard title={tr("运行控制")} description={tr("暂停或紧急停用后，后台任务进程将不再调用抖店写接口。")} className={styles.controlCard}>
           <div className={styles.controlGrid}>
             <div className={styles.controlStatus} data-status={runtimeStatus ?? 'unknown'}>
-              <Text type="secondary">当前状态</Text>
+              <Text type="secondary">{tr("当前状态")}</Text>
               <div className={styles.controlStatusValue}>
                 {runtimeStatusTag(runtimeStatus)}
                 {runtime?.message ? <Text>{runtime.message}</Text> : null}
               </div>
-              {lastChangeReason ? <Text type="secondary">最近变更原因：{lastChangeReason}</Text> : null}
-              {lastChangedAt ? <Text type="secondary">变更时间：{formatDateTime(lastChangedAt)}</Text> : null}
+              {lastChangeReason ? <Text type="secondary">{tr("最近变更原因：")}{lastChangeReason}</Text> : null}
+              {lastChangedAt ? <Text type="secondary">{tr("变更时间：")}{formatDateTime(lastChangedAt)}</Text> : null}
             </div>
             <div className={styles.controlForm}>
               <div>
-                <Text strong>变更原因</Text>
+                <Text strong>{tr("变更原因")}</Text>
                 <Text type="secondary" className={styles.controlHint}>
-                  原因将随运行状态变更记录，提交前请确认影响范围。
+                  {tr("原因将随运行状态变更记录，提交前请确认影响范围。")}
                 </Text>
               </div>
-              <Input.TextArea rows={3} placeholder="填写本次操作原因（必填）" value={reason} onChange={(e) => setReason(e.target.value)} />
+              <Input.TextArea rows={3} placeholder={tr("填写本次操作原因（必填）")} value={reason} onChange={(e) => setReason(e.target.value)} />
               <ActionBar className={styles.controlActions}>
                 <Button
                   icon={<PauseCircleOutlined />}
                   onClick={() =>
-                    confirmRuntimeChange('暂停抖店任务？', async () => {
+                    confirmRuntimeChange(tr('暂停抖店任务？'), async () => {
                       const res = await pauseDouyinRuntime(reason.trim());
                       setRuntime(res);
                       setReason('');
-                      message.success('已暂停');
+                      message.success(tr("已暂停"));
                       void loadAll();
                     })
                   }
                 >
-                  暂停任务
+                  {tr("暂停任务")}
                 </Button>
                 <Button
                   type="primary"
                   icon={<PlayCircleOutlined />}
                   onClick={() =>
-                    confirmRuntimeChange('恢复抖店运行？', async () => {
+                    confirmRuntimeChange(tr('恢复抖店运行？'), async () => {
                       const res = await resumeDouyinRuntime(reason.trim());
                       setRuntime(res);
                       setReason('');
-                      message.success('已恢复运行');
+                      message.success(tr("已恢复运行"));
                       void loadAll();
                     })
                   }
                 >
-                  恢复运行
+                  {tr("恢复运行")}
                 </Button>
                 <Button
                   danger
                   icon={<StopOutlined />}
                   onClick={() =>
-                    confirmRuntimeChange('紧急停用抖店？', async () => {
+                    confirmRuntimeChange(tr('紧急停用抖店？'), async () => {
                       const res = await emergencyDisableDouyinRuntime(reason.trim());
                       setRuntime(res);
                       setReason('');
-                      message.warning('已紧急停用');
+                      message.warning(tr("已紧急停用"));
                       void loadAll();
                     })
                   }
                 >
-                  紧急停用
+                  {tr("紧急停用")}
                 </Button>
               </ActionBar>
             </div>
@@ -603,60 +604,60 @@ export default function DouyinRuntimePanel() {
 
         <div className={styles.healthGrid}>
           <HealthSectionCard
-            title="应用配置"
+            title={tr("应用配置")}
             icon={<ApiOutlined />}
             section={health?.config}
             extra={
               <Link to="/settings/platforms">
                 <Button size="small" type="link">
-                  前往平台接入设置
+                  {tr("前往平台接入设置")}
                 </Button>
               </Link>
             }
           />
           <HealthSectionCard
-            title="店铺授权"
+            title={tr("店铺授权")}
             icon={<ShopOutlined />}
             section={health?.auth}
             extra={
               <Link to="/shops/manage">
                 <Button size="small" type="link">
-                  前往店铺管理
+                  {tr("前往店铺管理")}
                 </Button>
               </Link>
             }
           />
           <HealthSectionCard
-            title="存储公网访问"
+            title={tr("存储公网访问")}
             icon={<CloudServerOutlined />}
             section={health?.storage}
             extra={
               <Space wrap>
                 <Button size="small" loading={storageTesting} onClick={() => void testStorage()}>
-                  测试公网访问
+                  {tr("测试公网访问")}
                 </Button>
                 <Link to="/settings/storage">
                   <Button size="small" type="link">
-                    存储设置
+                    {tr("存储设置")}
                   </Button>
                 </Link>
               </Space>
             }
           />
-          <HealthSectionCard title="接口调用" icon={<SafetyCertificateOutlined />} section={health?.api} />
+          <HealthSectionCard title={tr("接口调用")} icon={<SafetyCertificateOutlined />} section={health?.api} />
         </div>
 
-        <SectionCard title="24 小时指标" description="滚动 24 小时窗口内的抖店运行指标。">
+        <SectionCard title={tr("24 小时指标")} description={tr("滚动 24 小时窗口内的抖店运行指标。")}>
           {metrics?.generatedAt ? (
             <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-              统计时间：{formatDateTime(metrics.generatedAt)}
+              {trFormat("统计时间：{value0}", { value0: formatDateTime(metrics.generatedAt) })}
             </Text>
           ) : null}
           <MetricsGrid metrics={metrics} />
         </SectionCard>
 
         <div className={styles.lowerGrid}>
-          <SectionCard title="待处理问题" description="点击条目跳转到对应处理页面。" className={styles.lowerCard}>
+          <SectionCard title={tr("待处理问题")} description={tr("点击条目跳转到对应处理页面。")} className={styles.lowerCard}>
             {issues.length ? (
               <List<IssueRow>
                 size="small"
@@ -666,29 +667,29 @@ export default function DouyinRuntimePanel() {
                   <List.Item
                     actions={[
                       <Button key="go" type="link" size="small" onClick={() => history.push(item.href)}>
-                        去处理
+                        {tr("去处理")}
                       </Button>,
                     ]}
                   >
                     <Space>
                       <Tag color={item.severity === 'error' ? 'error' : item.severity === 'warning' ? 'warning' : 'processing'}>{item.count}</Tag>
-                      <Text>{item.label}</Text>
+                      <Text>{tr(item.label)}</Text>
                     </Space>
                   </List.Item>
                 )}
               />
             ) : (
-              <Alert showIcon type="success" message="暂无需要立即处理的问题" />
+              <Alert showIcon type="success" message={tr("暂无需要立即处理的问题")} />
             )}
           </SectionCard>
 
-          <SectionCard title="发布门禁清单" description="发布候选检查项；真实端到端联调仍可能因缺少真实凭证而阻塞。" className={styles.lowerCard}>
+          <SectionCard title={tr("发布门禁清单")} description={tr("发布候选检查项；真实端到端联调仍可能因缺少真实凭证而阻塞。")} className={styles.lowerCard}>
             <ReleaseGatePanel gate={gate} />
           </SectionCard>
         </div>
 
         {health?.tasks ? (
-          <SectionCard title="任务健康摘要">
+          <SectionCard title={tr("任务健康摘要")}>
             <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }}>
               {(() => {
                 const details = health.tasks.details ?? {};

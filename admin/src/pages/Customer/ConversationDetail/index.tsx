@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { formatDateTime } from '@/utils/formatTime';
 import { TmPageContainer } from '@/components/ui';
 import { history, useParams, useSearchParams } from '@umijs/max';
@@ -69,6 +71,7 @@ function riskTag(level: string) {
 }
 
 export default function CustomerConversationDetailPage() {
+  useLanguage();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -129,7 +132,7 @@ export default function CustomerConversationDetailPage() {
   const linkOrder = async (orderId: string) => {
     if (!id) return;
     await updateConversation(id, { orderId });
-    message.success('已关联订单');
+    message.success(tr("已关联订单"));
     setOrderPickOpen(false);
     loadAll();
   };
@@ -137,10 +140,10 @@ export default function CustomerConversationDetailPage() {
   const unlinkOrder = async () => {
     if (!id) return;
     Modal.confirm({
-      title: '取消关联订单？',
+      title: tr("取消关联订单？"),
       onOk: async () => {
         await updateConversation(id, { orderId: '' });
-        message.success('已取消关联');
+        message.success(tr("已取消关联"));
         loadAll();
       },
     });
@@ -160,11 +163,11 @@ export default function CustomerConversationDetailPage() {
 
   const linkShop = async () => {
     if (!id || !pickedShopId) {
-      message.warning('请选择店铺');
+      message.warning(tr("请选择店铺"));
       return;
     }
     await updateConversation(id, { shopId: pickedShopId });
-    message.success('已关联店铺');
+    message.success(tr("已关联店铺"));
     setShopPickOpen(false);
     loadAll();
   };
@@ -172,10 +175,10 @@ export default function CustomerConversationDetailPage() {
   const unlinkShop = async () => {
     if (!id) return;
     Modal.confirm({
-      title: '取消关联店铺？',
+      title: tr("取消关联店铺？"),
       onOk: async () => {
         await updateConversation(id, { shopId: '' });
-        message.success('已取消关联');
+        message.success(tr("已取消关联"));
         loadAll();
       },
     });
@@ -198,12 +201,12 @@ export default function CustomerConversationDetailPage() {
     if (!id) return;
     const t = newCustomerMsg.trim();
     if (!t) {
-      message.warning('请输入客户消息');
+      message.warning(tr("请输入客户消息"));
       return;
     }
     await createMessage(id, { role: 'customer', content: t, language: lang });
     setNewCustomerMsg('');
-    message.success('已添加');
+    message.success(tr("已添加"));
     loadAll();
   };
 
@@ -230,10 +233,10 @@ export default function CustomerConversationDetailPage() {
       if (searchParams.get('suggestionId')) {
         setSuggestionId(searchParams.get('suggestionId'));
       }
-      message.success('已生成建议（需人工确认，不会对外发送）');
+      message.success(tr("已生成建议（需人工确认，不会对外发送）"));
       loadAll();
     } catch (e: unknown) {
-      message.error(e instanceof Error ? e.message : '生成失败');
+      message.error(e instanceof Error ? e.message : tr('生成失败'));
     } finally {
       setGenLoading(false);
     }
@@ -242,38 +245,38 @@ export default function CustomerConversationDetailPage() {
   const onCopy = async () => {
     const t = editedReply.trim();
     if (!t) {
-      message.warning('没有可复制内容');
+      message.warning(tr("没有可复制内容"));
       return;
     }
     try {
       await navigator.clipboard.writeText(t);
-      message.success('已复制');
+      message.success(tr("已复制"));
     } catch {
-      message.error('复制失败');
+      message.error(tr("复制失败"));
     }
   };
 
   const onSaveEdit = async () => {
     if (!suggestionId) {
-      message.warning('请先生成建议');
+      message.warning(tr("请先生成建议"));
       return;
     }
     await updateReplySuggestion(suggestionId, { editedReply: editedReply.trim() });
-    message.success('已保存编辑');
+    message.success(tr("已保存编辑"));
   };
 
   const onAccept = async () => {
     if (!suggestionId) {
-      message.warning('请先生成建议');
+      message.warning(tr("请先生成建议"));
       return;
     }
     const finalReply = editedReply.trim();
     if (!finalReply) {
-      message.warning('回复内容不能为空');
+      message.warning(tr("回复内容不能为空"));
       return;
     }
     await acceptReplySuggestion(suggestionId, { finalReply });
-    message.success('已采纳为内部回复（仅记录，不向平台发送）');
+    message.success(tr("已采纳为内部回复（仅记录，不向平台发送）"));
     setSuggestionId(null);
     setAiMeta(null);
     setEditedReply('');
@@ -286,7 +289,7 @@ export default function CustomerConversationDetailPage() {
     if (!id) return;
     const finalReply = editedReply.trim();
     if (!finalReply) {
-      message.warning('请填写要发送到平台的回复内容');
+      message.warning(tr("请填写要发送到平台的回复内容"));
       return;
     }
     const existing = pendingSendRef.current;
@@ -302,10 +305,10 @@ export default function CustomerConversationDetailPage() {
           suggestionId: suggestionId || undefined,
         });
         pendingSendRef.current = null;
-        message.success('已发送到平台');
+        message.success(tr("已发送到平台"));
         loadAll();
       } catch (e: unknown) {
-        message.error(e instanceof Error ? e.message : '发送失败');
+        message.error(e instanceof Error ? e.message : tr('发送失败'));
         throw e;
       }
     });
@@ -313,11 +316,11 @@ export default function CustomerConversationDetailPage() {
 
   const onDiscard = async () => {
     if (!suggestionId) {
-      message.warning('没有可废弃的建议');
+      message.warning(tr("没有可废弃的建议"));
       return;
     }
     await discardReplySuggestion(suggestionId);
-    message.success('已废弃');
+    message.success(tr("已废弃"));
     setSuggestionId(null);
     setAiMeta(null);
     setEditedReply('');
@@ -335,7 +338,7 @@ export default function CustomerConversationDetailPage() {
   const readOnly = conv?.canWrite === false;
 
   return (
-    <TmPageContainer title="AI 客服工作台" onBack={() => history.goBack()}>
+    <TmPageContainer title={tr("AI 客服工作台")} onBack={() => history.goBack()}>
       <Spin spinning={loading}>
         {conv && (
           <>
@@ -344,56 +347,56 @@ export default function CustomerConversationDetailPage() {
                 type="error"
                 showIcon
                 style={{ marginBottom: 16 }}
-                message={`有 ${conv.openFailureCount} 条未处理客服失败`}
+                message={trFormat("有 {count} 条未处理客服失败", { count: conv.openFailureCount })}
                 action={
                   <Button size="small" onClick={() => history.push('/ops/task-center/failures?taskType=customer_failure')}>
-                    查看失败任务
+                    {tr("查看失败任务")}
                   </Button>
                 }
               />
             ) : null}
             {readOnly ? (
-              <Alert type="info" showIcon style={{ marginBottom: 16 }} message="当前为只读账号，不可生成建议或发送消息。" />
+              <Alert type="info" showIcon style={{ marginBottom: 16 }} message={tr("当前为只读账号，不可生成建议或发送消息。")} />
             ) : null}
             {conv.contextSummary?.incompleteWarning ? (
               <Alert type="warning" showIcon style={{ marginBottom: 16 }} message={conv.contextSummary.incompleteWarning} />
             ) : null}
             <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="客户">{conv.customerNameMasked || conv.customerName}</Descriptions.Item>
-              <Descriptions.Item label="平台">{platformLabel(conv.platform)}</Descriptions.Item>
-              <Descriptions.Item label="状态">
+              <Descriptions.Item label={tr("客户")}>{conv.customerNameMasked || conv.customerName}</Descriptions.Item>
+              <Descriptions.Item label={tr("平台")}>{platformLabel(conv.platform)}</Descriptions.Item>
+              <Descriptions.Item label={tr("状态")}>
                 {statusMap ? <Tag color={statusMap.color}>{statusMap.text}</Tag> : <Tag>{conv.status}</Tag>}
               </Descriptions.Item>
-              <Descriptions.Item label="店铺">{conv.shopSummary?.shopName ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="外部会话 ID" span={2}>
+              <Descriptions.Item label={tr("店铺")}>{conv.shopSummary?.shopName ?? '—'}</Descriptions.Item>
+              <Descriptions.Item label={tr("外部会话 ID")} span={2}>
                 <Typography.Text copyable={conv.externalConversationId ? { text: conv.externalConversationId } : false}>
                   {conv.externalConversationId ?? '—'}
                 </Typography.Text>
               </Descriptions.Item>
             </Descriptions>
-            <Card size="small" title="关联店铺" variant="borderless" style={{ marginBottom: 16 }}>
+            <Card size="small" title={tr("关联店铺")} variant="borderless" style={{ marginBottom: 16 }}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Space wrap>
                   <Button type="primary" onClick={() => void openShopPick()}>
-                    选择店铺
+                    {tr("选择店铺")}
                   </Button>
                   {conv.shopId ? (
                     <Button danger onClick={() => void unlinkShop()}>
-                      取消关联
+                      {tr("取消关联")}
                     </Button>
                   ) : null}
                 </Space>
                 {conv.shopSummary ? (
                   <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
-                    <Descriptions.Item label="店铺名">{conv.shopSummary.shopName}</Descriptions.Item>
-                    <Descriptions.Item label="平台">{platformLabel(conv.shopSummary.platform)}</Descriptions.Item>
-                    <Descriptions.Item label="店铺状态">
+                    <Descriptions.Item label={tr("店铺名")}>{conv.shopSummary.shopName}</Descriptions.Item>
+                    <Descriptions.Item label={tr("平台")}>{platformLabel(conv.shopSummary.platform)}</Descriptions.Item>
+                    <Descriptions.Item label={tr("店铺状态")}>
                       {(() => {
                         const m = SHOP_STATUS[conv.shopSummary.status as keyof typeof SHOP_STATUS];
                         return m ? <Tag color={m.color}>{m.text}</Tag> : conv.shopSummary.status || '—';
                       })()}
                     </Descriptions.Item>
-                    <Descriptions.Item label="授权状态">
+                    <Descriptions.Item label={tr("授权状态")}>
                       {(() => {
                         const m = SHOP_AUTH_STATUS[conv.shopSummary.authStatus as keyof typeof SHOP_AUTH_STATUS];
                         return m ? <Tag color={m.color}>{m.text}</Tag> : conv.shopSummary.authStatus || '—';
@@ -401,11 +404,11 @@ export default function CustomerConversationDetailPage() {
                     </Descriptions.Item>
                   </Descriptions>
                 ) : (
-                  <Typography.Text type="secondary">未关联统一店铺（shops）；可选填便于后续按 shop_id 扩展。 </Typography.Text>
+                  <Typography.Text type="secondary">{tr("未关联统一店铺（shops）；可选填便于后续按 shop_id 扩展。")} </Typography.Text>
                 )}
               </Space>
             </Card>
-            <Card size="small" title="关联订单" variant="borderless" style={{ marginBottom: 16 }}>
+            <Card size="small" title={tr("关联订单")} variant="borderless" style={{ marginBottom: 16 }}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Space wrap>
                   <Button
@@ -415,52 +418,52 @@ export default function CustomerConversationDetailPage() {
                       void runOrderSearch();
                     }}
                   >
-                    选择订单
+                    {tr("选择订单")}
                   </Button>
                   {conv.orderId ? (
                     <Button danger onClick={() => void unlinkOrder()}>
-                      取消关联
+                      {tr("取消关联")}
                     </Button>
                   ) : null}
                 </Space>
                 {conv.orderSummary ? (
                   <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
-                    <Descriptions.Item label="订单号">{conv.orderSummary.orderNo}</Descriptions.Item>
-                    <Descriptions.Item label="订单状态">
+                    <Descriptions.Item label={tr("订单号")}>{conv.orderSummary.orderNo}</Descriptions.Item>
+                    <Descriptions.Item label={tr("订单状态")}>
                       {mapBizStatus(conv.orderSummary.status, ORDER_STATUS)}
                     </Descriptions.Item>
-                    <Descriptions.Item label="支付">{mapBizStatus(conv.orderSummary.paymentStatus, ORDER_PAYMENT_STATUS)}</Descriptions.Item>
-                    <Descriptions.Item label="履约">{mapBizStatus(conv.orderSummary.fulfillmentStatus, ORDER_FULFILLMENT_STATUS)}</Descriptions.Item>
-                    <Descriptions.Item label="订单金额">{`${conv.orderSummary.currency} ${conv.orderSummary.totalAmount}`}</Descriptions.Item>
-                    <Descriptions.Item label="SKU 匹配">
+                    <Descriptions.Item label={tr("支付")}>{mapBizStatus(conv.orderSummary.paymentStatus, ORDER_PAYMENT_STATUS)}</Descriptions.Item>
+                    <Descriptions.Item label={tr("履约")}>{mapBizStatus(conv.orderSummary.fulfillmentStatus, ORDER_FULFILLMENT_STATUS)}</Descriptions.Item>
+                    <Descriptions.Item label={tr("订单金额")}>{`${conv.orderSummary.currency} ${conv.orderSummary.totalAmount}`}</Descriptions.Item>
+                    <Descriptions.Item label={tr("SKU 匹配")}>
                       {mapBizStatus(conv.orderSummary.skuMatchStatus || 'none', ORDER_SKU_MATCH_SUMMARY)}
                     </Descriptions.Item>
-                    <Descriptions.Item label="库存扣减">
+                    <Descriptions.Item label={tr("库存扣减")}>
                       {mapBizStatus(conv.orderSummary.inventoryDeductStatus || 'none', ORDER_INVENTORY_DEDUCT_SUMMARY)}
                     </Descriptions.Item>
-                    <Descriptions.Item label="操作" span={2}>
+                    <Descriptions.Item label={tr("操作")} span={2}>
                       <Space wrap>
                         <Button size="small" onClick={() => history.push(`/orders/${conv.orderId}`)}>
-                          查看订单详情
+                          {tr("查看订单详情")}
                         </Button>
                         <Button size="small" onClick={() => history.push(`/orders/${conv.orderId}?tab=exceptions`)}>
-                          查看订单异常
+                          {tr("查看订单异常")}
                         </Button>
                         <Button size="small" onClick={() => history.push(`/orders/${conv.orderId}?tab=inventory`)}>
-                          查看库存影响
+                          {tr("查看库存影响")}
                         </Button>
                       </Space>
                     </Descriptions.Item>
-                    <Descriptions.Item label="下单时间">
+                    <Descriptions.Item label={tr("下单时间")}>
                       {conv.orderSummary.orderedAt ? formatDateTime(conv.orderSummary.orderedAt) : '—'}
                     </Descriptions.Item>
-                    <Descriptions.Item label="最新物流状态" span={2}>
+                    <Descriptions.Item label={tr("最新物流状态")} span={2}>
                       {conv.orderSummary.latestShipmentStatus
                         ? mapBizStatus(conv.orderSummary.latestShipmentStatus, ORDER_SHIPMENT_STATUS)
                         : '—'}
                     </Descriptions.Item>
                     {(conv.orderSummary.shipments?.length ?? 0) > 0 ? (
-                      <Descriptions.Item label="物流明细" span={2}>
+                      <Descriptions.Item label={tr("物流明细")} span={2}>
                         <Space direction="vertical" size={4} style={{ width: '100%' }}>
                           {(conv.orderSummary.shipments || []).map((s, i) => (
                             <div key={i}>
@@ -469,7 +472,7 @@ export default function CustomerConversationDetailPage() {
                               </Typography.Text>
                               {s.trackingUrl ? (
                                 <Typography.Link href={s.trackingUrl} target="_blank" style={{ marginLeft: 8 }}>
-                                  追踪
+                                  {tr("追踪")}
                                 </Typography.Link>
                               ) : null}
                             </div>
@@ -479,12 +482,12 @@ export default function CustomerConversationDetailPage() {
                     ) : null}
                   </Descriptions>
                 ) : (
-                  <Typography.Text type="secondary">未关联订单；生成建议时将缺少订单、商品、库存等上下文。</Typography.Text>
+                  <Typography.Text type="secondary">{tr("未关联订单；生成建议时将缺少订单、商品、库存等上下文。")}</Typography.Text>
                 )}
               </Space>
             </Card>
             {(conv.productContexts?.length ?? 0) > 0 ? (
-              <Card size="small" title="关联商品" variant="borderless" style={{ marginBottom: 16 }}>
+              <Card size="small" title={tr("关联商品")} variant="borderless" style={{ marginBottom: 16 }}>
                 <List
                   size="small"
                   dataSource={conv.productContexts}
@@ -493,15 +496,15 @@ export default function CustomerConversationDetailPage() {
                       <Space direction="vertical" size={0}>
                         <Typography.Text strong>{p.productTitle || '—'}</Typography.Text>
                         <Typography.Text type="secondary">
-                          SKU: {p.skuCode || '—'} · {p.skuName || '—'} · 库存: {p.stockStatus || '—'}
+                          SKU: {p.skuCode || '—'} · {p.skuName || '—'} · {tr('库存')}:{' '}{p.stockStatus || '—'}
                         </Typography.Text>
                         {p.productId ? (
                           <Space>
                             <Typography.Link onClick={() => history.push(`/product/drafts/${p.productId}`)}>
-                              查看商品
+                              {tr("查看商品")}
                             </Typography.Link>
                             <Typography.Link onClick={() => history.push(`/product/drafts/${p.productId}?tab=inventory`)}>
-                              查看库存
+                              {tr("查看库存")}
                             </Typography.Link>
                           </Space>
                         ) : null}
@@ -512,26 +515,26 @@ export default function CustomerConversationDetailPage() {
               </Card>
             ) : null}
             {(conv.inventoryContexts?.length ?? 0) > 0 ? (
-              <Card size="small" title="库存 / SKU 上下文" variant="borderless" style={{ marginBottom: 16 }}>
+              <Card size="small" title={tr("库存 / SKU 上下文")} variant="borderless" style={{ marginBottom: 16 }}>
                 <List
                   size="small"
                   dataSource={conv.inventoryContexts}
                   renderItem={(p) => (
                     <List.Item>
-                      {p.skuCode} · {p.skuName} · 库存 {p.stock ?? '—'} · {p.stockStatus} · 绑定 {p.bindStatus}
+                      {p.skuCode} · {p.skuName} · {tr('库存')} {p.stock ?? '—'} · {p.stockStatus} · {tr('绑定')} {p.bindStatus}
                     </List.Item>
                   )}
                 />
               </Card>
             ) : null}
             {conv.contextSummary ? (
-              <Card size="small" title="AI 上下文摘要" variant="borderless" style={{ marginBottom: 16 }}>
+              <Card size="small" title={tr("AI 上下文摘要")} variant="borderless" style={{ marginBottom: 16 }}>
                 <Descriptions size="small" column={{ xs: 1, sm: 2 }}>
-                  <Descriptions.Item label="订单状态">{conv.contextSummary.orderStatus || '—'}</Descriptions.Item>
-                  <Descriptions.Item label="SKU 匹配">{conv.contextSummary.skuMatchStatus || '—'}</Descriptions.Item>
-                  <Descriptions.Item label="库存状态">{conv.contextSummary.inventoryStatus || '—'}</Descriptions.Item>
-                  <Descriptions.Item label="商品">{conv.contextSummary.productTitle || '—'}</Descriptions.Item>
-                  <Descriptions.Item label="客户问题" span={2}>
+                  <Descriptions.Item label={tr("订单状态")}>{conv.contextSummary.orderStatus || '—'}</Descriptions.Item>
+                  <Descriptions.Item label={tr("SKU 匹配")}>{conv.contextSummary.skuMatchStatus || '—'}</Descriptions.Item>
+                  <Descriptions.Item label={tr("库存状态")}>{conv.contextSummary.inventoryStatus || '—'}</Descriptions.Item>
+                  <Descriptions.Item label={tr("商品")}>{conv.contextSummary.productTitle || '—'}</Descriptions.Item>
+                  <Descriptions.Item label={tr("客户问题")} span={2}>
                     {conv.contextSummary.customerQuestion || '—'}
                   </Descriptions.Item>
                 </Descriptions>
@@ -542,9 +545,9 @@ export default function CustomerConversationDetailPage() {
 
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={14}>
-            <Card title="消息时间线" variant="borderless">
+            <Card title={tr("消息时间线")} variant="borderless">
               {msgs.length === 0 ? (
-                <Empty description="暂无消息" />
+                <Empty description={tr("暂无消息")} />
               ) : (
                 <List
                   itemLayout="vertical"
@@ -587,36 +590,36 @@ export default function CustomerConversationDetailPage() {
                 />
               )}
               <div style={{ marginTop: 16 }}>
-                <Typography.Text strong>添加客户消息</Typography.Text>
+                <Typography.Text strong>{tr("添加客户消息")}</Typography.Text>
                 <Input.TextArea
                   rows={3}
                   value={newCustomerMsg}
                   onChange={(e) => setNewCustomerMsg(e.target.value)}
-                  placeholder="录入客户原话…"
+                  placeholder={tr("录入客户原话…")}
                   style={{ marginTop: 8 }}
                 />
                 <Button type="primary" style={{ marginTop: 8 }} onClick={() => void onAddCustomerMessage()}>
-                  添加客户消息
+                  {tr("添加客户消息")}
                 </Button>
               </div>
             </Card>
           </Col>
 
           <Col xs={24} lg={10}>
-            <Card title="AI 回复建议" variant="borderless">
+            <Card title={tr("AI 回复建议")} variant="borderless">
               <Space direction="vertical" style={{ width: '100%' }} size="middle">
                 <Alert
                   type="warning"
                   showIcon
-                  message="人工审核"
-                  description="AI 回复仅为建议；涉及退款、赔偿、投诉、履约承诺等事项请务必人工确认，勿直接对外生效。"
+                  message={tr("人工审核")}
+                  description={tr("AI 回复仅为建议；涉及退款、赔偿、投诉、履约承诺等事项请务必人工确认，勿直接对外生效。")}
                   style={{ width: '100%' }}
                 />
                 <div>
-                  <Typography.Text type="secondary">针对客户消息（可选，默认取最近一条 customer）</Typography.Text>
+                  <Typography.Text type="secondary">{tr("针对客户消息（可选，默认取最近一条 customer）")}</Typography.Text>
                   <Select
                     allowClear
-                    placeholder="选择客户消息"
+                    placeholder={tr("选择客户消息")}
                     style={{ width: '100%', marginTop: 4 }}
                     options={customerMessageOptions}
                     value={focusMessageId}
@@ -624,14 +627,14 @@ export default function CustomerConversationDetailPage() {
                   />
                 </div>
                 <Space wrap>
-                  <span>回复语言</span>
+                  <span>{tr("回复语言")}</span>
                   <Select
                     style={{ width: 140 }}
                     options={[...AI_LANGUAGE_OPTIONS]}
                     value={lang}
                     onChange={setLang}
                   />
-                  <span>回复语气</span>
+                  <span>{tr("回复语气")}</span>
                   <Select
                     style={{ width: 140 }}
                     options={[...AI_TONE_OPTIONS]}
@@ -640,58 +643,58 @@ export default function CustomerConversationDetailPage() {
                   />
                 </Space>
                 <div>
-                  <Typography.Text>会话平台</Typography.Text>
+                  <Typography.Text>{tr("会话平台")}</Typography.Text>
                   <Select
                     style={{ marginTop: 4 }}
                     options={AI_CONTEXT_PLATFORM_OPTIONS}
                     value={platform}
                     onChange={setPlatform}
-                    placeholder="请选择会话平台"
+                    placeholder={tr("请选择会话平台")}
                   />
                 </div>
                 <div>
-                  <Typography.Text>shopPolicy（可选）</Typography.Text>
+                  <Typography.Text>{tr("shopPolicy（可选）")}</Typography.Text>
                   <Input.TextArea
                     rows={3}
                     value={shopPolicy}
                     onChange={(e) => setShopPolicy(e.target.value)}
                     style={{ marginTop: 4 }}
-                    placeholder="店铺政策摘要，可为空"
+                    placeholder={tr("店铺政策摘要，可为空")}
                   />
                 </div>
                 <Button type="primary" loading={genLoading} disabled={readOnly} onClick={() => void onGenerate()}>
-                  AI 生成建议回复
+                  {tr("AI 生成建议回复")}
                 </Button>
                 <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
-                  说明：生成内容需人工确认；系统不会自动向任何外部平台发送消息。
+                  {tr("说明：生成内容需人工确认；系统不会自动向任何外部平台发送消息。")}
                 </Typography.Paragraph>
 
                 {aiMeta && (
                   <Descriptions size="small" column={1} bordered>
-                    <Descriptions.Item label="买家意图">{aiMeta.intent || '—'}</Descriptions.Item>
-                    <Descriptions.Item label="情绪倾向">{aiMeta.sentiment || '—'}</Descriptions.Item>
-                    <Descriptions.Item label="风险等级">{riskTag(aiMeta.riskLevel)}</Descriptions.Item>
-                    <Descriptions.Item label="备注">{aiMeta.notes || '—'}</Descriptions.Item>
+                    <Descriptions.Item label={tr("买家意图")}>{aiMeta.intent || '—'}</Descriptions.Item>
+                    <Descriptions.Item label={tr("情绪倾向")}>{aiMeta.sentiment || '—'}</Descriptions.Item>
+                    <Descriptions.Item label={tr("风险等级")}>{riskTag(aiMeta.riskLevel)}</Descriptions.Item>
+                    <Descriptions.Item label={tr("备注")}>{aiMeta.notes || '—'}</Descriptions.Item>
                   </Descriptions>
                 )}
                 <div>
-                  <Typography.Text strong>回复内容</Typography.Text>
+                  <Typography.Text strong>{tr("回复内容")}</Typography.Text>
                   <Typography.Paragraph type="secondary" style={{ marginTop: 4, marginBottom: 8, fontSize: 12 }}>
-                    可先用 AI 生成并编辑，或直接手写后再「采纳为内部回复」或「发送到平台」（均须人工操作）。
+                    {tr("可先用 AI 生成并编辑，或直接手写后再「采纳为内部回复」或「发送到平台」（均须人工操作）。")}
                   </Typography.Paragraph>
                   <Input.TextArea
                     rows={6}
                     value={editedReply}
                     onChange={(e) => setEditedReply(e.target.value)}
-                    placeholder="编辑或手写回复内容…"
+                    placeholder={tr("编辑或手写回复内容…")}
                   />
                 </div>
                 <Space wrap align="start">
                   <Button onClick={() => void onSaveEdit()} disabled={readOnly || !suggestionId}>
-                    保存编辑
+                    {tr("保存编辑")}
                   </Button>
                   <Button type="primary" onClick={() => void onAccept()} disabled={readOnly || !suggestionId}>
-                    采纳为内部回复
+                    {tr("采纳为内部回复")}
                   </Button>
                   <Button
                     type="primary"
@@ -699,16 +702,16 @@ export default function CustomerConversationDetailPage() {
                     onClick={() => void onSendToPlatform()}
                     disabled={readOnly || !canSendToPlatform || !editedReply.trim()}
                   >
-                    发送到平台
+                    {tr("发送到平台")}
                   </Button>
                   <Button danger onClick={() => void onDiscard()} disabled={!suggestionId}>
-                    废弃建议
+                    {tr("废弃建议")}
                   </Button>
-                  <Button onClick={() => void onCopy()}>复制回复</Button>
+                  <Button onClick={() => void onCopy()}>{tr("复制回复")}</Button>
                 </Space>
                 {!canSendToPlatform ? (
                   <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    「发送到平台」需本会话已关联店铺，且存在平台外部会话 ID（通常由「拉取平台消息」写入）。手工录入会话可无平台外发。
+                    {tr("「发送到平台」需本会话已关联店铺，且存在平台外部会话 ID（通常由「拉取平台消息」写入）。手工录入会话可无平台外发。")}
                   </Typography.Text>
                 ) : null}
               </Space>
@@ -717,7 +720,7 @@ export default function CustomerConversationDetailPage() {
         </Row>
 
         <Modal
-          title="选择关联订单（手工录入的订单）"
+          title={tr("选择关联订单（手工录入的订单）")}
           open={orderPickOpen}
           onCancel={() => setOrderPickOpen(false)}
           footer={null}
@@ -726,32 +729,32 @@ export default function CustomerConversationDetailPage() {
         >
           <Space wrap style={{ marginBottom: 12 }}>
             <Input
-              placeholder="订单号筛选"
+              placeholder={tr("订单号筛选")}
               value={orderFilterNo}
               onChange={(e) => setOrderFilterNo(e.target.value)}
               style={{ width: 180 }}
               allowClear
             />
             <Input
-              placeholder="客户姓名"
+              placeholder={tr("客户姓名")}
               value={orderFilterName}
               onChange={(e) => setOrderFilterName(e.target.value)}
               style={{ width: 160 }}
               allowClear
             />
             <Button loading={orderSearchLoading} onClick={() => void runOrderSearch()}>
-              查询
+              {tr("查询")}
             </Button>
           </Space>
           <List<OrderListRow>
             dataSource={orderHits}
             loading={orderSearchLoading}
-            locale={{ emptyText: '暂无数据，可先输入条件再查询' }}
+            locale={{ emptyText: tr("暂无数据，可先输入条件再查询") }}
             renderItem={(row) => (
               <List.Item
                 actions={[
                   <a key="lnk" onClick={() => void linkOrder(row.id)}>
-                    关联
+                    {tr("关联")}
                   </a>,
                 ]}
               >
@@ -774,18 +777,18 @@ export default function CustomerConversationDetailPage() {
         </Modal>
 
         <Modal
-          title="选择关联店铺"
+          title={tr("选择关联店铺")}
           open={shopPickOpen}
           onCancel={() => setShopPickOpen(false)}
           onOk={() => void linkShop()}
-          okText="关联"
-          cancelText="取消"
+          okText={tr("关联")}
+          cancelText={tr("取消")}
           destroyOnHidden
         >
           <Select
             showSearch
             optionFilterProp="label"
-            placeholder="选择店铺（shops 统一表）"
+            placeholder={tr("选择店铺（shops 统一表）")}
             style={{ width: '100%' }}
             options={shopOpts}
             value={pickedShopId}

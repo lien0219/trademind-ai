@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import TechnicalDetails from '@/components/ui/TechnicalDetails';
 import { TmPageContainer } from '@/components/ui';
 import {
@@ -54,6 +56,7 @@ function parseProductIds(search: string): string[] {
 }
 
 export default function AIImageBatchWizardPage() {
+  useLanguage();
   const location = useLocation();
   const initialIds = useMemo(() => parseProductIds(location.search), [location.search]);
   const [step, setStep] = useState(0);
@@ -84,7 +87,7 @@ export default function AIImageBatchWizardPage() {
       return;
     }
     if (initialIds.length > AI_IMAGE_BATCH_MAX_PRODUCTS) {
-      message.error(`最多选择 ${AI_IMAGE_BATCH_MAX_PRODUCTS} 个商品`);
+      message.error(trFormat("最多选择 {value0} 个商品", { value0: AI_IMAGE_BATCH_MAX_PRODUCTS }));
       setLoadingProducts(false);
       return;
     }
@@ -113,7 +116,7 @@ export default function AIImageBatchWizardPage() {
 
   const runCheck = useCallback(async () => {
     if (!productIds.length || !selectedImageIds.length) {
-      message.warning('请选择商品和图片');
+      message.warning(tr("请选择商品和图片"));
       return;
     }
     setChecking(true);
@@ -126,7 +129,7 @@ export default function AIImageBatchWizardPage() {
       });
       setCheckResult(res);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '检查失败');
+      message.error((e as Error)?.message || tr("检查失败"));
     } finally {
       setChecking(false);
     }
@@ -134,11 +137,11 @@ export default function AIImageBatchWizardPage() {
 
   const onCreate = async () => {
     if (!selectedImageIds.length || !selectedOps.length) {
-      message.warning('请选择图片和处理方式');
+      message.warning(tr("请选择图片和处理方式"));
       return;
     }
     if (expectedItems > AI_IMAGE_BATCH_MAX_IMAGES) {
-      message.error(`本次选择的图片较多，请分批处理（最多 ${AI_IMAGE_BATCH_MAX_IMAGES} 个子项）`);
+      message.error(trFormat("本次选择的图片较多，请分批处理（最多 {value0} 个子项）", { value0: AI_IMAGE_BATCH_MAX_IMAGES }));
       return;
     }
     setCreating(true);
@@ -149,10 +152,10 @@ export default function AIImageBatchWizardPage() {
         operationTypes: selectedOps,
         options: form.getFieldsValue(),
       });
-      message.success('批量任务已创建');
+      message.success(tr("批量任务已创建"));
       history.push(`/product/ai-image-batches/${batch.id}`);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '创建失败');
+      message.error((e as Error)?.message || tr("创建失败"));
     } finally {
       setCreating(false);
     }
@@ -163,41 +166,41 @@ export default function AIImageBatchWizardPage() {
   };
 
   return (
-    <TmPageContainer title="批量 AI 图片处理" subTitle="选择图片 → 处理方式 → 确认后开始（结果需人工复核后再应用）">
+    <TmPageContainer title={tr("批量 AI 图片处理")} subTitle={tr("选择图片 → 处理方式 → 确认后开始（结果需人工复核后再应用）")}>
       <Steps
         current={step}
         style={{ marginBottom: 24, maxWidth: 900 }}
         items={[
-          { title: '选择商品' },
-          { title: '选择图片' },
-          { title: '处理方式' },
-          { title: '处理要求' },
-          { title: '确认并开始' },
+          { title: tr("选择商品") },
+          { title: tr("选择图片") },
+          { title: tr("处理方式") },
+          { title: tr("处理要求") },
+          { title: tr("确认并开始") },
         ]}
       />
 
       {loadingProducts ? (
         <Spin />
       ) : !products.length ? (
-        <Alert type="warning" message="未找到有效商品，请从商品列表重新选择。" />
+        <Alert type="warning" message={tr("未找到有效商品，请从商品列表重新选择。")} />
       ) : (
         <>
           {step === 0 && (
-            <Card title="已选商品">
+            <Card title={tr("已选商品")}>
               <Table
                 size="small"
                 rowKey="id"
                 pagination={false}
                 dataSource={products}
                 columns={[
-                  { title: '商品标题', dataIndex: 'title', ellipsis: true },
-                  { title: '来源', dataIndex: 'source', width: 100 },
-                  { title: '主图', render: (_, r) => r.images.filter((i) => i.imageType === 'main').length },
-                  { title: '详情图', render: (_, r) => r.images.filter((i) => i.imageType === 'detail').length },
+                  { title: tr("商品标题"), dataIndex: 'title', ellipsis: true },
+                  { title: tr("来源"), dataIndex: 'source', width: 100 },
+                  { title: tr("主图"), render: (_, r) => r.images.filter((i) => i.imageType === 'main').length },
+                  { title: tr("详情图"), render: (_, r) => r.images.filter((i) => i.imageType === 'detail').length },
                   {
-                    title: '可处理',
+                    title: tr("可处理"),
                     render: (_, r) =>
-                      r.images.length ? <Tag color="green">是</Tag> : <Tag color="orange">暂无可处理图片</Tag>,
+                      r.images.length ? <Tag color="green">{tr("是")}</Tag> : <Tag color="orange">{tr("暂无可处理图片")}</Tag>,
                   },
                 ]}
               />
@@ -206,7 +209,7 @@ export default function AIImageBatchWizardPage() {
 
           {step === 1 && (
             <Card
-              title="选择图片"
+              title={tr("选择图片")}
               extra={
                 <Space wrap>
                   <Radio.Group
@@ -216,10 +219,10 @@ export default function AIImageBatchWizardPage() {
                     onChange={(e) => setImageFilter(e.target.value)}
                   />
                   <Button size="small" onClick={() => setSelectedImageIds(filteredImages.map((i) => i.id))}>
-                    全选当前筛选
+                    {tr("全选当前筛选")}
                   </Button>
                   <Button size="small" onClick={() => setSelectedImageIds([])}>
-                    取消选择
+                    {tr("取消选择")}
                   </Button>
                 </Space>
               }
@@ -237,7 +240,7 @@ export default function AIImageBatchWizardPage() {
                     >
                       <Image src={img.publicUrl || img.originUrl} height={100} style={{ objectFit: 'cover' }} fallback="/placeholder.png" />
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        {img.imageType === 'main' ? '主图' : img.imageType === 'detail' ? '详情图' : '图片'}
+                        {img.imageType === 'main' ? tr("主图") : img.imageType === 'detail' ? tr("详情图") : tr("图片")}
                       </Typography.Text>
                       <div>
                         <Checkbox checked={selected} />
@@ -246,17 +249,17 @@ export default function AIImageBatchWizardPage() {
                   );
                 })}
               </div>
-              {!filteredImages.length && <Alert type="info" message="当前筛选下没有图片" />}
+              {!filteredImages.length && <Alert type="info" message={tr("当前筛选下没有图片")} />}
             </Card>
           )}
 
           {step === 2 && (
-            <Card title="选择处理方式">
+            <Card title={tr("选择处理方式")}>
               <Alert
                 type="info"
                 showIcon
                 style={{ marginBottom: 12 }}
-                message="部分处理方式可能耗时较长，结果生成后不会自动替换原图，需要人工复核后再应用。"
+                message={tr("部分处理方式可能耗时较长，结果生成后不会自动替换原图，需要人工复核后再应用。")}
               />
               <Checkbox.Group
                 options={AI_IMAGE_OPERATION_OPTIONS}
@@ -267,24 +270,24 @@ export default function AIImageBatchWizardPage() {
           )}
 
           {step === 3 && (
-            <Card title="设置处理要求">
+            <Card title={tr("设置处理要求")}>
               <Form form={form} layout="vertical" initialValues={{ language: 'en', backgroundStyle: 'white', keepSubject: true, outputFormat: 'webp' }}>
-                <Form.Item name="language" label="目标语言">
-                  <Select options={AI_LANGUAGE_OPTIONS} placeholder="请选择图片文案语言" />
+                <Form.Item name="language" label={tr("目标语言")}>
+                  <Select options={AI_LANGUAGE_OPTIONS} placeholder={tr("请选择图片文案语言")} />
                 </Form.Item>
-                <Form.Item name="backgroundStyle" label="背景风格">
-                  <Input placeholder="如 white / studio" />
+                <Form.Item name="backgroundStyle" label={tr("背景风格")}>
+                  <Input placeholder={tr("如 white / studio")} />
                 </Form.Item>
-                <Form.Item name="keepSubject" valuePropName="checked" label="保留商品主体">
+                <Form.Item name="keepSubject" valuePropName="checked" label={tr("保留商品主体")}>
                   <Checkbox />
                 </Form.Item>
-                <Form.Item name="keepBrandLogo" valuePropName="checked" label="保留品牌标识">
+                <Form.Item name="keepBrandLogo" valuePropName="checked" label={tr("保留品牌标识")}>
                   <Checkbox />
                 </Form.Item>
-                <Form.Item name="outputFormat" label="输出格式">
+                <Form.Item name="outputFormat" label={tr("输出格式")}>
                   <Radio.Group options={[{ value: 'webp', label: 'WebP' }, { value: 'png', label: 'PNG' }, { value: 'jpg', label: 'JPG' }]} />
                 </Form.Item>
-                <Form.Item name="remark" label="备注">
+                <Form.Item name="remark" label={tr("备注")}>
                   <Input.TextArea rows={2} />
                 </Form.Item>
               </Form>
@@ -292,12 +295,12 @@ export default function AIImageBatchWizardPage() {
           )}
 
           {step === 4 && (
-            <Card title="确认并开始">
+            <Card title={tr("确认并开始")}>
               <Descriptions column={1} size="small" bordered>
-                <Descriptions.Item label="商品数">{productIds.length}</Descriptions.Item>
-                <Descriptions.Item label="已选图片">{selectedImageIds.length}</Descriptions.Item>
-                <Descriptions.Item label="预计子项">{expectedItems}</Descriptions.Item>
-                <Descriptions.Item label="处理方式">
+                <Descriptions.Item label={tr("商品数")}>{productIds.length}</Descriptions.Item>
+                <Descriptions.Item label={tr("已选图片")}>{selectedImageIds.length}</Descriptions.Item>
+                <Descriptions.Item label={tr("预计子项")}>{expectedItems}</Descriptions.Item>
+                <Descriptions.Item label={tr("处理方式")}>
                   {selectedOps.map((op) => AI_IMAGE_OPERATION_OPTIONS.find((x) => x.value === op)?.label || op).join('、')}
                 </Descriptions.Item>
               </Descriptions>
@@ -305,17 +308,17 @@ export default function AIImageBatchWizardPage() {
                 style={{ marginTop: 12 }}
                 type="warning"
                 showIcon
-                message="AI 图片处理结果不会自动覆盖商品图片，需要人工复核后再应用。"
+                message={tr("AI 图片处理结果不会自动覆盖商品图片，需要人工复核后再应用。")}
               />
               {checkResult && (
-                <Card size="small" style={{ marginTop: 12 }} title="检查结果">
+                <Card size="small" style={{ marginTop: 12 }} title={tr("检查结果")}>
                   <Space wrap>
-                    <Tag color="green">可处理 {checkResult.summary.readyCount}</Tag>
-                    <Tag color="orange">提醒 {checkResult.summary.warningCount}</Tag>
-                    <Tag color="red">阻断 {checkResult.summary.blockedCount}</Tag>
+                    <Tag color="green">{tr("可处理")} {checkResult.summary.readyCount}</Tag>
+                    <Tag color="orange">{tr("提醒")} {checkResult.summary.warningCount}</Tag>
+                    <Tag color="red">{tr("阻断")} {checkResult.summary.blockedCount}</Tag>
                   </Space>
                   <div style={{ marginTop: 8 }}>
-                    <TechnicalDetails label="检查明细">
+                    <TechnicalDetails label={tr("检查明细")}>
                       <pre style={{ margin: 0, fontSize: 12 }}>{JSON.stringify(checkResult.summary, null, 2)}</pre>
                     </TechnicalDetails>
                   </div>
@@ -326,19 +329,19 @@ export default function AIImageBatchWizardPage() {
 
           <Space style={{ marginTop: 16 }}>
             <Button disabled={step === 0} onClick={() => setStep((s) => s - 1)}>
-              上一步
+              {tr("上一步")}
             </Button>
             {step < 4 ? (
               <Button type="primary" onClick={() => setStep((s) => s + 1)}>
-                下一步
+                {tr("下一步")}
               </Button>
             ) : (
               <>
                 <Button loading={checking} onClick={() => void runCheck()}>
-                  预检查
+                  {tr("预检查")}
                 </Button>
                 <Button type="primary" loading={creating} onClick={() => void onCreate()}>
-                  开始处理
+                  {tr("开始处理")}
                 </Button>
               </>
             )}

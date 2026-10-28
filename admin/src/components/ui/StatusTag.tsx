@@ -1,6 +1,7 @@
 import { Tag } from 'antd';
 import { commonStatusLabel } from '@/constants/copywriting';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
+import { useLanguage } from '@/i18n/useLanguage';
 
 type StatusColor = 'default' | 'processing' | 'success' | 'error' | 'warning' | 'blue' | 'cyan';
 
@@ -34,6 +35,7 @@ const STATUS_COLOR_MAP: Record<string, StatusColor> = {
 
 /** 统一状态 Tag */
 export default function StatusTag({ status, text, color, className }: StatusTagProps) {
+  useLanguage();
   const k = (status ?? '').trim().toLowerCase();
   const collectMeta = k ? COLLECT_TASK_STATUS[k as keyof typeof COLLECT_TASK_STATUS] : undefined;
   const label = text ?? collectMeta?.text ?? commonStatusLabel(status);

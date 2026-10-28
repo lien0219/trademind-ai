@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 import { Alert, Button, Space, Tag, Tooltip, Typography } from 'antd';
 import { TaskJsonBlock } from '@/components/ui';
 import type { InventorySyncAPIError } from '@/services/inventorySync';
@@ -7,31 +8,31 @@ const { Text } = Typography;
 const SENSITIVE_KEY = /(token|secret|credential|password|cookie|authorization|oauth|accesskey|refresh|metadata)/i;
 
 export const RUN_STATUS_LABELS: Record<string, { text: string; color: string }> = {
-  queued: { text: '等待执行', color: 'default' },
-  running: { text: '夹具执行中', color: 'processing' },
-  succeeded: { text: '夹具完成', color: 'success' },
-  failed: { text: '夹具失败', color: 'error' },
-  cancelled: { text: '已取消', color: 'default' },
+  queued: { get text() { return tr("等待执行"); }, color: 'default' },
+  running: { get text() { return tr("夹具执行中"); }, color: 'processing' },
+  succeeded: { get text() { return tr("夹具完成"); }, color: 'success' },
+  failed: { get text() { return tr("夹具失败"); }, color: 'error' },
+  cancelled: { get text() { return tr("已取消"); }, color: 'default' },
 };
 
 export const BINDING_RESULT_LABELS: Record<string, { text: string; color: string }> = {
-  matched: { text: '已匹配', color: 'success' },
-  manual_review: { text: '待人工确认', color: 'warning' },
-  unmatched: { text: '未匹配', color: 'default' },
+  matched: { get text() { return tr("已匹配"); }, color: 'success' },
+  manual_review: { get text() { return tr("待人工确认"); }, color: 'warning' },
+  unmatched: { get text() { return tr("未匹配"); }, color: 'default' },
 };
 
 export const BINDING_STATUS_LABELS: Record<string, { text: string; color: string }> = {
-  confirmed: { text: '已确认', color: 'success' },
-  pending: { text: '待确认', color: 'warning' },
-  rejected: { text: '已拒绝', color: 'error' },
-  superseded: { text: '已被取代', color: 'default' },
+  confirmed: { get text() { return tr("已确认"); }, color: 'success' },
+  pending: { get text() { return tr("待确认"); }, color: 'warning' },
+  rejected: { get text() { return tr("已拒绝"); }, color: 'error' },
+  superseded: { get text() { return tr("已被取代"); }, color: 'default' },
 };
 
 export const MANUAL_REQUEST_STATUS_LABELS: Record<string, { text: string; color: string }> = {
-  pending: { text: '待处理', color: 'warning' },
-  confirmed: { text: '已确认', color: 'success' },
-  rejected: { text: '已拒绝', color: 'error' },
-  cancelled: { text: '已取消', color: 'default' },
+  pending: { get text() { return tr("待处理"); }, color: 'warning' },
+  confirmed: { get text() { return tr("已确认"); }, color: 'success' },
+  rejected: { get text() { return tr("已拒绝"); }, color: 'error' },
+  cancelled: { get text() { return tr("已取消"); }, color: 'default' },
 };
 
 export function labelOf(map: Record<string, { text: string }>, value?: string | null) {
@@ -65,7 +66,7 @@ export function renderInventorySyncError(error?: InventorySyncAPIError | null) {
       type="error"
       showIcon
       message={errorMessage(error)}
-      description={error.traceId ? `排查编号：${error.traceId}` : undefined}
+      description={error.traceId ? trFormat("排查编号：{value0}", { value0: String(error.traceId) }) : undefined}
     />
   );
 }
@@ -102,7 +103,7 @@ export function redactSensitiveValue(value: unknown): unknown {
 }
 
 export function AuditMetadataBlock({ metadata }: { metadata: unknown }) {
-  return <TaskJsonBlock title="安全摘要" value={safeAuditSummary(metadata)} maxHeight={160} last />;
+  return <TaskJsonBlock title={tr("安全摘要")} value={safeAuditSummary(metadata)} maxHeight={160} last />;
 }
 
 export function CursorPager({
@@ -122,9 +123,9 @@ export function CursorPager({
 }) {
   return (
     <Space wrap>
-      <Button disabled={!canPrev || loading} onClick={onPrev}>上一批</Button>
-      <Button type="primary" disabled={!hasMore || loading} onClick={onNext}>下一批</Button>
-      <Text type="secondary">当前显示 {count} 条；列表使用 keyset cursor，不显示页码或总数。</Text>
+      <Button disabled={!canPrev || loading} onClick={onPrev}>{tr("上一批")}</Button>
+      <Button type="primary" disabled={!hasMore || loading} onClick={onNext}>{tr("下一批")}</Button>
+      <Text type="secondary">{tr("当前显示")} {count} {tr("条；列表使用 keyset cursor，不显示页码或总数。")}</Text>
     </Space>
   );
 }
@@ -132,7 +133,7 @@ export function CursorPager({
 export function ActionSourceHint() {
   return (
     <Text type="secondary">
-      可用操作完全来自后端 allowedActions；提交时携带隐藏的 Idempotency-Key 与 expected revision。
+      {tr("可用操作完全来自后端 allowedActions；提交时携带隐藏的 Idempotency-Key 与 expected revision。")}
     </Text>
   );
 }

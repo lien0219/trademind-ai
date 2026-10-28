@@ -96,6 +96,8 @@ __debug_bin*
 
 # Local validation outputs (CI results stay in GitHub Actions)
 /.tmp/
+/.tmp-*
+/admin/.tmp-*
 /docs/*.auto.json
 /docs/*.auto.md
 /docs/*.run[0-9]*.json

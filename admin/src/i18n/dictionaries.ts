@@ -9,6 +9,24 @@ import { commonControlTranslations } from './commonControlTranslations';
 import { workspaceTranslations } from './workspaceTranslations';
 import { aiTaskTranslations } from './aiTaskTranslations';
 import { aiPromptTranslations } from './aiPromptTranslations';
+import { sharedCopyTranslations } from './sharedCopyTranslations';
+import { aiWorkspaceTranslations } from './aiWorkspaceTranslations';
+import { collectShopTranslations } from './collectShopTranslations';
+import { settingsWorkspaceTranslations } from './settingsWorkspaceTranslations';
+import { orderTranslations } from './orderTranslations';
+import { dashboardTranslations } from './dashboardTranslations';
+import { inventoryEffectsTranslations } from './inventoryEffectsTranslations';
+import { financeTranslations } from './financeTranslations';
+import { productTranslations } from './productTranslations';
+import { siteTranslations } from './siteTranslations';
+import { customerTaskCenterTranslations } from './customerTaskCenterTranslations';
+import { inventoryWarehouseTranslations } from './inventoryWarehouseTranslations';
+import { procurementTranslations } from './procurementTranslations';
+import { remainingUiTranslations } from './remainingUiTranslations';
+import { sharedGapTranslations } from './sharedGapTranslations';
+import { rootUiTranslations } from './rootUiTranslations';
+import { productGapTranslations } from './productGapTranslations';
+import { orderProcurementGapTranslations } from './orderProcurementGapTranslations';
 
 // Locale resources use stable Chinese source keys while feature modules migrate
 // to namespaced message IDs. Missing keys fall back to zh-CN and are tracked.
@@ -1395,7 +1413,7 @@ export const tenantBusinessTranslations: Record<string,[string,string,string,str
     "รูปแบบวันที่ที่ต้องการ"
   ]
 };
-for (const [source, translated] of Object.entries({...tenantBusinessTranslations, ...interfaceTranslations, ...loginTranslations, ...tenantMemberTranslations, ...tenantInvitationTranslations, ...tenantSettingsTranslations, ...tenantPreferenceTranslations, ...platformTenantTranslations, ...commonControlTranslations, ...workspaceTranslations, ...aiTaskTranslations, ...aiPromptTranslations})) {
+for (const [source, translated] of Object.entries({...tenantBusinessTranslations, ...interfaceTranslations, ...loginTranslations, ...tenantMemberTranslations, ...tenantInvitationTranslations, ...tenantSettingsTranslations, ...tenantPreferenceTranslations, ...platformTenantTranslations, ...commonControlTranslations, ...workspaceTranslations, ...aiTaskTranslations, ...aiPromptTranslations, ...sharedCopyTranslations, ...aiWorkspaceTranslations, ...collectShopTranslations, ...settingsWorkspaceTranslations, ...orderTranslations, ...dashboardTranslations, ...inventoryEffectsTranslations, ...financeTranslations, ...siteTranslations, ...customerTaskCenterTranslations, ...productTranslations, ...inventoryWarehouseTranslations, ...procurementTranslations, ...remainingUiTranslations, ...sharedGapTranslations, ...rootUiTranslations, ...productGapTranslations, ...orderProcurementGapTranslations})) {
   (['en-US','ja-JP','zh-TW','ko-KR','th-TH'] as const).forEach((language,index)=>{
     dictionaries[language][source] = translated[index];
   });

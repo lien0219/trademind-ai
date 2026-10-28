@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import type { PublishConfigLayer } from '@/constants/publishConfig';
 import { countConfigFields } from '@/constants/publishConfig';
 import PublishConfigEditor from '@/pages/Product/PublishBatch/components/PublishConfigEditor';
@@ -27,6 +29,7 @@ type EditState = {
   config: PublishConfigLayer;
 };
 export default function OverrideConfigTabs({ products, targets, overrides, onChange, commonConfig }: Props) {
+  const language = useLanguage();
   const [edit, setEdit] = useState<EditState | null>(null);
   const [copyFrom, setCopyFrom] = useState<PublishConfigLayer | null>(null);
   const [pickProductId, setPickProductId] = useState<string>();
@@ -98,7 +101,7 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
           config: cfg as PublishConfigLayer,
         };
       }),
-    [overrides.productTargets, products, targets],
+    [overrides.productTargets, products, targets, language],
   );
 
   const saveEdit = () => {
@@ -106,7 +109,7 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
     const next = { ...overrides };
     const layer = edit.config;
     if (countConfigFields(layer as Record<string, unknown>) === 0) {
-      message.warning('请至少配置一项覆盖字段');
+      message.warning(tr("请至少配置一项覆盖字段"));
       return;
     }
     if (edit.scope === 'product') {
@@ -121,7 +124,7 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
     onChange(next);
     setEdit(null);
     setCopyFrom(null);
-    message.success('覆盖配置已保存');
+    message.success(tr("覆盖配置已保存"));
   };
 
   const removeOverride = (scope: EditState['scope'], key: string) => {
@@ -143,7 +146,7 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
   };
 
   const actionCol = (scope: EditState['scope'], key: string, label: string, cfg: PublishConfigLayer, extra?: Partial<EditState>) => ({
-    title: '操作',
+    title: tr("操作"),
     key: 'ops',
     width: 200,
     render: () => (
@@ -151,18 +154,18 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
         <Typography.Link
           onClick={() => setEdit({ scope, key, label, config: { ...cfg }, ...extra })}
         >
-          编辑
+          {tr("编辑")}
         </Typography.Link>
         <Typography.Link
           onClick={() => {
             setCopyFrom({ ...cfg });
-            message.info('已复制配置，请选择目标后添加');
+            message.info(tr("已复制配置，请选择目标后添加"));
           }}
         >
-          复制
+          {tr("复制")}
         </Typography.Link>
         <Typography.Link type="danger" onClick={() => removeOverride(scope, key)}>
-          删除
+          {tr("删除")}
         </Typography.Link>
       </Space>
     ),
@@ -171,7 +174,7 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
   const openAddProduct = () => {
     const unused = products.filter((p) => !overrides.products?.[p.id]);
     if (!unused.length) {
-      message.warning('所有商品均已添加覆盖');
+      message.warning(tr("所有商品均已添加覆盖"));
       return;
     }
     setPickProductId(unused[0].id);
@@ -181,7 +184,7 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
   const openAddPlatform = () => {
     const unused = platformSet.filter((p) => !overrides.platforms?.[p]);
     if (!unused.length) {
-      message.warning('所有平台均已添加覆盖');
+      message.warning(tr("所有平台均已添加覆盖"));
       return;
     }
     setEdit({
@@ -197,7 +200,7 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
   const openAddShop = () => {
     const unused = targets.filter((t) => t.shopId && !overrides.shops?.[t.shopId]);
     if (!unused.length) {
-      message.warning('所有店铺均已添加覆盖');
+      message.warning(tr("所有店铺均已添加覆盖"));
       return;
     }
     const t = unused[0];
@@ -227,7 +230,7 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
       });
     });
     if (!combos.length) {
-      message.warning('所有商品×目标均已添加覆盖');
+      message.warning(tr("所有商品×目标均已添加覆盖"));
       return;
     }
     const c = combos[0];
@@ -246,11 +249,11 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
   const tabItems = [
     {
       key: 'product',
-      label: `按商品覆盖 (${productRows.length})`,
+      label: trFormat("按商品覆盖 ({value0})", { value0: productRows.length }),
       children: (
         <>
           <Button type="primary" size="small" onClick={openAddProduct} style={{ marginBottom: 12 }}>
-            添加商品覆盖
+            {tr("添加商品覆盖")}
           </Button>
           <Table
             rowKey="key"
@@ -259,10 +262,10 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
             scroll={{ x: 640 }}
             dataSource={productRows}
             columns={[
-              { title: '商品', dataIndex: 'title', ellipsis: true },
-              { title: '覆盖项数量', dataIndex: 'count', width: 100 },
+              { title: tr("商品"), dataIndex: 'title', ellipsis: true },
+              { title: tr("覆盖项数量"), dataIndex: 'count', width: 100 },
               {
-                title: '操作',
+                title: tr("操作"),
                 key: 'ops',
                 width: 200,
                 render: (_: unknown, row: (typeof productRows)[0]) =>
@@ -275,11 +278,11 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
     },
     {
       key: 'platform',
-      label: `按平台覆盖 (${platformRows.length})`,
+      label: trFormat("按平台覆盖 ({value0})", { value0: platformRows.length }),
       children: (
         <>
           <Button type="primary" size="small" onClick={openAddPlatform} style={{ marginBottom: 12 }}>
-            添加平台覆盖
+            {tr("添加平台覆盖")}
           </Button>
           <Table
             rowKey="key"
@@ -288,10 +291,10 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
             scroll={{ x: 480 }}
             dataSource={platformRows}
             columns={[
-              { title: '平台', dataIndex: 'platform' },
-              { title: '覆盖项数量', dataIndex: 'count', width: 100 },
+              { title: tr("平台"), dataIndex: 'platform' },
+              { title: tr("覆盖项数量"), dataIndex: 'count', width: 100 },
               {
-                title: '操作',
+                title: tr("操作"),
                 key: 'ops',
                 width: 200,
                 render: (_: unknown, row: (typeof platformRows)[0]) =>
@@ -304,11 +307,11 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
     },
     {
       key: 'shop',
-      label: `按店铺覆盖 (${shopRows.length})`,
+      label: trFormat("按店铺覆盖 ({value0})", { value0: shopRows.length }),
       children: (
         <>
           <Button type="primary" size="small" onClick={openAddShop} style={{ marginBottom: 12 }}>
-            添加店铺覆盖
+            {tr("添加店铺覆盖")}
           </Button>
           <Table
             rowKey="key"
@@ -317,11 +320,11 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
             scroll={{ x: 560 }}
             dataSource={shopRows}
             columns={[
-              { title: '平台', dataIndex: 'platform', width: 120 },
-              { title: '店铺', dataIndex: 'shopName', ellipsis: true },
-              { title: '覆盖项数量', dataIndex: 'count', width: 100 },
+              { title: tr("平台"), dataIndex: 'platform', width: 120 },
+              { title: tr("店铺"), dataIndex: 'shopName', ellipsis: true },
+              { title: tr("覆盖项数量"), dataIndex: 'count', width: 100 },
               {
-                title: '操作',
+                title: tr("操作"),
                 key: 'ops',
                 width: 200,
                 render: (_: unknown, row: (typeof shopRows)[0]) =>
@@ -334,11 +337,11 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
     },
     {
       key: 'productTarget',
-      label: `按商品 + 目标覆盖 (${targetRows.length})`,
+      label: trFormat("按商品 + 目标覆盖 ({value0})", { value0: targetRows.length }),
       children: (
         <>
           <Button type="primary" size="small" onClick={openAddProductTarget} style={{ marginBottom: 12 }}>
-            添加商品目标覆盖
+            {tr("添加商品目标覆盖")}
           </Button>
           <Table
             rowKey="key"
@@ -347,12 +350,12 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
             scroll={{ x: 720 }}
             dataSource={targetRows}
             columns={[
-              { title: '商品', dataIndex: 'productTitle', ellipsis: true },
-              { title: '平台', dataIndex: 'platformLabel', width: 100 },
-              { title: '店铺', dataIndex: 'shopName', width: 120, render: (v: string) => v || '—' },
-              { title: '覆盖项数量', dataIndex: 'count', width: 100 },
+              { title: tr("商品"), dataIndex: 'productTitle', ellipsis: true },
+              { title: tr("平台"), dataIndex: 'platformLabel', width: 100 },
+              { title: tr("店铺"), dataIndex: 'shopName', width: 120, render: (v: string) => v || '—' },
+              { title: tr("覆盖项数量"), dataIndex: 'count', width: 100 },
               {
-                title: '操作',
+                title: tr("操作"),
                 key: 'ops',
                 width: 200,
                 render: (_: unknown, row: (typeof targetRows)[0]) =>
@@ -373,7 +376,7 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
     <>
       <Tabs items={tabItems} />
       <Modal
-        title="添加商品覆盖"
+        title={tr("添加商品覆盖")}
         open={addProductOpen}
         onCancel={() => setAddProductOpen(false)}
         onOk={() => {
@@ -400,13 +403,13 @@ export default function OverrideConfigTabs({ products, targets, overrides, onCha
         />
       </Modal>
       <Modal
-        title={edit ? `编辑覆盖：${edit.label}` : '编辑覆盖'}
+        title={edit ? `${tr("编辑覆盖")}：${edit.label}` : tr("编辑覆盖")}
         open={!!edit}
         onCancel={() => setEdit(null)}
         onOk={saveEdit}
         width={720}
         destroyOnHidden
-        okText="保存"
+        okText={tr("保存")}
       >
         {edit ? (
           <PublishConfigEditor

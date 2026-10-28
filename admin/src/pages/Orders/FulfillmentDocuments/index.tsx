@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import {
   ArrowLeftOutlined,
   FileAddOutlined,
@@ -51,16 +53,16 @@ import "./index.less";
 
 const DOCUMENT_TYPES: Array<{
   value: FulfillmentWaveDocumentType;
-  label: string;
-  description: string;
+  sourceLabel: string;
+  sourceDescription: string;
 }> = [
-  { value: "pick_list", label: "拣货单", description: "按库位与 SKU 排列" },
-  { value: "packing_list", label: "配货单", description: "按订单核对装箱明细" },
-  { value: "sku_labels", label: "规格标签", description: "本地商品识别标签" },
+  { value: "pick_list", sourceLabel: "拣货单", sourceDescription: "按库位与 SKU 排列" },
+  { value: "packing_list", sourceLabel: "配货单", sourceDescription: "按订单核对装箱明细" },
+  { value: "sku_labels", sourceLabel: "规格标签", sourceDescription: "本地商品识别标签" },
   {
     value: "package_labels",
-    label: "本地包裹标签",
-    description: "仅供仓内识别，不是承运商面单",
+    sourceLabel: "本地包裹标签",
+    sourceDescription: "仅供仓内识别，不是承运商面单",
   },
 ];
 
@@ -75,7 +77,8 @@ const STATUS_LABELS: Record<FulfillmentWaveStatus, string> = {
 };
 
 function documentTypeLabel(type: FulfillmentWaveDocumentType) {
-  return DOCUMENT_TYPES.find((item) => item.value === type)?.label ?? type;
+  const label = DOCUMENT_TYPES.find((item) => item.value === type)?.sourceLabel;
+  return label ? tr(label) : type;
 }
 
 function warehouseLabel(snapshot: FulfillmentWaveDocumentSnapshot) {
@@ -104,14 +107,14 @@ function PrintHeader({
       <div>
         <Typography.Title level={2}>{documentTypeLabel(type)}</Typography.Title>
         <Typography.Text type="secondary">
-          本地出库单据 · V{document.version} · 来源修订{" "}
+          {tr("本地出库单据 · V")}{document.version} {tr("· 来源修订")}{" "}
           {document.sourceRevision}
         </Typography.Text>
       </div>
       <div className="fulfillment-document-print__meta">
         <strong>{snapshot.waveNo}</strong>
         <span>{warehouseLabel(snapshot)}</span>
-        <span>生成：{formatDateTime(snapshot.generatedAt)}</span>
+        <span>{tr("生成：")}{formatDateTime(snapshot.generatedAt)}</span>
       </div>
     </header>
   );
@@ -123,21 +126,21 @@ function PickList({ snapshot }: { snapshot: FulfillmentWaveDocumentSnapshot }) {
       <table className="fulfillment-document-print__table">
         <thead>
           <tr>
-            <th>库位</th>
-            <th>SKU / 商品</th>
-            <th>条码</th>
-            <th>订单</th>
-            <th className="number">需求</th>
-            <th className="number">已拣</th>
-            <th className="number">缺货</th>
+            <th>{tr("库位")}</th>
+            <th>{tr("SKU / 商品")}</th>
+            <th>{tr("条码")}</th>
+            <th>{tr("订单")}</th>
+            <th className="number">{tr("需求")}</th>
+            <th className="number">{tr("已拣")}</th>
+            <th className="number">{tr("缺货")}</th>
           </tr>
         </thead>
         <tbody>
           {snapshot.lines.map((line) => (
             <tr key={line.waveLineId}>
-              <td>{line.locationCode || "未分配"}</td>
+              <td>{line.locationCode || tr("未分配")}</td>
               <td>
-                <strong>{line.skuCode || "未编码 SKU"}</strong>
+                <strong>{line.skuCode || tr("未编码 SKU")}</strong>
                 <small>{line.skuName || line.productTitle || "—"}</small>
               </td>
               <td>{line.barcode || "—"}</td>
@@ -170,17 +173,17 @@ function PackingList({
             className="fulfillment-document-print__order"
           >
             <div className="fulfillment-document-print__order-head">
-              <strong>订单 {order.orderNo}</strong>
-              <span>{order.carrier || "承运商未录入"}</span>
-              <span>{order.trackingNo || "运单号未录入"}</span>
+              <strong>{tr("订单")} {order.orderNo}</strong>
+              <span>{order.carrier || tr("承运商未录入")}</span>
+              <span>{order.trackingNo || tr("运单号未录入")}</span>
             </div>
             <table className="fulfillment-document-print__table">
               <thead>
                 <tr>
                   <th>SKU</th>
-                  <th>商品 / 规格</th>
-                  <th>条码</th>
-                  <th className="number">装箱数量</th>
+                  <th>{tr("商品 / 规格")}</th>
+                  <th>{tr("条码")}</th>
+                  <th className="number">{tr("装箱数量")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -215,12 +218,12 @@ function SKULabels({
           key={line.waveLineId}
           className="fulfillment-document-print__label"
         >
-          <span className="eyebrow">本地 SKU 标签</span>
-          <strong>{line.skuCode || "未编码 SKU"}</strong>
+          <span className="eyebrow">{tr("本地 SKU 标签")}</span>
+          <strong>{line.skuCode || tr("未编码 SKU")}</strong>
           <span>{line.skuName || line.productTitle || "—"}</span>
           <code>{line.barcode || line.skuCode || line.waveLineId}</code>
           <small>
-            {line.locationCode || "未分配库位"} · 数量 {line.requiredQuantity}
+            {line.locationCode || tr("未分配库位")} {tr("· 数量")} {line.requiredQuantity}
           </small>
         </article>
       ))}
@@ -240,12 +243,12 @@ function PackageLabels({
           key={order.waveOrderId}
           className="fulfillment-document-print__label package"
         >
-          <span className="eyebrow">本地包裹标签 · 非承运商面单</span>
+          <span className="eyebrow">{tr("本地包裹标签 · 非承运商面单")}</span>
           <strong>{order.orderNo}</strong>
           <span>{snapshot.waveNo}</span>
           <code>{order.packageCode || order.trackingNo || order.orderNo}</code>
-          <small>{order.carrier || "承运商未录入"}</small>
-          <small>{order.trackingNo || "运单号未录入"}</small>
+          <small>{order.carrier || tr("承运商未录入")}</small>
+          <small>{order.trackingNo || tr("运单号未录入")}</small>
         </article>
       ))}
     </div>
@@ -262,7 +265,7 @@ function PrintSurface({
   return (
     <article
       className="fulfillment-document-print"
-      aria-label={`${documentTypeLabel(type)}打印预览`}
+      aria-label={trFormat("{value0}打印预览", { value0: String(documentTypeLabel(type)) })}
     >
       <PrintHeader document={document} type={type} />
       {type === "pick_list" ? <PickList snapshot={document.snapshot} /> : null}
@@ -276,14 +279,15 @@ function PrintSurface({
         <PackageLabels snapshot={document.snapshot} />
       ) : null}
       <footer>
-        快照校验：{document.snapshotHash} · 状态：
-        {STATUS_LABELS[document.snapshot.waveStatus]}
+        {tr("快照校验：")}{document.snapshotHash} {tr("· 状态：")}
+        {tr(STATUS_LABELS[document.snapshot.waveStatus])}
       </footer>
     </article>
   );
 }
 
 export default function FulfillmentDocumentsPage() {
+  useLanguage();
   const { id = "" } = useParams<{ id: string }>();
   const { can, readonly } = usePermission();
   const canOperate = !readonly && can(PERMISSIONS.ORDER_OPERATE);
@@ -318,7 +322,7 @@ export default function FulfillmentDocumentsPage() {
       setWave(waveResult);
       const options = listResult.list.map((item) => ({
         value: item.id,
-        label: `V${item.version} · 修订 ${item.sourceRevision} · ${formatDateTime(item.createdAt)}`,
+        label: trFormat("V{value0} · 修订 {value1} · {value2}", { value0: item.version, value1: item.sourceRevision, value2: formatDateTime(item.createdAt) }),
       }));
       setDocumentOptions(options);
       setSelectedDocumentId((current) =>
@@ -397,7 +401,7 @@ export default function FulfillmentDocumentsPage() {
         idempotencyKey:
           createFulfillmentWaveIdempotencyKey("document-generate"),
       });
-      message.success(`已生成不可变单据快照 V${created.version}`);
+      message.success(trFormat("已生成不可变单据快照 V{value0}", { value0: created.version }));
       setDocument(created);
       setSelectedDocumentId(created.id);
       await loadOverview();
@@ -429,8 +433,8 @@ export default function FulfillmentDocumentsPage() {
       setDocument(refreshed);
       message.success(
         isReprint
-          ? "重打已登记，正在打开浏览器打印"
-          : "打印已登记，正在打开浏览器打印",
+          ? tr("重打已登记，正在打开浏览器打印")
+          : tr("打印已登记，正在打开浏览器打印"),
       );
       window.setTimeout(() => window.print(), 0);
     } catch (error) {
@@ -454,34 +458,34 @@ export default function FulfillmentDocumentsPage() {
   return (
     <PermissionGuard require={PERMISSIONS.ORDER_VIEW} showForbiddenPage>
       <TmPageContainer
-        title="履约出库单据中心"
-        subTitle="基于波次修订生成可追溯的本地快照；不申请运单号，不生成官方承运商面单，也不控制物理打印机。"
+        title={tr("履约出库单据中心")}
+        subTitle={tr("基于波次修订生成可追溯的本地快照；不申请运单号，不生成官方承运商面单，也不控制物理打印机。")}
         extra={
           <TmPageHeaderExtra>
             <Button
               icon={<ArrowLeftOutlined />}
               onClick={() => history.push("/orders/fulfillment-waves")}
             >
-              返回波次
+              {tr("返回波次")}
             </Button>
             <Button
               icon={<ReloadOutlined />}
               disabled={loading}
               onClick={() => void loadOverview()}
             >
-              刷新
+              {tr("刷新")}
             </Button>
           </TmPageHeaderExtra>
         }
       >
         {loadError ? (
-          <ErrorAlert title={loadError} style={{ marginBottom: 16 }} />
+          <ErrorAlert title={tr(loadError)} style={{ marginBottom: 16 }} />
         ) : null}
         {!canOperate ? (
           <Alert
             type="info"
             showIcon
-            message="当前账号为只读模式，可查看历史快照和打印记录，但不能生成快照或登记打印。"
+            message={tr("当前账号为只读模式，可查看历史快照和打印记录，但不能生成快照或登记打印。")}
             style={{ marginBottom: 16 }}
           />
         ) : null}
@@ -493,8 +497,8 @@ export default function FulfillmentDocumentsPage() {
           <Row gutter={[16, 16]} align="top">
             <Col xs={24} xl={7}>
               <SectionCard
-                title="快照版本"
-                description="每个版本固定保存当时的波次、订单、SKU、库位与包裹信息。"
+                title={tr("快照版本")}
+                description={tr("每个版本固定保存当时的波次、订单、SKU、库位与包裹信息。")}
                 headerExtra={
                   <Button
                     type="primary"
@@ -508,7 +512,7 @@ export default function FulfillmentDocumentsPage() {
                     }
                     onClick={() => void generate()}
                   >
-                    生成新版本
+                    {tr("生成新版本")}
                   </Button>
                 }
               >
@@ -516,7 +520,7 @@ export default function FulfillmentDocumentsPage() {
                   <Alert
                     type="warning"
                     showIcon
-                    message="波次已取消，只能查看已生成的历史快照。"
+                    message={tr("波次已取消，只能查看已生成的历史快照。")}
                   />
                 ) : null}
                 {documentOptions.length ? (
@@ -526,7 +530,7 @@ export default function FulfillmentDocumentsPage() {
                     style={{ width: "100%" }}
                   >
                     <Select
-                      aria-label="单据快照版本"
+                      aria-label={tr("单据快照版本")}
                       value={selectedDocumentId}
                       options={documentOptions}
                       onChange={setSelectedDocumentId}
@@ -534,21 +538,21 @@ export default function FulfillmentDocumentsPage() {
                     />
                     {document ? (
                       <Descriptions bordered size="small" column={1}>
-                        <Descriptions.Item label="波次">
+                        <Descriptions.Item label={tr("波次")}>
                           {document.snapshot.waveNo}
                         </Descriptions.Item>
-                        <Descriptions.Item label="仓库">
+                        <Descriptions.Item label={tr("仓库")}>
                           {warehouseLabel(document.snapshot)}
                         </Descriptions.Item>
-                        <Descriptions.Item label="来源状态">
+                        <Descriptions.Item label={tr("来源状态")}>
                           <Tag>
-                            {STATUS_LABELS[document.snapshot.waveStatus]}
+                            {tr(STATUS_LABELS[document.snapshot.waveStatus])}
                           </Tag>
                         </Descriptions.Item>
-                        <Descriptions.Item label="生成时间">
+                        <Descriptions.Item label={tr("生成时间")}>
                           {formatDateTime(document.createdAt)}
                         </Descriptions.Item>
-                        <Descriptions.Item label="快照校验">
+                        <Descriptions.Item label={tr("快照校验")}>
                           <Typography.Text
                             copyable
                             ellipsis={{ tooltip: document.snapshotHash }}
@@ -562,11 +566,11 @@ export default function FulfillmentDocumentsPage() {
                 ) : (
                   <EmptyState
                     compact
-                    title="尚未生成出库单据快照"
-                    description="生成后才能预览、登记打印与保留重打审计。"
+                    title={tr("尚未生成出库单据快照")}
+                    description={tr("生成后才能预览、登记打印与保留重打审计。")}
                     actionLabel={
                       canOperate && wave?.status !== "cancelled"
-                        ? "生成首个版本"
+                        ? tr("生成首个版本")
                         : undefined
                     }
                     onAction={() => void generate()}
@@ -576,8 +580,8 @@ export default function FulfillmentDocumentsPage() {
             </Col>
             <Col xs={24} xl={17}>
               <SectionCard
-                title="打印预览"
-                description="计划份数用于审计；实际打印份数仍以浏览器打印对话框为准。"
+                title={tr("打印预览")}
+                description={tr("计划份数用于审计；实际打印份数仍以浏览器打印对话框为准。")}
               >
                 {documentLoading ? (
                   <div className="fulfillment-document-center__loading">
@@ -592,9 +596,13 @@ export default function FulfillmentDocumentsPage() {
                   >
                     <div className="fulfillment-document-center__controls">
                       <Select<FulfillmentWaveDocumentType>
-                        aria-label="单据类型"
+                        aria-label={tr("单据类型")}
                         value={documentType}
-                        options={DOCUMENT_TYPES}
+                        options={DOCUMENT_TYPES.map((item) => ({
+                          ...item,
+                          label: tr(item.sourceLabel),
+                          description: tr(item.sourceDescription),
+                        }))}
                         optionRender={(option) => (
                           <div>
                             <strong>{option.data.label}</strong>
@@ -607,9 +615,9 @@ export default function FulfillmentDocumentsPage() {
                         style={{ minWidth: 220 }}
                       />
                       <div className="fulfillment-document-center__copies">
-                        <Typography.Text>计划份数</Typography.Text>
+                        <Typography.Text>{tr("计划份数")}</Typography.Text>
                         <InputNumber
-                          aria-label="计划打印份数"
+                          aria-label={tr("计划打印份数")}
                           min={1}
                           max={100}
                           precision={0}
@@ -628,17 +636,17 @@ export default function FulfillmentDocumentsPage() {
                         }
                         onClick={() => void print()}
                       >
-                        {isReprint ? "登记重打并打开打印" : "登记并打开打印"}
+                        {isReprint ? tr("登记重打并打开打印") : tr("登记并打开打印")}
                       </Button>
                     </div>
                     {isReprint ? (
                       <Input.TextArea
-                        aria-label="重打原因"
+                        aria-label={tr("重打原因")}
                         value={reason}
                         maxLength={500}
                         showCount
                         autoSize={{ minRows: 2, maxRows: 4 }}
-                        placeholder="必填：说明破损、卡纸、信息复核等重打原因"
+                        placeholder={tr("必填：说明破损、卡纸、信息复核等重打原因")}
                         onChange={(event) => setReason(event.target.value)}
                       />
                     ) : null}
@@ -646,7 +654,7 @@ export default function FulfillmentDocumentsPage() {
                       <Alert
                         type="warning"
                         showIcon
-                        message="本地包裹标签只用于仓内识别，不可替代承运商官方面单或平台发货凭证。"
+                        message={tr("本地包裹标签只用于仓内识别，不可替代承运商官方面单或平台发货凭证。")}
                       />
                     ) : null}
                     <div className="fulfillment-document-center__preview">
@@ -655,15 +663,15 @@ export default function FulfillmentDocumentsPage() {
                   </Space>
                 ) : null}
                 {!documentLoading && !document ? (
-                  <EmptyState compact title="请选择或生成一个快照版本" />
+                  <EmptyState compact title={tr("请选择或生成一个快照版本")} />
                 ) : null}
               </SectionCard>
             </Col>
             {document ? (
               <Col span={24}>
                 <SectionCard
-                  title="打印与重打审计"
-                  description="记录操作员发起浏览器打印的事实，不声明物理打印成功。"
+                  title={tr("打印与重打审计")}
+                  description={tr("记录操作员发起浏览器打印的事实，不声明物理打印成功。")}
                 >
                   <Table<FulfillmentWaveDocumentPrintEvent>
                     rowKey="id"
@@ -671,34 +679,34 @@ export default function FulfillmentDocumentsPage() {
                     pagination={{ pageSize: 10, hideOnSinglePage: true }}
                     scroll={{ x: 760 }}
                     dataSource={document.printEvents ?? []}
-                    locale={{ emptyText: "暂无打印登记" }}
+                    locale={{ emptyText: tr("暂无打印登记") }}
                     columns={[
                       {
-                        title: "时间",
+                        title: tr("时间"),
                         dataIndex: "createdAt",
                         width: 180,
                         render: (value: string) => formatDateTime(value),
                       },
                       {
-                        title: "单据",
+                        title: tr("单据"),
                         dataIndex: "documentType",
                         width: 140,
                         render: (value: FulfillmentWaveDocumentType) =>
                           documentTypeLabel(value),
                       },
                       {
-                        title: "类型",
+                        title: tr("类型"),
                         dataIndex: "reprint",
                         width: 100,
                         render: (value: boolean) => (
                           <Tag color={value ? "warning" : "blue"}>
-                            {value ? "重打" : "首打"}
+                            {value ? tr("重打") : tr("首打")}
                           </Tag>
                         ),
                       },
-                      { title: "计划份数", dataIndex: "copies", width: 100 },
+                      { title: tr("计划份数"), dataIndex: "copies", width: 100 },
                       {
-                        title: "原因",
+                        title: tr("原因"),
                         dataIndex: "reason",
                         render: (value?: string) => value || "—",
                       },

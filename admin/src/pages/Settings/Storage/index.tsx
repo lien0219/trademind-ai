@@ -1,3 +1,5 @@
+import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { Link } from '@umijs/renderer-react';
 import {
   CloudOutlined,
@@ -64,38 +66,38 @@ type StorageKindMeta = {
 const STORAGE_KIND_OPTIONS: StorageKindMeta[] = [
   {
     value: 'local',
-    title: '本地磁盘',
-    desc: '服务端本地目录，开发与小流量部署开箱即用',
+    get title() { return tr("本地磁盘"); },
+    get desc() { return tr("服务端本地目录，开发与小流量部署开箱即用"); },
     Icon: FolderOpenOutlined,
   },
   {
     value: 's3',
     title: 'Amazon S3',
-    desc: '标准 AWS S3 区域 + 存储桶（可留空接口地址以使用默认分区）',
+    get desc() { return tr("标准 AWS S3 区域 + 存储桶（可留空接口地址以使用默认分区）"); },
     Icon: CloudServerOutlined,
   },
   {
     value: 'cos',
-    title: '腾讯云 COS',
-    desc: '原生 COS SDK（上传/下载/删除/获取链接），密钥仅存库 AES-GCM 加密',
+    get title() { return tr("腾讯云 COS"); },
+    get desc() { return tr("原生 COS SDK（上传/下载/删除/获取链接），密钥仅存库 AES-GCM 加密"); },
     Icon: CloudOutlined,
   },
   {
     value: 'oss',
-    title: '阿里云 OSS',
-    desc: '原生 OSS SDK（上传/下载/删除/获取链接），密钥仅存库 AES-GCM 加密',
+    get title() { return tr("阿里云 OSS"); },
+    get desc() { return tr("原生 OSS SDK（上传/下载/删除/获取链接），密钥仅存库 AES-GCM 加密"); },
     Icon: GlobalOutlined,
   },
   {
     value: 'r2',
     title: 'Cloudflare R2',
-    desc: 'S3 兼容接口；区域常为 auto',
+    get desc() { return tr("S3 兼容接口；区域常为 auto"); },
     Icon: ThunderboltOutlined,
   },
   {
     value: 'minio',
     title: 'MinIO',
-    desc: '私有化对象存储（建议路径式访问）',
+    get desc() { return tr("私有化对象存储（建议路径式访问）"); },
     Icon: DatabaseOutlined,
   },
 ];
@@ -388,6 +390,7 @@ function buildStoragePutItems(values: Record<string, unknown>): SettingPutItem[]
 }
 
 export default function StorageSettingsPage() {
+  const language = useLanguage();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -404,7 +407,7 @@ export default function StorageSettingsPage() {
         url: uploadTestFile.url,
       },
     ];
-  }, [uploadTestFile]);
+  }, [uploadTestFile, language]);
   const kind = Form.useWatch('kind', form);
   const presignOn = Form.useWatch('s3_presign_enabled', form);
 
@@ -450,7 +453,7 @@ export default function StorageSettingsPage() {
         oss_use_https: g.oss_use_https === 'false' ? 'false' : 'true',
       });
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载失败');
+      message.error((e as Error)?.message || tr("加载失败"));
     } finally {
       setLoading(false);
     }
@@ -483,12 +486,8 @@ export default function StorageSettingsPage() {
               <HddOutlined />
             </div>
             <div className="tm-system-settings__hero-body">
-              <Typography.Title level={5} className="tm-system-settings__hero-title">
-                自备云存储与访问域名
-              </Typography.Title>
-              <Typography.Paragraph type="secondary" className="tm-system-settings__hero-desc">
-                请在 AWS、Cloudflare R2、MinIO、腾讯云 COS、阿里云 OSS 等开通存储桶与密钥；密钥仅在后端加密保存，浏览器不直连对象存储。上传走服务端接口，可在本页或「文件管理」中测试。总览见{' '}
-                <Link to="/settings/integrations">第三方集成总览</Link>。
+              <Typography.Title level={5} className="tm-system-settings__hero-title">{tr("自备云存储与访问域名")}</Typography.Title>
+              <Typography.Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("请在 AWS、Cloudflare R2、MinIO、腾讯云 COS、阿里云 OSS 等开通存储桶与密钥；密钥仅在后端加密保存，浏览器不直连对象存储。上传走服务端接口，可在本页或「文件管理」中测试。总览见")}<Link to="/settings/integrations">{tr("第三方集成总览")}</Link>。
               </Typography.Paragraph>
             </div>
           </div>
@@ -500,24 +499,22 @@ export default function StorageSettingsPage() {
           onFinish={async (values) => {
             try {
               await saveSettingsItems(buildStoragePutItems(values as Record<string, unknown>));
-              message.success('已保存');
+              message.success(tr("已保存"));
               await load();
             } catch (e: unknown) {
-              message.error((e as Error)?.message || '保存失败');
+              message.error((e as Error)?.message || tr("保存失败"));
             }
           }}
         >
           <ProCard
             variant="outlined"
-            title="存储方式"
+            title={tr("存储方式")}
             className="tm-system-settings__panel"
             extra={
-              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>
-                重新加载
-              </Button>
+              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>{tr("重新加载")}</Button>
             }
           >
-            <Form.Item label="选择存储后端" name="kind" rules={[{ required: true, message: '请选择存储方式' }]}>
+            <Form.Item label={tr("选择存储后端")} name="kind" rules={[{ required: true, message: tr("请选择存储方式") }]}>
               <Radio.Group className="tm-storage-kind-group">
                 <Row gutter={[12, 12]}>
                   {STORAGE_KIND_OPTIONS.map(({ value, title, desc, Icon }) => (
@@ -542,24 +539,24 @@ export default function StorageSettingsPage() {
             </Form.Item>
           </ProCard>
 
-          <ProCard variant="outlined" title={storageConnectionSectionTitle(kind)} className="tm-system-settings__panel">
+          <ProCard variant="outlined" title={tr(storageConnectionSectionTitle(kind) ?? '')} className="tm-system-settings__panel">
             {kind === 'local' || !kind ? (
               <Row gutter={[24, 0]}>
                 <Col xs={24} md={12}>
                   <Form.Item
-                    label="公开访问前缀"
+                    label={tr("公开访问前缀")}
                     name="public_base"
-                    extra="可填 /static 或完整 URL 前缀，与后端静态资源路由一致"
+                    extra={tr("可填 /static 或完整 URL 前缀，与后端静态资源路由一致")}
                   >
-                    <Input placeholder="/static 或 http://127.0.0.1:8080/static" />
+                    <Input placeholder={tr("/static 或 http://127.0.0.1:8080/static")} />
                   </Form.Item>
                 </Col>
                 <Col xs={24} md={12}>
                   <Form.Item
-                    label="本地保存目录"
+                    label={tr("本地保存目录")}
                     name="local_root"
-                    rules={[{ required: true, message: '请输入本地保存目录' }]}
-                    extra="相对项目根目录，如 data/uploads"
+                    rules={[{ required: true, message: tr("请输入本地保存目录") }]}
+                    extra={tr("相对项目根目录，如 data/uploads")}
                   >
                     <Input placeholder="data/uploads" />
                   </Form.Item>
@@ -572,74 +569,74 @@ export default function StorageSettingsPage() {
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={14}>
                     <Form.Item
-                      label="接口地址"
+                      label={tr("接口地址")}
                       name="s3_endpoint"
                       rules={
                         kind === 'r2' || kind === 'minio'
-                          ? [{ required: true, message: '请填写接口地址（含 https:// 或 http://）' }]
+                          ? [{ required: true, message: tr("请填写接口地址（含 https:// 或 http://）") }]
                           : []
                       }
                       extra={
                         kind === 's3'
-                          ? 'AWS 官方分区可留空；R2 / MinIO 需填完整地址'
+                          ? tr("AWS 官方分区可留空；R2 / MinIO 需填完整地址")
                           : 'R2: https://<account_id>.r2.cloudflarestorage.com；MinIO: http://127.0.0.1:9000'
                       }
                     >
-                      <Input placeholder="https://s3.amazonaws.com 或 MinIO / R2 地址" />
+                      <Input placeholder={tr("https://s3.amazonaws.com 或 MinIO / R2 地址")} />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={10}>
-                    <Form.Item label="区域 Region" name="s3_region">
+                    <Form.Item label={tr("区域 Region")} name="s3_region">
                       <Input placeholder={kind === 'r2' ? 'auto' : kind === 'minio' ? 'us-east-1' : 'ap-southeast-1'} />
                     </Form.Item>
                   </Col>
                 </Row>
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={12}>
-                    <Form.Item label="存储桶" name="s3_bucket" rules={[{ required: true, message: '请填写存储桶名称' }]}>
+                    <Form.Item label={tr("存储桶")} name="s3_bucket" rules={[{ required: true, message: tr("请填写存储桶名称") }]}>
                       <Input placeholder="my-bucket" />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
-                    <Form.Item label="访问密钥 ID" name="s3_access_key_id" rules={[{ required: true }]}>
-                      <Input.Password autoComplete="new-password" placeholder="AKIA… 或 R2 令牌" />
+                    <Form.Item label={tr("访问密钥 ID")} name="s3_access_key_id" rules={[{ required: true }]}>
+                      <Input.Password autoComplete="new-password" placeholder={tr("AKIA… 或 R2 令牌")} />
                     </Form.Item>
                   </Col>
                 </Row>
-                <Form.Item label="访问密钥" name="s3_secret_access_key" rules={[{ required: true }]}>
-                  <Input.Password autoComplete="new-password" placeholder="保存后脱敏；留空则不修改" />
+                <Form.Item label={tr("访问密钥")} name="s3_secret_access_key" rules={[{ required: true }]}>
+                  <Input.Password autoComplete="new-password" placeholder={tr("保存后脱敏；留空则不修改")} />
                 </Form.Item>
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={12}>
-                    <Form.Item label="路径式访问" name="s3_force_path_style">
+                    <Form.Item label={tr("路径式访问")} name="s3_force_path_style">
                       <Radio.Group>
-                        <Radio value="false">虚拟主机（AWS 默认）</Radio>
-                        <Radio value="true">路径式（MinIO 常用）</Radio>
+                        <Radio value="false">{tr("虚拟主机（AWS 默认）")}</Radio>
+                        <Radio value="true">{tr("路径式（MinIO 常用）")}</Radio>
                       </Radio.Group>
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
-                    <Form.Item label="传输加密" name="s3_use_ssl">
+                    <Form.Item label={tr("传输加密")} name="s3_use_ssl">
                       <Radio.Group>
-                        <Radio value="true">优先 HTTPS</Radio>
-                        <Radio value="false">允许 HTTP（内网 MinIO）</Radio>
+                        <Radio value="true">{tr("优先 HTTPS")}</Radio>
+                        <Radio value="false">{tr("允许 HTTP（内网 MinIO）")}</Radio>
                       </Radio.Group>
                     </Form.Item>
                   </Col>
                 </Row>
-                <Form.Item label="预签名下载 URL" name="s3_presign_enabled">
+                <Form.Item label={tr("预签名下载 URL")} name="s3_presign_enabled">
                   <Radio.Group>
-                    <Radio value="false">关闭（推荐：配置对外 URL 前缀）</Radio>
-                    <Radio value="true">启用（返回短期签名链接）</Radio>
+                    <Radio value="false">{tr("关闭（推荐：配置对外 URL 前缀）")}</Radio>
+                    <Radio value="true">{tr("启用（返回短期签名链接）")}</Radio>
                   </Radio.Group>
                 </Form.Item>
                 {presignOn === 'true' ? (
-                  <Form.Item label="预签名有效期（秒）" name="s3_presign_expire_seconds">
+                  <Form.Item label={tr("预签名有效期（秒）")} name="s3_presign_expire_seconds">
                     <InputNumber min={60} max={604800} style={{ width: '100%' }} placeholder="3600" />
                   </Form.Item>
                 ) : null}
                 <Form.Item
-                  label="对外访问 URL 前缀"
+                  label={tr("对外访问 URL 前缀")}
                   name="s3_public_base"
                   dependencies={['s3_presign_enabled']}
                   rules={[
@@ -649,12 +646,12 @@ export default function StorageSettingsPage() {
                           return;
                         }
                         if (!String(v || '').trim()) {
-                          throw new Error('请填写对外 URL 前缀，或启用预签名下载');
+                          throw new Error(tr("请填写对外 URL 前缀，或启用预签名下载"));
                         }
                       },
                     },
                   ]}
-                  extra="CDN / 自定义域名；外链为 prefix + / + objectKey"
+                  extra={tr("CDN / 自定义域名；外链为 prefix + / + objectKey")}
                 >
                   <Input placeholder="https://cdn.example.com/my-bucket" />
                 </Form.Item>
@@ -665,20 +662,20 @@ export default function StorageSettingsPage() {
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={12}>
                     <Form.Item
-                      label="存储桶"
+                      label={tr("存储桶")}
                       name="cos_bucket"
-                      rules={[{ required: true, message: '请填写 COS 存储桶' }]}
-                      extra="腾讯云名称形如 example-1250000000（含 AppID 后缀）"
+                      rules={[{ required: true, message: tr("请填写 COS 存储桶") }]}
+                      extra={tr("腾讯云名称形如 example-1250000000（含 AppID 后缀）")}
                     >
                       <Input placeholder="example-1250000000" />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
                     <Form.Item
-                      label="区域"
+                      label={tr("区域")}
                       name="cos_region"
-                      rules={[{ required: true, message: '请填写区域' }]}
-                      extra="例如 ap-guangzhou"
+                      rules={[{ required: true, message: tr("请填写区域") }]}
+                      extra={tr("例如 ap-guangzhou")}
                     >
                       <Input placeholder="ap-guangzhou" />
                     </Form.Item>
@@ -686,35 +683,35 @@ export default function StorageSettingsPage() {
                 </Row>
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={12}>
-                    <Form.Item label="密钥 ID" name="cos_secret_id" rules={[{ required: true }]}>
-                      <Input.Password autoComplete="new-password" placeholder="保存后脱敏；留空则不修改" />
+                    <Form.Item label={tr("密钥 ID")} name="cos_secret_id" rules={[{ required: true }]}>
+                      <Input.Password autoComplete="new-password" placeholder={tr("保存后脱敏；留空则不修改")} />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
-                    <Form.Item label="密钥" name="cos_secret_key" rules={[{ required: true }]}>
+                    <Form.Item label={tr("密钥")} name="cos_secret_key" rules={[{ required: true }]}>
                       <Input.Password autoComplete="new-password" />
                     </Form.Item>
                   </Col>
                 </Row>
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={12}>
-                    <Form.Item label="AppID（可选）" name="cos_app_id" extra="桶名为裸名称时需填写，用于拼接域名">
+                    <Form.Item label={tr("AppID（可选）")} name="cos_app_id" extra={tr("桶名为裸名称时需填写，用于拼接域名")}>
                       <Input placeholder="1250000000" />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
-                    <Form.Item label="自定义接口地址（可选）" name="cos_endpoint" extra="加速域等特殊入口；留空使用标准域名">
+                    <Form.Item label={tr("自定义接口地址（可选）")} name="cos_endpoint" extra={tr("加速域等特殊入口；留空使用标准域名")}>
                       <Input placeholder="https://…" />
                     </Form.Item>
                   </Col>
                 </Row>
-                <Form.Item label="对外 URL 前缀（可选）" name="cos_public_base" extra="CDN 域名；留空则使用桶 REST 域名">
+                <Form.Item label={tr("对外 URL 前缀（可选）")} name="cos_public_base" extra={tr("CDN 域名；留空则使用桶 REST 域名")}>
                   <Input placeholder="https://your-cdn.example.com" />
                 </Form.Item>
-                <Form.Item label="使用 HTTPS" name="cos_use_https">
+                <Form.Item label={tr("使用 HTTPS")} name="cos_use_https">
                   <Radio.Group>
                     <Radio value="true">HTTPS</Radio>
-                    <Radio value="false">HTTP（内网）</Radio>
+                    <Radio value="false">{tr("HTTP（内网）")}</Radio>
                   </Radio.Group>
                 </Form.Item>
               </>
@@ -723,35 +720,35 @@ export default function StorageSettingsPage() {
             {showOssForm ? (
               <>
                 <Form.Item
-                  label="接口地址"
+                  label={tr("接口地址")}
                   name="oss_endpoint"
-                  rules={[{ required: true, message: '请填写 OSS 接口地址' }]}
-                  extra="例如 https://oss-cn-guangzhou.aliyuncs.com"
+                  rules={[{ required: true, message: tr("请填写 OSS 接口地址") }]}
+                  extra={tr("例如 https://oss-cn-guangzhou.aliyuncs.com")}
                 >
                   <Input placeholder="https://oss-cn-guangzhou.aliyuncs.com" />
                 </Form.Item>
                 <Row gutter={[24, 0]}>
                   <Col xs={24} md={12}>
-                    <Form.Item label="存储桶" name="oss_bucket" rules={[{ required: true, message: '请填写存储桶名称' }]}>
+                    <Form.Item label={tr("存储桶")} name="oss_bucket" rules={[{ required: true, message: tr("请填写存储桶名称") }]}>
                       <Input placeholder="trademind-assets" />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
-                    <Form.Item label="访问密钥 ID" name="oss_access_key_id" rules={[{ required: true }]}>
+                    <Form.Item label={tr("访问密钥 ID")} name="oss_access_key_id" rules={[{ required: true }]}>
                       <Input.Password autoComplete="new-password" />
                     </Form.Item>
                   </Col>
                 </Row>
-                <Form.Item label="访问密钥" name="oss_access_key_secret" rules={[{ required: true }]}>
-                  <Input.Password autoComplete="new-password" placeholder="保存后脱敏；留空则不修改" />
+                <Form.Item label={tr("访问密钥")} name="oss_access_key_secret" rules={[{ required: true }]}>
+                  <Input.Password autoComplete="new-password" placeholder={tr("保存后脱敏；留空则不修改")} />
                 </Form.Item>
-                <Form.Item label="对外 URL 前缀（可选）" name="oss_public_base" extra="CDN / 自定义域名；留空使用虚拟托管域名">
+                <Form.Item label={tr("对外 URL 前缀（可选）")} name="oss_public_base" extra={tr("CDN / 自定义域名；留空使用虚拟托管域名")}>
                   <Input placeholder="https://cdn.example.com" />
                 </Form.Item>
-                <Form.Item label="使用 HTTPS" name="oss_use_https">
+                <Form.Item label={tr("使用 HTTPS")} name="oss_use_https">
                   <Radio.Group>
                     <Radio value="true">HTTPS</Radio>
-                    <Radio value="false">HTTP（内网）</Radio>
+                    <Radio value="false">{tr("HTTP（内网）")}</Radio>
                   </Radio.Group>
                 </Form.Item>
               </>
@@ -760,25 +757,21 @@ export default function StorageSettingsPage() {
 
           <ProCard variant="outlined" className="tm-system-settings__footer">
             <Space wrap className="tm-action-space">
-              <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
-                保存配置
-              </Button>
+              <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>{tr("保存配置")}</Button>
               <Button
                 loading={testing}
                 onClick={async () => {
                   setTesting(true);
                   try {
                     await testStorageConnection();
-                    message.success('连接检测通过');
+                    message.success(tr("连接检测通过"));
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '校验失败');
+                    message.error((e as Error)?.message || tr("校验失败"));
                   } finally {
                     setTesting(false);
                   }
                 }}
-              >
-                测试连接
-              </Button>
+              >{tr("测试连接")}</Button>
               <Button
                 loading={publicTesting}
                 onClick={() => {
@@ -787,28 +780,24 @@ export default function StorageSettingsPage() {
                     try {
                       const res = await testStoragePublicAccess();
                       if (res.ok) {
-                        message.success(res.message || '图片存储可以被外部平台正常访问');
+                        message.success(res.message || tr("图片存储可以被外部平台正常访问"));
                       } else {
-                        message.error(res.message || '图片地址无法被外部平台访问');
+                        message.error(res.message || tr("图片地址无法被外部平台访问"));
                       }
                     } catch (e: unknown) {
-                      message.error((e as Error)?.message || '公网访问检测失败');
+                      message.error((e as Error)?.message || tr("公网访问检测失败"));
                     } finally {
                       setPublicTesting(false);
                     }
                   });
                 }}
-              >
-                测试公网访问
-              </Button>
+              >{tr("测试公网访问")}</Button>
             </Space>
           </ProCard>
         </Form>
 
-        <ProCard variant="outlined" title="上传测试" className="tm-system-settings__panel">
-          <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-            保存配置后，可选择图片验证上传与访问是否正常。
-          </Typography.Paragraph>
+        <ProCard variant="outlined" title={tr("上传测试")} className="tm-system-settings__panel">
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>{tr("保存配置后，可选择图片验证上传与访问是否正常。")}</Typography.Paragraph>
           <Space align="start" wrap size="large">
             <Upload
               maxCount={1}
@@ -822,11 +811,11 @@ export default function StorageSettingsPage() {
                 }
                 try {
                   await deleteFile(uploadTestFile.id);
-                  message.success('已删除文件记录与存储对象');
+                  message.success(tr("已删除文件记录与存储对象"));
                   setUploadTestFile(null);
                   return true;
                 } catch (e: unknown) {
-                  message.error((e as Error)?.message || '删除失败');
+                  message.error((e as Error)?.message || tr("删除失败"));
                   return false;
                 }
               }}
@@ -837,9 +826,9 @@ export default function StorageSettingsPage() {
                   try {
                     const r = await uploadFile(file);
                     setUploadTestFile(r);
-                    message.success('上传成功');
+                    message.success(tr("上传成功"));
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '上传失败');
+                    message.error((e as Error)?.message || tr("上传失败"));
                   } finally {
                     setUploading(false);
                   }
@@ -847,17 +836,15 @@ export default function StorageSettingsPage() {
                 return false;
               }}
             >
-              <Button loading={uploading} icon={<CloudUploadOutlined />}>
-                选择图片并上传
-              </Button>
+              <Button loading={uploading} icon={<CloudUploadOutlined />}>{tr("选择图片并上传")}</Button>
             </Upload>
             {uploadTestFile ? (
               <Space direction="vertical" size="small">
-                <Typography.Text type="secondary">文件 ID</Typography.Text>
+                <Typography.Text type="secondary">{tr("文件 ID")}</Typography.Text>
                 <Typography.Paragraph copyable style={{ marginBottom: 0, maxWidth: 480 }}>
                   {uploadTestFile.id}
                 </Typography.Paragraph>
-                <Typography.Text type="secondary">访问 URL</Typography.Text>
+                <Typography.Text type="secondary">{tr("访问 URL")}</Typography.Text>
                 <Typography.Paragraph copyable style={{ marginBottom: 0, maxWidth: 480 }}>
                   {uploadTestFile.url}
                 </Typography.Paragraph>

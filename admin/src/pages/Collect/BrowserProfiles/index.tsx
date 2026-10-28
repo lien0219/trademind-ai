@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
@@ -20,14 +22,15 @@ import { accessStatusLabel } from '@/constants/collectAccess';
 
 
 const CHECK_STATUS: Record<string, { text: string; color: string }> = {
-  logged_in: { text: '已登录', color: 'success' },
-  login_required: { text: '需登录', color: 'warning' },
-  verify_required: { text: '需验证', color: 'error' },
-  unknown: { text: '未知', color: 'default' },
-  failed: { text: '失败', color: 'error' },
+  logged_in: { text: 'Logged in', color: 'success' },
+  login_required: { text: 'Login required', color: 'warning' },
+  verify_required: { text: 'Verification required', color: 'error' },
+  unknown: { text: 'Unknown', color: 'default' },
+  failed: { text: 'Failed', color: 'error' },
 };
 
 export default function CollectBrowserProfilesPage() {
+  useLanguage();
   const { can } = usePermission();
   const canManageProfiles = can(PERMISSIONS.PRODUCT_WRITE);
   const actionRef = useRef<ActionType>();
@@ -43,9 +46,9 @@ export default function CollectBrowserProfilesPage() {
       const res = await openBrowserProfileLogin(row.id, { url: u });
       message.success(res.message);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '打开失败';
+      const msg = e instanceof Error ? e.message : tr("打开失败");
       if (msg.includes('HEADED_BROWSER_REQUIRED')) {
-        message.error('无法打开登录窗口，请联系管理员开启采集浏览器的可视化模式');
+        message.error(tr("无法打开登录窗口，请联系管理员开启采集浏览器的可视化模式"));
       } else {
         message.error(msg);
       }
@@ -57,21 +60,21 @@ export default function CollectBrowserProfilesPage() {
   const handleCheckStatus = async (row: BrowserProfileRow) => {
     const u = checkUrl.trim() || row.lastCheckUrl;
     if (!u) {
-      message.warning('请在页顶填写用于检测的商品链接');
+      message.warning(tr("请在页顶填写用于检测的商品链接"));
       return;
     }
     setCheckingId(row.id);
-    message.loading({ content: '正在检测登录状态…', key: 'browser-profile-check', duration: 0 });
+    message.loading({ content: tr("正在检测登录状态…"), key: 'browser-profile-check', duration: 0 });
     try {
       const res = await checkBrowserProfile(row.id, { url: u });
       message.success({
-        content: `${accessStatusLabel(res.accessStatus).text}：${res.message}`,
+        content: `${tr(accessStatusLabel(res.accessStatus).text)}：${res.message}`,
         key: 'browser-profile-check',
       });
       actionRef.current?.reload();
     } catch (e) {
       message.error({
-        content: e instanceof Error ? e.message : '检测失败',
+        content: e instanceof Error ? e.message : tr("检测失败"),
         key: 'browser-profile-check',
       });
     } finally {
@@ -80,35 +83,35 @@ export default function CollectBrowserProfilesPage() {
   };
 
   const columns: ProColumns<BrowserProfileRow>[] = [
-    { title: '名称', dataIndex: 'name', ellipsis: true },
-    { title: '适用网站', dataIndex: 'domain', copyable: true, width: 140 },
-    { title: '类型', dataIndex: 'provider', width: 100, search: false, render: () => '自定义采集' },
+    { title: tr("名称"), dataIndex: 'name', ellipsis: true },
+    { title: tr("适用网站"), dataIndex: 'domain', copyable: true, width: 140 },
+    { title: tr("类型"), dataIndex: 'provider', width: 100, search: false, render: () => tr("自定义采集") },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 90,
       render: (_, row) =>
-        row.status === 'active' ? <Tag color="success">启用</Tag> : <Tag>停用</Tag>,
+        row.status === 'active' ? <Tag color="success">{tr("启用")}</Tag> : <Tag>{tr("停用")}</Tag>,
     },
     {
-      title: '最近检测',
+      title: tr("最近检测"),
       dataIndex: 'lastCheckStatus',
       width: 110,
       search: false,
       render: (_, row) => {
         const m = CHECK_STATUS[row.lastCheckStatus ?? ''] ?? { text: row.lastCheckStatus || '—', color: 'default' };
-        return <Tag color={m.color}>{m.text}</Tag>;
+        return <Tag color={m.color}>{tr(m.text)}</Tag>;
       },
     },
     {
-      title: '检测时间',
+      title: tr("检测时间"),
       dataIndex: 'lastCheckAt',
       width: 168,
       search: false,
       render: (_, row) => formatDateTime(row.lastCheckAt),
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 320,
       render: (_, row) => canManageProfiles ? (
@@ -122,8 +125,7 @@ export default function CollectBrowserProfilesPage() {
                 disabled={checkingId === row.id}
                 onClick={() => void handleOpenLogin(row)}
               >
-                打开登录
-              </Button>
+                {tr("打开登录")}</Button>
               <Button
                 type="link"
                 size="small"
@@ -131,74 +133,71 @@ export default function CollectBrowserProfilesPage() {
                 disabled={openingId === row.id}
                 onClick={() => void handleCheckStatus(row)}
               >
-                检测状态
-              </Button>
+                {tr("检测状态")}</Button>
               <Popconfirm
-                title="停用该登录状态？"
+                title={tr("停用该登录状态？")}
                 onConfirm={() =>
                   void disableBrowserProfile(row.id)
                     .then(() => {
-                      message.success('已停用');
+                      message.success(tr("已停用"));
                       actionRef.current?.reload();
                     })
-                    .catch((e) => message.error(e instanceof Error ? e.message : '失败'))
+                    .catch((e) => message.error(e instanceof Error ? e.message : tr("失败")))
                 }
               >
-                <a>停用</a>
+                <a>{tr("停用")}</a>
               </Popconfirm>
             </>
           ) : (
             <Popconfirm
-              title="重新启用该登录状态？"
+              title={tr("重新启用该登录状态？")}
               onConfirm={() =>
                 void enableBrowserProfile(row.id)
                   .then(() => {
-                    message.success('已启用');
+                    message.success(tr("已启用"));
                     actionRef.current?.reload();
                   })
-                  .catch((e) => message.error(e instanceof Error ? e.message : '失败'))
+                  .catch((e) => message.error(e instanceof Error ? e.message : tr("失败")))
               }
             >
-              <a>启用</a>
+              <a>{tr("启用")}</a>
             </Popconfirm>
           )}
           <Popconfirm
-            title="删除该登录状态？"
-            description="删除后不可恢复，本地浏览器登录数据需手动清理。"
+            title={tr("删除该登录状态？")}
+            description={tr("删除后不可恢复，本地浏览器登录数据需手动清理。")}
             onConfirm={() =>
               void deleteBrowserProfile(row.id)
                 .then(() => {
-                  message.success('已删除');
+                  message.success(tr("已删除"));
                   actionRef.current?.reload();
                 })
-                .catch((e) => message.error(e instanceof Error ? e.message : '删除失败'))
+                .catch((e) => message.error(e instanceof Error ? e.message : tr("删除失败")))
             }
           >
-            <a>删除</a>
+            <a>{tr("删除")}</a>
           </Popconfirm>
         </Space>
-      ) : <Typography.Text type="secondary">仅查看</Typography.Text>,
+      ) : <Typography.Text type="secondary">{tr("仅查看")}</Typography.Text>,
     },
   ];
 
   return (
     <TmPageContainer
-      title="采集浏览器登录状态"
-      subTitle="用于需要登录才能查看的商品页；系统不保存账号密码。"
+      title={tr("采集浏览器登录状态")}
+      subTitle={tr("用于需要登录才能查看的商品页；系统不保存账号密码。")}
     >
       <Typography.Paragraph type="secondary">
-        登录信息保存在本机采集浏览器中，请勿在公共电脑保留。验证码需自行完成，系统不会自动破解。
-      </Typography.Paragraph>
+        {tr("登录信息保存在本机采集浏览器中，请勿在公共电脑保留。验证码需自行完成，系统不会自动破解。")}</Typography.Paragraph>
       <Space style={{ marginBottom: 16 }}>
         <Input
           style={{ width: 420 }}
-          placeholder="用于检测或打开登录的商品链接"
+          placeholder={tr("用于检测或打开登录的商品链接")}
           value={checkUrl}
           onChange={(e) => setCheckUrl(e.target.value)}
         />
         {canManageProfiles ? <Button type="primary" onClick={() => setCreateOpen(true)}>
-          新建登录状态
-        </Button> : null}
+          {tr("新建登录状态")}</Button> : null}
       </Space>
       <ProTable<BrowserProfileRow>
         rowKey="id"
@@ -216,7 +215,7 @@ export default function CollectBrowserProfilesPage() {
         }}
       />
       <ModalForm<{ name: string; domain: string }>
-        title="新建采集浏览器登录状态"
+        title={tr("新建采集浏览器登录状态")}
         open={createOpen}
         onOpenChange={setCreateOpen}
         onFinish={async (vals) => {
@@ -226,19 +225,19 @@ export default function CollectBrowserProfilesPage() {
               domain: vals.domain.trim(),
               provider: 'custom',
             });
-            message.success('已创建');
+            message.success(tr("已创建"));
             actionRef.current?.reload();
             return true;
           } catch (e) {
-            message.error(e instanceof Error ? e.message : '创建失败');
+            message.error(e instanceof Error ? e.message : tr("创建失败"));
             return false;
           }
         }}
       >
-        <ProFormText name="name" label="名称" rules={[{ required: true }]} />
+        <ProFormText name="name" label={tr("名称")} rules={[{ required: true }]} />
         <ProFormText
           name="domain"
-          label="域名"
+          label={tr("域名")}
           placeholder="jd.com"
           rules={[{ required: true }]}
         />

@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
 
 /** URL query `provider` values for /settings/collector */
@@ -18,12 +19,12 @@ export type CollectSettingsProviderOption = {
 };
 
 export const COLLECT_SETTINGS_PROVIDER_OPTIONS: CollectSettingsProviderOption[] = [
-  { key: '1688', label: '1688 采集器', source: '1688' },
-  { key: 'aliexpress', label: '速卖通采集器', source: 'aliexpress' },
-  { key: 'pinduoduo', label: '拼多多采集器', source: 'pinduoduo' },
-  { key: 'taobao_tmall', label: '淘宝/天猫采集器', source: 'taobao_tmall' },
-  { key: 'shein_temu', label: 'SHEIN/Temu 采集器', source: 'shein_temu', planned: true },
-  { key: 'custom', label: '自定义链接采集器', source: 'custom' },
+  { key: '1688', get label() { return tr("1688 采集器"); }, source: '1688' },
+  { key: 'aliexpress', get label() { return tr("速卖通采集器"); }, source: 'aliexpress' },
+  { key: 'pinduoduo', get label() { return tr("拼多多采集器"); }, source: 'pinduoduo' },
+  { key: 'taobao_tmall', get label() { return tr("淘宝/天猫采集器"); }, source: 'taobao_tmall' },
+  { key: 'shein_temu', get label() { return tr("SHEIN/Temu 采集器"); }, source: 'shein_temu', planned: true },
+  { key: 'custom', get label() { return tr("自定义链接采集器"); }, source: 'custom' },
 ];
 
 const PROVIDER_KEY_SET = new Set<string>(COLLECT_SETTINGS_PROVIDER_OPTIONS.map((o) => o.key));

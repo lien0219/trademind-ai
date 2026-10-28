@@ -1,53 +1,11 @@
 /** Organization profile & advanced JSON editor display strings. Metadata keys remain stable. */
 export const tenantSettingsTranslations: Record<string,[string,string,string,string,string]> = {
-  "待开通": [
-    "Pending activation",
-    "開通待ち",
-    "待開通",
-    "개통 대기",
-    "รอเปิดใช้งาน"
-  ],
-  "正常": [
-    "Active",
-    "有効",
-    "正常",
-    "활성",
-    "ใช้งานอยู่"
-  ],
-  "已暂停": [
-    "Suspended",
-    "一時停止",
-    "已暫停",
-    "일시 중지",
-    "ระงับชั่วคราว"
-  ],
-  "已归档": [
-    "Archived",
-    "アーカイブ済み",
-    "已封存",
-    "보관됨",
-    "เก็บถาวร"
-  ],
-  "已关闭": [
-    "Closed",
-    "終了",
-    "已關閉",
-    "종료됨",
-    "ปิดแล้ว"
-  ],
   "企业资料加载失败，请重试": [
     "Unable to load organization details. Try again.",
     "組織情報を読み込めません。再試行してください。",
     "無法載入企業資料，請重試",
     "조직 정보를 불러오지 못했습니다. 다시 시도하세요.",
     "โหลดข้อมูลองค์กรไม่สำเร็จ โปรดลองอีกครั้ง"
-  ],
-  "企业资料已保存": [
-    "Organization details saved",
-    "組織情報を保存しました",
-    "企業資料已儲存",
-    "조직 정보를 저장했습니다",
-    "บันทึกข้อมูลองค์กรแล้ว"
   ],
   "企业高级配置已保存": [
     "Advanced settings saved",
@@ -154,13 +112,6 @@ export const tenantSettingsTranslations: Record<string,[string,string,string,str
     "조직 로고",
     "โลโก้องค์กร"
   ],
-  "企业标识": [
-    "Organization code",
-    "組織識別子",
-    "企業識別碼",
-    "조직 식별자",
-    "รหัสองค์กร"
-  ],
   "企业状态": [
     "Organization status",
     "組織の状態",
@@ -168,54 +119,12 @@ export const tenantSettingsTranslations: Record<string,[string,string,string,str
     "조직 상태",
     "สถานะองค์กร"
   ],
-  "企业 ID": [
-    "Organization ID",
-    "組織 ID",
-    "企業 ID",
-    "조직 ID",
-    "รหัสองค์กร"
-  ],
-  "成员数": [
-    "Members",
-    "メンバー数",
-    "成員數",
-    "구성원 수",
-    "จำนวนสมาชิก"
-  ],
-  "店铺数": [
-    "Stores",
-    "店舗数",
-    "店鋪數",
-    "매장 수",
-    "จำนวนร้านค้า"
-  ],
   "创建时间": [
     "Created at",
     "作成日時",
     "建立時間",
     "생성 시각",
     "สร้างเมื่อ"
-  ],
-  "法定主体": [
-    "Legal entity",
-    "法人主体",
-    "法定主體",
-    "법적 실체",
-    "นิติบุคคล"
-  ],
-  "联系邮箱": [
-    "Contact email",
-    "連絡先メール",
-    "聯絡信箱",
-    "연락처 이메일",
-    "อีเมลติดต่อ"
-  ],
-  "联系电话": [
-    "Contact phone",
-    "連絡先電話番号",
-    "聯絡電話",
-    "연락처 전화번호",
-    "เบอร์โทรติดต่อ"
   ],
   "工作台资料": [
     "Workspace details",
@@ -266,13 +175,6 @@ export const tenantSettingsTranslations: Record<string,[string,string,string,str
     "작업 공간 이름",
     "ชื่อพื้นที่ทำงาน"
   ],
-  "企业名称": [
-    "Organization name",
-    "組織名",
-    "企業名稱",
-    "조직 이름",
-    "ชื่อองค์กร"
-  ],
   "请输入名称": [
     "Enter a name",
     "名前を入力してください",
@@ -287,26 +189,12 @@ export const tenantSettingsTranslations: Record<string,[string,string,string,str
     "이름은 120자를 초과할 수 없습니다",
     "ชื่อต้องไม่เกิน 120 อักขระ"
   ],
-  "法定主体名称": [
-    "Legal entity name",
-    "法人名",
-    "法定主體名稱",
-    "법적 실체 이름",
-    "ชื่อนิติบุคคล"
-  ],
   "选填": [
     "Optional",
     "任意",
     "選填",
     "선택 사항",
     "ไม่บังคับ"
-  ],
-  "企业说明": [
-    "Organization description",
-    "組織の説明",
-    "企業說明",
-    "조직 설명",
-    "คำอธิบายองค์กร"
   ],
   "描述该企业的用途或经营范围（选填）": [
     "Describe the organization's purpose or business scope (optional)",

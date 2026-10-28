@@ -50,11 +50,15 @@ const RULES = [
     hint: '→ 发布候选',
     allow: /RELEASE_GATE|RELEASE_GATE_CONCLUSION|'Release Candidate':|\/\*\*|\/\//,
   },
-  { pattern: /\bblocked_by_/i, hint: '→ 中文说明', allow: /blocked_by_[a-z_]+:\s*['"`]/i },
+  {
+    pattern: /\bblocked_by_/i,
+    hint: '→ 中文说明',
+    allow: /blocked_by_[a-z_]+:\s*['"`]|get\s+blocked_by_[a-z_]+\s*\(\)\s*\{\s*return\s+tr\(/i,
+  },
   {
     pattern: /\bneed_check\b/,
     hint: '→ 需要检查',
-    allow: /need_check:\s*['"`]需要检查|need_check:\s*['"`]warning|need_check:\s*\{\s*text:\s*['"`]需要检查|authStatus\s*===|\/\*\*|\/\//,
+    allow: /need_check:\s*['"`]需要检查|need_check:\s*['"`]warning|need_check:\s*\{\s*(?:get\s+)?text:\s*['"`]需要检查|need_check:\s*\{\s*get\s+text\(\)\s*\{\s*return\s+tr\(|get\s+need_check\s*\(\)\s*\{\s*return\s+tr\(|authStatus\s*===|\/\*\*|\/\//,
   },
   { pattern: /未接入 runtime/i, hint: '→ 未接入运行时' },
   { pattern: /待同步 Storage|同步 Storage|Storage 公网|Storage 已|Storage 正常/i, hint: '→ 存储' },

@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
@@ -29,15 +31,15 @@ import {
 } from '@/services/aiBatches';
 
 const OP_LABEL: Record<string, string> = {
-  title_optimize: '批量标题优化',
-  description_generate: '批量描述生成',
-  image_remove_background: '批量去背景',
-  image_generate_scene: '批量场景图',
-  image_replace_background: '批量换背景',
-  image_batch_generate_main: '批量主图生成',
-  image_translate_image_text: '批量图片文字翻译',
-  image_score: '批量图片评分',
-  image_select_best_main: '批量自动选主图',
+  get title_optimize() { return tr("批量标题优化"); },
+  get description_generate() { return tr("批量描述生成"); },
+  get image_remove_background() { return tr("批量去背景"); },
+  get image_generate_scene() { return tr("批量场景图"); },
+  get image_replace_background() { return tr("批量换背景"); },
+  get image_batch_generate_main() { return tr("批量主图生成"); },
+  get image_translate_image_text() { return tr("批量图片文字翻译"); },
+  get image_score() { return tr("批量图片评分"); },
+  get image_select_best_main() { return tr("批量自动选主图"); },
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -50,6 +52,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function AiBatchesPage() {
+  useLanguage();
   const actionRef = useRef<ActionType>();
   const [searchParams] = useSearchParams();
   const openedQueryIdRef = useRef<string>();
@@ -65,11 +68,11 @@ export default function AiBatchesPage() {
   const [tasksKind, setTasksKind] = useState<string>('');
 
   const columns: ProColumns<AIOperationBatchRow>[] = [
-    { title: '创建时间', dataIndex: 'createdAt', width: 176, valueType: 'dateTime',
+    { title: tr("创建时间"), dataIndex: 'createdAt', width: 176, valueType: 'dateTime',
       render: (_, row) => formatDateTime(row.createdAt), search: false },
-    { title: '批次号', dataIndex: 'batchNo', width: 140, ellipsis: true, copyable: true, search: false },
+    { title: tr("批次号"), dataIndex: 'batchNo', width: 140, ellipsis: true, copyable: true, search: false },
     {
-      title: '类型',
+      title: tr("类型"),
       dataIndex: 'operationType',
       width: 160,
       valueType: 'select',
@@ -77,20 +80,20 @@ export default function AiBatchesPage() {
       render: (_, row) => OP_LABEL[row.operationType] ?? row.operationType,
     },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 120,
       render: (_, row) => (
         <Tag color={STATUS_COLOR[row.status] ?? 'default'}>{commonStatusLabel(row.status)}</Tag>
       ),
     },
-    { title: '商品数', dataIndex: 'productCount', width: 80, search: false },
-    { title: '任务数', dataIndex: 'taskCount', width: 80, search: false },
-    { title: '成功', dataIndex: 'successCount', width: 72, search: false },
-    { title: '失败', dataIndex: 'failedCount', width: 72, search: false },
-    { title: '跳过', dataIndex: 'skippedCount', width: 72, search: false },
+    { title: tr("商品数"), dataIndex: 'productCount', width: 80, search: false },
+    { title: tr("任务数"), dataIndex: 'taskCount', width: 80, search: false },
+    { title: tr("成功"), dataIndex: 'successCount', width: 72, search: false },
+    { title: tr("失败"), dataIndex: 'failedCount', width: 72, search: false },
+    { title: tr("跳过"), dataIndex: 'skippedCount', width: 72, search: false },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 220,
       render: (_, row) => [
@@ -98,19 +101,19 @@ export default function AiBatchesPage() {
           key="d"
           onClick={() => void openDetail(row.id)}
         >
-          详情
+          {tr("详情")}
         </Typography.Link>,
         <Typography.Link key="t" onClick={() => void openTasks(row)}>
-          子任务
+          {tr("子任务")}
         </Typography.Link>,
         ...(!isProductionBuild
           ? [
               <Typography.Link key="r" onClick={() => void runRetry(row.id)}>
-                重试失败
+                {tr("重试失败")}
               </Typography.Link>,
               row.operationType === 'title_optimize' || row.operationType === 'description_generate' ? (
                 <Typography.Link key="a" onClick={() => void runApply(row.id)}>
-                  应用结果
+                  {tr("应用结果")}
                 </Typography.Link>
               ) : null,
             ]
@@ -127,7 +130,7 @@ export default function AiBatchesPage() {
       const res = await fetchAiBatchDetail(id);
       setDetail(res ?? null);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载失败');
+      message.error((e as Error)?.message || tr("加载失败"));
     } finally {
       setLoadingDetail(false);
     }
@@ -149,20 +152,20 @@ export default function AiBatchesPage() {
   const runRetry = async (id: string) => {
     try {
       await retryAiBatchFailed(id);
-      message.success('已触发重试');
+      message.success(tr("已触发重试"));
       actionRef.current?.reload();
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '重试失败');
+      message.error((e as Error)?.message || tr("重试失败"));
     }
   };
 
   const runApply = async (id: string) => {
     try {
       const res = await applyAiBatchResults(id, { target: 'ai_field' });
-      message.success(`已应用 ${res?.applied ?? 0} 条到 AI 文案字段`);
+      message.success(trFormat('已应用 {count} 条到 AI 文案字段', { count: res?.applied ?? 0 }));
       actionRef.current?.reload();
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '应用失败');
+      message.error((e as Error)?.message || tr("应用失败"));
     }
   };
 
@@ -175,12 +178,12 @@ export default function AiBatchesPage() {
 
   return (
     <TmPageContainer
-      title="历史 AI 批次"
-      subTitle="查看历史批量 AI 任务的执行记录与结果。"
+      title={tr("历史 AI 批次")}
+      subTitle={tr("查看历史批量 AI 任务的执行记录与结果。")}
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        批量结果默认写入商品的 {AI_FIELD_COPY.aiTitle} / {AI_FIELD_COPY.aiDescription} 字段，或进入图片任务列表，不会自动覆盖正式标题、详情或替换主图。详情见{' '}
-        <Link to="/settings/ai">AI 设置</Link>。
+        {tr("批量结果默认写入商品的")} {AI_FIELD_COPY.aiTitle} / {AI_FIELD_COPY.aiDescription} {tr("字段，或进入图片任务列表，不会自动覆盖正式标题、详情或替换主图。详情见")}{' '}
+        <Link to="/settings/ai">{tr("AI 设置")}</Link>。
       </Typography.Paragraph>
 
       <ProTable<AIOperationBatchRow>
@@ -206,46 +209,46 @@ export default function AiBatchesPage() {
       />
 
       <Drawer
-        title="批次详情"
+        title={tr("批次详情")}
         width={620}
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         destroyOnHidden
       >
         {loadingDetail ? (
-          <Typography.Text type="secondary">加载中…</Typography.Text>
+          <Typography.Text type="secondary">{tr("加载中…")}</Typography.Text>
         ) : detail?.batch ? (
           <>
             <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="批次号">{detail.batch.batchNo}</Descriptions.Item>
-              <Descriptions.Item label="类型">
+              <Descriptions.Item label={tr("批次号")}>{detail.batch.batchNo}</Descriptions.Item>
+              <Descriptions.Item label={tr("类型")}>
                 {OP_LABEL[detail.batch.operationType] ?? detail.batch.operationType}
               </Descriptions.Item>
-              <Descriptions.Item label="状态">
+              <Descriptions.Item label={tr("状态")}>
                 <Tag color={STATUS_COLOR[detail.batch.status]}>{commonStatusLabel(detail.batch.status)}</Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="统计">
-                商品 {detail.batch.productCount} · 任务 {detail.batch.taskCount} · 成功 {detail.batch.successCount}{' '}
-                · 失败 {detail.batch.failedCount} · 跳过 {detail.batch.skippedCount}
+              <Descriptions.Item label={tr("统计")}>
+                {tr("商品")} {detail.batch.productCount} {tr("· 任务")} {detail.batch.taskCount} {tr("· 成功")} {detail.batch.successCount}{' '}
+                {tr("· 失败")} {detail.batch.failedCount} {tr("· 跳过")} {detail.batch.skippedCount}
               </Descriptions.Item>
             </Descriptions>
             <TechnicalDetails>
-              <TaskJsonBlock title="批次输入" value={detail.batch.input} />
-              <TaskJsonBlock title="批次输出" value={detail.batch.output} last />
+              <TaskJsonBlock title={tr("批次输入")} value={detail.batch.input} />
+              <TaskJsonBlock title={tr("批次输出")} value={detail.batch.output} last />
             </TechnicalDetails>
             {(detail.recentAiTasks?.length ?? 0) > 0 && (
               <>
-                <Typography.Title level={5}>最近 AI 任务</Typography.Title>
+                <Typography.Title level={5}>{tr("最近 AI 任务")}</Typography.Title>
                 <Table
                   size="small"
                   pagination={false}
                   rowKey={(r) => (r as { id: string }).id}
                   dataSource={detail.recentAiTasks as object[]}
                   columns={[
-                    { title: '状态', dataIndex: 'status', width: 90, render: (v) => commonStatusLabel(v as string) },
-                    { title: '商品', dataIndex: 'productId', ellipsis: true },
+                    { title: tr("状态"), dataIndex: 'status', width: 90, render: (v) => commonStatusLabel(v as string) },
+                    { title: tr("商品"), dataIndex: 'productId', ellipsis: true },
                     {
-                      title: '错误摘要',
+                      title: tr("错误摘要"),
                       dataIndex: 'errorMessage',
                       ellipsis: true,
                     },
@@ -255,16 +258,16 @@ export default function AiBatchesPage() {
             )}
             {(detail.recentImageTasks?.length ?? 0) > 0 && (
               <>
-                <Typography.Title level={5}>最近图片任务</Typography.Title>
+                <Typography.Title level={5}>{tr("最近图片任务")}</Typography.Title>
                 <Table
                   size="small"
                   pagination={false}
                   rowKey={(r) => (r as { id: string }).id}
                   dataSource={detail.recentImageTasks as object[]}
                   columns={[
-                    { title: '类型', dataIndex: 'taskType', width: 140, render: (v) => taskTypeLabel(v as string) },
-                    { title: '状态', dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
-                    { title: '商品', dataIndex: 'productId', ellipsis: true },
+                    { title: tr("类型"), dataIndex: 'taskType', width: 140, render: (v) => taskTypeLabel(v as string) },
+                    { title: tr("状态"), dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
+                    { title: tr("商品"), dataIndex: 'productId', ellipsis: true },
                   ]}
                 />
               </>
@@ -278,12 +281,12 @@ export default function AiBatchesPage() {
                     (detail.batch.operationType === 'title_optimize' ||
                       detail.batch.operationType === 'description_generate')
                       ? runApply(detail.batch.id)
-                      : message.info('仅文本批次可一键应用')
+                      : message.info(tr("仅文本批次可一键应用"))
                   }
                 >
-                  应用 AI 文案到草稿
+                  {tr("应用 AI 文案到草稿")}
                 </Button>
-                <Button onClick={() => currentId && runRetry(currentId)}>重试失败</Button>
+                <Button onClick={() => currentId && runRetry(currentId)}>{tr("重试失败")}</Button>
               </Space>
             ) : null}
           </>
@@ -291,7 +294,7 @@ export default function AiBatchesPage() {
       </Drawer>
 
       <Drawer
-        title="子任务"
+        title={tr("子任务")}
         width={720}
         open={tasksOpen}
         onClose={() => setTasksOpen(false)}
@@ -320,18 +323,18 @@ export default function AiBatchesPage() {
           columns={
             tasksKind === 'image_tasks'
               ? [
-                  { title: '任务编号', dataIndex: 'id', width: 120, ellipsis: true, copyable: true },
-                  { title: '类型', dataIndex: 'taskType', width: 140, render: (v) => taskTypeLabel(v as string) },
-                  { title: '状态', dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
-                  { title: '商品', dataIndex: 'productId', ellipsis: true },
-                  { title: '错误', dataIndex: 'errorMessage', ellipsis: true },
+                  { title: tr("任务编号"), dataIndex: 'id', width: 120, ellipsis: true, copyable: true },
+                  { title: tr("类型"), dataIndex: 'taskType', width: 140, render: (v) => taskTypeLabel(v as string) },
+                  { title: tr("状态"), dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
+                  { title: tr("商品"), dataIndex: 'productId', ellipsis: true },
+                  { title: tr("错误"), dataIndex: 'errorMessage', ellipsis: true },
                 ]
               : [
-                  { title: '任务编号', dataIndex: 'id', width: 120, ellipsis: true, copyable: true },
-                  { title: '类型', dataIndex: 'taskType', width: 140 },
-                  { title: '状态', dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
-                  { title: '商品', dataIndex: 'productId', ellipsis: true },
-                  { title: '错误摘要', dataIndex: 'errorMessage', ellipsis: true },
+                  { title: tr("任务编号"), dataIndex: 'id', width: 120, ellipsis: true, copyable: true },
+                  { title: tr("类型"), dataIndex: 'taskType', width: 140 },
+                  { title: tr("状态"), dataIndex: 'status', width: 96, render: (v) => commonStatusLabel(v as string) },
+                  { title: tr("商品"), dataIndex: 'productId', ellipsis: true },
+                  { title: tr("错误摘要"), dataIndex: 'errorMessage', ellipsis: true },
                 ]
           }
         />

@@ -38,8 +38,8 @@ type EditValues = {
 };
 
 function nextStatus(tenant: Tenant) {
-  if (tenant.status === 'active') return { value: 'suspended' as const, label: '暂停企业' };
-  if (tenant.status === 'suspended' || tenant.status === 'pending') return { value: 'active' as const, label: '启用企业' };
+  if (tenant.status === 'active') return { value: 'suspended' as const, label: tr("暂停企业") };
+  if (tenant.status === 'suspended' || tenant.status === 'pending') return { value: 'active' as const, label: tr("启用企业") };
   return null;
 }
 

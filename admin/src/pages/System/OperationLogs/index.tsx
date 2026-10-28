@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
@@ -28,7 +29,7 @@ function mappedCellLabel(label: string, raw?: string) {
   const key = (raw || '').trim();
   const content = <Typography.Text>{text}</Typography.Text>;
   if (!key || text === key) return content;
-  return <Tooltip title={`原始值：${key}`}>{content}</Tooltip>;
+  return <Tooltip title={trFormat("原始值：{value0}", { value0: String(key) })}>{content}</Tooltip>;
 }
 
 function mappedResourceTag(resource?: string) {
@@ -40,7 +41,7 @@ function mappedResourceTag(resource?: string) {
     </Tag>
   );
   if (!key || label === key) return tag;
-  return <Tooltip title={`原始值：${key}`}>{tag}</Tooltip>;
+  return <Tooltip title={trFormat("原始值：{value0}", { value0: String(key) })}>{tag}</Tooltip>;
 }
 
 export default function OperationLogsPage() {
@@ -49,20 +50,20 @@ export default function OperationLogsPage() {
 
   const columns: ProColumns<OperationLogRow>[] = [
     {
-      title: '时间',
+      title: tr("时间"),
       dataIndex: 'createdAt',
       width: 172,
       search: false,
       render: (_, row) => formatDateTime(row.createdAt),
     },
     {
-      title: '用户',
+      title: tr("用户"),
       dataIndex: 'username',
       width: 120,
       ellipsis: true,
     },
     {
-      title: '操作',
+      title: tr("操作"),
       dataIndex: 'action',
       width: 168,
       ellipsis: true,
@@ -75,7 +76,7 @@ export default function OperationLogsPage() {
       render: (_, row) => mappedCellLabel(operationLogActionLabel(row.action), row.action),
     },
     {
-      title: '资源',
+      title: tr("资源"),
       dataIndex: 'resource',
       width: 140,
       ellipsis: true,
@@ -88,14 +89,14 @@ export default function OperationLogsPage() {
       render: (_, row) => mappedResourceTag(row.resource),
     },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 96,
       search: false,
       render: (_, row) => statusTag(row.status),
     },
     {
-      title: '来源 IP',
+      title: tr("来源 IP"),
       dataIndex: 'ip',
       width: 132,
       search: false,
@@ -109,19 +110,19 @@ export default function OperationLogsPage() {
       search: false,
     },
     {
-      title: '路径',
+      title: tr("路径"),
       dataIndex: 'path',
       ellipsis: true,
       search: false,
     },
     {
-      title: '说明',
+      title: tr("说明"),
       dataIndex: 'message',
       ellipsis: true,
       search: false,
     },
     {
-      title: '时间范围',
+      title: tr("时间范围"),
       dataIndex: 'dateRange',
       valueType: 'dateTimeRange',
       hideInTable: true,

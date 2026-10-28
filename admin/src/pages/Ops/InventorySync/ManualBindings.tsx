@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Table, Typography, message } from 'antd';
@@ -38,11 +39,11 @@ type ModalKind = 'confirm' | 'reject';
 
 const statusOptions = Object.entries(MANUAL_REQUEST_STATUS_LABELS).map(([value, item]) => ({ value, label: item.text }));
 const rejectReasonOptions = [
-  { value: 'no_binding_candidate', label: '无可用候选' },
-  { value: 'calibration_threshold_not_met', label: '置信度不足' },
-  { value: 'existing_binding_conflict', label: '已有绑定冲突' },
-  { value: 'multiple_normalized_matches', label: '多个候选匹配' },
-  { value: 'manual_review_required', label: '人工判定拒绝' },
+  { value: 'no_binding_candidate', get label() { return tr("无可用候选"); } },
+  { value: 'calibration_threshold_not_met', get label() { return tr("置信度不足"); } },
+  { value: 'existing_binding_conflict', get label() { return tr("已有绑定冲突"); } },
+  { value: 'multiple_normalized_matches', get label() { return tr("多个候选匹配"); } },
+  { value: 'manual_review_required', get label() { return tr("人工判定拒绝"); } },
 ];
 
 function skuOption(hit: ProductSkuSearchHit) {
@@ -177,7 +178,7 @@ export default function InventorySyncManualBindingsPage() {
           },
           createInventorySyncIdempotencyKey('manual-confirm'),
         );
-        message.success('已确认人工绑定');
+        message.success(tr("已确认人工绑定"));
       }
       if (modal === 'reject') {
         await rejectManualBindingRequest(
@@ -189,7 +190,7 @@ export default function InventorySyncManualBindingsPage() {
           },
           createInventorySyncIdempotencyKey('manual-reject'),
         );
-        message.success('已拒绝人工绑定');
+        message.success(tr("已拒绝人工绑定"));
       }
       setModal(null);
       await Promise.all([loadList(), loadDetail()]);
@@ -204,40 +205,40 @@ export default function InventorySyncManualBindingsPage() {
   };
 
   const columns = useMemo<ProColumns<ManualBindingRequest>[]>(() => [
-    { title: '请求 ID', dataIndex: 'id', width: 170, render: (v) => copyableText(String(v || ''), 14) },
-    { title: '店铺连接', dataIndex: 'shopConnectionId', width: 150, render: (v) => copyableText(String(v || ''), 12) },
-    { title: '平台规格', dataIndex: 'externalSkuId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
-    { title: '状态', dataIndex: 'status', width: 120, render: (v) => <StatusTag map={MANUAL_REQUEST_STATUS_LABELS} value={String(v || '')} /> },
-    { title: '原因码', dataIndex: 'reasonCode', width: 190 },
-    { title: '候选数', dataIndex: 'candidateCount', width: 90 },
-    { title: '建议规格', dataIndex: 'suggestedLocalSkuId', width: 160, render: (v) => copyableText(String(v || ''), 12) },
+    { title: tr("请求 ID"), dataIndex: 'id', width: 170, render: (v) => copyableText(String(v || ''), 14) },
+    { title: tr("店铺连接"), dataIndex: 'shopConnectionId', width: 150, render: (v) => copyableText(String(v || ''), 12) },
+    { title: tr("平台规格"), dataIndex: 'externalSkuId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
+    { title: tr("状态"), dataIndex: 'status', width: 120, render: (v) => <StatusTag map={MANUAL_REQUEST_STATUS_LABELS} value={String(v || '')} /> },
+    { title: tr("原因码"), dataIndex: 'reasonCode', width: 190 },
+    { title: tr("候选数"), dataIndex: 'candidateCount', width: 90 },
+    { title: tr("建议规格"), dataIndex: 'suggestedLocalSkuId', width: 160, render: (v) => copyableText(String(v || ''), 12) },
     { title: 'Revision', dataIndex: 'revision', width: 90 },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
+    { title: tr("更新时间"), dataIndex: 'updatedAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 120,
       render: (_, row) => [
-        <Button key="view" type="link" onClick={() => setState({ requestId: row.id }, { replace: true })}>处理</Button>,
+        <Button key="view" type="link" onClick={() => setState({ requestId: row.id }, { replace: true })}>{tr("处理")}</Button>,
       ],
     },
   ], [setState]);
 
   const decisionColumns: ColumnsType<ManualBindingDecision> = [
-    { title: '时间', dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
-    { title: '操作', dataIndex: 'operation', width: 110 },
-    { title: '操作者', dataIndex: 'actorId', width: 160, render: (v) => copyableText(String(v || ''), 12) },
-    { title: '规格', dataIndex: 'selectedLocalSkuId', width: 160, render: (v) => copyableText(String(v || ''), 12) },
-    { title: '原因码', dataIndex: 'reasonCode', width: 190 },
+    { title: tr("时间"), dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
+    { title: tr("操作"), dataIndex: 'operation', width: 110 },
+    { title: tr("操作者"), dataIndex: 'actorId', width: 160, render: (v) => copyableText(String(v || ''), 12) },
+    { title: tr("规格"), dataIndex: 'selectedLocalSkuId', width: 160, render: (v) => copyableText(String(v || ''), 12) },
+    { title: tr("原因码"), dataIndex: 'reasonCode', width: 190 },
     { title: 'Revision', dataIndex: 'requestRevision', width: 90 },
-    { title: '备注', dataIndex: 'comment', ellipsis: true },
+    { title: tr("备注"), dataIndex: 'comment', ellipsis: true },
   ];
 
   return (
     <TmPageContainer
-      title="人工绑定工作台"
-      subTitle="处理库存同步生成的 SKU 绑定人工确认请求"
-      extra={<Button icon={<ReloadOutlined />} onClick={() => void Promise.all([loadList(), loadDetail()])} loading={loading || detailLoading}>刷新</Button>}
+      title={tr("人工绑定工作台")}
+      subTitle={tr("处理库存同步生成的 SKU 绑定人工确认请求")}
+      extra={<Button icon={<ReloadOutlined />} onClick={() => void Promise.all([loadList(), loadDetail()])} loading={loading || detailLoading}>{tr("刷新")}</Button>}
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         {renderInventorySyncError(error)}
@@ -245,20 +246,20 @@ export default function InventorySyncManualBindingsPage() {
           <Form form={form} layout="vertical" onFinish={updateFilters}>
             <Row gutter={[16, 8]}>
               <Col xs={24} md={8} lg={6}>
-                <Form.Item name="shopConnectionId" label="店铺连接 ID">
-                  <Input allowClear placeholder="仅传 shopConnectionId" />
+                <Form.Item name="shopConnectionId" label={tr("店铺连接 ID")}>
+                  <Input allowClear placeholder={tr("仅传 shopConnectionId")} />
                 </Form.Item>
               </Col>
               <Col xs={24} md={8} lg={6}>
-                <Form.Item name="status" label="请求状态">
-                  <Select allowClear options={statusOptions} placeholder="全部状态" />
+                <Form.Item name="status" label={tr("请求状态")}>
+                  <Select allowClear options={statusOptions} placeholder={tr("全部状态")} />
                 </Form.Item>
               </Col>
               <Col xs={24} lg={8}>
-                <Form.Item label="操作">
+                <Form.Item label={tr("操作")}>
                   <Space wrap>
-                    <Button type="primary" htmlType="submit">应用筛选</Button>
-                    <Button onClick={clearFilters}>清除</Button>
+                    <Button type="primary" htmlType="submit">{tr("应用筛选")}</Button>
+                    <Button onClick={clearFilters}>{tr("清除")}</Button>
                   </Space>
                 </Form.Item>
               </Col>
@@ -300,21 +301,21 @@ export default function InventorySyncManualBindingsPage() {
         </Card>
         {detail ? (
           <SectionCard
-            title="请求详情"
-            description="确认会生成手工绑定；拒绝只记录受控决策，不触发真实平台库存写入。"
+            title={tr("请求详情")}
+            description={tr("确认会生成手工绑定；拒绝只记录受控决策，不触发真实平台库存写入。")}
             headerExtra={<StatusTag map={MANUAL_REQUEST_STATUS_LABELS} value={detail.request.status} />}
           >
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
               <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} size="small">
-                <Descriptions.Item label="请求 ID">{copyableText(detail.request.id, 18)}</Descriptions.Item>
-                <Descriptions.Item label="运行 ID">{copyableText(detail.request.inventorySyncRunId, 18)}</Descriptions.Item>
-                <Descriptions.Item label="快照 ID">{copyableText(detail.request.inventorySnapshotItemId, 18)}</Descriptions.Item>
-                <Descriptions.Item label="平台 SKU">{copyableText(detail.request.externalSkuId, 18)}</Descriptions.Item>
-                <Descriptions.Item label="建议 SKU">{copyableText(detail.request.suggestedLocalSkuId, 18)}</Descriptions.Item>
+                <Descriptions.Item label={tr("请求 ID")}>{copyableText(detail.request.id, 18)}</Descriptions.Item>
+                <Descriptions.Item label={tr("运行 ID")}>{copyableText(detail.request.inventorySyncRunId, 18)}</Descriptions.Item>
+                <Descriptions.Item label={tr("快照 ID")}>{copyableText(detail.request.inventorySnapshotItemId, 18)}</Descriptions.Item>
+                <Descriptions.Item label={tr("平台 SKU")}>{copyableText(detail.request.externalSkuId, 18)}</Descriptions.Item>
+                <Descriptions.Item label={tr("建议 SKU")}>{copyableText(detail.request.suggestedLocalSkuId, 18)}</Descriptions.Item>
                 <Descriptions.Item label="Revision">{detail.request.revision}</Descriptions.Item>
-                <Descriptions.Item label="原因码">{detail.request.reasonCode}</Descriptions.Item>
+                <Descriptions.Item label={tr("原因码")}>{detail.request.reasonCode}</Descriptions.Item>
                 <Descriptions.Item label="Resolution">{detail.request.resolution || '-'}</Descriptions.Item>
-                <Descriptions.Item label="更新时间">{formatDateTime(detail.request.updatedAt)}</Descriptions.Item>
+                <Descriptions.Item label={tr("更新时间")}>{formatDateTime(detail.request.updatedAt)}</Descriptions.Item>
               </Descriptions>
               <Space wrap>
                 <Button
@@ -323,7 +324,7 @@ export default function InventorySyncManualBindingsPage() {
                   disabled={!detail.request.allowedActions.canConfirm}
                   onClick={() => openDecision('confirm')}
                 >
-                  确认绑定
+                  {tr("确认绑定")}
                 </Button>
                 <Button
                   danger
@@ -331,23 +332,23 @@ export default function InventorySyncManualBindingsPage() {
                   disabled={!detail.request.allowedActions.canReject}
                   onClick={() => openDecision('reject')}
                 >
-                  拒绝
+                  {tr("拒绝")}
                 </Button>
-                <Text type="secondary">按钮状态来自 allowedActions；后端仍会校验权限、状态和 revision。</Text>
+                <Text type="secondary">{tr("按钮状态来自 allowedActions；后端仍会校验权限、状态和 revision。")}</Text>
               </Space>
               <Table rowKey="id" columns={decisionColumns} dataSource={detail.decisions || []} pagination={false} scroll={{ x: 1040 }} />
             </Space>
           </SectionCard>
-        ) : <Card><Text type="secondary">从列表选择一条人工绑定请求。</Text></Card>}
+        ) : <Card><Text type="secondary">{tr("从列表选择一条人工绑定请求。")}</Text></Card>}
       </Space>
       <Modal
-        title={modal === 'confirm' ? '确认人工绑定' : '拒绝人工绑定'}
+        title={modal === 'confirm' ? tr("确认人工绑定") : tr("拒绝人工绑定")}
         open={!!modal}
         onCancel={() => setModal(null)}
         onOk={() => void submitDecision()}
         confirmLoading={actionLoading}
-        okText={modal === 'confirm' ? '确认绑定' : '确认拒绝'}
-        cancelText="取消"
+        okText={modal === 'confirm' ? tr("确认绑定") : tr("确认拒绝")}
+        cancelText={tr("取消")}
         destroyOnHidden
       >
         <Form form={decisionForm} layout="vertical" style={{ marginTop: 16 }}>
@@ -355,22 +356,22 @@ export default function InventorySyncManualBindingsPage() {
             <Input disabled value={detail?.request.revision} />
           </Form.Item>
           {modal === 'confirm' ? (
-          <Form.Item name="selectedLocalSkuId" label="选择本地规格" rules={[{ required: true, message: '请选择本地规格' }]}>
+          <Form.Item name="selectedLocalSkuId" label={tr("选择本地规格")} rules={[{ required: true, message: tr("请选择本地规格") }]}>
               <Select
                 showSearch
                 filterOption={false}
                 onSearch={(value) => void searchSku(value)}
                 options={skuOptions}
                 loading={skuLoading}
-                placeholder="搜索 SKU 编码、名称或商品标题"
+                placeholder={tr("搜索 SKU 编码、名称或商品标题")}
               />
             </Form.Item>
           ) : (
-            <Form.Item name="reasonCode" label="拒绝原因码" rules={[{ required: true, message: '请选择拒绝原因码' }]}>
+            <Form.Item name="reasonCode" label={tr("拒绝原因码")} rules={[{ required: true, message: tr("请选择拒绝原因码") }]}>
               <Select options={rejectReasonOptions} />
             </Form.Item>
           )}
-          <Form.Item name="comment" label="备注">
+          <Form.Item name="comment" label={tr("备注")}>
             <Input.TextArea rows={3} maxLength={500} showCount />
           </Form.Item>
         </Form>

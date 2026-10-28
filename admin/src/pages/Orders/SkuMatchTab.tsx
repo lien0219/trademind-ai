@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import { Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, Alert, message } from 'antd';
 import { confirmSkuManualBind } from '@/constants/sensitiveActions';
 import { history } from '@umijs/max';
@@ -19,10 +21,10 @@ type Props = {
 };
 
 function candTrustBadge(conf: number) {
-  if (conf >= 90) return <Tag color="green">高可信</Tag>;
-  if (conf >= 70) return <Tag color="gold">中可信</Tag>;
-  if (conf >= 40) return <Tag>低可信</Tag>;
-  return <Tag color="default">参考</Tag>;
+  if (conf >= 90) return <Tag color="green">{tr("高可信")}</Tag>;
+  if (conf >= 70) return <Tag color="gold">{tr("中可信")}</Tag>;
+  if (conf >= 40) return <Tag>{tr("低可信")}</Tag>;
+  return <Tag color="default">{tr("参考")}</Tag>;
 }
 
 function statusColor(s: string | undefined) {
@@ -43,6 +45,7 @@ function statusColor(s: string | undefined) {
 }
 
 export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = false, focusItemId }: Props) {
+  const language = useLanguage();
   const [rows, setRows] = useState<OrderSkuMatchRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [matchLoading, setMatchLoading] = useState(false);
@@ -67,7 +70,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
       setRows(r.items ?? []);
       setCandCache({});
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载规格匹配失败');
+      message.error(tr((e as Error)?.message || tr('加载规格匹配失败')));
     } finally {
       setLoading(false);
     }
@@ -83,12 +86,12 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
       const r = await getOrderItemSkuCandidates(itemId, { limit: 10 });
       setBindDrawerCands(r.list ?? []);
     } catch {
-      message.error('候选加载失败');
+      message.error(tr("候选加载失败"));
       setBindDrawerCands([]);
     } finally {
       setBindCandLoading(false);
     }
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     if (!bindOpen || !bindItemId) return;
@@ -101,7 +104,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
       const r = await getOrderItemSkuCandidates(itemId, { limit: 10 });
       setCandCache((c) => ({ ...c, [itemId]: r.list ?? [] }));
     } catch {
-      message.error('候选加载失败');
+      message.error(tr("候选加载失败"));
       setCandCache((c) => ({ ...c, [itemId]: [] }));
     } finally {
       setRowCandLoading((m) => {
@@ -110,7 +113,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
         return n;
       });
     }
-  }, []);
+  }, [language]);
 
   const skuWorkbenchRows = rows.filter((r) =>
     ['unmatched', 'skipped', 'ambiguous'].includes(String(r.matchStatus || '')),
@@ -129,7 +132,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
     const loadingRow = !!rowCandLoading[id];
     return (
       <div style={{ padding: '8px 0', maxWidth: 960 }}>
-        <Typography.Text type="secondary">规则推荐 SKU（须人工确认，不自动绑定）</Typography.Text>
+        <Typography.Text type="secondary">{tr("规则推荐 SKU（须人工确认，不自动绑定）")}</Typography.Text>
         <Table
           size="small"
           pagination={false}
@@ -144,7 +147,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
           })}
           columns={[
             {
-              title: '分',
+              title: tr("分"),
               width: 100,
               dataIndex: 'confidence',
               render: (v: number) => (
@@ -154,12 +157,12 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
                 </Space>
               ),
             },
-            { title: '原因', dataIndex: 'reason', ellipsis: true },
-            { title: '来源', dataIndex: 'source', width: 120, ellipsis: true },
-            { title: '规格编号', width: 200, ellipsis: true, render: (_, row) => row.skuCode || row.productSkuId },
-            { title: '库存', dataIndex: 'stock', width: 64, render: (v?: number) => v ?? '—' },
+            { title: tr("原因"), dataIndex: 'reason', ellipsis: true },
+            { title: tr("来源"), dataIndex: 'source', width: 120, ellipsis: true },
+            { title: tr("规格编号"), width: 200, ellipsis: true, render: (_, row) => row.skuCode || row.productSkuId },
+            { title: tr("库存"), dataIndex: 'stock', width: 64, render: (v?: number) => v ?? '—' },
             {
-              title: '操作',
+              title: tr("操作"),
               key: 'pick',
               width: 100,
               render: (_, row) => (
@@ -172,7 +175,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
                     setBindOpen(true);
                   }}
                 >
-                  以此为候选绑定
+                  {tr("以此为候选绑定")}
                 </Button>
               ),
             },
@@ -192,7 +195,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
         })),
       );
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '搜索失败');
+      message.error(tr((e as Error)?.message || tr('搜索失败')));
     }
   };
 
@@ -214,16 +217,16 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
-          message="部分明细需要人工处理规格匹配"
+          message={tr("部分明细需要人工处理规格匹配")}
           description={
             <span>
-              未匹配或多候选行可点击下方行展开<strong>查看候选</strong>，或到异常工作台筛选。{' '}
+              {tr("未匹配或多候选行可点击下方行展开")}<strong>{tr("查看候选")}</strong>{tr("，或到异常工作台筛选。")}{' '}
               <Typography.Link
                 onClick={() =>
                   history.push(`/orders/exceptions?orderId=${encodeURIComponent(orderId)}`)
                 }
               >
-                跳转异常工作台
+                {tr("跳转异常工作台")}
               </Typography.Link>
             </span>
           }
@@ -232,30 +235,30 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
       <Space wrap style={{ marginBottom: 12 }}>
         {!readOnly ? (
           <Popconfirm
-            title="对未锁定行执行自动匹配？已 manual_bound 默认不覆盖。"
+            title={tr("对未锁定行执行自动匹配？已 manual_bound 默认不覆盖。")}
             onConfirm={async () => {
               setMatchLoading(true);
               try {
                 await matchOrderSKUs(orderId, { overwrite: false, force: false });
-                message.success('已触发匹配');
+                message.success(tr("已触发匹配"));
                 await load();
                 await onRefreshOrder();
               } catch (e: unknown) {
-                message.error((e as Error)?.message || '失败');
+                message.error(tr((e as Error)?.message || tr('失败')));
               } finally {
                 setMatchLoading(false);
               }
             }}
           >
             <Button type="primary" loading={matchLoading}>
-              自动匹配整单
+              {tr("自动匹配整单")}
             </Button>
           </Popconfirm>
         ) : (
-          <Typography.Text type="secondary">只读账号不可执行匹配或绑定操作</Typography.Text>
+          <Typography.Text type="secondary">{tr("只读账号不可执行匹配或绑定操作")}</Typography.Text>
         )}
         <Typography.Link href={`/orders/sku-matches?orderId=${encodeURIComponent(orderId)}`}>
-          全局匹配记录
+          {tr("全局匹配记录")}
         </Typography.Link>
       </Space>
       <Table<OrderSkuMatchRow>
@@ -277,16 +280,16 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
             ['unmatched', 'skipped', 'ambiguous'].includes(String(record.matchStatus || '')),
         }}
         columns={[
-          { title: '明细标题', dataIndex: 'productTitle', key: 'productTitle', width: 160, ellipsis: true },
+          { title: tr("明细标题"), dataIndex: 'productTitle', key: 'productTitle', width: 160, ellipsis: true },
           {
-            title: '平台规格',
+            title: tr("平台规格"),
             key: 'ext',
             width: 120,
             render: (_, r) => r.externalSkuId || '—',
           },
           { title: 'Seller/Code', key: 'code', width: 120, render: (_, r) => r.sellerSku || r.skuCode || '—' },
           {
-            title: '候选',
+            title: tr("候选"),
             key: 'cand',
             width: 140,
             ellipsis: true,
@@ -304,28 +307,28 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
               ),
           },
           {
-            title: '状态',
+            title: tr("状态"),
             dataIndex: 'matchStatus',
             key: 'matchStatus',
             width: 110,
             render: (v: string) => <Tag color={statusColor(v)}>{v || '—'}</Tag>,
           },
-          { title: '类型', dataIndex: 'matchType', key: 'matchType', width: 130 },
-          { title: '置信度', dataIndex: 'confidence', key: 'confidence', width: 72 },
+          { title: tr("类型"), dataIndex: 'matchType', key: 'matchType', width: 130 },
+          { title: tr("置信度"), dataIndex: 'confidence', key: 'confidence', width: 72 },
           {
-            title: '本地商品规格',
+            title: tr("本地商品规格"),
             key: 'local',
             width: 120,
             render: (_, r) => r.localSkuCode || r.productSkuId || '—',
           },
           {
-            title: '原因',
+            title: tr("原因"),
             dataIndex: 'reason',
             key: 'reason',
             ellipsis: true,
           },
           {
-            title: '操作',
+            title: tr("操作"),
             key: 'op',
             width: 300,
             render: (_, r) => (
@@ -338,19 +341,19 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
                           history.push(`/orders/exceptions?orderId=${encodeURIComponent(orderId)}`)
                         }
                       >
-                        去工作台处理
+                        {tr("去工作台处理")}
                       </Typography.Link>
                     ) : null}
                     {!readOnly ? (
                       <>
                         <Button size="small" onClick={() => openBind(r.orderItemId!)}>
-                          绑定 SKU
+                          {tr("绑定 SKU")}
                         </Button>
                         <Popconfirm
-                      title="使用当前行已绑定的本地商品规格扣减库存？"
+                      title={tr("使用当前行已绑定的本地商品规格扣减库存？")}
                       onConfirm={async () => {
                         if (!r.productSkuId) {
-                          message.warning('请先自动匹配或人工绑定本地商品规格');
+                          message.warning(tr("请先自动匹配或人工绑定本地商品规格"));
                           return;
                         }
                         try {
@@ -359,23 +362,23 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
                             deductInventory: true,
                             syncInventory: false,
                           });
-                          message.success('已尝试扣库');
+                          message.success(tr("已尝试扣库"));
                           await load();
                           await onRefreshOrder();
                         } catch (e: unknown) {
-                          message.error((e as Error)?.message || '失败');
+                          message.error(tr((e as Error)?.message || tr('失败')));
                         }
                       }}
                     >
                       <Button size="small" disabled={!r.productSkuId}>
-                        扣库
+                        {tr("扣库")}
                       </Button>
                     </Popconfirm>
                     <Popconfirm
-                      title="使用当前行已绑定的本地商品规格：扣减库存并入队平台库存同步（幂等）？"
+                      title={tr("使用当前行已绑定的本地商品规格：扣减库存并入队平台库存同步（幂等）？")}
                       onConfirm={async () => {
                         if (!r.productSkuId) {
-                          message.warning('请先自动匹配或人工绑定本地商品规格');
+                          message.warning(tr("请先自动匹配或人工绑定本地商品规格"));
                           return;
                         }
                         try {
@@ -384,16 +387,16 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
                             deductInventory: true,
                             syncInventory: true,
                           });
-                          message.success('已处理');
+                          message.success(tr("已处理"));
                           await load();
                           await onRefreshOrder();
                         } catch (e: unknown) {
-                          message.error((e as Error)?.message || '失败');
+                          message.error(tr((e as Error)?.message || tr('失败')));
                         }
                       }}
                     >
                       <Button size="small" disabled={!r.productSkuId}>
-                        扣库+同步
+                        {tr("扣库+同步")}
                       </Button>
                     </Popconfirm>
                       </>
@@ -406,19 +409,19 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
         ]}
       />
       <Modal
-        title="人工绑定 SKU"
+        title={tr("人工绑定 SKU")}
         open={bindOpen}
         destroyOnHidden
         width={720}
         footer={
           <Space>
-            <Button onClick={() => setBindOpen(false)}>关闭</Button>
+            <Button onClick={() => setBindOpen(false)}>{tr("关闭")}</Button>
             <Button
               type="primary"
               onClick={() => {
                 confirmSkuManualBind(async () => {
                   if (!bindItemId || !pickedSku) {
-                    message.warning('请选择 SKU');
+                    message.warning(tr("请选择 SKU"));
                     return;
                   }
                   try {
@@ -429,27 +432,27 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
                       candidateConfidence: pickedCandMeta?.confidence,
                       candidateSource: pickedCandMeta?.source,
                     });
-                    message.success('已绑定');
+                    message.success(tr("已绑定"));
                     setBindOpen(false);
                     setCandCache({});
                     await load();
                     await onRefreshOrder();
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '失败');
+                    message.error(tr((e as Error)?.message || tr('失败')));
                   }
                 });
               }}
             >
-              二次确认绑定
+              {tr("二次确认绑定")}
             </Button>
           </Space>
         }
         onCancel={() => setBindOpen(false)}
       >
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <Typography.Title level={5}>规格匹配候选</Typography.Title>
+          <Typography.Title level={5}>{tr("规格匹配候选")}</Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            只读推荐；请选择一行或用手动搜索。「二次确认绑定」前请核对扣库与平台同步开关。
+            {tr("只读推荐；请选择一行或用手动搜索。「二次确认绑定」前请核对扣库与平台同步开关。")}
           </Typography.Paragraph>
           <Table
             loading={bindCandLoading}
@@ -465,7 +468,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
             })}
             columns={[
               {
-                title: '分',
+                title: tr("分"),
                 width: 110,
                 dataIndex: 'confidence',
                 render: (v: number) => (
@@ -475,11 +478,11 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
                   </Space>
                 ),
               },
-              { title: '原因', dataIndex: 'reason', ellipsis: true },
-              { title: '标题', dataIndex: 'productTitle', width: 140, ellipsis: true },
-              { title: '规格编号', dataIndex: 'skuCode', width: 120, ellipsis: true },
-              { title: '名称', dataIndex: 'skuName', width: 120, ellipsis: true },
-              { title: '库存', dataIndex: 'stock', width: 64, render: (v?: number) => v ?? '—' },
+              { title: tr("原因"), dataIndex: 'reason', ellipsis: true },
+              { title: tr("标题"), dataIndex: 'productTitle', width: 140, ellipsis: true },
+              { title: tr("规格编号"), dataIndex: 'skuCode', width: 120, ellipsis: true },
+              { title: tr("名称"), dataIndex: 'skuName', width: 120, ellipsis: true },
+              { title: tr("库存"), dataIndex: 'stock', width: 64, render: (v?: number) => v ?? '—' },
               {
                 title: ' ',
                 key: 'p',
@@ -493,23 +496,23 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
                       setPickedCandMeta({ confidence: row.confidence, source: row.source });
                     }}
                   >
-                    选择候选
+                    {tr("选择候选")}
                   </Button>
                 ),
               },
             ]}
           />
-          <Typography.Title level={5}>手动搜索 SKU</Typography.Title>
+          <Typography.Title level={5}>{tr("手动搜索 SKU")}</Typography.Title>
           <Input.Search
-            placeholder="关键词：skuCode / 名称 / 商品标题"
+            placeholder={tr("关键词：skuCode / 名称 / 商品标题")}
             onSearch={() => void runSearch()}
             onChange={(e) => setKw(e.target.value)}
             value={kw}
-            enterButton="搜索 SKU"
+            enterButton={tr("搜索 SKU")}
           />
           <Select
             showSearch
-            placeholder="选择本地商品规格"
+            placeholder={tr("选择本地商品规格")}
             style={{ width: '100%' }}
             options={skuOpts}
             value={pickedSku}
@@ -521,10 +524,10 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
           />
           <Space wrap>
             <Button type={deduct ? 'primary' : 'default'} size="small" onClick={() => setDeduct((v) => !v)}>
-              {deduct ? '将扣减本地库存' : '绑定后扣减库存（切换）'}
+              {deduct ? tr('将扣减本地库存') : tr('绑定后扣减库存（切换）')}
             </Button>
             <Button type={syncPlat ? 'primary' : 'default'} size="small" onClick={() => setSyncPlat((v) => !v)}>
-              {syncPlat ? '将推平台库存同步' : '扣库后同步平台（切换）'}
+              {syncPlat ? tr('将推平台库存同步') : tr('扣库后同步平台（切换）')}
             </Button>
           </Space>
         </Space>

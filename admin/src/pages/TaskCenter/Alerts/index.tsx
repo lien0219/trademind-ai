@@ -28,17 +28,17 @@ export default function AlertCenterPage() {
   }, [access.business, access.system, activeSource, setState, state.source]);
   const items = [
     access.business
-      ? { key: 'business', label: '业务告警', children: <BusinessAlertsPanel /> }
+      ? { key: 'business', label: tr("业务告警"), children: <BusinessAlertsPanel /> }
       : null,
     access.system
-      ? { key: 'system', label: '系统告警', children: <SystemAlertsPanel /> }
+      ? { key: 'system', label: tr("系统告警"), children: <SystemAlertsPanel /> }
       : null,
   ].filter(Boolean) as { key: AlertSource; label: string; children: ReactNode }[];
 
   if (!items.length) {
     return (
       <TmPageContainer title={tr("告警中心")}>
-        <Result status="403" title="无权限" subTitle="当前账号无权限访问告警中心" />
+        <Result status="403" title={tr("无权限")} subTitle={tr("当前账号无权限访问告警中心")} />
       </TmPageContainer>
     );
   }

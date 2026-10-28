@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 import { ArrowLeftOutlined, HistoryOutlined, ReloadOutlined, RetweetOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history, useParams } from '@umijs/max';
@@ -93,7 +94,7 @@ export default function InventorySyncRunDetailPage() {
     setError(null);
     try {
       const next = await rerunInventorySyncRun(run.id, { expectedRevision: run.revision }, createInventorySyncIdempotencyKey('rerun'));
-      message.success('已提交夹具重跑请求');
+      message.success(tr("已提交夹具重跑请求"));
       history.push(`/ops/inventory-sync/runs/${encodeURIComponent(next.id)}`);
     } catch (e) {
       const next = extractInventorySyncAPIError(e);
@@ -106,29 +107,29 @@ export default function InventorySyncRunDetailPage() {
   };
 
   const snapshotColumns = useMemo<ProColumns<InventorySnapshot>[]>(() => [
-    { title: '快照 ID', dataIndex: 'id', width: 170, render: (v) => copyableText(String(v || ''), 14) },
-    { title: '平台商品', dataIndex: 'externalProductId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
-    { title: '平台规格', dataIndex: 'externalSkuId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
-    { title: '商品标题', dataIndex: 'productTitle', width: 220, ellipsis: true },
-    { title: '规格', dataIndex: 'variantTitle', width: 160, ellipsis: true },
-    { title: '可用', dataIndex: 'availableQuantity', width: 80 },
-    { title: '预留', dataIndex: 'reservedQuantity', width: 80 },
-    { title: '总量', dataIndex: 'totalQuantity', width: 80 },
-    { title: '绑定结果', dataIndex: ['binding', 'result'], width: 130, render: (v) => <StatusTag map={BINDING_RESULT_LABELS} value={String(v || '')} /> },
-    { title: '置信度', dataIndex: ['binding', 'confidence'], width: 100, render: (v) => <ConfidenceText value={Number(v)} /> },
+    { title: tr("快照 ID"), dataIndex: 'id', width: 170, render: (v) => copyableText(String(v || ''), 14) },
+    { title: tr("平台商品"), dataIndex: 'externalProductId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
+    { title: tr("平台规格"), dataIndex: 'externalSkuId', width: 170, render: (v) => copyableText(String(v || ''), 14) },
+    { title: tr("商品标题"), dataIndex: 'productTitle', width: 220, ellipsis: true },
+    { title: tr("规格"), dataIndex: 'variantTitle', width: 160, ellipsis: true },
+    { title: tr("可用"), dataIndex: 'availableQuantity', width: 80 },
+    { title: tr("预留"), dataIndex: 'reservedQuantity', width: 80 },
+    { title: tr("总量"), dataIndex: 'totalQuantity', width: 80 },
+    { title: tr("绑定结果"), dataIndex: ['binding', 'result'], width: 130, render: (v) => <StatusTag map={BINDING_RESULT_LABELS} value={String(v || '')} /> },
+    { title: tr("置信度"), dataIndex: ['binding', 'confidence'], width: 100, render: (v) => <ConfidenceText value={Number(v)} /> },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 150,
       render: (_, row) => [
         row.binding?.manualRequestId ? (
           <Button key="manual" type="link" onClick={() => history.push(`/ops/inventory-sync/manual-bindings?requestId=${encodeURIComponent(row.binding.manualRequestId || '')}`)}>
-            人工处理
+            {tr("人工处理")}
           </Button>
         ) : null,
         row.binding?.bindingId ? (
           <Button key="binding" type="link" onClick={() => history.push(`/ops/inventory-sync/bindings/${encodeURIComponent(row.binding.bindingId || '')}`)}>
-            绑定历史
+            {tr("绑定历史")}
           </Button>
         ) : null,
       ].filter(Boolean),
@@ -136,25 +137,25 @@ export default function InventorySyncRunDetailPage() {
   ], []);
 
   const auditColumns: ColumnsType<AuditEvent> = [
-    { title: '时间', dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
-    { title: '动作', dataIndex: 'action', width: 180 },
-    { title: '资源', dataIndex: 'resource', width: 120 },
-    { title: '状态', dataIndex: 'status', width: 110 },
+    { title: tr("时间"), dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
+    { title: tr("动作"), dataIndex: 'action', width: 180 },
+    { title: tr("资源"), dataIndex: 'resource', width: 120 },
+    { title: tr("状态"), dataIndex: 'status', width: 110 },
     { title: 'Request ID', dataIndex: 'requestId', width: 150, render: (v) => copyableText(String(v || ''), 12) },
-    { title: '操作者', dataIndex: 'actorId', width: 150, render: (v) => copyableText(String(v || ''), 12) },
-    { title: '安全摘要', dataIndex: 'metadata', render: (v) => <AuditMetadataBlock metadata={v} /> },
+    { title: tr("操作者"), dataIndex: 'actorId', width: 150, render: (v) => copyableText(String(v || ''), 12) },
+    { title: tr("安全摘要"), dataIndex: 'metadata', render: (v) => <AuditMetadataBlock metadata={v} /> },
   ];
 
-  if (loading && !run) return <Spin fullscreen tip="正在加载库存同步运行" />;
+  if (loading && !run) return <Spin fullscreen tip={tr("正在加载库存同步运行")} />;
 
   return (
     <TmPageContainer
-      title="库存同步运行详情"
+      title={tr("库存同步运行详情")}
       subTitle={run ? `Run ${run.id}` : runId}
       extra={
         <Space wrap>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => history.push('/ops/inventory-sync')}>返回列表</Button>
-          <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>刷新</Button>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => history.push('/ops/inventory-sync')}>{tr("返回列表")}</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>
           <Button
             type="primary"
             icon={<RetweetOutlined />}
@@ -162,15 +163,15 @@ export default function InventorySyncRunDetailPage() {
             loading={actionLoading}
             onClick={() => {
               Modal.confirm({
-                title: '确认重跑夹具同步？',
-                content: `将以 expectedRevision=${run?.revision || 0} 发起一次受控重跑，不会连接真实平台。`,
-                okText: '重跑',
-                cancelText: '取消',
+                title: tr("确认重跑夹具同步？"),
+                content: trFormat("将以 expectedRevision={value0} 发起一次受控重跑，不会连接真实平台。", { value0: String(run?.revision || 0) }),
+                okText: tr("重跑"),
+                cancelText: tr("取消"),
                 onOk: runRerun,
               });
             }}
           >
-            重跑
+            {tr("重跑")}
           </Button>
         </Space>
       }
@@ -178,32 +179,32 @@ export default function InventorySyncRunDetailPage() {
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         {renderInventorySyncError(error)}
         {run ? (
-          <SectionCard title="运行概览" description="成功状态表示 fixture/test 完成，不代表真实库存同步完成。" headerExtra={<StatusTag map={RUN_STATUS_LABELS} value={run.status} />}>
+          <SectionCard title={tr("运行概览")} description={tr("成功状态表示 fixture/test 完成，不代表真实库存同步完成。")} headerExtra={<StatusTag map={RUN_STATUS_LABELS} value={run.status} />}>
             <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} size="small">
-              <Descriptions.Item label="运行 ID">{copyableText(run.id, 18)}</Descriptions.Item>
-              <Descriptions.Item label="店铺连接">{copyableText(run.shopConnectionId, 14)}</Descriptions.Item>
-              <Descriptions.Item label="平台">{run.platform}</Descriptions.Item>
-              <Descriptions.Item label="接入模式">{run.providerMode}</Descriptions.Item>
-              <Descriptions.Item label="夹具场景">{run.fixtureScenario || '-'}</Descriptions.Item>
-              <Descriptions.Item label="触发方式">{run.triggerType}</Descriptions.Item>
+              <Descriptions.Item label={tr("运行 ID")}>{copyableText(run.id, 18)}</Descriptions.Item>
+              <Descriptions.Item label={tr("店铺连接")}>{copyableText(run.shopConnectionId, 14)}</Descriptions.Item>
+              <Descriptions.Item label={tr("平台")}>{run.platform}</Descriptions.Item>
+              <Descriptions.Item label={tr("接入模式")}>{run.providerMode}</Descriptions.Item>
+              <Descriptions.Item label={tr("夹具场景")}>{run.fixtureScenario || '-'}</Descriptions.Item>
+              <Descriptions.Item label={tr("触发方式")}>{run.triggerType}</Descriptions.Item>
               <Descriptions.Item label="Revision">{run.revision}</Descriptions.Item>
               <Descriptions.Item label="Cursor Hash">{copyableText(run.cursorHash, 16)}</Descriptions.Item>
-              <Descriptions.Item label="创建时间">{formatDateTime(run.createdAt)}</Descriptions.Item>
-              <Descriptions.Item label="开始时间">{formatDateTime(run.startedAt)}</Descriptions.Item>
-              <Descriptions.Item label="完成时间">{formatDateTime(run.finishedAt)}</Descriptions.Item>
-              <Descriptions.Item label="安全错误">{run.safeError?.message || run.safeError?.code || '-'}</Descriptions.Item>
+              <Descriptions.Item label={tr("创建时间")}>{formatDateTime(run.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label={tr("开始时间")}>{formatDateTime(run.startedAt)}</Descriptions.Item>
+              <Descriptions.Item label={tr("完成时间")}>{formatDateTime(run.finishedAt)}</Descriptions.Item>
+              <Descriptions.Item label={tr("安全错误")}>{run.safeError?.message || run.safeError?.code || '-'}</Descriptions.Item>
             </Descriptions>
           </SectionCard>
         ) : null}
         {run ? (
           <Card>
             <Space wrap size={24}>
-              <Statistic title="夹具记录" value={run.statistics.totalRecordCount} />
-              <Statistic title="已匹配" value={run.statistics.matchedRecordCount} />
-              <Statistic title="未匹配" value={run.statistics.unmatchedRecordCount} />
-              <Statistic title="冲突" value={run.statistics.conflictRecordCount} />
-              <Statistic title="待人工" value={run.statistics.manualBindingRequestCount} />
-              <Statistic title="确认绑定" value={run.statistics.confirmedBindingCount} />
+              <Statistic title={tr("夹具记录")} value={run.statistics.totalRecordCount} />
+              <Statistic title={tr("已匹配")} value={run.statistics.matchedRecordCount} />
+              <Statistic title={tr("未匹配")} value={run.statistics.unmatchedRecordCount} />
+              <Statistic title={tr("冲突")} value={run.statistics.conflictRecordCount} />
+              <Statistic title={tr("待人工")} value={run.statistics.manualBindingRequestCount} />
+              <Statistic title={tr("确认绑定")} value={run.statistics.confirmedBindingCount} />
             </Space>
           </Card>
         ) : null}
@@ -212,7 +213,7 @@ export default function InventorySyncRunDetailPage() {
           items={[
             {
               key: 'snapshots',
-              label: '快照',
+              label: tr("快照"),
               children: run?.allowedActions.canViewSnapshots ? (
                 <Space direction="vertical" style={{ width: '100%' }} size={12}>
                   <TmProTable<InventorySnapshot>
@@ -248,11 +249,11 @@ export default function InventorySyncRunDetailPage() {
                     />
                   </Card>
                 </Space>
-              ) : <Text type="secondary">后端未开放查看快照操作。</Text>,
+              ) : <Text type="secondary">{tr("后端未开放查看快照操作。")}</Text>,
             },
             {
               key: 'audit',
-              label: <Space><HistoryOutlined />审计</Space>,
+              label: <Space><HistoryOutlined />{tr("审计")}</Space>,
               children: run?.allowedActions.canViewAudit ? (
                 <Space direction="vertical" style={{ width: '100%' }} size={12}>
                   <Table rowKey="id" columns={auditColumns} dataSource={auditEvents} pagination={false} scroll={{ x: 1260 }} />
@@ -278,7 +279,7 @@ export default function InventorySyncRunDetailPage() {
                     />
                   </Card>
                 </Space>
-              ) : <Text type="secondary">后端未开放查看审计操作。</Text>,
+              ) : <Text type="secondary">{tr("后端未开放查看审计操作。")}</Text>,
             },
           ]}
         />

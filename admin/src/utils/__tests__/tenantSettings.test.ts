@@ -31,6 +31,13 @@ describe('tenant advanced settings', () => {
     expect(inspectTenantSettings('{ broken').ok).toBe(false);
   });
 
+  it('returns canonical validation keys for the display boundary to translate', () => {
+    const invalid = inspectTenantSettings('{ broken');
+    expect(invalid).toEqual({ ok: false, error: 'JSON 格式不正确，请检查引号、逗号和括号' });
+    const valid = inspectTenantSettings('{"labels":["华东团队"]}');
+    expect(valid.ok && valid.value.labels).toEqual(['华东团队']);
+  });
+
   it('rejects credential-like keys and values even when nested', () => {
     for (const raw of [
       '{"apiKey":"x"}',

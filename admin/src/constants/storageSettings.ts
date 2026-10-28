@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 /** 存储方式显示名 */
 export const STORAGE_KIND_LABEL: Record<string, string> = {
   local: '本地磁盘',
@@ -10,11 +11,11 @@ export const STORAGE_KIND_LABEL: Record<string, string> = {
 
 export function storageKindLabel(kind?: string): string {
   const k = (kind || 'local').trim().toLowerCase();
-  return STORAGE_KIND_LABEL[k] || kind || '存储';
+  return STORAGE_KIND_LABEL[k] ? tr(STORAGE_KIND_LABEL[k]) : kind || tr('存储');
 }
 
 export function storageConnectionSectionTitle(kind?: string): string {
   const k = (kind || 'local').trim().toLowerCase();
-  if (k === 'local') return '本地磁盘配置';
-  return `${storageKindLabel(k)} 连接参数`;
+  if (k === 'local') return tr('本地磁盘配置');
+  return trFormat('{kind} 连接参数', { kind: storageKindLabel(k) });
 }

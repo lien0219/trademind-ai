@@ -1,4 +1,5 @@
 import { Alert } from 'antd';
+import { tr } from '@/i18n';
 import { KEYWORD_SENSITIVE_HINT } from '@/utils/keywordSafety';
 
 type Props = {
@@ -14,7 +15,7 @@ export default function KeywordSafetyHint({ visible, style }: Props) {
       showIcon
       banner
       style={{ marginBottom: 12, ...style }}
-      message={KEYWORD_SENSITIVE_HINT}
+      message={tr(KEYWORD_SENSITIVE_HINT)}
     />
   );
 }

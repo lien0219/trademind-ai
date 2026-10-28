@@ -221,9 +221,13 @@ test.describe('@smoke warehouse operation fee ledger', () => {
   test('distinguishes loading, empty, and request error states without writes', async ({ admin, page }) => {
     let candidateMode: 'loading' | 'normal' | 'error' = 'loading';
     let failRateLoad = false;
+    let releaseInitialCandidates!: () => void;
+    const initialCandidatesPending = new Promise<void>((resolve) => {
+      releaseInitialCandidates = resolve;
+    });
     await page.route('**/api/v1/warehouse-operation-fees/candidates*', async (route) => {
       if (candidateMode === 'loading') {
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        await initialCandidatesPending;
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -258,7 +262,11 @@ test.describe('@smoke warehouse operation fee ledger', () => {
     });
 
     await admin.goto('/finance/warehouse-fees');
-    await expect(page.locator('.ant-spin-spinning')).toBeVisible();
+    try {
+      await expect(page.locator('.ant-spin-spinning')).toBeVisible();
+    } finally {
+      releaseInitialCandidates();
+    }
     await expect(page.getByText('暂无可登记的履约订单')).toBeVisible();
 
     candidateMode = 'normal';

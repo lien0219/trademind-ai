@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { PictureOutlined } from '@ant-design/icons';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
@@ -23,7 +24,7 @@ export default function FilesPage() {
 
   const columns: ProColumns<FileRow>[] = [
     {
-      title: '预览',
+      title: tr("预览"),
       key: 'preview',
       dataIndex: 'url',
       width: 88,
@@ -36,7 +37,7 @@ export default function FilesPage() {
         ),
     },
     {
-      title: '文件名',
+      title: tr("文件名"),
       dataIndex: 'filename',
       ellipsis: true,
       search: false,
@@ -47,53 +48,53 @@ export default function FilesPage() {
       width: 160,
     },
     {
-      title: '大小',
+      title: tr("大小"),
       dataIndex: 'size',
       width: 100,
       search: false,
       render: (_, row) => formatSize(row.size),
     },
     {
-      title: '访问地址',
+      title: tr("访问地址"),
       dataIndex: 'url',
       ellipsis: true,
       copyable: true,
       search: false,
     },
     {
-      title: '存储',
+      title: tr("存储"),
       dataIndex: 'storageKind',
       width: 100,
       search: false,
     },
     {
-      title: '上传时间',
+      title: tr("上传时间"),
       dataIndex: 'createdAt',
       width: 180,
       search: false,
       render: (_, row) => formatDateTime(row.createdAt),
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 100,
       render: (_, row) => [
         <Popconfirm
           key="del"
-          title="删除文件？"
-          description="将删除存储对象与记录"
+          title={tr("删除文件？")}
+          description={tr("将删除存储对象与记录")}
           onConfirm={async () => {
             try {
               await deleteFile(row.id);
-              message.success('已删除');
+              message.success(tr("已删除"));
               actionRef.current?.reload();
             } catch (e: unknown) {
-              message.error((e as Error)?.message || '删除失败');
+              message.error((e as Error)?.message || tr('删除失败'));
             }
           }}
         >
           <Button type="link" danger size="small">
-            删除
+            {tr('删除')}
           </Button>
         </Popconfirm>,
       ],
@@ -102,11 +103,11 @@ export default function FilesPage() {
 
   return (
     <TmPageContainer
-      title="文件管理"
-      subTitle="管理已上传的商品图片与附件。"
+      title={tr("文件管理")}
+      subTitle={tr("管理已上传的商品图片与附件。")}
       extra={
         <Link key="hint" to="/settings/storage">
-          存储设置
+          {tr('存储设置')}
         </Link>
       }
     >

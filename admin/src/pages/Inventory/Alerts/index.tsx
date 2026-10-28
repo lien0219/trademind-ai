@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
@@ -85,23 +86,23 @@ const ALERT_TYPE_LABEL: Record<string, string> = {
   inventory_sync_failed: '同步失败',
 };
 
-const STOCK_STATUS_LABEL: Record<string, { text: string; color: string }> = {
-  normal: { text: '正常', color: 'green' },
-  low_stock: { text: '低库存', color: 'orange' },
-  out_of_stock: { text: '售罄', color: 'red' },
-  below_safety_stock: { text: '低于安全线', color: 'gold' },
+const STOCK_STATUS_LABEL: Record<string, { source: string; color: string }> = {
+  normal: { source: "正常", color: 'green' },
+  low_stock: { source: "低库存", color: 'orange' },
+  out_of_stock: { source: "售罄", color: 'red' },
+  below_safety_stock: { source: "低于安全线", color: 'gold' },
 };
 
-const PLATFORM_ST_LABEL: Record<string, { text: string; color: string }> = {
-  platform_stock_synced: { text: '一致', color: 'green' },
-  platform_stock_mismatch: { text: '不一致', color: 'orange' },
-  platform_stock_unknown: { text: '未知', color: 'default' },
+const PLATFORM_ST_LABEL: Record<string, { source: string; color: string }> = {
+  platform_stock_synced: { source: "一致", color: 'green' },
+  platform_stock_mismatch: { source: "不一致", color: 'orange' },
+  platform_stock_unknown: { source: "未知", color: 'default' },
 };
 
 function stockStatusTag(raw: string) {
   const m = STOCK_STATUS_LABEL[raw];
   if (!m) return <Tag>{raw}</Tag>;
-  return <Tag color={m.color}>{m.text}</Tag>;
+  return <Tag color={m.color}>{tr(m.source)}</Tag>;
 }
 
 export default function InventoryAlertsPage() {
@@ -198,7 +199,7 @@ export default function InventoryAlertsPage() {
       setBatchMatched(res.matchedCount);
     } catch (e) {
       setBatchMatched(null);
-      message.error((e as Error)?.message || '预览失败');
+      message.error((e as Error)?.message || tr('预览失败'));
     } finally {
       setBatchPreviewLoading(false);
     }
@@ -213,62 +214,62 @@ export default function InventoryAlertsPage() {
   const columns: ProColumns<InventoryAlertRow>[] = useMemo(
     () => [
       {
-        title: '关键词',
+        title: tr("关键词"),
         dataIndex: 'keyword',
         hideInTable: true,
-        fieldProps: { placeholder: '标题 / 规格编码 / 名称', ...keywordFieldProps },
+        fieldProps: { placeholder: tr("标题 / 规格编码 / 名称"), ...keywordFieldProps },
       },
       {
-        title: '平台',
+        title: tr("平台"),
         dataIndex: 'platform',
         hideInTable: true,
         fieldProps: { placeholder: 'tiktok / shopee / lazada / amazon' },
       },
       {
-        title: '店铺 ID',
+        title: tr("店铺 ID"),
         dataIndex: 'shopId',
         hideInTable: true,
       },
       {
-        title: '预警类型',
+        title: tr("预警类型"),
         dataIndex: 'alertType',
         hideInTable: true,
         valueType: 'select',
         valueEnum: {
-          out_of_stock: { text: '售罄' },
-          low_stock: { text: '低库存' },
-          below_safety_stock: { text: '低于安全线' },
-          platform_stock_mismatch: { text: '平台不一致' },
-          platform_stock_unknown: { text: '平台未知' },
-          inventory_sync_failed: { text: '同步失败' },
+          out_of_stock: { text: tr("售罄") },
+          low_stock: { text: tr("低库存") },
+          below_safety_stock: { text: tr("低于安全线") },
+          platform_stock_mismatch: { text: tr("平台不一致") },
+          platform_stock_unknown: { text: tr("平台未知") },
+          inventory_sync_failed: { text: tr("同步失败") },
         },
       },
       {
-        title: '库存状态',
+        title: tr("库存状态"),
         dataIndex: 'stockStatus',
         hideInTable: true,
         valueType: 'select',
         valueEnum: {
-          normal: { text: '正常' },
-          low_stock: { text: '低库存' },
-          out_of_stock: { text: '售罄' },
-          below_safety_stock: { text: '低于安全线' },
+          normal: { text: tr("正常") },
+          low_stock: { text: tr("低库存") },
+          out_of_stock: { text: tr("售罄") },
+          below_safety_stock: { text: tr("低于安全线") },
         },
       },
       {
-        title: '仅已刊登',
+        title: tr("仅已刊登"),
         dataIndex: 'onlyPublished',
         hideInTable: true,
-        renderFormItem: () => <Switch checkedChildren="是" unCheckedChildren="否" />,
+        renderFormItem: () => <Switch checkedChildren={tr("是")} unCheckedChildren={tr("否")} />,
       },
       {
-        title: '含正常',
+        title: tr("含正常"),
         dataIndex: 'includeNormal',
         hideInTable: true,
-        renderFormItem: () => <Switch checkedChildren="是" unCheckedChildren="否" />,
+        renderFormItem: () => <Switch checkedChildren={tr("是")} unCheckedChildren={tr("否")} />,
       },
       {
-        title: '商品',
+        title: tr("商品"),
         dataIndex: 'productTitle',
         width: 180,
         search: false,
@@ -278,7 +279,7 @@ export default function InventoryAlertsPage() {
         ),
       },
       {
-        title: '规格编号',
+        title: tr("规格编号"),
         dataIndex: 'skuCode',
         width: 140,
         search: false,
@@ -293,32 +294,32 @@ export default function InventoryAlertsPage() {
         ),
       },
       {
-        title: '本地库存',
+        title: tr("本地库存"),
         dataIndex: 'stock',
         width: 88,
         search: false,
       },
       {
-        title: '预警线',
+        title: tr("预警线"),
         dataIndex: 'warningStock',
         width: 72,
         search: false,
       },
       {
-        title: '安全线',
+        title: tr("安全线"),
         dataIndex: 'safetyStock',
         width: 72,
         search: false,
       },
       {
-        title: '库存状态',
+        title: tr("库存状态"),
         dataIndex: 'stockStatus',
         width: 108,
         search: false,
         render: (_, r) => stockStatusTag(r.stockStatus),
       },
       {
-        title: '预警',
+        title: tr("预警"),
         dataIndex: 'alertTypes',
         width: 220,
         search: false,
@@ -329,14 +330,14 @@ export default function InventoryAlertsPage() {
                 key={t}
                 color={t.includes('failed') ? 'red' : t.includes('mismatch') ? 'orange' : undefined}
               >
-                {ALERT_TYPE_LABEL[t] || t}
+                        {tr(ALERT_TYPE_LABEL[t] || t)}
               </Tag>
             ))}
           </Space>
         ),
       },
       {
-        title: '平台库存',
+        title: tr("平台库存"),
         dataIndex: 'platformStocks',
         width: 260,
         search: false,
@@ -344,25 +345,25 @@ export default function InventoryAlertsPage() {
           if (!r.platformStocks?.length) return <Typography.Text type="secondary">—</Typography.Text>;
           return (
             <Popover
-              title="刊登规格明细"
+              title={tr("刊登规格明细")}
               content={
                 <div style={{ maxWidth: 420 }}>
                   {r.platformStocks.map((p) => {
                     const st = PLATFORM_ST_LABEL[p.platformStockStatus] || {
-                      text: p.platformStockStatus,
+                      source: p.platformStockStatus,
                       color: 'default',
                     };
                     return (
                       <Descriptions key={p.publicationSkuId} size="small" column={1} style={{ marginBottom: 12 }}>
-                        <Descriptions.Item label="店铺">{p.shopName || p.shopId}</Descriptions.Item>
-                        <Descriptions.Item label="平台">{p.platform}</Descriptions.Item>
-                        <Descriptions.Item label="平台库存">
+                        <Descriptions.Item label={tr("店铺")}>{p.shopName || p.shopId}</Descriptions.Item>
+                        <Descriptions.Item label={tr("平台")}>{p.platform}</Descriptions.Item>
+                        <Descriptions.Item label={tr("平台库存")}>
                           {typeof p.platformStock === 'number' ? p.platformStock : '—'}
                         </Descriptions.Item>
-                        <Descriptions.Item label="状态">
-                          <Tag color={st.color}>{st.text}</Tag>
+                        <Descriptions.Item label={tr("状态")}>
+                          <Tag color={st.color}>{tr(st.source)}</Tag>
                         </Descriptions.Item>
-                        <Descriptions.Item label="最近任务">{p.lastSyncStatus || '—'}</Descriptions.Item>
+                        <Descriptions.Item label={tr("最近任务")}>{p.lastSyncStatus || '—'}</Descriptions.Item>
                       </Descriptions>
                     );
                   })}
@@ -372,7 +373,7 @@ export default function InventoryAlertsPage() {
               <Space wrap size={[0, 4]}>
                 {r.platformStocks.slice(0, 3).map((p) => {
                   const st = PLATFORM_ST_LABEL[p.platformStockStatus] || {
-                    text: p.platformStockStatus,
+                    source: p.platformStockStatus,
                     color: 'default',
                   };
                   return (
@@ -388,7 +389,7 @@ export default function InventoryAlertsPage() {
         },
       },
       {
-        title: '最近同步',
+        title: tr("最近同步"),
         dataIndex: 'lastSyncStatus',
         width: 108,
         search: false,
@@ -399,7 +400,7 @@ export default function InventoryAlertsPage() {
         },
       },
       {
-        title: '最近库存变更',
+        title: tr("最近库存变更"),
         dataIndex: 'lastInventoryChangeAt',
         width: 156,
         search: false,
@@ -407,13 +408,13 @@ export default function InventoryAlertsPage() {
           r.lastInventoryChangeAt ? formatDateTime(r.lastInventoryChangeAt) : '—',
       },
       {
-        title: '操作',
+        title: tr("操作"),
         valueType: 'option' as const,
         width: 280,
         fixed: 'right',
         render: (_, r) => (
           <Space wrap size="small">
-            <Link to={`/product/drafts/${r.productId}?tab=inventory`}>商品</Link>
+            <Link to={`/product/drafts/${r.productId}?tab=inventory`}>{tr("商品")}</Link>
             <Button
               type="link"
               size="small"
@@ -441,7 +442,7 @@ export default function InventoryAlertsPage() {
                   })
                   .catch((error: unknown) => {
                     if (sequence !== adjustLoadSequence.current) return;
-                    message.error((error as Error)?.message || '仓库库存加载失败');
+                    message.error((error as Error)?.message || tr('仓库库存加载失败'));
                     setAdjustWarehouses([]);
                     setAdjustBalances([]);
                   })
@@ -450,7 +451,7 @@ export default function InventoryAlertsPage() {
                   });
               }}
             >
-              调整库存
+              {tr("调整库存")}
             </Button>
             <Button
               type="link"
@@ -462,14 +463,14 @@ export default function InventoryAlertsPage() {
                 setSettingsOpen(true);
               }}
             >
-              预警线
+              {tr("预警线")}
             </Button>
             <Link
               to={`/inventory/logs?productId=${encodeURIComponent(r.productId)}&productSkuId=${encodeURIComponent(r.productSkuId)}`}
             >
-              流水
+              {tr("流水")}
             </Link>
-            <Link to="/inventory/sync-tasks">同步任务</Link>
+            <Link to="/inventory/sync-tasks">{tr("同步任务")}</Link>
           </Space>
         ),
       },
@@ -478,14 +479,13 @@ export default function InventoryAlertsPage() {
   );
 
   return (
-    <TmPageContainer title="库存预警" subTitle="查看低库存、缺货与平台库存不一致等预警，可按需创建同步任务。">
+    <TmPageContainer title={tr("库存预警")} subTitle={tr("查看低库存、缺货与平台库存不一致等预警，可按需创建同步任务。")}>
       <KeywordSafetyHint visible={showSensitiveHint} />
       <Typography.Paragraph type="secondary">
-        仅查询与提醒，不自动改平台库存；推送仍走{' '}
+        {tr("本页仅查询库存并提供提醒，不会自动修改平台库存。平台库存推送请从")}{' '}
         <Link to="/inventory/sync-tasks">{INVENTORY_SYNC_TASKS_LABEL}</Link>
-        （可勾选规格行后批量创建{' '}
-        <Link to="/inventory/sync-batches">{INVENTORY_SYNC_BATCHES_LABEL}</Link>
-        ）。{INVENTORY_SKU_NOT_BOUND_MESSAGE}
+        {tr("发起；也可勾选规格行后批量创建同步批次：")}{' '}
+        <Link to="/inventory/sync-batches">{INVENTORY_SYNC_BATCHES_LABEL}</Link>。{INVENTORY_SKU_NOT_BOUND_MESSAGE}
       </Typography.Paragraph>
       <ProTable<InventoryAlertRow>
         rowKey={(r) => r.productSkuId}
@@ -527,7 +527,7 @@ export default function InventoryAlertsPage() {
               setBatchStockOpen(true);
             }}
           >
-            批量设置预警线
+            {tr("批量设置预警线")}
           </Button>,
           <Button
             key="bulk-sync"
@@ -538,7 +538,7 @@ export default function InventoryAlertsPage() {
               setBulkOpen(true);
             }}
           >
-            批量同步库存
+            {tr("批量同步库存")}
           </Button>,
         ]}
         expandable={{
@@ -547,7 +547,7 @@ export default function InventoryAlertsPage() {
               <Space direction="vertical" style={{ width: '100%' }}>
                 {r.platformStocks.map((p) => {
                   const st = PLATFORM_ST_LABEL[p.platformStockStatus] || {
-                    text: p.platformStockStatus,
+                    source: p.platformStockStatus,
                     color: 'default',
                   };
                   const runnable =
@@ -558,9 +558,9 @@ export default function InventoryAlertsPage() {
                   return (
                     <Space key={p.publicationSkuId} wrap align="start">
                       <Typography.Text>
-                        [{p.platform}] {p.shopName || p.shopId} — 平台库存{' '}
+                        [{p.platform}] {p.shopName || p.shopId} — {tr("平台库存")}{' '}
                         {typeof p.platformStock === 'number' ? p.platformStock : '—'}{' '}
-                        <Tag color={st.color}>{st.text}</Tag>
+                        <Tag color={st.color}>{tr(st.source)}</Tag>
                       </Typography.Text>
                       <Button
                         type="link"
@@ -575,22 +575,22 @@ export default function InventoryAlertsPage() {
                                 stock,
                                 fromInventoryAlert: true,
                               });
-                              message.success('已创建同步任务');
+                              message.success(tr("已创建同步任务"));
                               actionRef.current?.reload();
                             } catch (e: unknown) {
-                              message.error((e as Error)?.message || '失败');
+                              message.error((e as Error)?.message || tr('失败'));
                             }
                           });
                         }}
                       >
-                        同步库存
+                        {tr("同步库存")}
                       </Button>
                     </Space>
                   );
                 })}
               </Space>
             ) : (
-              <Typography.Text type="secondary">无刊登映射</Typography.Text>
+              <Typography.Text type="secondary">{tr("无刊登映射")}</Typography.Text>
             ),
         }}
         locale={emptyLocale}
@@ -637,22 +637,22 @@ export default function InventoryAlertsPage() {
               total: res.pagination?.total ?? 0,
             };
           } catch (e: unknown) {
-            message.error((e as Error)?.message || '加载失败');
+            message.error((e as Error)?.message || tr('加载失败'));
             return { data: [], success: false, total: 0 };
           }
         }}
       />
 
       <Modal
-        title="批量同步库存"
+        title={tr("批量同步库存")}
         open={bulkOpen}
         onCancel={() => setBulkOpen(false)}
-        okText="创建批次"
+        okText={tr("创建批次")}
         confirmLoading={bulkSubmitting}
         onOk={() => {
           if (selectedSkuIds.length === 0) return Promise.reject();
           return new Promise<void>((resolve, reject) => {
-            confirmInventorySync(`选中的 ${selectedSkuIds.length} 个规格`, true, async () => {
+            confirmInventorySync(trFormat("选中的 {value0} 个规格", { value0: selectedSkuIds.length }), true, async () => {
               const fv = searchFormRef.current?.getFieldsValue?.() ?? {};
               const platformRaw = typeof fv.platform === 'string' ? fv.platform.trim().toLowerCase() : '';
               const shopRaw = typeof fv.shopId === 'string' ? fv.shopId.trim() : '';
@@ -676,14 +676,14 @@ export default function InventoryAlertsPage() {
                   alertTypes,
                   onlyPublished: true,
                 });
-                message.success(`已创建批次 ${batch.batchNo}（跳过 ${batch.skippedCount}）`);
+                message.success(trFormat("已创建批次 {value0}（跳过 {value1}）", { value0: batch.batchNo, value1: batch.skippedCount }));
                 setBulkOpen(false);
                 setSelectedSkuIds([]);
                 actionRef.current?.reload();
                 history.push(`/inventory/sync-tasks?batchId=${encodeURIComponent(batch.id)}`);
                 resolve();
               } catch (e: unknown) {
-                message.error((e as Error)?.message || '创建失败');
+                message.error((e as Error)?.message || tr('创建失败'));
                 reject(e);
               } finally {
                 setBulkSubmitting(false);
@@ -693,19 +693,18 @@ export default function InventoryAlertsPage() {
         }}
       >
         <Typography.Paragraph>
-          将为选中的 <Typography.Text strong>{selectedSkuIds.length}</Typography.Text> 个规格创建库存同步批次。
-          默认仅包含「平台库存不一致」「同步失败」类预警对应的刊登规格；不包含单纯的本地低库存/售罄，除非你勾选下方选项。
+          {tr("将为选中的")} <Typography.Text strong>{selectedSkuIds.length}</Typography.Text> {tr("个规格创建库存同步批次。\r\n          默认仅包含「平台库存不一致」「同步失败」类预警对应的刊登规格；不包含单纯的本地低库存/售罄，除非你勾选下方选项。")}
         </Typography.Paragraph>
         <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-          列表筛选中的平台 / 店铺会一并传给后端以收窄刊登映射（若留空则由服务端按规格聚合）。
+          {tr("列表筛选中的平台 / 店铺会一并传给后端以收窄刊登映射（若留空则由服务端按规格聚合）。")}
         </Typography.Paragraph>
         <Checkbox checked={bulkIncludeLocalAlerts} onChange={(e) => setBulkIncludeLocalAlerts(e.target.checked)}>
-          同时包含本地低库存 / 售罄 / 低于安全线预警（将把对应刊登规格推送到平台队列）
+          {tr("同时包含本地低库存 / 售罄 / 低于安全线预警（将把对应刊登规格推送到平台队列）")}
         </Checkbox>
       </Modal>
 
       <Modal
-        title={active ? `调整库存 · ${active.skuCode}` : '调整库存'}
+        title={active ? `${tr("调整库存")} · ${active.skuCode}` : tr("调整库存")}
         open={adjustOpen}
         onCancel={() => {
           adjustLoadSequence.current += 1;
@@ -735,7 +734,7 @@ export default function InventoryAlertsPage() {
                       reason: 'manual_adjust',
                       remark: 'from_inventory_alerts',
                     });
-                    message.success('已更新');
+                    message.success(tr("已更新"));
                     adjustLoadSequence.current += 1;
                     setAdjustOpen(false);
                     setAdjustWarehouses([]);
@@ -745,7 +744,7 @@ export default function InventoryAlertsPage() {
                     actionRef.current?.reload();
                     resolve();
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '失败');
+                              message.error((e as Error)?.message || tr('失败'));
                     reject(e);
                   } finally {
                     setAdjustSubmitting(false);
@@ -758,16 +757,16 @@ export default function InventoryAlertsPage() {
         }}
       >
         <Typography.Paragraph type="secondary">
-          调整值只覆盖所选仓库的在手库存；尚未迁移的历史库存会先进入默认仓，没有默认仓时进入待分配仓。
+          {tr("调整值只覆盖所选仓库的在手库存；尚未迁移的历史库存会先进入默认仓，没有默认仓时进入待分配仓。")}
         </Typography.Paragraph>
         <Form form={adjustForm} layout="vertical">
-          <Form.Item name="warehouseId" label="仓库" rules={[{ required: true, message: '请选择仓库' }]}>
+          <Form.Item name="warehouseId" label={tr("仓库")} rules={[{ required: true, message: tr("请选择仓库") }]}>
             <Select
               loading={adjustLoading}
-              placeholder="请选择启用的仓库"
+              placeholder={tr("请选择启用的仓库")}
               options={adjustWarehouses.map((item) => ({
                 value: item.id,
-                label: `${item.name}（${item.code}）${item.isDefault ? ' · 默认' : ''}`,
+                label: trFormat("{value0}（{value1}）{value2}", { value0: item.name, value1: item.code, value2: item.isDefault ? tr(" · 默认") : '' }),
               }))}
               onChange={(warehouseId) => {
                 const balance = adjustBalances.find((item) => item.warehouseId === warehouseId);
@@ -776,14 +775,14 @@ export default function InventoryAlertsPage() {
               }}
             />
           </Form.Item>
-          <Form.Item name="stock" label="库存（≥0）" rules={[{ required: true }]}>
+          <Form.Item name="stock" label={tr("库存（≥0）")} rules={[{ required: true }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title={active ? `预警线 · ${active.skuCode}` : '预警线'}
+        title={active ? `${tr("预警线")} · ${active.skuCode}` : tr("预警线")}
         open={settingsOpen}
         onCancel={() => setSettingsOpen(false)}
         okButtonProps={{ loading: settingsSubmitting }}
@@ -791,7 +790,7 @@ export default function InventoryAlertsPage() {
           if (!active) return;
           const v = await settingsForm.validateFields();
           if (v.safetyStock > v.warningStock) {
-            message.error('安全线不能大于预警线');
+            message.error(tr("安全线不能大于预警线"));
             return;
           }
           setSettingsSubmitting(true);
@@ -800,72 +799,71 @@ export default function InventoryAlertsPage() {
               warningStock: v.warningStock,
               safetyStock: v.safetyStock,
             });
-            message.success('已保存');
+            message.success(tr("已保存"));
             setSettingsOpen(false);
             actionRef.current?.reload();
           } catch (e: unknown) {
-            message.error((e as Error)?.message || '失败');
+            message.error((e as Error)?.message || tr('失败'));
           } finally {
             setSettingsSubmitting(false);
           }
         }}
       >
         <Form form={settingsForm} layout="vertical">
-          <Form.Item name="warningStock" label="预警库存线" rules={[{ required: true }]}>
+          <Form.Item name="warningStock" label={tr("预警库存线")} rules={[{ required: true }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="safetyStock" label="安全库存线" rules={[{ required: true }]}>
+          <Form.Item name="safetyStock" label={tr("安全库存线")} rules={[{ required: true }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title="批量设置预警线"
+        title={tr("批量设置预警线")}
         open={batchStockOpen}
         onCancel={() => {
           setBatchStockOpen(false);
           setBatchMatched(null);
         }}
-        okText="应用"
+        okText={tr("应用")}
         confirmLoading={batchStockSubmitting}
         onOk={() => {
           return batchStockForm
             .validateFields()
             .then((v) => {
               if (v.safetyStock > v.warningStock) {
-                message.error('安全线不能大于预警线');
+                message.error(tr("安全线不能大于预警线"));
                 return Promise.reject(new Error('validation'));
               }
               if (batchStockScope === 'selected' && selectedSkuIds.length === 0) {
-                message.error('请先勾选规格，或改用「当前筛选结果」');
+                message.error(tr("请先勾选规格，或改用「当前筛选结果」"));
                 return Promise.reject(new Error('validation'));
               }
               const payload = buildStockBatchPayload();
               const needAll = alertsStockBatchNeedsConfirmAll(payload);
               return new Promise<void>((resolve, reject) => {
                 Modal.confirm({
-                  title: '确认仅修改预警线？',
+                  title: tr("确认仅修改预警线？"),
                   width: 520,
                   content: (
                     <div>
                       <Typography.Paragraph>
-                        将修改 <Typography.Text strong>{batchMatched ?? '—'}</Typography.Text>{' '}
-                        个规格的预警线 / 安全线；不修改本地实际库存，不写入库存流水，不创建平台同步任务。
+                        {trFormat("将修改 {value0} 个规格的预警线和安全线；不会调整本地实际库存、写入库存流水或创建平台同步任务。", { value0: batchMatched ?? '—' })}
                       </Typography.Paragraph>
                       {needAll ? (
                         <Typography.Paragraph type="warning">
-                          当前为「含正常规格的全表筛选」，将按全表确认提交。
+                          {tr("当前为「含正常规格的全表筛选」，将按全表确认提交。")}
                         </Typography.Paragraph>
                       ) : null}
                       {(batchMatched ?? 0) > BATCH_STOCK_DEFAULT_MAX ? (
                         <Typography.Paragraph type="warning">
-                          匹配数超过默认单次上限 {BATCH_STOCK_DEFAULT_MAX}，将附加大批量确认。
+                          {trFormat("匹配数量超过默认单次上限 {value0}，提交时需额外确认大批量操作。", { value0: BATCH_STOCK_DEFAULT_MAX })}
                         </Typography.Paragraph>
                       ) : null}
                     </div>
                   ),
-                  okText: '确认应用',
+                  okText: tr("确认应用"),
                   onOk: async () => {
                     setBatchStockSubmitting(true);
                     try {
@@ -878,14 +876,14 @@ export default function InventoryAlertsPage() {
                         confirmLarge: (batchMatched ?? 0) > BATCH_STOCK_DEFAULT_MAX,
                         confirmAll: needAll,
                       });
-                      message.success('已批量更新预警线');
+                      message.success(tr("已批量更新预警线"));
                       setBatchStockOpen(false);
                       setBatchMatched(null);
                       setSelectedSkuIds([]);
                       actionRef.current?.reload();
                       resolve();
                     } catch (e) {
-                      message.error((e as Error)?.message || '失败');
+                      message.error((e as Error)?.message || tr('失败'));
                       reject(e);
                     } finally {
                       setBatchStockSubmitting(false);
@@ -901,31 +899,31 @@ export default function InventoryAlertsPage() {
         }}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          仅更新 product_skus.warning_stock / safety_stock，并重新计算 stock_status。
+          {tr("仅更新 product_skus.warning_stock / safety_stock，并重新计算 stock_status。")}
         </Typography.Paragraph>
         <Form form={batchStockForm} layout="vertical" initialValues={{ warningStock: 10, safetyStock: 2 }}>
-          <Form.Item label="应用范围">
+          <Form.Item label={tr("应用范围")}>
             <Radio.Group
               value={batchStockScope}
               onChange={(e) => setBatchStockScope(e.target.value as 'selected' | 'filter')}
             >
               <Radio value="selected" disabled={selectedSkuIds.length === 0}>
-                仅选中行（{selectedSkuIds.length}）
+                {trFormat("仅选中行（{value0}）", { value0: selectedSkuIds.length })}
               </Radio>
-              <Radio value="filter">当前筛选结果（含列表搜索条件）</Radio>
+              <Radio value="filter">{tr("当前筛选结果（含列表搜索条件）")}</Radio>
             </Radio.Group>
           </Form.Item>
           <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-            影响数量：{batchPreviewLoading ? '计算中…' : batchMatched !== null ? `${batchMatched} 个规格` : '—'}
+            {tr("影响数量：")}{batchPreviewLoading ? tr("计算中…") : batchMatched !== null ? trFormat("{value0} 个规格", { value0: String(batchMatched) }) : '—'}
           </Typography.Paragraph>
-          <Form.Item name="warningStock" label="预警库存线" rules={[{ required: true }]}>
+          <Form.Item name="warningStock" label={tr("预警库存线")} rules={[{ required: true }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="safetyStock" label="安全库存线" rules={[{ required: true }]}>
+          <Form.Item name="safetyStock" label={tr("安全库存线")} rules={[{ required: true }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Button type="link" size="small" onClick={() => void runBatchPreview()} loading={batchPreviewLoading}>
-            刷新匹配数
+            {tr("刷新匹配数")}
           </Button>
         </Form>
       </Modal>

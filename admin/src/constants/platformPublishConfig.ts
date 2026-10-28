@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import type { AppConfigFieldDTO } from '@/services/shops';
 
 /** 刊登预设字段中文标签（按 field.name） */
@@ -120,28 +121,28 @@ export const PUBLISH_FIELD_SECTION_META: Record<
   { title: string; description?: string }
 > = {
   category: {
-    title: '类目与品牌',
-    description: '刊登时未在商品详情单独指定，则使用以下默认值',
+    get title() { return tr("类目与品牌"); },
+    get description() { return tr("刊登时未在商品详情单独指定，则使用以下默认值"); },
   },
   logistics: {
-    title: '物流与履约',
-    description: '运费模板、物流渠道、仓库等履约相关参数',
+    get title() { return tr("物流与履约"); },
+    get description() { return tr("运费模板、物流渠道、仓库等履约相关参数"); },
   },
   package: {
-    title: '包裹尺寸与重量',
-    description: '用于平台运费计算与物流校验，单位请与平台要求一致',
+    get title() { return tr("包裹尺寸与重量"); },
+    get description() { return tr("用于平台运费计算与物流校验，单位请与平台要求一致"); },
   },
   product: {
-    title: '商品属性',
-    description: '成色、保修、Amazon 属性等平台要求的商品级参数',
+    get title() { return tr("商品属性"); },
+    get description() { return tr("成色、保修、Amazon 属性等平台要求的商品级参数"); },
   },
   publish: {
-    title: '发布行为',
-    description: '控制默认上架方式；单次刊登可在商品详情覆盖',
+    get title() { return tr("发布行为"); },
+    get description() { return tr("控制默认上架方式；单次刊登可在商品详情覆盖"); },
   },
   advanced: {
-    title: '高级参数',
-    description: 'JSON 模板、Endpoint 摘录等扩展配置',
+    get title() { return tr("高级参数"); },
+    get description() { return tr("JSON 模板、Endpoint 摘录等扩展配置"); },
   },
 };
 

@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { Link } from '@umijs/renderer-react';
 import {
   ApiOutlined,
@@ -36,6 +38,7 @@ type HubCardProps = {
 };
 
 function IntegrationHubCard({ title, desc, configured, to, Icon, extra }: HubCardProps) {
+  useLanguage();
   const tag = integrationConfiguredTag(configured);
   return (
     <div
@@ -69,7 +72,7 @@ function IntegrationHubCard({ title, desc, configured, to, Icon, extra }: HubCar
             <Title level={5} style={{ margin: 0 }}>
               {title}
             </Title>
-            <Tag color={tag.color}>{tag.text}</Tag>
+            <Tag color={tag.color}>{tr(tag.text)}</Tag>
           </Space>
           <Paragraph type="secondary" style={{ margin: '6px 0 0', fontSize: 13 }}>
             {desc}
@@ -77,8 +80,7 @@ function IntegrationHubCard({ title, desc, configured, to, Icon, extra }: HubCar
         </div>
       </Space>
       {extra ? <div style={{ flex: 1, marginBottom: 12 }}>{extra}</div> : <div style={{ flex: 1 }} />}
-      <Link to={to} style={{ fontSize: 13 }}>
-        前往配置 <RightOutlined style={{ fontSize: 11 }} />
+      <Link to={to} style={{ fontSize: 13 }}>{tr("前往配置")}<RightOutlined style={{ fontSize: 11 }} />
       </Link>
     </div>
   );
@@ -91,6 +93,7 @@ type PlatformCardProps = {
 };
 
 function PlatformIntegrationCard({ name, appConfigured, status }: PlatformCardProps) {
+  useLanguage();
   const cfg = integrationConfiguredTag(appConfigured);
   const runtime = PLATFORM_PROVIDER_STATUS[status as keyof typeof PLATFORM_PROVIDER_STATUS];
   return (
@@ -105,22 +108,20 @@ function PlatformIntegrationCard({ name, appConfigured, status }: PlatformCardPr
     >
       <Space wrap size={[8, 4]} style={{ marginBottom: 8 }}>
         <Text strong>{name}</Text>
-        <Tag color={cfg.color}>{cfg.text}</Tag>
+        <Tag color={cfg.color}>{tr(cfg.text)}</Tag>
       </Space>
       <div style={{ marginBottom: 10 }}>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          运行时{' '}
-        </Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>{tr("运行时")}</Text>
         <Tag color={runtime?.color}>{runtime?.text ?? status}</Tag>
       </div>
-      <Link to="/settings/platforms" style={{ fontSize: 13 }}>
-        编辑应用参数 <RightOutlined style={{ fontSize: 11 }} />
+      <Link to="/settings/platforms" style={{ fontSize: 13 }}>{tr("编辑应用参数")}<RightOutlined style={{ fontSize: 11 }} />
       </Link>
     </div>
   );
 }
 
 export default function IntegrationsHubPage() {
+  const language = useLanguage();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<IntegrationOverviewData | null>(null);
 
@@ -143,7 +144,7 @@ export default function IntegrationsHubPage() {
     return [...data.platforms].sort(
       (a, b) => preferredPlatformTabOrder(a.platform) - preferredPlatformTabOrder(b.platform) || a.name.localeCompare(b.name),
     );
-  }, [data?.platforms]);
+  }, [data?.platforms, language]);
 
   const summary = useMemo(() => {
     if (!data) return { configured: 0, total: 0 };
@@ -152,50 +153,48 @@ export default function IntegrationsHubPage() {
     core.push(!!imageReady);
     const configured = core.filter(Boolean).length;
     return { configured, total: core.length };
-  }, [data]);
+  }, [data, language]);
 
   const aiDetail = useMemo(() => {
     if (!data) return null;
     const parts: string[] = [];
     if (data.ai.provider) {
-      parts.push(`服务商：${aiTextProviderLabel(data.ai.provider)}`);
+      parts.push(trFormat("服务商：{value0}", { value0: aiTextProviderLabel(data.ai.provider) }));
     }
     if (data.ai.model) {
-      parts.push(`模型：${data.ai.model}`);
+      parts.push(trFormat("模型：{value0}", { value0: data.ai.model }));
     }
-    return parts.length ? parts.join(' · ') : '尚未填写 API 密钥与接口地址';
-  }, [data]);
+    return parts.length ? parts.join(' · ') : tr("尚未填写 API 密钥与接口地址");
+  }, [data, language]);
 
   const imageDetail = useMemo(() => {
     if (!data) return null;
     const items = [
-      { label: 'remove.bg 抠图', ok: data.image.removebg, kind: 'key' as const },
-      { label: 'OpenAI 图片', ok: data.image.openaiImage, kind: 'key' as const },
-      { label: 'ComfyUI 工作流', ok: data.image.comfyui, kind: 'url' as const },
+      { label: tr("remove.bg 抠图"), ok: data.image.removebg, kind: 'key' as const },
+      { label: tr("OpenAI 图片"), ok: data.image.openaiImage, kind: 'key' as const },
+      { label: tr("ComfyUI 工作流"), ok: data.image.comfyui, kind: 'url' as const },
     ];
     return (
       <Space direction="vertical" size={6} style={{ width: '100%' }}>
         {data.image.providerCurrent ? (
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            当前默认：{imageProviderLabel(data.image.providerCurrent)}
-          </Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>{trFormat("当前默认：{value0}", { value0: imageProviderLabel(data.image.providerCurrent) })}</Text>
         ) : null}
         <Space wrap size={[4, 6]}>
           {items.map((item) => (
             <Tag key={item.label} color={item.ok ? 'success' : 'default'}>
-              {item.label} · {imageSubServiceStatusLabel(item.ok, item.kind)}
+              {item.label} · {tr(imageSubServiceStatusLabel(item.ok, item.kind) ?? '')}
             </Tag>
           ))}
         </Space>
       </Space>
     );
-  }, [data]);
+  }, [data, language]);
 
   const storageDetail = useMemo(() => {
     if (!data) return null;
-    const kindLabel = storageKindLabel(data.storage.kind);
-    return data.storage.configured ? `当前方式：${kindLabel}` : `请先完善 ${kindLabel} 所需凭据`;
-  }, [data]);
+    const kindLabel = tr(storageKindLabel(data.storage.kind) ?? '');
+    return data.storage.configured ? trFormat("当前方式：{value0}", { value0: kindLabel }) : trFormat("请先完善 {value0} 所需凭据", { value0: kindLabel });
+  }, [data, language]);
 
   return (
     <TmPageContainer
@@ -208,33 +207,29 @@ export default function IntegrationsHubPage() {
             <ProCard variant="outlined" style={{ marginBottom: 16 }}>
               <Row gutter={[24, 16]}>
                 <Col xs={24} sm={12} md={8}>
-                  <Statistic title="核心集成就绪" value={`${summary.configured} / ${summary.total}`} />
+                  <Statistic title={tr("核心集成就绪")} value={`${summary.configured} / ${summary.total}`} />
                 </Col>
                 <Col xs={24} sm={12} md={8}>
-                  <Statistic title="平台应用参数" value={sortedPlatforms.filter((p) => p.appConfigured).length} suffix={`/ ${sortedPlatforms.length}`} />
+                  <Statistic title={tr("平台应用参数")} value={sortedPlatforms.filter((p) => p.appConfigured).length} suffix={`/ ${sortedPlatforms.length}`} />
                 </Col>
                 <Col xs={24} sm={12} md={8}>
                   <Statistic
-                    title="自定义采集规则"
+                    title={tr("自定义采集规则")}
                     value={data.collectRulesCount}
                     suffix={
-                      <Link to="/collect/rules" style={{ fontSize: 13, marginLeft: 8 }}>
-                        管理规则
-                      </Link>
+                      <Link to="/collect/rules" style={{ fontSize: 13, marginLeft: 8 }}>{tr("管理规则")}</Link>
                     }
                   />
                 </Col>
               </Row>
             </ProCard>
 
-            <Title level={5} style={{ marginBottom: 12 }}>
-              核心能力
-            </Title>
+            <Title level={5} style={{ marginBottom: 12 }}>{tr("核心能力")}</Title>
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
               <Col xs={24} sm={12} lg={8}>
                 <IntegrationHubCard
-                  title="AI 大模型"
-                  desc="标题优化、描述生成、客服建议等文本能力"
+                  title={tr("AI 大模型")}
+                  desc={tr("标题优化、描述生成、客服建议等文本能力")}
                   configured={data.ai.configured}
                   to="/settings/ai"
                   Icon={RobotOutlined}
@@ -247,8 +242,8 @@ export default function IntegrationsHubPage() {
               </Col>
               <Col xs={24} sm={12} lg={8}>
                 <IntegrationHubCard
-                  title="图片 AI"
-                  desc="抠图、场景图、ComfyUI 工作流等图片处理"
+                  title={tr("图片 AI")}
+                  desc={tr("抠图、场景图、ComfyUI 工作流等图片处理")}
                   configured={data.image.removebg || data.image.openaiImage || data.image.comfyui}
                   to="/settings/image"
                   Icon={PictureOutlined}
@@ -257,8 +252,8 @@ export default function IntegrationsHubPage() {
               </Col>
               <Col xs={24} sm={12} lg={8}>
                 <IntegrationHubCard
-                  title="文件存储"
-                  desc="商品图片与附件的上传与访问"
+                  title={tr("文件存储")}
+                  desc={tr("商品图片与附件的上传与访问")}
                   configured={data.storage.configured}
                   to="/settings/storage"
                   Icon={CloudOutlined}
@@ -271,29 +266,27 @@ export default function IntegrationsHubPage() {
               </Col>
               <Col xs={24} sm={12} lg={8}>
                 <IntegrationHubCard
-                  title="邮箱 SMTP"
-                  desc="告警通知、测试邮件等系统发信"
+                  title={tr("邮箱 SMTP")}
+                  desc={tr("告警通知、测试邮件等系统发信")}
                   configured={data.mail.configured}
                   to="/settings/email"
                   Icon={MailOutlined}
                   extra={
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      {data.mail.configured ? 'SMTP 主机与发件人地址已填写' : '请填写 SMTP 主机与发件人地址'}
+                      {data.mail.configured ? tr("SMTP 主机与发件人地址已填写") : tr("请填写 SMTP 主机与发件人地址")}
                     </Text>
                   }
                 />
               </Col>
               <Col xs={24} sm={12} lg={8}>
                 <IntegrationHubCard
-                  title="自定义采集规则"
-                  desc="非内置站点的 XPath / CSS 采集规则"
+                  title={tr("自定义采集规则")}
+                  desc={tr("非内置站点的 XPath / CSS 采集规则")}
                   configured={data.collectRulesCount > 0}
                   to="/collect/rules"
                   Icon={ApiOutlined}
                   extra={
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      已创建 {data.collectRulesCount} 条规则
-                    </Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>{trFormat("已创建 {value0} 条规则", { value0: data.collectRulesCount })}</Text>
                   }
                 />
               </Col>
@@ -301,13 +294,8 @@ export default function IntegrationsHubPage() {
 
             {sortedPlatforms.length ? (
               <>
-                <Title level={5} style={{ marginBottom: 4 }}>
-                  跨境平台
-                </Title>
-                <Paragraph type="secondary" style={{ marginBottom: 12 }}>
-                  此处为各平台开放平台应用参数（应用 Key / 密钥等）。店铺授权后的授权凭证保存在「店铺 →
-                  授权配置」，请勿写入此处。
-                </Paragraph>
+                <Title level={5} style={{ marginBottom: 4 }}>{tr("跨境平台")}</Title>
+                <Paragraph type="secondary" style={{ marginBottom: 12 }}>{tr("此处为各平台开放平台应用参数（应用 Key / 密钥等）。店铺授权后的授权凭证保存在「店铺 → 授权配置」，请勿写入此处。")}</Paragraph>
                 <Row gutter={[16, 16]}>
                   {sortedPlatforms.map((p) => (
                     <Col xs={24} sm={12} md={8} lg={6} key={p.platform}>
@@ -320,8 +308,7 @@ export default function IntegrationsHubPage() {
                   ))}
                 </Row>
                 <div style={{ marginTop: 16 }}>
-                  <Link to="/settings/platforms">
-                    前往「平台接入设置」编辑 <RightOutlined style={{ fontSize: 11 }} />
+                  <Link to="/settings/platforms">{tr("前往「平台接入设置」编辑")}<RightOutlined style={{ fontSize: 11 }} />
                   </Link>
                 </div>
               </>

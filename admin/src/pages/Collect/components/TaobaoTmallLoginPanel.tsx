@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import { Alert, Button, Space, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -14,12 +16,12 @@ import {
 type AuthDisplayStatus = 'unchecked' | 'checking' | ProviderTaobaoTmallAuthStatusValue;
 
 const AUTH_STATUS_LABEL: Record<AuthDisplayStatus, { text: string }> = {
-  unchecked: { text: '未检测' },
-  checking: { text: '检测中…' },
-  logged_in: { text: '已登录' },
-  login_required: { text: '需要登录' },
-  verify_required: { text: '需要验证' },
-  unknown: { text: '暂时无法确认' },
+  unchecked: { text: 'Not checked' },
+  checking: { text: 'Checking…' },
+  logged_in: { text: 'Logged in' },
+  login_required: { text: 'Login required' },
+  verify_required: { text: 'Verification required' },
+  unknown: { text: 'Cannot confirm yet' },
 };
 
 function resolveDisplayStatus(
@@ -43,6 +45,7 @@ type Props = {
 };
 
 export function TaobaoTmallLoginPanel({ loginUrl, compact, onAuthChange }: Props) {
+  useLanguage();
   const [authStatus, setAuthStatus] = useState<ProviderTaobaoTmallAuthStatus | null>(null);
   const [authChecking, setAuthChecking] = useState(false);
   const [loginOpening, setLoginOpening] = useState(false);
@@ -61,7 +64,7 @@ export function TaobaoTmallLoginPanel({ loginUrl, compact, onAuthChange }: Props
     } catch (e: unknown) {
       setAuthStatus(null);
       onAuthChange?.(null);
-      message.error((e as Error)?.message || '淘宝/天猫登录态检测失败');
+      message.error((e as Error)?.message || tr("淘宝/天猫登录态检测失败"));
     } finally {
       setAuthChecking(false);
       setLoaded(true);
@@ -79,9 +82,9 @@ export function TaobaoTmallLoginPanel({ loginUrl, compact, onAuthChange }: Props
     setLoginOpening(true);
     try {
       const result = await openTaobaoTmallLoginBrowser(targetUrl);
-      message.success(result.message || '已打开淘宝/天猫采集浏览器', 8);
+      message.success(result.message || tr("已打开淘宝/天猫采集浏览器"), 8);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '打开采集浏览器失败');
+      message.error((e as Error)?.message || tr("打开采集浏览器失败"));
     } finally {
       setLoginOpening(false);
     }
@@ -97,32 +100,27 @@ export function TaobaoTmallLoginPanel({ loginUrl, compact, onAuthChange }: Props
             : 'info'
       }
       showIcon
-      message={compact ? `登录状态：${meta.text}` : '淘宝/天猫登录状态'}
+      message={compact ? trFormat("登录状态：{text}", { text: tr(meta.text) }) : tr("淘宝/天猫登录状态")}
       description={
         compact ? (
           <Space wrap style={{ marginTop: 4 }}>
             <Button size="small" onClick={() => void loadAuthStatus()} loading={authChecking}>
-              重新检测
-            </Button>
+              {tr("重新检测")}</Button>
             <Button size="small" type="primary" onClick={() => void handleOpenLogin()} loading={loginOpening}>
-              打开采集浏览器
-            </Button>
+              {tr("打开采集浏览器")}</Button>
           </Space>
         ) : (
           <Space direction="vertical" size="small" style={{ width: '100%' }}>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 4 }}>
-              部分淘宝/天猫商品需要登录后才能采集。如遇安全验证或滑块，请在采集浏览器中手动完成后再重试。
-            </Typography.Paragraph>
+              {tr("部分淘宝/天猫商品需要登录后才能采集。如遇安全验证或滑块，请在采集浏览器中手动完成后再重试。")}</Typography.Paragraph>
             {authStatus?.message ? (
               <Typography.Text type="secondary">{authStatus.message}</Typography.Text>
             ) : null}
             <Space wrap>
               <Button size="small" onClick={() => void loadAuthStatus()} loading={authChecking}>
-                重新检测
-              </Button>
+                {tr("重新检测")}</Button>
               <Button size="small" type="primary" onClick={() => void handleOpenLogin()} loading={loginOpening}>
-                打开淘宝/天猫采集浏览器
-              </Button>
+                {tr("打开淘宝/天猫采集浏览器")}</Button>
             </Space>
           </Space>
         )

@@ -1,3 +1,5 @@
+import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { AuditOutlined, EyeOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { history, useSearchParams } from '@umijs/max';
@@ -25,24 +27,35 @@ export const REFUND_EXECUTION_STATUS: Record<
   string,
   { text: string; color: string }
 > = {
-  pending: { text: '待登记', color: 'processing' },
-  succeeded: { text: '退款成功', color: 'success' },
-  failed: { text: '退款失败', color: 'error' },
-  unknown: { text: '结果待确认', color: 'warning' },
-  cancelled: { text: '已取消', color: 'default' },
+  pending: { get text() { return tr("待登记"); }, color: 'processing' },
+  succeeded: { get text() { return tr("退款成功"); }, color: 'success' },
+  failed: { get text() { return tr("退款失败"); }, color: 'error' },
+  unknown: { get text() { return tr("结果待确认"); }, color: 'warning' },
+  cancelled: { get text() { return tr("已取消"); }, color: 'default' },
 };
 
 export const REFUND_REVIEW_STATUS: Record<
   string,
   { text: string; color: string }
 > = {
-  matched: { text: '账实一致', color: 'success' },
-  pending: { text: '待平台复核', color: 'processing' },
-  mismatch: { text: '账实不一致', color: 'error' },
-  blocked: { text: '平台事实阻塞', color: 'warning' },
+  matched: { get text() { return tr("账实一致"); }, color: 'success' },
+  pending: { get text() { return tr("待平台复核"); }, color: 'processing' },
+  mismatch: { get text() { return tr("账实不一致"); }, color: 'error' },
+  blocked: { get text() { return tr("平台事实阻塞"); }, color: 'warning' },
 };
 
+export function getRefundExecutionStatusMeta(status: string) {
+  const meta = REFUND_EXECUTION_STATUS[status];
+  return meta ? { text: meta.text, color: meta.color } : { text: status, color: 'default' };
+}
+
+export function getRefundReviewStatusMeta(status: string) {
+  const meta = REFUND_REVIEW_STATUS[status];
+  return meta ? { text: meta.text, color: meta.color } : { text: status, color: 'default' };
+}
+
 export default function RefundExecutionsPage() {
+  useLanguage();
   const { readonly } = usePermission();
   const actionRef = useRef<ActionType>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -56,7 +69,7 @@ export default function RefundExecutionsPage() {
 
   const columns: ProColumns<RefundExecution>[] = [
     {
-      title: '退款执行单号',
+      title: tr("退款执行单号"),
       dataIndex: 'executionNo',
       width: 190,
       copyable: true,
@@ -72,46 +85,40 @@ export default function RefundExecutionsPage() {
       ),
     },
     {
-      title: '售后单号',
+      title: tr("售后单号"),
       dataIndex: 'returnNo',
       width: 180,
       ellipsis: true,
       render: (_, row) => row.returnNo || row.salesReturnId,
     },
     {
-      title: '订单号',
+      title: tr("订单号"),
       dataIndex: 'orderNo',
       width: 180,
       ellipsis: true,
       render: (_, row) => row.orderNo || row.orderId,
     },
     {
-      title: '执行状态',
+      title: tr("执行状态"),
       dataIndex: 'status',
       width: 120,
       render: (_, row) => {
-        const meta = REFUND_EXECUTION_STATUS[row.status] || {
-          text: row.status,
-          color: 'default',
-        };
+        const meta = getRefundExecutionStatusMeta(row.status);
         return <Tag color={meta.color}>{meta.text}</Tag>;
       },
     },
     {
-      title: '平台复核',
+      title: tr("平台复核"),
       dataIndex: ['platformReview', 'status'],
       width: 130,
       render: (_, row) => {
         const value = row.platformReview?.status || 'pending';
-        const meta = REFUND_REVIEW_STATUS[value] || {
-          text: value,
-          color: 'default',
-        };
+        const meta = getRefundReviewStatusMeta(value);
         return <Tag color={meta.color}>{meta.text}</Tag>;
       },
     },
     {
-      title: '退款金额',
+      title: tr("退款金额"),
       dataIndex: 'refundAmountMinor',
       width: 140,
       align: 'right',
@@ -119,24 +126,24 @@ export default function RefundExecutionsPage() {
         formatSalesReturnAmount(row.refundAmountMinor, row.currency),
     },
     {
-      title: '结果来源',
+      title: tr("结果来源"),
       dataIndex: 'source',
       width: 120,
       render: (_, row) =>
         row.source === 'platform_fact'
-          ? '平台事实'
+          ? tr("平台事实")
           : row.source === 'manual'
-            ? '人工登记'
+            ? tr("人工登记")
             : '—',
     },
     {
-      title: '创建时间',
+      title: tr("创建时间"),
       dataIndex: 'createdAt',
       valueType: 'dateTime',
       width: 180,
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 88,
       render: (_, row) => (
@@ -146,7 +153,7 @@ export default function RefundExecutionsPage() {
           icon={<EyeOutlined />}
           onClick={() => history.push(`/orders/refund-executions/${row.id}`)}
         >
-          查看
+          {tr("查看")}
         </Button>
       ),
     },
@@ -156,18 +163,18 @@ export default function RefundExecutionsPage() {
     <PermissionGuard require={PERMISSIONS.SALES_RETURN_VIEW} showForbiddenPage>
       <TmPageContainer
         className="tm-sales-return-page"
-        title="退款执行"
-        subTitle="记录外部退款结果并用平台只读事实复核，不会向平台发起退款"
+        title={tr("退款执行")}
+        subTitle={tr("记录外部退款结果并用平台只读事实复核，不会向平台发起退款")}
         extra={
           <TmPageHeaderExtra>
             <Button
               icon={<AuditOutlined />}
               onClick={() => history.push('/orders/sales-return-reconciliation')}
             >
-              平台售后对账
+              {tr("平台售后对账")}
             </Button>
             <Button onClick={() => history.push('/orders/sales-returns')}>
-              返回退货退款
+              {tr("返回退货退款")}
             </Button>
           </TmPageHeaderExtra>
         }
@@ -176,27 +183,27 @@ export default function RefundExecutionsPage() {
           <Alert
             type="info"
             showIcon
-            message="当前账号为只读模式，可查看退款执行与平台复核结果，但不能登记或确认退款。"
+            message={tr("当前账号为只读模式，可查看退款执行与平台复核结果，但不能登记或确认退款。")}
           />
         ) : null}
         {salesReturnId ? (
           <Alert
             type="info"
             showIcon
-            message="当前仅显示指定售后单的退款执行记录。"
+            message={tr("当前仅显示指定售后单的退款执行记录。")}
             action={
               <Button size="small" onClick={() => setSearchParams({})}>
-                查看全部
+                {tr("查看全部")}
               </Button>
             }
           />
         ) : null}
         {error ? (
           <ErrorAlert
-            title={error}
+            title={tr(error)}
             actionHint={
               <Button onClick={() => actionRef.current?.reload()}>
-                重新加载
+                {tr("重新加载")}
               </Button>
             }
           />
@@ -209,12 +216,12 @@ export default function RefundExecutionsPage() {
           search={false}
           cardBordered
           scroll={{ x: 1370 }}
-          locale={{ emptyText: error ? '退款执行列表暂不可用' : '暂无退款执行记录。' }}
+          locale={{ emptyText: error ? tr('退款执行列表暂不可用') : tr('暂无退款执行记录。') }}
           filterBar={
             <Select
-              aria-label="退款执行状态"
+              aria-label={tr("退款执行状态")}
               allowClear
-              placeholder="全部执行状态"
+              placeholder={tr("全部执行状态")}
               value={status}
               style={{ width: 160 }}
               options={Object.entries(REFUND_EXECUTION_STATUS).map(

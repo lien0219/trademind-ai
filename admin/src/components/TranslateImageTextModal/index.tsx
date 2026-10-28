@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import { ModalForm, ProFormCheckbox, ProFormRadio, ProFormSelect } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import {
@@ -40,16 +42,17 @@ import { testOCRConnection } from '@/services/settings';
 import './index.less';
 
 export function TranslateImageTextAiSettingsHint() {
+  useLanguage();
   return (
     <Alert
       type="info"
       showIcon
       className="tm-translate-image-text-modal__settings-hint"
-      message="识别与翻译使用 AI 设置"
+      message={tr("识别与翻译使用 AI 设置")}
       description={
         <>
-          {TRANSLATE_IMAGE_TEXT_AI_SETTINGS_HINT}{' '}
-          <Typography.Link onClick={() => history.push('/settings/image')}>前往 OCR 配置</Typography.Link>
+          {tr(TRANSLATE_IMAGE_TEXT_AI_SETTINGS_HINT)}{' '}
+          <Typography.Link onClick={() => history.push('/settings/image')}>{tr("前往 OCR 配置")}</Typography.Link>
         </>
       }
     />
@@ -97,6 +100,7 @@ export function TranslateImageTextModal({
   fixedProductId,
   sourceImage,
 }: Props) {
+  useLanguage();
   const [form] = Form.useForm<FormValues>();
   const { optionsForTask } = useImageProviders();
   const [ocrChecking, setOcrChecking] = useState(false);
@@ -117,16 +121,16 @@ export function TranslateImageTextModal({
   ).trim();
 
   const providerOptions = useMemo(() => optionsForTask('translate_image_text'), [optionsForTask]);
-  const sourceLanguageLabel = TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS.find((item) => item.value === watchedSourceLanguage)?.label ?? '自动识别';
-  const targetLanguageLabel = TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS.find((item) => item.value === watchedTargetLanguage)?.label ?? '英文';
+  const sourceLanguageLabel = TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS.find((item) => item.value === watchedSourceLanguage)?.label ?? tr("自动识别");
+  const targetLanguageLabel = TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS.find((item) => item.value === watchedTargetLanguage)?.label ?? tr("英文");
   const ocrStatusType = ocrChecking ? 'info' : ocrReady ? 'success' : ocrCheckFailed ? 'error' : 'warning';
   const ocrStatusTitle = ocrChecking
-    ? '正在检测 OCR 服务'
+    ? tr("正在检测 OCR 服务")
     : ocrReady
-      ? 'OCR 服务可用'
+      ? tr("OCR 服务可用")
       : ocrCheckFailed
-        ? 'OCR 检测请求失败'
-        : '图片文字翻译需要 OCR 服务';
+        ? tr("OCR 检测请求失败")
+        : tr("图片文字翻译需要 OCR 服务");
 
   useEffect(() => {
     if (!open) return;
@@ -156,11 +160,11 @@ export function TranslateImageTextModal({
     try {
       const res = await testOCRConnection();
       setOcrReady(Boolean(res.ok));
-      setOcrMessage(res.message || '当前 OCR 服务可用');
+      setOcrMessage(res.message || '');
     } catch (e: unknown) {
       setOcrReady(false);
       setOcrCheckFailed(true);
-      setOcrMessage((e as Error)?.message || '图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。');
+      setOcrMessage((e as Error)?.message || '');
     } finally {
       setOcrChecking(false);
     }
@@ -179,7 +183,7 @@ export function TranslateImageTextModal({
   return (
     <ModalForm<FormValues>
       form={form}
-      title="图片文字翻译"
+      title={tr("图片文字翻译")}
       open={open}
       onOpenChange={onOpenChange}
       width={560}
@@ -190,7 +194,7 @@ export function TranslateImageTextModal({
 
           return [
             <Button key="cancel" onClick={() => onOpenChange(false)}>
-              取消
+              {tr("取消")}
             </Button>,
             <Button
               key="submit"
@@ -199,18 +203,18 @@ export function TranslateImageTextModal({
               disabled={!ocrReady}
               onClick={() => props.submit?.()}
             >
-              创建翻译任务
+              {tr("创建翻译任务")}
             </Button>,
           ];
         },
       }}
       onFinish={async (values) => {
         if (!sourceImageId && !sourceImageUrl) {
-          message.error('请选择要翻译的商品图片');
+          message.error(tr("请选择要翻译的商品图片"));
           return false;
         }
         if (!ocrReady) {
-          message.error('图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。');
+          message.error(tr("图片文字翻译需要 OCR 服务。请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。"));
           return false;
         }
         const input = buildTranslateImageTextInput({
@@ -240,22 +244,22 @@ export function TranslateImageTextModal({
             input,
           });
           if (task.status === 'pending' || task.status === 'running') {
-            message.success('图片文字翻译任务已提交，正在后台处理');
+            message.success(tr("图片文字翻译任务已提交，正在后台处理"));
           } else if (task.status === 'success' || task.status === 'success_with_warnings') {
             message.success(
               task.status === 'success_with_warnings'
-                ? '翻译完成（存在警告，请人工检查）'
-                : '翻译已完成',
+                ? tr("翻译完成（存在警告，请人工检查）")
+                : tr("翻译已完成"),
             );
           } else if (task.status === 'failed') {
-            message.warning(task.errorMessage || '任务失败');
+            message.warning(task.errorMessage || tr("任务失败"));
           } else {
-            message.success('已创建');
+            message.success(tr("已创建"));
           }
           onSuccess?.();
           return true;
         } catch (e: unknown) {
-          message.error((e as Error)?.message || '提交失败');
+          message.error((e as Error)?.message || tr("提交失败"));
           return false;
         }
       }}
@@ -266,9 +270,9 @@ export function TranslateImageTextModal({
             <TranslationOutlined />
           </div>
           <div className="tm-translate-image-text-modal__intro-copy">
-            <Typography.Text strong>提交后将创建后台图片翻译任务</Typography.Text>
+            <Typography.Text strong>{tr("提交后将创建后台图片翻译任务")}</Typography.Text>
             <Typography.Paragraph type="secondary">
-              系统会识别图片文字并翻译为目标语言，再生成新的处理后图片。原图不会被覆盖，处理结果用于刊登前建议人工检查文字、版式和商品主体；AI 处理可能消耗模型额度。
+              {tr("系统会识别图片文字并翻译为目标语言，再生成新的处理后图片。原图不会被覆盖，处理结果用于刊登前建议人工检查文字、版式和商品主体；AI 处理可能消耗模型额度。")}
             </Typography.Paragraph>
           </div>
         </section>
@@ -277,16 +281,16 @@ export function TranslateImageTextModal({
           <div className="tm-translate-image-text-modal__section-head">
             <Typography.Text strong>
               <FileImageOutlined />
-              待翻译图片
+              {tr("待翻译图片")}
             </Typography.Text>
-            {sourceImageId ? <Tag bordered={false}>源图 ID {sourceImageId}</Tag> : <Tag bordered={false}>未提供源图 ID</Tag>}
+            {sourceImageId ? <Tag bordered={false}>{tr("源图 ID")} {sourceImageId}</Tag> : <Tag bordered={false}>{tr("未提供源图 ID")}</Tag>}
           </div>
           {sourceImageUrl ? (
             <div className="tm-translate-image-text-modal__image-panel">
               {sourceImageFailed ? (
                 <div className="tm-translate-image-text-modal__image-fallback">
                   <FileImageOutlined />
-                  <Typography.Text type="secondary">图片加载失败，请检查源图地址</Typography.Text>
+                  <Typography.Text type="secondary">{tr("图片加载失败，请检查源图地址")}</Typography.Text>
                 </div>
               ) : (
                 <Image
@@ -307,8 +311,8 @@ export function TranslateImageTextModal({
             <Alert
               type="warning"
               showIcon
-              message="未提供源图地址"
-              description="当前任务缺少可翻译的图片 URL，请返回图片列表选择带有图片地址的商品图片。"
+              message={tr("未提供源图地址")}
+              description={tr("当前任务缺少可翻译的图片 URL，请返回图片列表选择带有图片地址的商品图片。")}
             />
           )}
         </section>
@@ -317,7 +321,7 @@ export function TranslateImageTextModal({
           <div className="tm-translate-image-text-modal__section-head">
             <Typography.Text strong>
               <SafetyCertificateOutlined />
-              OCR 服务状态
+              {tr("OCR 服务状态")}
             </Typography.Text>
             {ocrChecking ? <Spin size="small" /> : null}
           </div>
@@ -328,13 +332,13 @@ export function TranslateImageTextModal({
             message={ocrStatusTitle}
             description={
               <span>
-                {ocrMessage || '请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。'}{' '}
-                {!ocrReady ? <Typography.Link onClick={() => history.push('/settings/image')}>去配置 OCR</Typography.Link> : null}
+                {ocrMessage || tr("请先到「设置 → 图片 AI 设置」选择 OCR 服务并测试通过。")}{' '}
+                {!ocrReady ? <Typography.Link onClick={() => history.push('/settings/image')}>{tr("去配置 OCR")}</Typography.Link> : null}
               </span>
             }
             action={
               <Button size="small" loading={ocrChecking} onClick={() => void checkOCRReady()}>
-                重新检测
+                {tr("重新检测")}
               </Button>
             }
           />
@@ -344,7 +348,7 @@ export function TranslateImageTextModal({
           <div className="tm-translate-image-text-modal__section-head">
             <Typography.Text strong>
               <FontColorsOutlined />
-              翻译设置
+              {tr("翻译设置")}
             </Typography.Text>
             <Space size={[6, 4]} wrap>
               <Tag bordered={false}>{sourceLanguageLabel}</Tag>
@@ -356,26 +360,26 @@ export function TranslateImageTextModal({
           <div className="tm-translate-image-text-modal__field-grid">
             <ProFormSelect
               name="sourceLanguage"
-              label="源语言"
+              label={tr("源语言")}
               options={TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS}
-              rules={[{ required: true, message: '请选择源语言' }]}
-              extra="自动识别会先尝试判断图片中文字语言，仍建议检查结果。"
+              rules={[{ required: true, message: tr("请选择源语言") }]}
+              extra={tr("自动识别会先尝试判断图片中文字语言，仍建议检查结果。")}
             />
             <ProFormSelect
               name="targetLanguage"
-              label="目标语言"
+              label={tr("目标语言")}
               options={TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS}
-              rules={[{ required: true, message: '请选择目标语言' }]}
-              extra="生成的新图片会使用该语言绘制译文。"
+              rules={[{ required: true, message: tr("请选择目标语言") }]}
+              extra={tr("生成的新图片会使用该语言绘制译文。")}
             />
           </div>
 
           <ProFormRadio.Group
             name="layoutMode"
-            label="排版方式"
+            label={tr("排版方式")}
             options={TRANSLATE_IMAGE_TEXT_LAYOUT_MODE_OPTIONS}
-            rules={[{ required: true, message: '请选择排版方式' }]}
-            extra="自动适配偏均衡；保持原图更保守；清晰可读会优先译文阅读体验。"
+            rules={[{ required: true, message: tr("请选择排版方式") }]}
+            extra={tr("自动适配偏均衡；保持原图更保守；清晰可读会优先译文阅读体验。")}
           />
         </section>
 
@@ -383,24 +387,24 @@ export function TranslateImageTextModal({
           <div className="tm-translate-image-text-modal__section-head">
             <Typography.Text strong>
               <CloudUploadOutlined />
-              结果处理
+              {tr("结果处理")}
             </Typography.Text>
             <Tag color="default" bordered={false}>
-              不覆盖原图
+              {tr("不覆盖原图")}
             </Tag>
           </div>
           <div className="tm-translate-image-text-modal__result-options">
             <div className="tm-translate-image-text-modal__option">
-              <ProFormCheckbox name="autoSaveToProductImages">自动保存到商品图片库</ProFormCheckbox>
-              <Typography.Text type="secondary">处理结果会作为新图片保存，便于后续选择和刊登。</Typography.Text>
+              <ProFormCheckbox name="autoSaveToProductImages">{tr("自动保存到商品图片库")}</ProFormCheckbox>
+              <Typography.Text type="secondary">{tr("处理结果会作为新图片保存，便于后续选择和刊登。")}</Typography.Text>
             </div>
             <div className="tm-translate-image-text-modal__option">
-              <ProFormCheckbox name="outputAsDetail">处理后设为详情图</ProFormCheckbox>
-              <Typography.Text type="secondary">保存后会把处理结果作为详情图用途。</Typography.Text>
+              <ProFormCheckbox name="outputAsDetail">{tr("处理后设为详情图")}</ProFormCheckbox>
+              <Typography.Text type="secondary">{tr("保存后会把处理结果作为详情图用途。")}</Typography.Text>
             </div>
             <div className="tm-translate-image-text-modal__option tm-translate-image-text-modal__option--main">
-              <ProFormCheckbox name="autoSetAsMain">处理后设为主图</ProFormCheckbox>
-              <Typography.Text type="secondary">影响更高：处理结果可能成为商品主图，发布前请重点检查。</Typography.Text>
+              <ProFormCheckbox name="autoSetAsMain">{tr("处理后设为主图")}</ProFormCheckbox>
+              <Typography.Text type="secondary">{tr("影响更高：处理结果可能成为商品主图，发布前请重点检查。")}</Typography.Text>
             </div>
           </div>
         </section>
@@ -413,15 +417,15 @@ export function TranslateImageTextModal({
               label: (
                 <span className="tm-translate-image-text-modal__advanced-label">
                   <SettingOutlined />
-                  高级设置
-                  <Typography.Text type="secondary">普通翻译通常无需修改</Typography.Text>
+                  {tr("高级设置")}
+                  <Typography.Text type="secondary">{tr("普通翻译通常无需修改")}</Typography.Text>
                 </span>
               ),
               children: (
                 <>
                   <ProFormRadio.Group
                     name="renderMode"
-                    label="覆盖渲染方式"
+                    label={tr("覆盖渲染方式")}
                     options={TRANSLATE_IMAGE_TEXT_RENDER_MODE_OPTIONS}
                   />
                   <Form.Item
@@ -434,24 +438,24 @@ export function TranslateImageTextModal({
                       return (
                         <ProFormSelect
                           name="provider"
-                          label="覆盖图片 AI 服务"
+                          label={tr("覆盖图片 AI 服务")}
                           options={providerOptions}
-                          extra="仅在 AI 编辑实验模式下生效"
+                          extra={tr("仅在 AI 编辑实验模式下生效")}
                         />
                       );
                     }}
                   </Form.Item>
                   <ProFormSelect
                     name="eraseMode"
-                    label="覆盖擦除方式"
+                    label={tr("覆盖擦除方式")}
                     options={[
-                      { label: '默认（读取设置）', value: '' },
-                      { label: '自动', value: 'auto' },
-                      { label: '精细擦字（推荐）', value: 'precise_mask' },
-                      { label: '背景采样', value: 'background_sample' },
-                      { label: '模糊填充', value: 'blur_fill' },
-                      { label: 'OpenCV 修复', value: 'opencv_inpaint' },
-                      { label: 'AI 局部擦除', value: 'ai_inpaint' },
+                      { label: tr("默认（读取设置）"), value: '' },
+                      { label: tr("自动"), value: 'auto' },
+                      { label: tr("精细擦字（推荐）"), value: 'precise_mask' },
+                      { label: tr("背景采样"), value: 'background_sample' },
+                      { label: tr("模糊填充"), value: 'blur_fill' },
+                      { label: tr("OpenCV 修复"), value: 'opencv_inpaint' },
+                      { label: tr("AI 局部擦除"), value: 'ai_inpaint' },
                     ]}
                   />
                 </>
@@ -463,12 +467,12 @@ export function TranslateImageTextModal({
         {!ocrReady ? (
           <div className="tm-translate-image-text-modal__submit-note">
             <WarningOutlined />
-            <Typography.Text type="secondary">OCR 服务检测通过后才能创建翻译任务。</Typography.Text>
+            <Typography.Text type="secondary">{tr("OCR 服务检测通过后才能创建翻译任务。")}</Typography.Text>
           </div>
         ) : (
           <div className="tm-translate-image-text-modal__submit-note">
             <InfoCircleOutlined />
-            <Typography.Text type="secondary">点击“创建翻译任务”后会进入后台处理，结果以任务状态为准。</Typography.Text>
+            <Typography.Text type="secondary">{tr("点击“创建翻译任务”后会进入后台处理，结果以任务状态为准。")}</Typography.Text>
           </div>
         )}
       </div>

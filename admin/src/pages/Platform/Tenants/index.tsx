@@ -51,12 +51,12 @@ import { canEnterTenantWorkspace } from '@/utils/tenantWorkspace';
 import { passwordError, PASSWORD_HINT } from '@/utils/password';
 
 const STATUS_OPTIONS: { label: string; value: TenantStatus }[] = [
-  { label: '待开通', value: 'pending' },
-  { label: '正常', value: 'active' },
-  { label: '已暂停', value: 'suspended' },
-  { label: '已归档', value: 'archived' },
-  { label: '已关闭', value: 'closed' },
-  { label: '已删除', value: 'deleted' },
+  { get label() { return tr("待开通"); }, value: 'pending' },
+  { get label() { return tr("正常"); }, value: 'active' },
+  { get label() { return tr("已暂停"); }, value: 'suspended' },
+  { get label() { return tr("已归档"); }, value: 'archived' },
+  { get label() { return tr("已关闭"); }, value: 'closed' },
+  { get label() { return tr("已删除"); }, value: 'deleted' },
 ];
 
 const statusText: Record<TenantStatus, string> = {
@@ -81,9 +81,9 @@ type TenantFormValues = {
 };
 
 function statusAction(tenant: Tenant) {
-  if (tenant.status === 'active') return { status: 'suspended' as const, label: '暂停企业', danger: true };
+  if (tenant.status === 'active') return { status: 'suspended' as const, label: tr("暂停企业"), danger: true };
   if (tenant.status === 'suspended' || tenant.status === 'pending') {
-    return { status: 'active' as const, label: '启用企业', danger: false };
+    return { status: 'active' as const, label: tr("启用企业"), danger: false };
   }
   return null;
 }

@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import TechnicalDetails from '@/components/ui/TechnicalDetails';
 import { AI_IMAGE_APPLY_MODES } from '@/constants/aiProductImage';
 import { confirmApplyAiImage } from '@/constants/sensitiveActions';
@@ -19,6 +21,7 @@ type Props = {
 };
 
 export default function ReviewImageItemModal({ open, item, onClose, onDone }: Props) {
+  useLanguage();
   const [applyMode, setApplyMode] = useState('save_to_gallery');
   const [acting, setActing] = useState(false);
 
@@ -37,14 +40,14 @@ export default function ReviewImageItemModal({ open, item, onClose, onDone }: Pr
     try {
       const res = await applyAiProductImageItem(item.id, applyMode);
       if (res.status === 'conflict') {
-        message.error(res.errorMessage || '图片有冲突');
+        message.error(res.errorMessage || tr("图片有冲突"));
       } else {
-        message.success('已应用');
+        message.success(tr("已应用"));
         onDone();
         onClose();
       }
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '应用失败');
+      message.error((e as Error)?.message || tr("应用失败"));
     } finally {
       setActing(false);
     }
@@ -53,62 +56,62 @@ export default function ReviewImageItemModal({ open, item, onClose, onDone }: Pr
   return (
     <Modal
       open={open}
-      title={`复核 · ${item.productTitle}`}
+      title={trFormat("复核 · {value0}", { value0: String(item.productTitle) })}
       width={920}
       onCancel={onClose}
       footer={
         <Space wrap>
-          <Button onClick={() => history.push(`/product/drafts/${item.productId}`)}>查看商品详情</Button>
+          <Button onClick={() => history.push(`/product/drafts/${item.productId}`)}>{tr("查看商品详情")}</Button>
           <Button
             loading={acting}
             onClick={async () => {
               setActing(true);
               try {
                 await regenerateAiProductImageItem(item.id);
-                message.success('已重新处理');
+                message.success(tr("已重新处理"));
                 onDone();
               } catch (e: unknown) {
-                message.error((e as Error)?.message || '重新处理失败');
+                message.error((e as Error)?.message || tr("重新处理失败"));
               } finally {
                 setActing(false);
               }
             }}
           >
-            重新处理
+            {tr("重新处理")}
           </Button>
           <Button
             onClick={async () => {
               await rejectAiProductImageItem(item.id);
-              message.success('已放弃');
+              message.success(tr("已放弃"));
               onDone();
               onClose();
             }}
           >
-            放弃
+            {tr("放弃")}
           </Button>
           <Button type="primary" loading={acting} disabled={!canApply} onClick={() => void onApply()}>
-            应用
+            {tr("应用")}
           </Button>
         </Space>
       }
     >
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         <div style={{ flex: '1 1 280px' }}>
-          <Typography.Text strong>原图</Typography.Text>
+          <Typography.Text strong>{tr("原图")}</Typography.Text>
           <Image src={item.sourceImageUrl} style={{ maxHeight: 280, objectFit: 'contain' }} />
         </div>
         <div style={{ flex: '1 1 280px' }}>
-          <Typography.Text strong>AI 处理结果</Typography.Text>
+          <Typography.Text strong>{tr("AI 处理结果")}</Typography.Text>
           {item.resultImageUrl ? (
             <Image src={item.resultImageUrl} style={{ maxHeight: 280, objectFit: 'contain' }} />
           ) : (
-            <Alert type="info" message="质量检查类任务无新结果图，请查看质量提醒。" />
+            <Alert type="info" message={tr("质量检查类任务无新结果图，请查看质量提醒。")} />
           )}
         </div>
       </div>
 
       <div style={{ marginTop: 12 }}>
-        <Typography.Text strong>应用方式</Typography.Text>
+        <Typography.Text strong>{tr("应用方式")}</Typography.Text>
         <Radio.Group
           style={{ display: 'block', marginTop: 8 }}
           value={applyMode}
@@ -121,7 +124,7 @@ export default function ReviewImageItemModal({ open, item, onClose, onDone }: Pr
         <Alert
           style={{ marginTop: 12 }}
           type="warning"
-          message="质量提醒"
+          message={tr("质量提醒")}
           description={
             <ul style={{ margin: 0, paddingLeft: 18 }}>
               {item.qualityWarnings.map((w) => (
@@ -139,7 +142,7 @@ export default function ReviewImageItemModal({ open, item, onClose, onDone }: Pr
       </Space>
 
       <div style={{ marginTop: 12 }}>
-        <TechnicalDetails label="技术详情">
+        <TechnicalDetails label={tr("技术详情")}>
           <pre style={{ margin: 0, fontSize: 12 }}>
             {JSON.stringify(
               {

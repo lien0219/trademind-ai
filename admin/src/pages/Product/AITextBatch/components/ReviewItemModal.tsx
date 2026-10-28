@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import TechnicalDetails from '@/components/ui/TechnicalDetails';
 import type { AIProductTextItemRow } from '@/services/aiProductText';
 import { Link } from '@umijs/max';
@@ -23,6 +25,7 @@ export default function ReviewItemModal({
   onRegenerate,
   onReject,
 }: Props) {
+  useLanguage();
   const [applyText, setApplyText] = useState('');
 
   useEffect(() => {
@@ -38,24 +41,24 @@ export default function ReviewItemModal({
   return (
     <Modal
       open={open}
-      title={`复核：${item.operationLabel}`}
+      title={trFormat("复核：{value0}", { value0: String(item.operationLabel) })}
       width={Math.min(1100, window.innerWidth - 48)}
       onCancel={onClose}
       footer={
         <Space wrap>
-          <Button onClick={onClose}>关闭</Button>
+          <Button onClick={onClose}>{tr("关闭")}</Button>
           <Button danger disabled={!canApply || loading} onClick={() => void onReject()}>
-            放弃该建议
+            {tr("放弃该建议")}
           </Button>
           <Button disabled={loading} onClick={() => void onRegenerate()}>
-            重新生成
+            {tr("重新生成")}
           </Button>
           <Button
             type="primary"
             disabled={!canApply || loading || !applyText.trim()}
             onClick={() => void onApply(applyText)}
           >
-            应用
+            {tr("应用")}
           </Button>
         </Space>
       }
@@ -68,25 +71,25 @@ export default function ReviewItemModal({
         }}
       >
         <div>
-          <Typography.Text type="secondary">当前商品内容</Typography.Text>
+          <Typography.Text type="secondary">{tr("当前商品内容")}</Typography.Text>
           <Input.TextArea value={item.currentContent || '—'} rows={8} readOnly />
         </div>
         <div>
-          <Typography.Text type="secondary">AI 建议内容</Typography.Text>
+          <Typography.Text type="secondary">{tr("AI 建议内容")}</Typography.Text>
           <Input.TextArea value={item.generatedText || '—'} rows={8} readOnly />
           <Button
             type="link"
             size="small"
             onClick={() => {
               void navigator.clipboard.writeText(item.generatedText || '');
-              message.success('已复制 AI 文案');
+              message.success(tr("已复制 AI 文案"));
             }}
           >
-            复制 AI 文案
+            {tr("复制 AI 文案")}
           </Button>
         </div>
         <div>
-          <Typography.Text type="secondary">准备应用内容</Typography.Text>
+          <Typography.Text type="secondary">{tr("准备应用内容")}</Typography.Text>
           <Input.TextArea
             value={applyText}
             rows={8}
@@ -101,7 +104,7 @@ export default function ReviewItemModal({
           type="warning"
           showIcon
           style={{ marginTop: 12 }}
-          message="质量提醒"
+          message={tr("质量提醒")}
           description={
             <ul style={{ margin: 0, paddingLeft: 20 }}>
               {item.qualityWarnings.map((w) => (
@@ -117,16 +120,16 @@ export default function ReviewItemModal({
           type="error"
           showIcon
           style={{ marginTop: 12 }}
-          message="商品内容在 AI 建议生成后已经被修改"
-          description="为避免覆盖人工修改，请重新对比后再应用，或重新生成、放弃该建议。"
+          message={tr("商品内容在 AI 建议生成后已经被修改")}
+          description={tr("为避免覆盖人工修改，请重新对比后再应用，或重新生成、放弃该建议。")}
         />
       )}
 
       <Space style={{ marginTop: 12 }}>
-        <Link to={`/product/drafts/${item.productId}?tab=ai`}>查看商品详情</Link>
+        <Link to={`/product/drafts/${item.productId}?tab=ai`}>{tr("查看商品详情")}</Link>
       </Space>
 
-      <TechnicalDetails label="技术详情">
+      <TechnicalDetails label={tr("技术详情")}>
         <pre style={{ fontSize: 12, margin: 0 }}>
           {JSON.stringify(
             {

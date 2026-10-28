@@ -1,5 +1,6 @@
 import type { ActionType, ProFormInstance } from '@ant-design/pro-components';
 import { message } from 'antd';
+import { tr } from '@/i18n';
 import { useCallback, useMemo, useState, type RefObject } from 'react';
 import {
   KEYWORD_MAX_LENGTH,
@@ -40,7 +41,7 @@ export function useKeywordSearchField(options: Options) {
 
   const prepareKeyword = useCallback((raw: unknown) => {
     const { value, truncated } = normalizeSearchKeyword(raw);
-    if (truncated) message.warning(KEYWORD_TOO_LONG_MESSAGE);
+    if (truncated) message.warning(tr(KEYWORD_TOO_LONG_MESSAGE));
     setSensitive(looksLikeSensitiveKeyword(value));
     return value;
   }, []);

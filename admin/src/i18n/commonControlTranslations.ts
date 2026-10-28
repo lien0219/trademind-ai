@@ -1,7 +1,5 @@
 export const commonControlTranslations: Record<string, [string, string, string, string, string]> = {
-  '更新时间': ['Updated at', '更新日時', '更新時間', '수정 시간', 'เวลาอัปเดต'],
   '详情': ['Details', '詳細', '詳情', '상세', 'รายละเอียด'],
-  '删除': ['Delete', '削除', '刪除', '삭제', 'ลบ'],
   '确认删除': ['Confirm deletion', '削除を確認', '確認刪除', '삭제 확인', 'ยืนยันการลบ'],
   '结果': ['Result', '結果', '結果', '결과', 'ผลลัพธ์'],
   '说明': ['Description', '説明', '說明', '설명', 'คำอธิบาย'],

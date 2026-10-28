@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 import { EyeOutlined, FilterOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
@@ -11,6 +12,7 @@ import {
   OPERATION_TASK_TYPE_LABELS,
 } from '@/constants/operationTasks';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { useLanguage } from '@/i18n/useLanguage';
 import { usePermission } from '@/hooks/usePermission';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import {
@@ -70,14 +72,15 @@ function serializeCursorHistory(cursors: string[]) {
   return next.length > 0 ? JSON.stringify(next) : undefined;
 }
 
-function optionsFromLabels(labels: Record<string, string | { zhCN: string }>) {
+function optionsFromLabels(labels: Record<string, string | { source: string }>) {
   return Object.entries(labels).map(([value, label]) => ({
     value,
-    label: typeof label === 'string' ? label : label.zhCN,
+    label: tr(typeof label === 'string' ? label : label.source),
   }));
 }
 
 export default function OperationTasksPage() {
+  useLanguage();
   const { can } = usePermission();
   const { state: urlState, setState: setUrlState, clearState, search } = useUrlQueryState<QueryState>(QUERY_KEYS);
   const [form] = Form.useForm();
@@ -205,7 +208,7 @@ export default function OperationTasksPage() {
     const shop = shops.find((item) => item.id === requestedShopId);
     const fingerprint = `${productionCreatePrefill.productId}:${requestedShopId || ''}`;
     if (!product || !shop || !allowlistedShopId || shop.id !== allowlistedShopId) {
-      message.warning('链接中的商品或抖店不在当前可用范围，请从运营任务中心重新选择。');
+      message.warning(tr("链接中的商品或抖店不在当前可用范围，请从运营任务中心重新选择。"));
       setCreateOpen(false);
       clearState(['create', 'productId', 'shopId'], { replace: true });
       return;
@@ -217,7 +220,7 @@ export default function OperationTasksPage() {
 
   useEffect(() => {
     if (urlState.create !== 'production' || productionCreatePrefill) return;
-    message.warning('创建链接参数无效，请从运营任务中心重新选择。');
+    message.warning(tr("创建链接参数无效，请从运营任务中心重新选择。"));
     clearState(['create', 'productId', 'shopId'], { replace: true });
   }, [clearState, productionCreatePrefill, urlState.create]);
 
@@ -309,34 +312,34 @@ export default function OperationTasksPage() {
 
   const columns = useMemo<ProColumns<OperationTaskSummary>[]>(() => [
     {
-      title: '任务标题',
+      title: tr("任务标题"),
       dataIndex: 'title',
       width: 260,
       render: (_, row) => (
         <Space direction="vertical" size={2}>
           <Button type="link" className="operation-tasks-page__title-link" onClick={() => openTask(row.id)}>
-            {row.title || '未命名任务'}
+            {row.title || tr("未命名任务")}
           </Button>
           <Text type="secondary" ellipsis style={{ maxWidth: 240 }}>{row.summary || '—'}</Text>
         </Space>
       ),
     },
-    { title: '任务类型', dataIndex: 'taskType', width: 130, render: (v) => taskTypeLabel(String(v || '')) },
-    { title: '平台', dataIndex: 'platform', width: 110, render: (v) => platformLabel(String(v || '')) },
-    { title: '状态', dataIndex: 'status', width: 130, render: (v) => <OperationTaskStatusTag status={String(v || '')} /> },
-    { title: '优先级', dataIndex: 'priority', width: 100, render: (v) => <OperationPriorityTag priority={String(v || '')} /> },
-    { title: '最新草稿', dataIndex: 'latestDraftVersion', width: 110, render: (v) => v ? `v${v}` : '—' },
-    { title: '最新执行状态', dataIndex: 'latestExecutionStatus', width: 130, render: (v) => v ? <OperationAttemptStatusTag status={String(v)} /> : '—' },
-    { title: '创建人', dataIndex: 'createdBy', width: 130, render: (v) => copyableText(String(v || ''), 10) },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
-    { title: '更新时间', dataIndex: 'updatedAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
+    { title: tr("任务类型"), dataIndex: 'taskType', width: 130, render: (v) => taskTypeLabel(String(v || '')) },
+    { title: tr("平台"), dataIndex: 'platform', width: 110, render: (v) => platformLabel(String(v || '')) },
+    { title: tr("状态"), dataIndex: 'status', width: 130, render: (v) => <OperationTaskStatusTag status={String(v || '')} /> },
+    { title: tr("优先级"), dataIndex: 'priority', width: 100, render: (v) => <OperationPriorityTag priority={String(v || '')} /> },
+    { title: tr("最新草稿"), dataIndex: 'latestDraftVersion', width: 110, render: (v) => v ? `v${v}` : '—' },
+    { title: tr("最新执行状态"), dataIndex: 'latestExecutionStatus', width: 130, render: (v) => v ? <OperationAttemptStatusTag status={String(v)} /> : '—' },
+    { title: tr("创建人"), dataIndex: 'createdBy', width: 130, render: (v) => copyableText(String(v || ''), 10) },
+    { title: tr("创建时间"), dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
+    { title: tr("更新时间"), dataIndex: 'updatedAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 120,
       render: (_, row) => [
         <Button key="detail" type="link" icon={<EyeOutlined />} onClick={() => openTask(row.id)}>
-          查看详情
+          {tr("查看详情")}
         </Button>,
       ],
     },
@@ -344,7 +347,7 @@ export default function OperationTasksPage() {
 
   const filterActive = !!(urlState.status || urlState.platform || urlState.taskType);
   const emptyLocale = useListEmptyLocale('operationTasks', filterActive
-    ? { description: '当前筛选条件下没有运营任务，请调整筛选条件后重试。' }
+    ? { description: tr("当前筛选条件下没有运营任务，请调整筛选条件后重试。") }
     : undefined);
   const openCreateModal = () => {
     setCreatePayload('{}');
@@ -374,15 +377,15 @@ export default function OperationTasksPage() {
         const product = products.find((item) => item.id === values.productId);
         const shop = shops.find((item) => item.id === values.shopId);
         if (!product || !shop || !productionStatus?.allowlist?.enabled || productionStatus.allowlist.shopId !== shop.id) {
-          throw new Error('商品或白名单抖店已变化，请刷新后重新选择。');
+          throw new Error(tr('商品或白名单抖店已变化，请刷新后重新选择。'));
         }
         requestBody = {
           sourceType: 'manual',
           sourceReference: product.id,
           taskType: 'product_publish',
           platform: 'douyin',
-          title: `创建抖店平台草稿：${product.title}`,
-          summary: `冻结 ${shop.shopName} 的刊登请求，人工审核后创建平台草稿。`,
+          title: trFormat("创建抖店平台草稿：{value0}", { value0: product.title }),
+          summary: trFormat('冻结 {shop} 的刊登请求，人工审核后创建平台草稿。', { shop: shop.shopName }),
           payload: {
             schemaVersion: 'douyin_draft_v1',
             productId: product.id,
@@ -395,10 +398,10 @@ export default function OperationTasksPage() {
         let payload: unknown;
         try {
           payload = JSON.parse(createPayload);
-          if (payload === null) throw new Error('任务载荷不能为 null');
+          if (payload === null) throw new Error(tr('任务载荷不能为 null'));
           setCreatePayloadError(null);
         } catch (jsonError) {
-          setCreatePayloadError(jsonError instanceof Error ? jsonError.message : 'JSON 格式不正确');
+          setCreatePayloadError(jsonError instanceof Error ? jsonError.message : tr('JSON 格式不正确'));
           return;
         }
         requestBody = {
@@ -419,7 +422,7 @@ export default function OperationTasksPage() {
         createIdempotencyRef.current = idempotency;
       }
       const created = await createTask(requestBody, idempotency.key);
-      message.success(values.createKind === 'production' ? '平台草稿任务已创建，冻结快照等待人工审核。' : '运营任务已创建，等待准备草稿。');
+      message.success(values.createKind === 'production' ? tr('平台草稿任务已创建，冻结快照等待人工审核。') : tr('运营任务已创建，等待准备草稿。'));
       setCreateOpen(false);
       createIdempotencyRef.current = null;
       history.push(`/ops/task-center/operation-tasks/${encodeURIComponent(created.id)}`);
@@ -441,8 +444,8 @@ export default function OperationTasksPage() {
       subTitle={PAGE_COPY.operationTasks.description}
       extra={(
         <Space wrap className="operation-tasks-page__header-actions">
-          <Button icon={<ReloadOutlined />} onClick={() => { void load(); void loadProductionStatus(); }} loading={loading || productionStatusLoading}>刷新</Button>
-          {canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>创建运营任务</Button> : null}
+          <Button icon={<ReloadOutlined />} onClick={() => { void load(); void loadProductionStatus(); }} loading={loading || productionStatusLoading}>{tr("刷新")}</Button>
+          {canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>{tr("创建运营任务")}</Button> : null}
         </Space>
       )}
     >
@@ -454,38 +457,38 @@ export default function OperationTasksPage() {
           <ErrorAlert
             title={operationErrorMessage(error)}
             actionHint={showingStaleData
-              ? '刷新失败，当前显示上次成功加载的结果，请勿将其视为最新数据。'
-              : error.traceId ? `排查编号：${error.traceId}` : '请稍后重试或联系管理员。'}
+              ? tr('刷新失败，当前显示上次成功加载的结果，请勿将其视为最新数据。')
+              : error.traceId ? trFormat('排查编号：{traceId}', { traceId: error.traceId }) : tr('请稍后重试或联系管理员。')}
           />
         ) : null}
         <SectionCard
           className="operation-tasks-page__filters"
-          title="筛选任务"
-          description="按任务状态、平台和任务类型缩小处理范围。"
+          title={tr("筛选任务")}
+          description={tr("按任务状态、平台和任务类型缩小处理范围。")}
           compact
         >
           <Form form={form} layout="vertical" onFinish={updateFilters}>
             <Row gutter={[16, 12]}>
               <Col xs={24} md={8} lg={6}>
-                <Form.Item name="status" label="任务状态">
-                  <Select allowClear options={optionsFromLabels(OPERATION_TASK_STATUS_LABELS)} placeholder="全部状态" />
+                <Form.Item name="status" label={tr("任务状态")}>
+                  <Select allowClear options={optionsFromLabels(OPERATION_TASK_STATUS_LABELS)} placeholder={tr("全部状态")} />
                 </Form.Item>
               </Col>
               <Col xs={24} md={8} lg={6}>
-                <Form.Item name="platform" label="平台">
-                  <Select allowClear options={optionsFromLabels(OPERATION_PLATFORM_LABELS)} placeholder="全部平台" />
+                <Form.Item name="platform" label={tr("平台")}>
+                  <Select allowClear options={optionsFromLabels(OPERATION_PLATFORM_LABELS)} placeholder={tr("全部平台")} />
                 </Form.Item>
               </Col>
               <Col xs={24} md={8} lg={6}>
-                <Form.Item name="taskType" label="任务类型">
-                  <Select allowClear options={optionsFromLabels(OPERATION_TASK_TYPE_LABELS)} placeholder="全部类型" />
+                <Form.Item name="taskType" label={tr("任务类型")}>
+                  <Select allowClear options={optionsFromLabels(OPERATION_TASK_TYPE_LABELS)} placeholder={tr("全部类型")} />
                 </Form.Item>
               </Col>
               <Col xs={24} lg={6} className="operation-tasks-page__filter-action-column">
                 <Form.Item>
                   <OperationToolbar className="operation-tasks-page__filter-actions">
-                    <Button icon={<FilterOutlined />} htmlType="submit">应用筛选</Button>
-                    <Button onClick={clearFilters}>清除筛选</Button>
+                    <Button icon={<FilterOutlined />} htmlType="submit">{tr("应用筛选")}</Button>
+                    <Button onClick={clearFilters}>{tr("清除筛选")}</Button>
                   </OperationToolbar>
                 </Form.Item>
               </Col>
@@ -508,44 +511,48 @@ export default function OperationTasksPage() {
               options={false}
               headerTitle={(
                 <div className="operation-tasks-page__table-heading">
-                  <Text strong className="operation-tasks-page__table-title">任务列表</Text>
-                  <Text type="secondary">查看任务状态、草稿进度和最近执行结果。</Text>
+                  <Text strong className="operation-tasks-page__table-title">{tr("任务列表")}</Text>
+                  <Text type="secondary">{tr("查看任务状态、草稿进度和最近执行结果。")}</Text>
                 </div>
               )}
               toolBarRender={() => [
                 <Text key="batch-summary" type="secondary" className="operation-tasks-page__table-summary">
-                  本批 {visibleItems.length} 条{filterActive ? '，已应用筛选' : ''}{showingStaleData ? '，数据未更新' : ''}
+                  {trFormat('本批 {count} 条{filtered}{stale}', {
+                    count: visibleItems.length,
+                    filtered: filterActive ? tr('，已应用筛选') : '',
+                    stale: showingStaleData ? tr('，数据未更新') : '',
+                  })}
                 </Text>,
               ]}
             />
 
             <OperationToolbar className="operation-tasks-page__pagination">
-              <Button disabled={cursorStack.length === 0 || loading} onClick={goPrev}>上一批</Button>
-              <Button disabled={!hasMore || !nextCursor || loading} onClick={goNext}>下一批</Button>
+              <Button disabled={cursorStack.length === 0 || loading} onClick={goPrev}>{tr("上一批")}</Button>
+              <Button disabled={!hasMore || !nextCursor || loading} onClick={goNext}>{tr("下一批")}</Button>
             </OperationToolbar>
           </>
         ) : null}
       </Space>
 
       <Modal
-        title="创建运营任务"
+        title={tr("创建运营任务")}
         open={createOpen}
         onCancel={closeCreateModal}
         onOk={() => void submitCreateTask()}
-        okText="创建任务"
-        cancelText="取消"
+        okText={tr("创建任务")}
+        cancelText={tr("取消")}
         confirmLoading={createSubmitting}
         okButtonProps={{ disabled: createSubmitting }}
         width={720}
         destroyOnHidden
       >
         <Form form={createForm} layout="vertical" disabled={createSubmitting}>
-          <Form.Item name="createKind" label="任务模式">
+          <Form.Item name="createKind" label={tr("任务模式")}>
             <Segmented
               block
               options={[
-                { value: 'production', label: '创建抖店平台草稿' },
-                { value: 'local', label: '通用本地任务' },
+                { value: 'production', label: tr("创建抖店平台草稿") },
+                { value: 'local', label: tr("通用本地任务") },
               ]}
             />
           </Form.Item>
@@ -554,26 +561,26 @@ export default function OperationTasksPage() {
               <ProductionRuntimeBoundary status={productionStatus} loading={productionResourcesLoading} error={productionStatusError} />
               <Row gutter={16}>
                 <Col xs={24} md={16}>
-                  <Form.Item name="productId" label="商品" rules={[{ required: true, message: '请选择商品' }]}>
+                  <Form.Item name="productId" label={tr("商品")} rules={[{ required: true, message: tr("请选择商品") }]}>
                     <Select
                       showSearch
                       loading={productionResourcesLoading}
                       optionFilterProp="label"
-                      placeholder="选择已完成抖店映射的商品"
+                      placeholder={tr("选择已完成抖店映射的商品")}
                       options={products.map((item) => ({ value: item.id, label: item.title || item.id }))}
                     />
                   </Form.Item>
                 </Col>
                 <Col xs={24} md={8}>
-                  <Form.Item name="priority" label="优先级" rules={[{ required: true, message: '请选择优先级' }]}>
-                    <Select options={optionsFromLabels({ low: '低', normal: '普通', high: '高', urgent: '紧急' })} />
+                  <Form.Item name="priority" label={tr("优先级")} rules={[{ required: true, message: tr("请选择优先级") }]}>
+                    <Select options={optionsFromLabels({ low: tr('低'), normal: tr('普通'), high: tr('高'), urgent: tr('紧急') })} />
                   </Form.Item>
                 </Col>
                 <Col xs={24}>
-                  <Form.Item name="shopId" label="已授权白名单抖店" rules={[{ required: true, message: '请选择白名单抖店' }]}>
+                  <Form.Item name="shopId" label={tr("已授权白名单抖店")} rules={[{ required: true, message: tr("请选择白名单抖店") }]}>
                     <Select
                       loading={productionResourcesLoading}
-                      placeholder="选择当前生产白名单内的抖店"
+                      placeholder={tr("选择当前生产白名单内的抖店")}
                       options={shops
                         .filter((item) => productionStatus?.allowlist?.enabled && item.id === productionStatus.allowlist.shopId)
                         .map((item) => ({ value: item.id, label: item.shopName }))}
@@ -581,44 +588,44 @@ export default function OperationTasksPage() {
                   </Form.Item>
                 </Col>
               </Row>
-              <Typography.Text type="secondary">执行方式固定为“保存为平台草稿”。创建时冻结商品、映射和请求内容，后续不可编辑；仍需人工审核后才能提交执行。</Typography.Text>
+              <Typography.Text type="secondary">{tr("执行方式固定为“保存为平台草稿”。创建时冻结商品、映射和请求内容，后续不可编辑；仍需人工审核后才能提交执行。")}</Typography.Text>
             </Space>
           ) : (
           <>
             <Typography.Paragraph type="secondary">
-              通用任务仅用于本地流程，不会调用真实平台发布或上架能力。
+              {tr("通用任务仅用于本地流程，不会调用真实平台发布或上架能力。")}
             </Typography.Paragraph>
             <Row gutter={16}>
             <Col xs={24} md={16}>
-              <Form.Item name="title" label="任务标题" rules={[{ required: true, whitespace: true, message: '请填写任务标题' }, { max: 200, message: '任务标题不能超过 200 个字符' }]}>
-                <Input placeholder="例如：复核商品标题与卖点" maxLength={200} showCount />
+              <Form.Item name="title" label={tr("任务标题")} rules={[{ required: true, whitespace: true, message: tr("请填写任务标题") }, { max: 200, message: tr("任务标题不能超过 200 个字符") }]}>
+                <Input placeholder={tr("例如：复核商品标题与卖点")} maxLength={200} showCount />
               </Form.Item>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="priority" label="优先级" rules={[{ required: true, message: '请选择优先级' }]}>
-                <Select options={optionsFromLabels({ low: '低', normal: '普通', high: '高', urgent: '紧急' })} />
+              <Form.Item name="priority" label={tr("优先级")} rules={[{ required: true, message: tr("请选择优先级") }]}>
+                <Select options={optionsFromLabels({ low: tr('低'), normal: tr('普通'), high: tr('高'), urgent: tr('紧急') })} />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name="taskType" label="任务类型" rules={[{ required: true, message: '请选择任务类型' }]}>
-                <Select options={optionsFromLabels(OPERATION_TASK_TYPE_LABELS)} placeholder="选择任务类型" />
+              <Form.Item name="taskType" label={tr("任务类型")} rules={[{ required: true, message: tr("请选择任务类型") }]}>
+                <Select options={optionsFromLabels(OPERATION_TASK_TYPE_LABELS)} placeholder={tr("选择任务类型")} />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name="platform" label="平台" rules={[{ required: true, message: '请选择平台' }]}>
+              <Form.Item name="platform" label={tr("平台")} rules={[{ required: true, message: tr("请选择平台") }]}>
                 <Select options={optionsFromLabels(OPERATION_PLATFORM_LABELS)} />
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="summary" label="任务概要" rules={[{ max: 1000, message: '任务概要不能超过 1000 个字符' }]}>
-            <Input.TextArea rows={3} maxLength={1000} showCount placeholder="说明任务目标和审核重点" />
+          <Form.Item name="summary" label={tr("任务概要")} rules={[{ max: 1000, message: tr("任务概要不能超过 1000 个字符") }]}>
+            <Input.TextArea rows={3} maxLength={1000} showCount placeholder={tr("说明任务目标和审核重点")} />
           </Form.Item>
-          <Form.Item name="sourceReference" label="来源引用" rules={[{ max: 255, message: '来源引用不能超过 255 个字符' }]}>
-            <Input placeholder="可填写商品、订单或外部记录编号" maxLength={255} />
+          <Form.Item name="sourceReference" label={tr("来源引用")} rules={[{ max: 255, message: tr("来源引用不能超过 255 个字符") }]}>
+            <Input placeholder={tr("可填写商品、订单或外部记录编号")} maxLength={255} />
           </Form.Item>
-          <Form.Item label="任务载荷" required validateStatus={createPayloadError ? 'error' : undefined} help={createPayloadError ? `JSON 格式错误：${createPayloadError}` : '仅填写任务执行所需的非敏感结构化数据。'}>
+          <Form.Item label={tr("任务载荷")} required validateStatus={createPayloadError ? 'error' : undefined} help={createPayloadError ? `${tr("JSON 格式错误：")}${createPayloadError}` : tr('仅填写任务执行所需的非敏感结构化数据。')}>
             <Input.TextArea
-              aria-label="任务载荷 JSON"
+              aria-label={tr("任务载荷 JSON")}
               value={createPayload}
               onChange={(event) => {
                 setCreatePayload(event.target.value);

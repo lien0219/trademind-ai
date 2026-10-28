@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { CheckCircleOutlined, HomeOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { Alert, Button, Form, Input, Modal, Radio, Switch, Tag, Typography, message } from 'antd';
@@ -24,6 +26,7 @@ type WarehouseFormValues = {
 };
 
 export default function WarehousesPage() {
+  useLanguage();
   const { can, readonly } = usePermission();
   const canManage = !readonly && can(PERMISSIONS.WAREHOUSE_MANAGE);
   const [form] = Form.useForm<WarehouseFormValues>();
@@ -82,40 +85,40 @@ export default function WarehousesPage() {
           status: values.status,
           isDefault: values.isDefault,
         });
-        message.success('仓库信息已更新');
+        message.success(tr("仓库信息已更新"));
       } else {
         await createWarehouse({ code: values.code.trim().toUpperCase(), name: values.name.trim(), isDefault: values.isDefault });
-        message.success('仓库已创建');
+        message.success(tr("仓库已创建"));
       }
       setModalOpen(false);
       await load();
     } catch (nextError) {
-      message.error(procurementErrorMessage(extractProcurementAPIError(nextError), '仓库保存失败，请检查填写内容。'));
+      message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('仓库保存失败，请检查填写内容。'))));
     } finally {
       setSubmitting(false);
     }
   };
 
   const columns: ProColumns<Warehouse>[] = [
-    { title: '仓库编码', dataIndex: 'code', width: 150, copyable: true, ellipsis: true },
-    { title: '仓库名称', dataIndex: 'name', minWidth: 180, ellipsis: true },
+    { title: tr("仓库编码"), dataIndex: 'code', width: 150, copyable: true, ellipsis: true },
+    { title: tr("仓库名称"), dataIndex: 'name', minWidth: 180, ellipsis: true },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 100,
-      render: (_, row) => row.status === 'active' ? <Tag color="success">启用</Tag> : <Tag>停用</Tag>,
+      render: (_, row) => row.status === 'active' ? <Tag color="success">{tr("启用")}</Tag> : <Tag>{tr("停用")}</Tag>,
     },
     {
-      title: '默认仓',
+      title: tr("默认仓"),
       dataIndex: 'isDefault',
       width: 100,
-      render: (_, row) => row.isDefault ? <Tag color="blue">默认</Tag> : '—',
+      render: (_, row) => row.isDefault ? <Tag color="blue">{tr("默认")}</Tag> : '—',
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 100,
-      render: (_, row) => canManage ? <Button type="link" size="small" onClick={() => openEdit(row)}>编辑</Button> : '—',
+      render: (_, row) => canManage ? <Button type="link" size="small" onClick={() => openEdit(row)}>{tr("编辑")}</Button> : '—',
     },
   ];
 
@@ -123,30 +126,30 @@ export default function WarehousesPage() {
     <PermissionGuard require={PERMISSIONS.WAREHOUSE_VIEW} showForbiddenPage>
       <TmPageContainer
         className="tm-procurement-page"
-        title="仓库管理"
-        subTitle="维护采购入库使用的仓库。当前分仓余额仍处于兼容迁移阶段，不在此页展示可用库存。"
+        title={tr("仓库管理")}
+        subTitle={tr("维护采购入库使用的仓库。当前分仓余额仍处于兼容迁移阶段，不在此页展示可用库存。")}
         extra={
           <TmPageHeaderExtra>
-            <Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={openCreate}>新建仓库</Button>
+            <Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={openCreate}>{tr("新建仓库")}</Button>
           </TmPageHeaderExtra>
         }
       >
-        {!canManage ? <Alert type="info" showIcon message="当前账号为只读模式，可查看仓库但不能修改。" /> : null}
-        {error ? <ErrorAlert title={error} actionHint={<Button onClick={() => void load()}>重新加载</Button>} /> : null}
-        <div className="tm-procurement-overview" aria-label="仓库概览">
+        {!canManage ? <Alert type="info" showIcon message={tr("当前账号为只读模式，可查看仓库但不能修改。")} /> : null}
+        {error ? <ErrorAlert title={tr(error)} actionHint={<Button onClick={() => void load()}>{tr("重新加载")}</Button>} /> : null}
+        <div className="tm-procurement-overview" aria-label={tr("仓库概览")}>
           <div className="tm-procurement-overview__item">
-            <span className="tm-procurement-overview__label">仓库总数</span>
+            <span className="tm-procurement-overview__label">{tr("仓库总数")}</span>
             <strong className="tm-procurement-overview__value">{loading ? '—' : rows.length}</strong>
           </div>
           <div className="tm-procurement-overview__item tm-procurement-overview__item--success">
             <CheckCircleOutlined aria-hidden="true" />
-            <span className="tm-procurement-overview__label">启用中</span>
+            <span className="tm-procurement-overview__label">{tr("启用中")}</span>
             <strong className="tm-procurement-overview__value">{loading ? '—' : activeCount}</strong>
           </div>
           <div className="tm-procurement-overview__note">
             <HomeOutlined aria-hidden="true" />
             <Typography.Text type="secondary">
-              {loading ? '正在加载仓库信息' : `默认仓：${defaultWarehouse ? `${defaultWarehouse.code} · ${defaultWarehouse.name}` : '尚未设置'}`}
+              {loading ? tr('正在加载仓库信息') : `${tr('默认仓：')}${defaultWarehouse ? `${defaultWarehouse.code} · ${defaultWarehouse.name}` : tr('尚未设置')}`}
             </Typography.Text>
           </div>
         </div>
@@ -159,8 +162,8 @@ export default function WarehousesPage() {
           filterBar={
             <Input.Search
               allowClear
-              aria-label="搜索仓库"
-              placeholder="搜索仓库编码或名称"
+              aria-label={tr("搜索仓库")}
+              placeholder={tr("搜索仓库编码或名称")}
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               className="tm-procurement-search"
@@ -169,47 +172,47 @@ export default function WarehousesPage() {
           search={false}
           options={false}
           toolBarRender={() => [
-            <Typography.Text key="count" type="secondary">共 {filteredRows.length} 个仓库</Typography.Text>,
-            <Button key="refresh" loading={loading} onClick={() => void load()}>刷新列表</Button>,
+            <Typography.Text key="count" type="secondary">{tr("共")} {filteredRows.length} {tr("个仓库")}</Typography.Text>,
+            <Button key="refresh" loading={loading} onClick={() => void load()}>{tr("刷新列表")}</Button>,
           ]}
           pagination={false}
           cardBordered
           scroll={{ x: 760 }}
-          locale={{ emptyText: error ? '仓库列表暂不可用' : '暂无仓库，请先新建仓库。' }}
+          locale={{ emptyText: error ? tr('仓库列表暂不可用') : tr('暂无仓库，请先新建仓库。') }}
         />
         <Modal
-          title={editing ? `编辑仓库 · ${editing.code}` : '新建仓库'}
+          title={editing ? trFormat("编辑仓库 · {value0}", { value0: String(editing.code) }) : tr('新建仓库')}
           open={modalOpen}
           confirmLoading={submitting}
-          okText={editing ? '保存仓库' : '创建仓库'}
-          cancelText="取消"
+          okText={editing ? tr('保存仓库') : tr('创建仓库')}
+          cancelText={tr("取消")}
           onCancel={() => !submitting && setModalOpen(false)}
           onOk={() => form.submit()}
           forceRender
         >
           <Form form={form} layout="vertical" preserve={false} onFinish={(values) => void save(values)}>
             <Form.Item
-              label="仓库编码"
+              label={tr("仓库编码")}
               name="code"
               rules={[
-                { required: true, message: '请输入仓库编码' },
-                { pattern: /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/, message: '仅支持字母、数字、下划线和短横线' },
+                { required: true, message: tr("请输入仓库编码") },
+                { pattern: /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/, message: tr("仅支持字母、数字、下划线和短横线") },
               ]}
             >
-              <Input disabled={Boolean(editing)} maxLength={64} placeholder="例如 MAIN" />
+              <Input disabled={Boolean(editing)} maxLength={64} placeholder={tr("例如 MAIN")} />
             </Form.Item>
-            <Form.Item label="仓库名称" name="name" rules={[{ required: true, whitespace: true, message: '请输入仓库名称' }]}>
-              <Input maxLength={160} placeholder="例如 华东主仓" />
+            <Form.Item label={tr("仓库名称")} name="name" rules={[{ required: true, whitespace: true, message: tr("请输入仓库名称") }]}>
+              <Input maxLength={160} placeholder={tr("例如 华东主仓")} />
             </Form.Item>
             {editing ? (
-              <Form.Item label="状态" name="status" rules={[{ required: true }]}>
-                <Radio.Group options={[{ label: '启用', value: 'active' }, { label: '停用', value: 'inactive' }]} />
+              <Form.Item label={tr("状态")} name="status" rules={[{ required: true }]}>
+                <Radio.Group options={[{ label: tr("启用"), value: 'active' }, { label: tr("停用"), value: 'inactive' }]} />
               </Form.Item>
             ) : null}
-            <Form.Item label="设为默认仓" name="isDefault" valuePropName="checked">
+            <Form.Item label={tr("设为默认仓")} name="isDefault" valuePropName="checked">
               <Switch />
             </Form.Item>
-            <Alert type="info" showIcon message="默认仓必须保持启用；设为默认后，同租户原默认仓会自动取消。" />
+            <Alert type="info" showIcon message={tr("默认仓必须保持启用；设为默认后，同租户原默认仓会自动取消。")} />
           </Form>
         </Modal>
       </TmPageContainer>

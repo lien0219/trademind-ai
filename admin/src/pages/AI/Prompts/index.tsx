@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import { Link } from '@umijs/renderer-react';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TmProTable as ProTable } from '@/components/ui';
@@ -48,6 +49,7 @@ function parseSchemaField(raw: string | undefined): unknown | undefined {
 }
 
 export default function AIPromptsPage() {
+  useLanguage();
   const { user } = usePermission();
   const mayReadSettings = mayReadGlobalSettings(user);
   const actionRef = useRef<ActionType>();
