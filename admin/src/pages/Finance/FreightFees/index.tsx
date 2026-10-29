@@ -57,6 +57,7 @@ import { formatProfitAmount } from '@/services/profitability';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
+import { financialActionRequestKey, type FinancialActionRequestKey } from '@/utils/financialActionKey';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
 
 type AdjustmentFormValues = { amountMinor?: number; reason: string };
@@ -108,12 +109,13 @@ export default function FreightFeesPage() {
   const [adjustmentMode, setAdjustmentMode] = useState<'adjust' | 'reverse'>('adjust');
   const [reverseTarget, setReverseTarget] = useState<FreightAdjustment>();
   const [adjusting, setAdjusting] = useState(false);
-  const [adjustmentKey, setAdjustmentKey] = useState('');
   const [adjustmentForm] = Form.useForm<AdjustmentFormValues>();
   const requestIDRef = useRef(0);
   const listRequestIDRef = useRef(0);
   const detailRequestIDRef = useRef(0);
   const inFlightRef = useRef(false);
+  const adjustmentInFlightRef = useRef(false);
+  const adjustmentRequestRef = useRef<FinancialActionRequestKey>();
   const shopsRead = useMemo(createTenantReadGuard, []);
   const listRead = useMemo(createTenantReadGuard, []);
   const detailRead = useMemo(createTenantReadGuard, []);
@@ -273,37 +275,48 @@ export default function FreightFeesPage() {
   const openAdjustment = useCallback((mode: 'adjust' | 'reverse', target?: FreightAdjustment) => {
     setAdjustmentMode(mode);
     setReverseTarget(target);
-    setAdjustmentKey(freightFeeIdempotencyKey(mode));
+    adjustmentRequestRef.current = undefined;
     adjustmentForm.resetFields();
     setAdjustmentOpen(true);
   }, [adjustmentForm]);
 
   const submitAdjustment = useCallback(async (values: AdjustmentFormValues) => {
-    if (!detail || !adjustmentKey || adjusting) return;
+    if (!detail || adjusting || adjustmentInFlightRef.current) return;
     const reason = values.reason.trim();
     if (reason.length < 2) return;
+    const amountMinor = adjustmentMode === 'adjust' ? values.amountMinor : null;
+    if (adjustmentMode === 'adjust' && (!Number.isSafeInteger(amountMinor) || amountMinor === 0)) {
+      message.error(tr('调整金额必须为非零安全整数'));
+      return;
+    }
+    if (adjustmentMode === 'reverse' && !reverseTarget) return;
+    const command = financialActionRequestKey(
+      adjustmentRequestRef.current,
+      adjustmentMode,
+      [detail.id, reverseTarget?.id || '', amountMinor ?? null, reason],
+      freightFeeIdempotencyKey,
+    );
+    adjustmentRequestRef.current = command;
+    adjustmentInFlightRef.current = true;
     setAdjusting(true);
     try {
       if (adjustmentMode === 'adjust') {
-        const amountMinor = values.amountMinor;
-        if (!Number.isSafeInteger(amountMinor) || amountMinor === 0) {
-          message.error(tr('调整金额必须为非零安全整数'));
-          return;
-        }
-        await createFreightFeeAdjustment(detail.id, { amountMinor: amountMinor!, reason, idempotencyKey: adjustmentKey });
+        await createFreightFeeAdjustment(detail.id, { amountMinor: amountMinor!, reason, idempotencyKey: command.key });
       } else if (reverseTarget) {
-        await reverseFreightFeeAdjustment(detail.id, reverseTarget.id, { reason, idempotencyKey: adjustmentKey });
+        await reverseFreightFeeAdjustment(detail.id, reverseTarget.id, { reason, idempotencyKey: command.key });
       }
       message.success(adjustmentMode === 'adjust' ? tr('调整已追加') : tr('冲正已追加'));
       setAdjustmentOpen(false);
+      adjustmentRequestRef.current = undefined;
       await loadDetail(detail.id);
       await loadList();
     } catch (error) {
       message.error((error as Error)?.message || tr('运费调整失败'));
     } finally {
+      adjustmentInFlightRef.current = false;
       setAdjusting(false);
     }
-  }, [adjustmentKey, adjustmentMode, adjusting, detail, loadDetail, loadList, reverseTarget]);
+  }, [adjustmentMode, adjusting, detail, loadDetail, loadList, reverseTarget]);
 
   const chargeColumns: TableColumnsType<FreightCharge> = [
     { title: tr('订单号'), dataIndex: 'orderNo', width: 160, ellipsis: true },
@@ -518,7 +531,7 @@ export default function FreightFeesPage() {
           keyboard={!adjusting}
           maskClosable={!adjusting}
           okText={adjustmentMode === 'adjust' ? tr('追加') : tr('确认冲正')}
-          onCancel={() => { if (!adjusting) setAdjustmentOpen(false); }}
+          onCancel={() => { if (!adjusting) { adjustmentRequestRef.current = undefined; setAdjustmentOpen(false); } }}
           onOk={() => adjustmentForm.submit()}
         >
           <Form form={adjustmentForm} layout="vertical" onFinish={(values) => void submitAdjustment(values)}>

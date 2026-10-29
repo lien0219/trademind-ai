@@ -67,6 +67,7 @@ import { formatProfitAmount } from '@/services/profitability';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
+import { financialActionRequestKey, type FinancialActionRequestKey } from '@/utils/financialActionKey';
 import { parsePositiveInt } from '@/utils/urlState';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
 import './index.less';
@@ -113,7 +114,7 @@ export default function AdvertisingFeesPage() {
   const previewRequestRef = useRef(0);
   const submittingRef = useRef(false);
   const adjustmentSubmittingRef = useRef(false);
-  const adjustmentKeyRef = useRef<string>();
+  const adjustmentKeyRef = useRef<FinancialActionRequestKey>();
   const { state: urlState, setState: setUrlState, clearState } = useUrlQueryState<
     Record<(typeof QUERY_KEYS)[number], string | undefined>
   >(QUERY_KEYS);
@@ -269,14 +270,21 @@ export default function AdvertisingFeesPage() {
     adjustmentSubmittingRef.current = true;
     try {
       const values = await adjustmentForm.validateFields();
-      const key = adjustmentKeyRef.current || advertisingFeeIdempotencyKey(reversingAdjustment ? 'reverse' : 'adjust');
-      adjustmentKeyRef.current = key;
+      const reason = values.reason.trim();
+      const amountMinor = reversingAdjustment ? null : values.amountMinor;
+      const command = financialActionRequestKey(
+        adjustmentKeyRef.current,
+        reversingAdjustment ? 'reverse' : 'adjust',
+        [detail.id, reversingAdjustment?.id || '', amountMinor ?? null, reason],
+        advertisingFeeIdempotencyKey,
+      );
+      adjustmentKeyRef.current = command;
       setAdjusting(true);
       if (reversingAdjustment) {
-        await reverseAdvertisingFeeAdjustment(detail.id, reversingAdjustment.id, { reason: values.reason.trim(), idempotencyKey: key });
+        await reverseAdvertisingFeeAdjustment(detail.id, reversingAdjustment.id, { reason, idempotencyKey: command.key });
         message.success(tr('广告费用调整已冲正'));
       } else {
-        await createAdvertisingFeeAdjustment(detail.id, { amountMinor: values.amountMinor!, reason: values.reason.trim(), idempotencyKey: key });
+        await createAdvertisingFeeAdjustment(detail.id, { amountMinor: values.amountMinor!, reason, idempotencyKey: command.key });
         message.success(tr('广告费用调整已追加'));
       }
       setAdjustmentOpen(false);
