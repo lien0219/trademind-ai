@@ -111,7 +111,9 @@ export default function AdvertisingFeesPage() {
   const filterReadGuard = useMemo(createTenantReadGuard, []);
   const detailReadGuard = useMemo(createTenantReadGuard, []);
   const listReadGuard = useMemo(createTenantReadGuard, []);
+  const previewReadGuard = useMemo(createTenantReadGuard, []);
   const previewRequestRef = useRef(0);
+  const isPreviewCurrentRef = useRef<() => boolean>(() => false);
   const submittingRef = useRef(false);
   const adjustmentSubmittingRef = useRef(false);
   const adjustmentKeyRef = useRef<FinancialActionRequestKey>();
@@ -201,10 +203,12 @@ export default function AdvertisingFeesPage() {
 
   const invalidatePreview = useCallback(() => {
     previewRequestRef.current += 1;
+    previewReadGuard.invalidate();
+    isPreviewCurrentRef.current = () => false;
     setPreview(undefined);
     setIdempotencyKey('');
     setPreviewing(false);
-  }, []);
+  }, [previewReadGuard]);
 
   const resetImport = useCallback(() => {
     setImportShopID(undefined);
@@ -217,22 +221,31 @@ export default function AdvertisingFeesPage() {
     const file = nativeFile(fileList);
     if (!file || !importShopID || previewing) return;
     const requestID = ++previewRequestRef.current;
+    const isCurrent = previewReadGuard.begin();
+    isPreviewCurrentRef.current = isCurrent;
     setPreviewing(true);
     try {
       const result = await previewAdvertisingFeeImport(file, importShopID);
-      if (requestID !== previewRequestRef.current) return;
+      if (requestID !== previewRequestRef.current || !isCurrent()) return;
       setPreview(result);
       setIdempotencyKey(advertisingFeeIdempotencyKey('import'));
     } catch (error) {
-      if (requestID === previewRequestRef.current) message.error((error as Error)?.message || tr('广告费用校验失败'));
+      if (requestID === previewRequestRef.current && isCurrent()) message.error((error as Error)?.message || tr('广告费用校验失败'));
     } finally {
-      if (requestID === previewRequestRef.current) setPreviewing(false);
+      if (requestID === previewRequestRef.current && isCurrent()) setPreviewing(false);
     }
-  }, [fileList, importShopID, previewing]);
+  }, [fileList, importShopID, previewReadGuard, previewing]);
+
+  useEffect(() => () => previewReadGuard.invalidate(), [previewReadGuard]);
 
   const confirmImport = useCallback(async () => {
     const file = nativeFile(fileList);
     if (!file || !importShopID || !preview?.valid || !idempotencyKey || submittingRef.current) return;
+    if (!isPreviewCurrentRef.current()) {
+      invalidatePreview();
+      return;
+    }
+    const isCurrent = isPreviewCurrentRef.current;
     submittingRef.current = true;
     setSubmitting(true);
     try {
@@ -243,17 +256,18 @@ export default function AdvertisingFeesPage() {
         preview.calculationHash,
         idempotencyKey,
       );
+      if (!isCurrent()) return;
       message.success(result.replayed ? tr('该广告费用文件已确认，无需重复处理') : trFormat('已生成 {count} 条订单归属', { count: result.import.allocationCount }));
       setImportOpen(false);
       resetImport();
       void actionRef.current?.reload();
     } catch (error) {
-      message.error((error as Error)?.message || tr('广告费用确认失败'));
+      if (isCurrent()) message.error((error as Error)?.message || tr('广告费用确认失败'));
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [fileList, idempotencyKey, importShopID, preview, resetImport]);
+  }, [fileList, idempotencyKey, importShopID, invalidatePreview, preview, resetImport]);
 
   const openAdjustment = useCallback((target?: AdvertisingAdjustment) => {
     adjustmentKeyRef.current = undefined;

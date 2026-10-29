@@ -123,7 +123,9 @@ export default function SettlementReconciliationPage() {
   const filterReadGuard = useMemo(createTenantReadGuard, []);
   const detailReadGuard = useMemo(createTenantReadGuard, []);
   const listReadGuard = useMemo(createTenantReadGuard, []);
+  const previewReadGuard = useMemo(createTenantReadGuard, []);
   const previewRequestRef = useRef(0);
+  const isPreviewCurrentRef = useRef<() => boolean>(() => false);
   const submittingRef = useRef(false);
   const { state: urlState, setState: setUrlState, clearState } = useUrlQueryState<
     Record<(typeof QUERY_KEYS)[number], string | undefined>
@@ -216,10 +218,12 @@ export default function SettlementReconciliationPage() {
 
   const invalidatePreview = useCallback(() => {
     previewRequestRef.current += 1;
+    previewReadGuard.invalidate();
+    isPreviewCurrentRef.current = () => false;
     setPreview(undefined);
     setIdempotencyKey('');
     setPreviewing(false);
-  }, []);
+  }, [previewReadGuard]);
 
   const resetImport = useCallback(() => {
     setImportShopID(undefined);
@@ -247,38 +251,48 @@ export default function SettlementReconciliationPage() {
     const file = nativeFile(fileList);
     if (!file || !importShopID || previewing) return;
     const requestID = ++previewRequestRef.current;
+    const isCurrent = previewReadGuard.begin();
+    isPreviewCurrentRef.current = isCurrent;
     setPreviewing(true);
     try {
       const result = await previewSettlementImport(file, importShopID);
-      if (requestID !== previewRequestRef.current) return;
+      if (requestID !== previewRequestRef.current || !isCurrent()) return;
       setPreview(result);
       setIdempotencyKey(settlementImportIdempotencyKey());
     } catch (error) {
-      if (requestID !== previewRequestRef.current) return;
+      if (requestID !== previewRequestRef.current || !isCurrent()) return;
       message.error((error as Error)?.message || tr('账单校验失败'));
     } finally {
-      if (requestID === previewRequestRef.current) setPreviewing(false);
+      if (requestID === previewRequestRef.current && isCurrent()) setPreviewing(false);
     }
-  }, [fileList, importShopID, previewing]);
+  }, [fileList, importShopID, previewReadGuard, previewing]);
+
+  useEffect(() => () => previewReadGuard.invalidate(), [previewReadGuard]);
 
   const confirmImport = useCallback(async () => {
     const file = nativeFile(fileList);
     if (!file || !importShopID || !preview?.valid || !idempotencyKey || submittingRef.current) return;
+    if (!isPreviewCurrentRef.current()) {
+      invalidatePreview();
+      return;
+    }
+    const isCurrent = isPreviewCurrentRef.current;
     submittingRef.current = true;
     setSubmitting(true);
     try {
       const result = await confirmSettlementImport(file, importShopID, preview.fileHash, idempotencyKey);
+      if (!isCurrent()) return;
       message.success(result.replayed ? tr('该账单已导入，无需重复处理') : trFormat('已导入 {count} 条结算交易', { count: result.import.importedRows }));
       setImportOpen(false);
       resetImport();
       void actionRef.current?.reload();
     } catch (error) {
-      message.error((error as Error)?.message || tr('账单导入失败'));
+      if (isCurrent()) message.error((error as Error)?.message || tr('账单导入失败'));
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [fileList, idempotencyKey, importShopID, preview, resetImport]);
+  }, [fileList, idempotencyKey, importShopID, invalidatePreview, preview, resetImport]);
 
   const exportCurrent = useCallback(async () => {
     if (!canExport || exporting) return;

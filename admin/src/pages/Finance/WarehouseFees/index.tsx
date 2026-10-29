@@ -67,6 +67,7 @@ import {
 } from '@/services/warehouseFees';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
+import { financialActionRequestKey, type FinancialActionRequestKey } from '@/utils/financialActionKey';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
 import './index.less';
 
@@ -98,15 +99,7 @@ function rateLabel(row: WarehouseFeeRateCard) {
   return `${row.code} · ${row.name} · ${row.currency}`;
 }
 
-type StableRequestKey = {
-  signature: string;
-  key: string;
-};
 
-function stableRequestKey(current: StableRequestKey | undefined, action: string, signature: string) {
-  if (current?.signature === signature) return current;
-  return { signature, key: warehouseFeeIdempotencyKey(action) };
-}
 
 export default function WarehouseFeesPage() {
   useLanguage();
@@ -120,8 +113,8 @@ export default function WarehouseFeesPage() {
   const rateSubmissionLock = useRef(false);
   const adjustmentSubmissionLock = useRef(false);
   const previewSession = useRef(0);
-  const confirmationRequestKey = useRef<StableRequestKey>();
-  const adjustmentRequestKey = useRef<StableRequestKey>();
+  const confirmationRequestKey = useRef<FinancialActionRequestKey>();
+  const adjustmentRequestKey = useRef<FinancialActionRequestKey>();
   const detailRequest = useRef(0);
   const historyRequest = useRef(0);
   const warehouseRead = useMemo(createTenantReadGuard, []);
@@ -306,10 +299,11 @@ export default function WarehouseFeesPage() {
         rateCardRevision: rate.revision,
       });
       if ((previewSession.current !== sessionID || !isCurrent())) return;
-      confirmationRequestKey.current = stableRequestKey(
+      confirmationRequestKey.current = financialActionRequestKey(
         undefined,
         'confirm',
-        `${result.orderId}:${result.rateCardId}:${result.rateCardRevision}:${result.waveRevision}:${result.calculationHash}`,
+        [result.orderId, result.rateCardId, result.rateCardRevision, result.waveRevision, result.calculationHash],
+        warehouseFeeIdempotencyKey,
       );
       setPreview(result);
     } catch (error) {
@@ -329,8 +323,12 @@ export default function WarehouseFeesPage() {
     confirmationLock.current = true;
     setConfirming(true);
     try {
-      const signature = `${preview.orderId}:${preview.rateCardId}:${preview.rateCardRevision}:${preview.waveRevision}:${preview.calculationHash}`;
-      const requestKey = stableRequestKey(confirmationRequestKey.current, 'confirm', signature);
+      const requestKey = financialActionRequestKey(
+        confirmationRequestKey.current,
+        'confirm',
+        [preview.orderId, preview.rateCardId, preview.rateCardRevision, preview.waveRevision, preview.calculationHash],
+        warehouseFeeIdempotencyKey,
+      );
       confirmationRequestKey.current = requestKey;
       const result = await confirmWarehouseFee({
         orderId: preview.orderId,
@@ -451,10 +449,11 @@ export default function WarehouseFeesPage() {
     try {
       if (reversingAdjustment) {
         const reason = values.reason.trim();
-        const requestKey = stableRequestKey(
+        const requestKey = financialActionRequestKey(
           adjustmentRequestKey.current,
           'reverse',
-          `${detail.id}:${reversingAdjustment.id}:${reason}`,
+          [detail.id, reversingAdjustment.id, null, reason],
+          warehouseFeeIdempotencyKey,
         );
         adjustmentRequestKey.current = requestKey;
         await reverseWarehouseFeeAdjustment(detail.id, reversingAdjustment.id, {
@@ -465,10 +464,11 @@ export default function WarehouseFeesPage() {
       } else {
         if (typeof values.amountMinor !== 'number') return;
         const reason = values.reason.trim();
-        const requestKey = stableRequestKey(
+        const requestKey = financialActionRequestKey(
           adjustmentRequestKey.current,
           'adjust',
-          `${detail.id}:${values.amountMinor}:${reason}`,
+          [detail.id, values.amountMinor, null, reason],
+          warehouseFeeIdempotencyKey,
         );
         adjustmentRequestKey.current = requestKey;
         await createWarehouseFeeAdjustment(detail.id, {
