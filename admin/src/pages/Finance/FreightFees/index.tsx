@@ -59,6 +59,7 @@ import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import { financialActionRequestKey, type FinancialActionRequestKey } from '@/utils/financialActionKey';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
+import { canConfirmFinanceImport, type FinanceImportPreviewScope } from '@/utils/financeImportPreview';
 
 type AdjustmentFormValues = { amountMinor?: number; reason: string };
 
@@ -120,6 +121,7 @@ export default function FreightFeesPage() {
   const listRead = useMemo(createTenantReadGuard, []);
   const detailRead = useMemo(createTenantReadGuard, []);
   const previewRead = useMemo(createTenantReadGuard, []);
+  const currentImportScope = useRef<FinanceImportPreviewScope>();
   const drawer = useUrlDrawerState('freight-fee');
 
   const shopNames = useMemo(() => new Map(shops.map((shop) => [shop.id, shop.shopName])), [shops]);
@@ -220,6 +222,7 @@ export default function FreightFeesPage() {
   const invalidatePreview = useCallback(() => {
     requestIDRef.current += 1;
     previewRead.invalidate();
+    currentImportScope.current = undefined;
     setPreview(undefined);
     setImportKey('');
     setPreviewing(false);
@@ -240,8 +243,10 @@ export default function FreightFeesPage() {
     try {
       const result = await previewFreightFeeImport(file, importShopID);
       if (requestID !== requestIDRef.current || !isCurrent()) return;
+      const key = freightFeeIdempotencyKey('import');
+      currentImportScope.current = { file, shopId: importShopID, fileHash: result.fileHash, calculationHash: result.calculationHash, idempotencyKey: key, isCurrent };
       setPreview(result);
-      setImportKey(freightFeeIdempotencyKey('import'));
+      setImportKey(key);
     } catch (error) {
       if (requestID === requestIDRef.current && isCurrent()) message.error((error as Error)?.message || tr('CSV 校验失败'));
     } finally {
@@ -251,13 +256,16 @@ export default function FreightFeesPage() {
 
   useEffect(() => () => previewRead.invalidate(), [previewRead]);
 
-  const confirmImport = useCallback(async () => {
+  const confirmImport = useCallback(async (expectedScope: FinanceImportPreviewScope | undefined) => {
     const file = nativeFile(fileList);
     if (!file || !importShopID || !preview?.valid || !importKey || inFlightRef.current) return;
+    if (!canConfirmFinanceImport(currentImportScope.current, expectedScope, { file, shopId: importShopID, fileHash: preview.fileHash, calculationHash: preview.calculationHash, idempotencyKey: importKey })) return;
+    const isCurrent = expectedScope!.isCurrent;
     inFlightRef.current = true;
     setSubmitting(true);
     try {
       await confirmFreightFeeImport(file, importShopID, preview.fileHash, preview.calculationHash, importKey);
+      if (!isCurrent()) return;
       message.success(tr('运费账单已确认'));
       setImportOpen(false);
       resetImport();
@@ -265,7 +273,7 @@ export default function FreightFeesPage() {
       setPage(1);
       setListRevision((revision) => revision + 1);
     } catch (error) {
-      message.error((error as Error)?.message || tr('运费账单确认失败'));
+      if (isCurrent()) message.error((error as Error)?.message || tr('运费账单确认失败'));
     } finally {
       inFlightRef.current = false;
       setSubmitting(false);
@@ -430,7 +438,7 @@ export default function FreightFeesPage() {
             <Space>
               <Button disabled={submitting} onClick={() => { setImportOpen(false); resetImport(); }}>{tr('取消')} </Button>
               <Button icon={<ImportOutlined />} onClick={() => void runPreview()} loading={previewing} disabled={!importShopID || fileList.length === 0}>{tr('校验预览')} </Button>
-              <Button type="primary" onClick={() => Modal.confirm({ title: tr('确认导入这批运费账单？'), content: trFormat('新增 {newCount} 条，重复 {duplicateCount} 条。确认后账单事实不可删除。', { newCount: preview?.newCharges || 0, duplicateCount: preview?.duplicateCharges || 0 }), onOk: confirmImport, okButtonProps: { loading: submitting, disabled: !preview?.valid } })} loading={submitting} disabled={!preview?.valid || !canImport}>{tr('确认导入')} </Button>
+              <Button type="primary" onClick={() => { const confirmedScope = currentImportScope.current; Modal.confirm({ title: tr('确认导入这批运费账单？'), content: trFormat('新增 {newCount} 条，重复 {duplicateCount} 条。确认后账单事实不可删除。', { newCount: preview?.newCharges || 0, duplicateCount: preview?.duplicateCharges || 0 }), onOk: () => confirmImport(confirmedScope), okButtonProps: { loading: submitting, disabled: !preview?.valid } }); }} loading={submitting} disabled={!preview?.valid || !canImport}>{tr('确认导入')} </Button>
             </Space>
           )}
         >
