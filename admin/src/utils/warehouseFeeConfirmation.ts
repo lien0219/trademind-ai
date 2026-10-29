@@ -1,9 +1,12 @@
-import type { WarehouseFeePreview } from '@/services/warehouseFees';
-
-type ConfirmationFields = Pick<
-  WarehouseFeePreview,
-  'orderId' | 'rateCardId' | 'rateCardRevision' | 'waveRevision' | 'calculationHash'
->;
+// Keep the shared confirmation guard independent from domain service imports.
+// The warehouse fee API preview is structurally compatible with these fields.
+type ConfirmationFields = {
+  orderId: string;
+  rateCardId: string;
+  rateCardRevision: number;
+  waveRevision: number;
+  calculationHash: string;
+};
 
 export type WarehouseFeeConfirmationScope = {
   preview: ConfirmationFields;
