@@ -67,6 +67,7 @@ import {
 } from '@/services/warehouseFees';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
 import './index.less';
 
 type RateFormValues = {
@@ -123,6 +124,13 @@ export default function WarehouseFeesPage() {
   const adjustmentRequestKey = useRef<StableRequestKey>();
   const detailRequest = useRef(0);
   const historyRequest = useRef(0);
+  const warehouseRead = useMemo(createTenantReadGuard, []);
+  const detailRead = useMemo(createTenantReadGuard, []);
+  const historyRead = useMemo(createTenantReadGuard, []);
+  const previewRead = useMemo(createTenantReadGuard, []);
+  const candidatesRead = useMemo(createTenantReadGuard, []);
+  const ledgerRead = useMemo(createTenantReadGuard, []);
+  const ratesRead = useMemo(createTenantReadGuard, []);
   const drawer = useUrlDrawerState('warehouse-fee');
   const [rateForm] = Form.useForm<RateFormValues>();
   const [adjustmentForm] = Form.useForm<AdjustmentFormValues>();
@@ -190,48 +198,57 @@ export default function WarehouseFeesPage() {
   }, [adjustmentForm, adjustmentOpen, reversingAdjustment]);
 
   const loadWarehouses = useCallback(async () => {
+    const isCurrent = warehouseRead.begin();
+    setWarehouses([]);
     try {
       const result = await listInventoryWarehouses();
+      if (!isCurrent()) return;
       setWarehouses(result.list || []);
       setWarehouseError('');
     } catch (error) {
-      setWarehouseError((error as Error)?.message || tr('仓库筛选项加载失败'));
+      if (isCurrent()) setWarehouseError((error as Error)?.message || tr('仓库筛选项加载失败'));
     }
-  }, []);
+  }, [warehouseRead]);
 
   useEffect(() => {
     void loadWarehouses();
-  }, [loadWarehouses]);
+    return () => warehouseRead.invalidate();
+  }, [loadWarehouses, warehouseRead]);
 
   const loadDetail = useCallback(async (id: string) => {
     const requestID = ++detailRequest.current;
+    const isCurrent = detailRead.begin();
+    setDetail(undefined);
     setDetailLoading(true);
     setDetailError('');
     try {
       const result = await getWarehouseFeeSnapshot(id);
-      if (detailRequest.current === requestID) setDetail(result);
+      if (detailRequest.current === requestID && isCurrent()) setDetail(result);
     } catch (error) {
-      if (detailRequest.current === requestID) {
+      if (detailRequest.current === requestID && isCurrent()) {
         setDetail(undefined);
         setDetailError((error as Error)?.message || tr('仓库操作费详情加载失败'));
       }
     } finally {
-      if (detailRequest.current === requestID) setDetailLoading(false);
+      if (detailRequest.current === requestID && isCurrent()) setDetailLoading(false);
     }
-  }, []);
+  }, [detailRead]);
 
   useEffect(() => {
     if (drawer.id) void loadDetail(drawer.id);
     else {
       detailRequest.current += 1;
+      detailRead.invalidate();
       setDetail(undefined);
       setDetailError('');
       setDetailLoading(false);
     }
-  }, [drawer.id, loadDetail]);
+    return () => { detailRequest.current += 1; detailRead.invalidate(); };
+  }, [detailRead, drawer.id, loadDetail]);
 
   const resetPreview = useCallback(() => {
     previewSession.current += 1;
+    previewRead.invalidate();
     confirmationLock.current = false;
     previewRequestLock.current = false;
     confirmationRequestKey.current = undefined;
@@ -242,11 +259,12 @@ export default function WarehouseFeesPage() {
     setPreview(undefined);
     setPreviewing(false);
     setConfirming(false);
-  }, []);
+  }, [previewRead]);
 
   const openPreview = useCallback(async (row: WarehouseFeeCandidate) => {
     if (!canManage || row.confirmed || !row.packVerificationId) return;
     const sessionID = ++previewSession.current;
+    const isCurrent = previewRead.begin();
     previewRequestLock.current = false;
     confirmationRequestKey.current = undefined;
     setCandidate(row);
@@ -258,26 +276,27 @@ export default function WarehouseFeesPage() {
     setPreviewing(true);
     try {
       const result = await listWarehouseFeeRateCards({ warehouseId: row.warehouseId });
-      if (previewSession.current !== sessionID) return;
+      if ((previewSession.current !== sessionID || !isCurrent())) return;
       const rates = (result.list || []).filter((rate) => rate.status === 'active');
       setCandidateRates(rates);
       setCandidateRateError('');
       if (rates.length === 1) setSelectedRateID(rates[0].id);
     } catch (error) {
-      if (previewSession.current !== sessionID) return;
+      if ((previewSession.current !== sessionID || !isCurrent())) return;
       const text = (error as Error)?.message || tr('适用费率卡加载失败');
       setCandidateRateError(text);
       message.error(text);
     } finally {
-      if (previewSession.current === sessionID) setPreviewing(false);
+      if ((previewSession.current === sessionID && isCurrent())) setPreviewing(false);
     }
-  }, [canManage]);
+  }, [canManage, previewRead]);
 
   const runPreview = useCallback(async () => {
     if (!candidate || !selectedRateID || previewing || previewRequestLock.current) return;
     const rate = candidateRates.find((row) => row.id === selectedRateID);
     if (!rate) return;
     const sessionID = previewSession.current;
+    const isCurrent = previewRead.begin();
     previewRequestLock.current = true;
     setPreviewing(true);
     try {
@@ -286,7 +305,7 @@ export default function WarehouseFeesPage() {
         rateCardId: rate.id,
         rateCardRevision: rate.revision,
       });
-      if (previewSession.current !== sessionID) return;
+      if ((previewSession.current !== sessionID || !isCurrent())) return;
       confirmationRequestKey.current = stableRequestKey(
         undefined,
         'confirm',
@@ -294,16 +313,16 @@ export default function WarehouseFeesPage() {
       );
       setPreview(result);
     } catch (error) {
-      if (previewSession.current !== sessionID) return;
+      if ((previewSession.current !== sessionID || !isCurrent())) return;
       setPreview(undefined);
       message.error((error as Error)?.message || tr('仓库操作费预览失败'));
     } finally {
-      if (previewSession.current === sessionID) {
+      if ((previewSession.current === sessionID && isCurrent())) {
         previewRequestLock.current = false;
         setPreviewing(false);
       }
     }
-  }, [candidate, candidateRates, previewing, selectedRateID]);
+  }, [candidate, candidateRates, previewRead, previewing, selectedRateID]);
 
   const confirmPreview = useCallback(async () => {
     if (!preview || confirming || confirmationLock.current) return;
@@ -391,17 +410,26 @@ export default function WarehouseFeesPage() {
 
   const showRateHistory = useCallback(async (row: WarehouseFeeRateCard) => {
     const requestID = ++historyRequest.current;
+    const isCurrent = historyRead.begin();
     setHistoryLoading(true);
     setHistoryDetail(undefined);
     try {
       const result = await getWarehouseFeeRateCard(row.id);
-      if (historyRequest.current === requestID) setHistoryDetail(result);
+      if (historyRequest.current === requestID && isCurrent()) setHistoryDetail(result);
     } catch (error) {
-      if (historyRequest.current === requestID) message.error((error as Error)?.message || tr('费率修订历史加载失败'));
+      if (historyRequest.current === requestID && isCurrent()) message.error((error as Error)?.message || tr('费率修订历史加载失败'));
     } finally {
-      if (historyRequest.current === requestID) setHistoryLoading(false);
+      if (historyRequest.current === requestID && isCurrent()) setHistoryLoading(false);
     }
-  }, []);
+  }, [historyRead]);
+
+  useEffect(() => () => {
+    historyRead.invalidate();
+    previewRead.invalidate();
+    candidatesRead.invalidate();
+    ledgerRead.invalidate();
+    ratesRead.invalidate();
+  }, [historyRead, previewRead, candidatesRead, ledgerRead, ratesRead]);
 
   const openAdjustment = useCallback((row?: WarehouseFeeAdjustment) => {
     adjustmentRequestKey.current = undefined;
@@ -568,12 +596,14 @@ export default function WarehouseFeesPage() {
                   </Space>}
                   locale={{ emptyText: candidateError ? tr('待登记费用暂不可用') : <EmptyState compact title={tr("暂无可登记的履约订单")} /> }}
                   request={async (params) => {
+                    const isCurrent = candidatesRead.begin();
                     try {
                       const result = await queryWarehouseFeeCandidates({ page: params.current, pageSize: params.pageSize, orderNo: candidateOrderNo.trim() || undefined, warehouseId: candidateWarehouseID });
+                      if (!isCurrent()) return { data: [], total: 0, success: false };
                       setCandidateError('');
                       return { data: result.list || [], total: result.total, success: true };
                     } catch (error) {
-                      setCandidateError((error as Error)?.message || tr('待登记费用加载失败'));
+                      if (isCurrent()) setCandidateError((error as Error)?.message || tr('待登记费用加载失败'));
                       return { data: [], total: 0, success: false };
                     }
                   }}
@@ -599,12 +629,14 @@ export default function WarehouseFeesPage() {
                   </Space>}
                   locale={{ emptyText: ledgerError ? tr('仓库操作费台账暂不可用') : <EmptyState compact title={tr("暂无已确认费用")} /> }}
                   request={async (params) => {
+                    const isCurrent = ledgerRead.begin();
                     try {
                       const result = await queryWarehouseFeeSnapshots({ page: params.current, pageSize: params.pageSize, orderNo: ledgerOrderNo.trim() || undefined, warehouseId: ledgerWarehouseID });
+                      if (!isCurrent()) return { data: [], total: 0, success: false };
                       setLedgerError('');
                       return { data: result.list || [], total: result.total, success: true };
                     } catch (error) {
-                      setLedgerError((error as Error)?.message || tr('仓库操作费台账加载失败'));
+                      if (isCurrent()) setLedgerError((error as Error)?.message || tr('仓库操作费台账加载失败'));
                       return { data: [], total: 0, success: false };
                     }
                   }}
@@ -626,12 +658,14 @@ export default function WarehouseFeesPage() {
                   toolBarRender={() => [<Button key="create" type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={() => openRateModal()}>{tr('新增费率卡')} </Button>]}
                   locale={{ emptyText: rateError ? tr('费率卡暂不可用') : <EmptyState compact title={tr("暂无费率卡")} /> }}
                   request={async () => {
+                    const isCurrent = ratesRead.begin();
                     try {
                       const result = await listWarehouseFeeRateCards({ includeInactive: true });
+                      if (!isCurrent()) return { data: [], total: 0, success: false };
                       setRateError('');
                       return { data: result.list || [], total: result.list?.length || 0, success: true };
                     } catch (error) {
-                      setRateError((error as Error)?.message || tr('费率卡加载失败'));
+                      if (isCurrent()) setRateError((error as Error)?.message || tr('费率卡加载失败'));
                       return { data: [], total: 0, success: false };
                     }
                   }}

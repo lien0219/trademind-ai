@@ -57,6 +57,7 @@ import { formatProfitAmount } from '@/services/profitability';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
 
 type AdjustmentFormValues = { amountMinor?: number; reason: string };
 
@@ -113,6 +114,10 @@ export default function FreightFeesPage() {
   const listRequestIDRef = useRef(0);
   const detailRequestIDRef = useRef(0);
   const inFlightRef = useRef(false);
+  const shopsRead = useMemo(createTenantReadGuard, []);
+  const listRead = useMemo(createTenantReadGuard, []);
+  const detailRead = useMemo(createTenantReadGuard, []);
+  const previewRead = useMemo(createTenantReadGuard, []);
   const drawer = useUrlDrawerState('freight-fee');
 
   const shopNames = useMemo(() => new Map(shops.map((shop) => [shop.id, shop.shopName])), [shops]);
@@ -122,25 +127,31 @@ export default function FreightFeesPage() {
   );
 
   const loadShops = useCallback(async () => {
+    const isCurrent = shopsRead.begin();
     setShopError('');
+    setShops([]);
     try {
       const result = await queryShops({ page: 1, pageSize: 500 });
-      setShops(result.list || []);
+      if (isCurrent()) setShops(result.list || []);
     } catch (error) {
-      setShopError((error as Error)?.message || tr('店铺列表加载失败'));
+      if (isCurrent()) setShopError((error as Error)?.message || tr('店铺列表加载失败'));
     }
-  }, []);
+  }, [shopsRead]);
 
-  useEffect(() => { void loadShops(); }, [loadShops]);
+  useEffect(() => {
+    void loadShops();
+    return () => shopsRead.invalidate();
+  }, [loadShops, shopsRead]);
 
   const loadList = useCallback(async () => {
     const requestID = ++listRequestIDRef.current;
+    const isCurrent = listRead.begin();
     setLoading(true);
     setLoadError('');
     try {
       if (tab === 'imports') {
         const result = await queryFreightFeeImports({ page, pageSize });
-        if (requestID !== listRequestIDRef.current) return;
+        if (requestID !== listRequestIDRef.current || !isCurrent()) return;
         setImports(result.list || []);
         setTotal(result.total || 0);
       } else {
@@ -153,60 +164,64 @@ export default function FreightFeesPage() {
           currency: filters.currency || undefined,
           status: (filters.status || undefined) as FreightCharge['status'] | undefined,
         });
-        if (requestID !== listRequestIDRef.current) return;
+        if (requestID !== listRequestIDRef.current || !isCurrent()) return;
         setCharges(result.list || []);
         setTotal(result.total || 0);
       }
     } catch (error) {
-      if (requestID === listRequestIDRef.current) {
+      if (requestID === listRequestIDRef.current && isCurrent()) {
         setLoadError((error as Error)?.message || tr('运费账单加载失败'));
         if (tab === 'imports') setImports([]);
         else setCharges([]);
         setTotal(0);
       }
     } finally {
-      if (requestID === listRequestIDRef.current) setLoading(false);
+      if (requestID === listRequestIDRef.current && isCurrent()) setLoading(false);
     }
-  }, [filters, page, pageSize, tab]);
+  }, [filters, listRead, page, pageSize, tab]);
 
   useEffect(() => {
     void loadList();
-    return () => { listRequestIDRef.current += 1; };
-  }, [listRevision, loadList]);
+    return () => { listRequestIDRef.current += 1; listRead.invalidate(); };
+  }, [listRead, listRevision, loadList]);
 
   const loadDetail = useCallback(async (id: string) => {
     const requestID = ++detailRequestIDRef.current;
+    const isCurrent = detailRead.begin();
+    setDetail(undefined);
     setDetailLoading(true);
     setDetailError('');
     try {
       const result = await getFreightFee(id);
-      if (requestID === detailRequestIDRef.current) setDetail(result);
+      if (requestID === detailRequestIDRef.current && isCurrent()) setDetail(result);
     } catch (error) {
-      if (requestID === detailRequestIDRef.current) {
+      if (requestID === detailRequestIDRef.current && isCurrent()) {
         setDetail(undefined);
         setDetailError((error as Error)?.message || tr('运费账单详情加载失败'));
       }
     } finally {
-      if (requestID === detailRequestIDRef.current) setDetailLoading(false);
+      if (requestID === detailRequestIDRef.current && isCurrent()) setDetailLoading(false);
     }
-  }, []);
+  }, [detailRead]);
 
   useEffect(() => {
     if (drawer.id) void loadDetail(drawer.id);
     else {
       detailRequestIDRef.current += 1;
+      detailRead.invalidate();
       setDetail(undefined);
       setDetailError('');
     }
-    return () => { detailRequestIDRef.current += 1; };
-  }, [drawer.id, loadDetail]);
+    return () => { detailRequestIDRef.current += 1; detailRead.invalidate(); };
+  }, [detailRead, drawer.id, loadDetail]);
 
   const invalidatePreview = useCallback(() => {
     requestIDRef.current += 1;
+    previewRead.invalidate();
     setPreview(undefined);
     setImportKey('');
     setPreviewing(false);
-  }, []);
+  }, [previewRead]);
 
   const resetImport = useCallback(() => {
     setImportShopID(undefined);
@@ -218,18 +233,21 @@ export default function FreightFeesPage() {
     const file = nativeFile(fileList);
     if (!file || !importShopID || previewing) return;
     const requestID = ++requestIDRef.current;
+    const isCurrent = previewRead.begin();
     setPreviewing(true);
     try {
       const result = await previewFreightFeeImport(file, importShopID);
-      if (requestID !== requestIDRef.current) return;
+      if (requestID !== requestIDRef.current || !isCurrent()) return;
       setPreview(result);
       setImportKey(freightFeeIdempotencyKey('import'));
     } catch (error) {
-      if (requestID === requestIDRef.current) message.error((error as Error)?.message || tr('CSV 校验失败'));
+      if (requestID === requestIDRef.current && isCurrent()) message.error((error as Error)?.message || tr('CSV 校验失败'));
     } finally {
-      if (requestID === requestIDRef.current) setPreviewing(false);
+      if (requestID === requestIDRef.current && isCurrent()) setPreviewing(false);
     }
-  }, [fileList, importShopID, previewing]);
+  }, [fileList, importShopID, previewRead, previewing]);
+
+  useEffect(() => () => previewRead.invalidate(), [previewRead]);
 
   const confirmImport = useCallback(async () => {
     const file = nativeFile(fileList);
