@@ -69,6 +69,7 @@ import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import { financialActionRequestKey, type FinancialActionRequestKey } from '@/utils/financialActionKey';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
+import { canConfirmWarehouseFeePreview, createWarehouseFeeConfirmationScope, type WarehouseFeeConfirmationScope } from '@/utils/warehouseFeeConfirmation';
 import './index.less';
 
 type RateFormValues = {
@@ -114,6 +115,7 @@ export default function WarehouseFeesPage() {
   const adjustmentSubmissionLock = useRef(false);
   const previewSession = useRef(0);
   const confirmationRequestKey = useRef<FinancialActionRequestKey>();
+  const confirmationScope = useRef<WarehouseFeeConfirmationScope>();
   const adjustmentRequestKey = useRef<FinancialActionRequestKey>();
   const detailRequest = useRef(0);
   const historyRequest = useRef(0);
@@ -245,6 +247,7 @@ export default function WarehouseFeesPage() {
     confirmationLock.current = false;
     previewRequestLock.current = false;
     confirmationRequestKey.current = undefined;
+    confirmationScope.current = undefined;
     setCandidate(undefined);
     setCandidateRates([]);
     setCandidateRateError('');
@@ -260,6 +263,7 @@ export default function WarehouseFeesPage() {
     const isCurrent = previewRead.begin();
     previewRequestLock.current = false;
     confirmationRequestKey.current = undefined;
+    confirmationScope.current = undefined;
     setCandidate(row);
     setPreview(undefined);
     setSelectedRateID(undefined);
@@ -299,6 +303,7 @@ export default function WarehouseFeesPage() {
         rateCardRevision: rate.revision,
       });
       if ((previewSession.current !== sessionID || !isCurrent())) return;
+      confirmationScope.current = createWarehouseFeeConfirmationScope(result, isCurrent);
       confirmationRequestKey.current = financialActionRequestKey(
         undefined,
         'confirm',
@@ -319,7 +324,9 @@ export default function WarehouseFeesPage() {
   }, [candidate, candidateRates, previewRead, previewing, selectedRateID]);
 
   const confirmPreview = useCallback(async () => {
-    if (!preview || confirming || confirmationLock.current) return;
+    if (!preview || confirming || confirmationLock.current || !canManage) return;
+    const scope = confirmationScope.current;
+    if (!canConfirmWarehouseFeePreview(scope, preview)) return;
     confirmationLock.current = true;
     setConfirming(true);
     try {
@@ -330,6 +337,7 @@ export default function WarehouseFeesPage() {
         warehouseFeeIdempotencyKey,
       );
       confirmationRequestKey.current = requestKey;
+      // The preview can become invalid while the network write is in flight.
       const result = await confirmWarehouseFee({
         orderId: preview.orderId,
         rateCardId: preview.rateCardId,
@@ -338,18 +346,19 @@ export default function WarehouseFeesPage() {
         calculationHash: preview.calculationHash,
         idempotencyKey: requestKey.key,
       });
+      if (!canConfirmWarehouseFeePreview(scope, preview)) return;
       message.success(result.replayed ? tr('该订单费用已确认，无需重复登记') : tr('仓库操作费已确认'));
       setPreviewOpen(false);
       resetPreview();
       void candidateActionRef.current?.reload();
       void ledgerActionRef.current?.reload();
     } catch (error) {
-      message.error((error as Error)?.message || tr('仓库操作费确认失败'));
+      if (canConfirmWarehouseFeePreview(scope, preview)) message.error((error as Error)?.message || tr('仓库操作费确认失败'));
     } finally {
       confirmationLock.current = false;
       setConfirming(false);
     }
-  }, [confirming, preview, resetPreview]);
+  }, [canManage, confirming, preview, resetPreview]);
 
   const openRateModal = useCallback((row?: WarehouseFeeRateCard) => {
     setEditingRate(row);
@@ -422,6 +431,7 @@ export default function WarehouseFeesPage() {
   }, [historyRead]);
 
   useEffect(() => () => {
+    confirmationScope.current = undefined;
     historyRead.invalidate();
     previewRead.invalidate();
     candidatesRead.invalidate();
@@ -687,7 +697,7 @@ export default function WarehouseFeesPage() {
         onCancel={() => { if (!confirming) { setPreviewOpen(false); resetPreview(); } }}
         footer={<OperationToolbar className="tm-warehouse-fee-modal-actions">
           <Button disabled={confirming} onClick={() => { setPreviewOpen(false); resetPreview(); }}>{tr('取消')} </Button>
-          {preview ? <Button disabled={confirming} onClick={() => { confirmationRequestKey.current = undefined; setPreview(undefined); }}>{tr('更换费率')} </Button> : null}
+          {preview ? <Button disabled={confirming} onClick={() => { confirmationRequestKey.current = undefined; confirmationScope.current = undefined; previewRead.invalidate(); setPreview(undefined); }}>{tr('更换费率')} </Button> : null}
           {!preview ? <Button type="primary" icon={<CalculatorOutlined />} disabled={!selectedRateID || candidateRates.length === 0} loading={previewing} onClick={() => void runPreview()}>{tr('生成预览')} </Button> : null}
           {preview ? <Button type="primary" disabled={!canManage || confirming} loading={confirming} onClick={() => void confirmPreview()}>{tr('确认登记')} </Button> : null}
         </OperationToolbar>}
