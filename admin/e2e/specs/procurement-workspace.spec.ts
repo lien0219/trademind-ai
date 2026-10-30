@@ -400,7 +400,11 @@ test.describe('@smoke procurement workspace', () => {
     await page.route('**/api/v1/suppliers', async (route) => {
       await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 50000, message: 'supplier unavailable', data: null }) });
     });
-    await page.route('**/api/v1/purchase-returns', async (route) => {
+    // List requests include page/pageSize query parameters; match the pathname,
+    // while leaving the purchase-return detail failure mock independent.
+    let purchaseReturnListRequests = 0;
+    await page.route((url) => url.pathname === '/api/v1/purchase-returns', async (route) => {
+      purchaseReturnListRequests += 1;
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [], page: 1, pageSize: 20, total: 0, totalPages: 0 })) });
     });
     await page.route(`**/api/v1/purchase-returns/${E2E_PURCHASE_RETURN_ID}`, async (route) => {
@@ -419,6 +423,7 @@ test.describe('@smoke procurement workspace', () => {
 
     await admin.goto('/procurement/purchase-returns');
     await expect(page.getByText('暂无采购退货记录。')).toBeVisible();
+    expect(purchaseReturnListRequests).toBeGreaterThan(0);
     await expect(page.getByRole('button', { name: '选择采购单' })).toBeDisabled();
     await expect(page.getByText(/只读模式/)).toBeVisible();
 
