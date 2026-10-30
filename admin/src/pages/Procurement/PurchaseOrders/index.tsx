@@ -25,6 +25,7 @@ import {
 } from '@/services/procurement';
 import { PERMISSIONS } from '@/utils/permission';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
+import { idempotentCommandKey, type IdempotentCommandKey } from '@/utils/idempotentCommandKey';
 import { formatDateTime } from '@/utils/formatTime';
 import { formatMinorAmount, parseMajorAmountToMinor, PURCHASE_ORDER_STATUS } from '../helpers';
 import '../index.less';
@@ -71,6 +72,7 @@ export default function PurchaseOrdersPage() {
   const skuRead = useMemo(createTenantReadGuard, []);
   const listRead = useMemo(createTenantReadGuard, []);
   const submittingRef = useRef(false);
+  const purchaseCommandRef = useRef<IdempotentCommandKey>();
 
   const loadMasterData = useCallback(async () => {
     const isCurrent = masterRead.begin();
@@ -143,6 +145,7 @@ export default function PurchaseOrdersPage() {
   }, [supplierBindingsRead, skuRead, listRead]);
 
   const closeCreate = () => {
+    purchaseCommandRef.current = undefined;
     supplierBindingsRead.invalidate();
     skuRead.invalidate();
     setSupplierBindingsLoading(false);
@@ -150,6 +153,7 @@ export default function PurchaseOrdersPage() {
   };
 
   const openCreate = () => {
+    purchaseCommandRef.current = undefined;
     const defaultWarehouse = activeWarehouses.find((row) => row.isDefault) || activeWarehouses[0];
     setIdempotencyKey(createProcurementIdempotencyKey('purchase-order'));
     setSupplierBindings([]);
@@ -197,16 +201,21 @@ export default function PurchaseOrdersPage() {
           unitCostMinor: parseMajorAmountToMinor(item.unitCostMajor),
         };
       });
-      submittingRef.current = true;
-      setSubmitting(true);
-      const order = await createPurchaseOrder({
-        idempotencyKey,
+      const payload = {
         supplierId: values.supplierId,
         warehouseId: values.warehouseId,
         currency: values.currency,
         remark: values.remark?.trim() || '',
         items,
-      });
+      };
+      const command = idempotentCommandKey(
+        purchaseCommandRef.current, 'purchase-order', payload,
+        createProcurementIdempotencyKey, idempotencyKey,
+      );
+      purchaseCommandRef.current = command;
+      submittingRef.current = true;
+      setSubmitting(true);
+      const order = await createPurchaseOrder({ ...payload, idempotencyKey: command.key });
       message.success(tr("采购单草稿已创建"));
       closeCreate();
       actionRef.current?.reload();

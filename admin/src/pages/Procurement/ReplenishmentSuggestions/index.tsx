@@ -20,6 +20,7 @@ import {
   type Warehouse,
 } from '@/services/procurement';
 import { PERMISSIONS } from '@/utils/permission';
+import { idempotentCommandKey, type IdempotentCommandKey } from '@/utils/idempotentCommandKey';
 import CreateDraftModal from './CreateDraftModal';
 import { formatMinorAmount } from '../helpers';
 import '../index.less';
@@ -60,6 +61,8 @@ export default function ReplenishmentSuggestionsPage() {
   const [draftModalOpen, setDraftModalOpen] = useState(false);
   const [draftSubmitting, setDraftSubmitting] = useState(false);
   const [draftIdempotencyKey, setDraftIdempotencyKey] = useState('');
+  const draftSubmittingRef = useRef(false);
+  const draftCommandRef = useRef<IdempotentCommandKey>();
 
   const loadWarehouses = useCallback(async () => {
     setWarehouseLoading(true);
@@ -111,15 +114,25 @@ export default function ReplenishmentSuggestionsPage() {
 
   const openDraftModal = () => {
     if (!selectedRows.length) return;
+    draftCommandRef.current = undefined;
     setDraftIdempotencyKey(createProcurementIdempotencyKey('replenishment-draft'));
     setDraftModalOpen(true);
   };
 
   const createDraft = async (body: Parameters<typeof createPurchaseOrderFromReplenishment>[0]) => {
+    if (draftSubmittingRef.current || draftSubmitting || !canManage || !draftModalOpen) return;
+    const payload = { warehouseId: body.warehouseId, supplierId: body.supplierId, remark: body.remark, items: body.items };
+    const command = idempotentCommandKey(
+      draftCommandRef.current, 'replenishment-draft', payload,
+      createProcurementIdempotencyKey, draftIdempotencyKey,
+    );
+    draftCommandRef.current = command;
+    draftSubmittingRef.current = true;
     setDraftSubmitting(true);
     try {
-      const order = await createPurchaseOrderFromReplenishment(body);
+      const order = await createPurchaseOrderFromReplenishment({ ...payload, idempotencyKey: command.key });
       message.success(tr("采购草稿已创建，请继续提交审批"));
+      draftCommandRef.current = undefined;
       setDraftModalOpen(false);
       setSelectedRows([]);
       actionRef.current?.reload();
@@ -127,6 +140,7 @@ export default function ReplenishmentSuggestionsPage() {
     } catch (error) {
       const apiError = extractProcurementAPIError(error);
       if (apiError.message.toLowerCase().includes('replenishment ')) {
+        draftCommandRef.current = undefined;
         setDraftModalOpen(false);
         setSelectedRows([]);
         actionRef.current?.reload();
@@ -136,6 +150,7 @@ export default function ReplenishmentSuggestionsPage() {
         '采购草稿创建失败，建议可能已变化，请重新加载后确认。',
       )));
     } finally {
+      draftSubmittingRef.current = false;
       setDraftSubmitting(false);
     }
   };
@@ -195,7 +210,11 @@ export default function ReplenishmentSuggestionsPage() {
         rows={selectedRows}
         idempotencyKey={draftIdempotencyKey}
         submitting={draftSubmitting}
-        onCancel={() => setDraftModalOpen(false)}
+        onCancel={() => {
+          if (draftSubmittingRef.current) return;
+          draftCommandRef.current = undefined;
+          setDraftModalOpen(false);
+        }}
         onSubmit={(body) => void createDraft(body)}
       />
     </TmPageContainer>
