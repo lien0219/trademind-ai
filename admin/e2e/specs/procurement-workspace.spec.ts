@@ -224,8 +224,10 @@ test.describe('@smoke procurement workspace', () => {
 
     await page.getByRole('combobox', { name: '目标仓库' }).press('ArrowDown');
     await page.locator('.ant-select-dropdown:visible').getByText('SECOND · E2E 备用仓', { exact: true }).click();
-    const createDraftButton = page.getByRole('button', { name: /^创建采购草稿/ });
-    await expect(createDraftButton).toHaveAccessibleName('创建采购草稿');
+    // The Ant Design icon contributes a "plus " prefix to the accessible name.
+    // Match the actual button while checking its label has no stale selection count.
+    const createDraftButton = page.getByRole('button', { name: /创建采购草稿/ });
+    await expect(createDraftButton).toHaveAccessibleName(/创建采购草稿$/);
     await expect(createDraftButton).toBeDisabled();
     await expect(page.getByText('E2E 补货耳机')).toHaveCount(0);
     await admin.writeGuard.expectRequestCount('unexpected', 0);
