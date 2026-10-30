@@ -22,6 +22,7 @@ import {
   type SupplierSKU,
 } from '@/services/procurement';
 import { PERMISSIONS } from '@/utils/permission';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
 import { formatMinorAmount, parseMajorAmountToMinor } from '../helpers';
 import '../index.less';
 
@@ -67,50 +68,65 @@ export default function SuppliersPage() {
   const [bindingSubmitting, setBindingSubmitting] = useState(false);
   const [skuOptions, setSkuOptions] = useState<ProductSkuSearchHit[]>([]);
   const [skuSearching, setSkuSearching] = useState(false);
-  const searchSequence = useRef(0);
+  const suppliersRead = useMemo(createTenantReadGuard, []);
+  const bindingsRead = useMemo(createTenantReadGuard, []);
+  const skuRead = useMemo(createTenantReadGuard, []);
+  const supplierSubmitRef = useRef(false);
+  const bindingSubmitRef = useRef(false);
 
   const load = useCallback(async () => {
+    const isCurrent = suppliersRead.begin();
     setLoading(true);
     setError(undefined);
+    setRows([]);
     try {
       const result = await listSuppliers();
-      setRows(result.list || []);
+      if (isCurrent()) setRows(result.list || []);
     } catch (nextError) {
-      setError(procurementErrorMessage(extractProcurementAPIError(nextError), '供应商列表加载失败，请稍后重试。'));
+      if (isCurrent()) setError(procurementErrorMessage(extractProcurementAPIError(nextError), '供应商列表加载失败，请稍后重试。'));
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, []);
+  }, [suppliersRead]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+    return () => suppliersRead.invalidate();
+  }, [load, suppliersRead]);
 
   const loadBindings = useCallback(async (supplier: Supplier) => {
+    const isCurrent = bindingsRead.begin();
     setBindingsLoading(true);
     setBindingsError(undefined);
+    setBindings([]);
     try {
       const result = await listSupplierSKUs(supplier.id);
-      setBindings(result.list || []);
+      if (isCurrent()) setBindings(result.list || []);
     } catch (nextError) {
-      setBindingsError(procurementErrorMessage(extractProcurementAPIError(nextError), '供应商采购信息加载失败，请稍后重试。'));
+      if (isCurrent()) setBindingsError(procurementErrorMessage(extractProcurementAPIError(nextError), '供应商采购信息加载失败，请稍后重试。'));
     } finally {
-      setBindingsLoading(false);
+      if (isCurrent()) setBindingsLoading(false);
     }
-  }, []);
+  }, [bindingsRead]);
 
   const searchSKUs = useCallback(async (query = '') => {
-    const sequence = ++searchSequence.current;
+    const isCurrent = skuRead.begin();
     setSkuSearching(true);
+    setSkuOptions([]);
     try {
       const result = await searchProductSkus({ keyword: query.trim() || undefined, limit: 30 });
-      if (sequence === searchSequence.current) setSkuOptions(result.list || []);
+      if (isCurrent()) setSkuOptions(result.list || []);
     } catch {
-      if (sequence === searchSequence.current) setSkuOptions([]);
+      if (isCurrent()) setSkuOptions([]);
     } finally {
-      if (sequence === searchSequence.current) setSkuSearching(false);
+      if (isCurrent()) setSkuSearching(false);
     }
-  }, []);
+  }, [skuRead]);
+
+  useEffect(() => () => {
+    bindingsRead.invalidate();
+    skuRead.invalidate();
+  }, [bindingsRead, skuRead]);
 
   const filteredRows = useMemo(() => {
     const normalized = keyword.trim().toLowerCase();
@@ -140,6 +156,8 @@ export default function SuppliersPage() {
   };
 
   const saveSupplier = async (values: SupplierFormValues) => {
+    if (!canManage || supplierSubmitRef.current) return;
+    supplierSubmitRef.current = true;
     setSupplierSubmitting(true);
     try {
       const common = {
@@ -170,17 +188,21 @@ export default function SuppliersPage() {
     } catch (nextError) {
       message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('供应商保存失败，请检查填写内容。'))));
     } finally {
+      supplierSubmitRef.current = false;
       setSupplierSubmitting(false);
     }
   };
 
   const openBindings = (supplier: Supplier) => {
+    skuRead.invalidate();
     setSelectedSupplier(supplier);
     setBindings([]);
     void loadBindings(supplier);
   };
 
   const openBindingModal = (binding?: SupplierSKU) => {
+    skuRead.invalidate();
+    setSkuSearching(false);
     setEditingBinding(binding);
     if (binding) {
       setSkuOptions([{
@@ -209,7 +231,7 @@ export default function SuppliersPage() {
   };
 
   const saveBinding = async (values: BindingFormValues) => {
-    if (!selectedSupplier) return;
+    if (!canManage || !selectedSupplier || bindingSubmitRef.current) return;
     let unitCostMinor: number;
     try {
       unitCostMinor = parseMajorAmountToMinor(values.unitCostMajor);
@@ -217,6 +239,7 @@ export default function SuppliersPage() {
       message.error(tr(nextError instanceof Error ? nextError.message : tr('采购单价格式不正确')));
       return;
     }
+    bindingSubmitRef.current = true;
     setBindingSubmitting(true);
     try {
       await bindSupplierSKU(selectedSupplier.id, {
@@ -233,6 +256,7 @@ export default function SuppliersPage() {
     } catch (nextError) {
       message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('商品规格关联失败，请检查填写内容。'))));
     } finally {
+      bindingSubmitRef.current = false;
       setBindingSubmitting(false);
     }
   };
@@ -352,7 +376,14 @@ export default function SuppliersPage() {
         <AppDrawer
           title={selectedSupplier ? trFormat("采购信息 · {value0}", { value0: String(selectedSupplier.name) }) : tr('供应商采购信息')}
           open={Boolean(selectedSupplier)}
-          onClose={() => setSelectedSupplier(undefined)}
+          onClose={() => {
+             bindingsRead.invalidate();
+             skuRead.invalidate();
+             setSelectedSupplier(undefined);
+             setBindings([]);
+             setBindingsError(undefined);
+             setBindingModalOpen(false);
+           }}
           extra={<Button type="primary" icon={<PlusOutlined />} disabled={!canManage || selectedSupplier?.status !== 'active'} onClick={() => openBindingModal()}>{tr("关联商品规格")}</Button>}
         >
           {bindingsError ? <ErrorAlert title={tr(bindingsError)} actionHint={selectedSupplier ? <Button onClick={() => void loadBindings(selectedSupplier)}>{tr("重新加载")}</Button> : null} /> : null}
@@ -368,7 +399,12 @@ export default function SuppliersPage() {
           confirmLoading={bindingSubmitting}
           okText={editingBinding ? tr('保存采购信息') : tr('确认关联')}
           cancelText={tr("取消")}
-          onCancel={() => !bindingSubmitting && setBindingModalOpen(false)}
+          onCancel={() => {
+            if (bindingSubmitRef.current) return;
+            skuRead.invalidate();
+            setBindingModalOpen(false);
+            setSkuOptions([]);
+          }}
           onOk={() => bindingForm.submit()}
           forceRender
         >
