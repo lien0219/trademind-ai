@@ -167,7 +167,8 @@ test.describe('@smoke procurement workspace', () => {
       await page.getByRole('button', { name: '新建采购单' }).click();
       await primaryStarted;
       const dialog = page.getByRole('dialog', { name: '新建采购单' });
-      await dialog.getByRole('combobox', { name: '供应商' }).click();
+      // The selected value overlays rc-select's search input; keyboard focus avoids a blocked pointer click.
+      await dialog.getByRole('combobox', { name: '供应商' }).press('ArrowDown');
       await page.getByText('SUP-002 · E2E 次选供应商', { exact: true }).click();
       await expect(dialog.getByRole('button', { name: '创建采购单草稿' })).toBeEnabled();
       releasePrimary?.();
