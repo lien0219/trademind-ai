@@ -24,6 +24,7 @@ import {
   type PurchaseOrder,
 } from '@/services/procurement';
 import { PERMISSIONS } from '@/utils/permission';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
 import { formatDateTime } from '@/utils/formatTime';
 import { formatMinorAmount, parseMajorAmountToMinor, PURCHASE_ORDER_STATUS } from '../helpers';
 import '../index.less';
@@ -63,39 +64,50 @@ export default function PurchaseOrdersPage() {
   const [idempotencyKey, setIdempotencyKey] = useState('');
   const [skuOptions, setSkuOptions] = useState<ProductSkuSearchHit[]>([]);
   const [skuSearching, setSkuSearching] = useState(false);
-  const skuSearchSequence = useRef(0);
   const [listError, setListError] = useState<string>();
+  const [supplierBindingsLoading, setSupplierBindingsLoading] = useState(false);
+  const masterRead = useMemo(createTenantReadGuard, []);
+  const supplierBindingsRead = useMemo(createTenantReadGuard, []);
+  const skuRead = useMemo(createTenantReadGuard, []);
+  const listRead = useMemo(createTenantReadGuard, []);
+  const submittingRef = useRef(false);
 
   const loadMasterData = useCallback(async () => {
+    const isCurrent = masterRead.begin();
     setMasterLoading(true);
     setMasterError(undefined);
+    setWarehouses([]);
+    setSuppliers([]);
     try {
       const [warehouseResult, supplierResult] = await Promise.all([listWarehouses(), listSuppliers()]);
+      if (!isCurrent()) return;
       setWarehouses(warehouseResult.list || []);
       setSuppliers(supplierResult.list || []);
     } catch (nextError) {
-      setMasterError(procurementErrorMessage(extractProcurementAPIError(nextError), '采购基础资料加载失败，请稍后重试。'));
+      if (isCurrent()) setMasterError(procurementErrorMessage(extractProcurementAPIError(nextError), '采购基础资料加载失败，请稍后重试。'));
     } finally {
-      setMasterLoading(false);
+      if (isCurrent()) setMasterLoading(false);
     }
-  }, []);
+  }, [masterRead]);
 
   useEffect(() => {
     void loadMasterData();
-  }, [loadMasterData]);
+    return () => masterRead.invalidate();
+  }, [loadMasterData, masterRead]);
 
   const searchSKUs = useCallback(async (query = '') => {
-    const sequence = ++skuSearchSequence.current;
+    const isCurrent = skuRead.begin();
     setSkuSearching(true);
+    setSkuOptions([]);
     try {
       const result = await searchProductSkus({ keyword: query.trim() || undefined, limit: 50 });
-      if (sequence === skuSearchSequence.current) setSkuOptions(result.list || []);
+      if (isCurrent()) setSkuOptions(result.list || []);
     } catch {
-      if (sequence === skuSearchSequence.current) setSkuOptions([]);
+      if (isCurrent()) setSkuOptions([]);
     } finally {
-      if (sequence === skuSearchSequence.current) setSkuSearching(false);
+      if (isCurrent()) setSkuSearching(false);
     }
-  }, []);
+  }, [skuRead]);
 
   const activeWarehouses = useMemo(() => warehouses.filter((row) => row.status === 'active'), [warehouses]);
   const activeSuppliers = useMemo(() => suppliers.filter((row) => row.status === 'active'), [suppliers]);
@@ -104,15 +116,37 @@ export default function PurchaseOrdersPage() {
   const bindingBySKU = useMemo(() => new Map(supplierBindings.map((row) => [row.productSkuId, row])), [supplierBindings]);
 
   const changeSupplier = async (supplierId: string) => {
+    const isCurrent = supplierBindingsRead.begin();
     form.setFieldValue('items', [{ productSkuId: '', quantity: 1, unitCostMajor: '0.00' }]);
     setSupplierBindings([]);
+    setSupplierBindingsLoading(Boolean(supplierId));
     if (!supplierId) return;
     try {
       const result = await listSupplierSKUs(supplierId);
-      setSupplierBindings(result.list || []);
+      // A previously selected supplier must never overwrite the active supplier's pricing.
+      if (isCurrent() && form.getFieldValue('supplierId') === supplierId) {
+        setSupplierBindings(result.list || []);
+      }
     } catch (nextError) {
-      message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('供应商采购信息加载失败。'))));
+      if (isCurrent() && form.getFieldValue('supplierId') === supplierId) {
+        message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('供应商采购信息加载失败。'))));
+      }
+    } finally {
+      if (isCurrent()) setSupplierBindingsLoading(false);
     }
+  };
+
+  useEffect(() => () => {
+    supplierBindingsRead.invalidate();
+    skuRead.invalidate();
+    listRead.invalidate();
+  }, [supplierBindingsRead, skuRead, listRead]);
+
+  const closeCreate = () => {
+    supplierBindingsRead.invalidate();
+    skuRead.invalidate();
+    setSupplierBindingsLoading(false);
+    setModalOpen(false);
   };
 
   const openCreate = () => {
@@ -149,6 +183,7 @@ export default function PurchaseOrdersPage() {
   };
 
   const save = async (values: PurchaseOrderFormValues) => {
+    if (submittingRef.current || submitting || supplierBindingsLoading || !canManage) return;
     const seen = new Set<string>();
     try {
       const items = values.items.map((item) => {
@@ -162,6 +197,7 @@ export default function PurchaseOrdersPage() {
           unitCostMinor: parseMajorAmountToMinor(item.unitCostMajor),
         };
       });
+      submittingRef.current = true;
       setSubmitting(true);
       const order = await createPurchaseOrder({
         idempotencyKey,
@@ -172,7 +208,7 @@ export default function PurchaseOrdersPage() {
         items,
       });
       message.success(tr("采购单草稿已创建"));
-      setModalOpen(false);
+      closeCreate();
       actionRef.current?.reload();
       history.push(`/procurement/purchase-orders/${order.id}`);
     } catch (nextError) {
@@ -184,6 +220,7 @@ export default function PurchaseOrdersPage() {
         message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('采购单创建失败，请检查填写内容。'))));
       }
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -232,12 +269,14 @@ export default function PurchaseOrdersPage() {
           scroll={{ x: 1180 }}
           pagination={{ defaultPageSize: 20, showSizeChanger: true }}
           request={async (params) => {
+            const isCurrent = listRead.begin();
             setListError(undefined);
             try {
               const result = await listPurchaseOrders({ page: params.current, pageSize: params.pageSize });
+              if (!isCurrent()) return { data: [], total: 0, success: false };
               return { data: result.list || [], total: result.total, success: true };
             } catch (nextError) {
-              setListError(procurementErrorMessage(extractProcurementAPIError(nextError), '采购单列表加载失败，请稍后重试。'));
+              if (isCurrent()) setListError(procurementErrorMessage(extractProcurementAPIError(nextError), '采购单列表加载失败，请稍后重试。'));
               return { data: [], total: 0, success: false };
             }
           }}
@@ -249,9 +288,10 @@ export default function PurchaseOrdersPage() {
           open={modalOpen}
           width={920}
           confirmLoading={submitting}
+          okButtonProps={{ disabled: supplierBindingsLoading || !canManage }}
           okText={tr("创建采购单草稿")}
           cancelText={tr("取消")}
-          onCancel={() => !submitting && setModalOpen(false)}
+          onCancel={() => !submitting && closeCreate()}
           onOk={() => form.submit()}
           forceRender
         >

@@ -18,6 +18,7 @@ import {
   e2eReceivedPurchaseOrder,
   e2eReturnableReceiptItem,
   e2eSupplier,
+  e2eSupplierSKU,
 } from '../mocks/procurement';
 import {
   expectHeaderContentAligned,
@@ -142,6 +143,39 @@ test.describe('@smoke procurement workspace', () => {
       }],
     });
     expect(String(payload.idempotencyKey)).toMatch(/^admin-purchase-order-/);
+  });
+
+  test('ignores a late supplier binding response after switching suppliers', async ({ admin, page }) => {
+    const otherSupplier = { ...e2eSupplier, id: 'e2e-supplier-secondary', code: 'SUP-002', name: 'E2E 次选供应商' };
+    await page.route((url) => url.pathname === '/api/v1/suppliers', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [e2eSupplier, otherSupplier] })) });
+    });
+    let releasePrimary: (() => void) | undefined;
+    const primaryStarted = new Promise<void>((resolve) => {
+      void page.route((url) => url.pathname === `/api/v1/suppliers/${E2E_SUPPLIER_ID}/skus`, async (route) => {
+        resolve();
+        await new Promise<void>((done) => { releasePrimary = done; });
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [e2eSupplierSKU] })) });
+      });
+    });
+    await page.route('**/api/v1/suppliers/e2e-supplier-secondary/skus', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [] })) });
+    });
+
+    try {
+      await admin.goto('/procurement/purchase-orders');
+      await page.getByRole('button', { name: '新建采购单' }).click();
+      await primaryStarted;
+      const dialog = page.getByRole('dialog', { name: '新建采购单' });
+      await dialog.getByRole('combobox', { name: '供应商' }).click();
+      await page.getByText('SUP-002 · E2E 次选供应商', { exact: true }).click();
+      await expect(dialog.getByRole('button', { name: '创建采购单草稿' })).toBeEnabled();
+      releasePrimary?.();
+      await expect(dialog.getByText('SUP-002 · E2E 次选供应商', { exact: true })).toBeVisible();
+      await admin.writeGuard.expectRequestCount('unexpected', 0);
+    } finally {
+      releasePrimary?.();
+    }
   });
 
   test('requires a target warehouse and keeps replenishment suggestions read-only before confirmation', async ({ admin, page }) => {
