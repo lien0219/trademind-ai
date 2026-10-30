@@ -21,6 +21,8 @@ import {
 } from '@/services/procurement';
 import { PERMISSIONS } from '@/utils/permission';
 import { idempotentCommandKey, type IdempotentCommandKey } from '@/utils/idempotentCommandKey';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
+import { captureTenantContext, isTenantContextCurrent, isTenantSwitching, type TenantContextSnapshot } from '@/utils/tenantContext';
 import CreateDraftModal from './CreateDraftModal';
 import { formatMinorAmount } from '../helpers';
 import '../index.less';
@@ -63,25 +65,54 @@ export default function ReplenishmentSuggestionsPage() {
   const [draftIdempotencyKey, setDraftIdempotencyKey] = useState('');
   const draftSubmittingRef = useRef(false);
   const draftCommandRef = useRef<IdempotentCommandKey>();
+  const warehouseRead = useMemo(createTenantReadGuard, []);
+  const suggestionsRead = useMemo(createTenantReadGuard, []);
+  const draftScopeRef = useRef<{
+    context: TenantContextSnapshot;
+    warehouseId: string;
+    items: Array<{ productSkuId: string; suggestionHash: string }>;
+  }>();
 
   const loadWarehouses = useCallback(async () => {
+    const isCurrent = warehouseRead.begin();
     setWarehouseLoading(true);
     setWarehouseError('');
+    setWarehouses([]);
     try {
       const result = await listWarehouses();
-      setWarehouses((result.list ?? []).filter((row) => row.status === 'active'));
+      if (!isCurrent()) return;
+      const active = (result.list ?? []).filter((row) => row.status === 'active');
+      setWarehouses(active);
+      setWarehouseId((current) => active.some((row) => row.id === current) ? current : '');
     } catch (error) {
-      setWarehouseError((error as Error)?.message || '仓库列表加载失败，请稍后重试。');
+      if (isCurrent()) setWarehouseError((error as Error)?.message || '仓库列表加载失败，请稍后重试。');
     } finally {
-      setWarehouseLoading(false);
+      if (isCurrent()) setWarehouseLoading(false);
     }
-  }, []);
+  }, [warehouseRead]);
 
-  useEffect(() => { void loadWarehouses(); }, [loadWarehouses]);
   useEffect(() => {
+    void loadWarehouses();
+    return () => warehouseRead.invalidate();
+  }, [loadWarehouses, warehouseRead]);
+
+  useEffect(() => {
+    suggestionsRead.invalidate();
     setSelectedRows([]);
     void actionRef.current?.reload();
-  }, [warehouseId, status, keyword]);
+  }, [suggestionsRead, warehouseId, status, keyword]);
+
+  useEffect(() => () => {
+    suggestionsRead.invalidate();
+    draftScopeRef.current = undefined;
+  }, [suggestionsRead]);
+
+  const invalidateSelection = () => {
+    suggestionsRead.invalidate();
+    setSelectedRows([]);
+    draftScopeRef.current = undefined;
+    if (!draftSubmittingRef.current) setDraftModalOpen(false);
+  };
 
   const warehouseLabel = useMemo(() => {
     const row = warehouses.find((item) => item.id === warehouseId);
@@ -113,7 +144,13 @@ export default function ReplenishmentSuggestionsPage() {
   const canManage = !readonly && can(PERMISSIONS.PROCUREMENT_MANAGE);
 
   const openDraftModal = () => {
-    if (!selectedRows.length) return;
+    if (!canManage || !warehouseId || !selectedRows.length || isTenantSwitching()) return;
+    if (selectedRows.some((row) => row.warehouseId !== warehouseId || !canCreateDraft(row))) return;
+    draftScopeRef.current = {
+      context: captureTenantContext(),
+      warehouseId,
+      items: selectedRows.map((row) => ({ productSkuId: row.productSkuId, suggestionHash: row.suggestionHash })),
+    };
     draftCommandRef.current = undefined;
     setDraftIdempotencyKey(createProcurementIdempotencyKey('replenishment-draft'));
     setDraftModalOpen(true);
@@ -121,6 +158,13 @@ export default function ReplenishmentSuggestionsPage() {
 
   const createDraft = async (body: Parameters<typeof createPurchaseOrderFromReplenishment>[0]) => {
     if (draftSubmittingRef.current || draftSubmitting || !canManage || !draftModalOpen) return;
+    const scope = draftScopeRef.current;
+    if (!scope || !isTenantContextCurrent(scope.context) || isTenantSwitching()
+      || scope.warehouseId !== warehouseId || body.warehouseId !== scope.warehouseId
+      || body.items.length !== scope.items.length
+      || body.items.some((item, index) =>
+        item.productSkuId !== scope.items[index].productSkuId ||
+        item.suggestionHash !== scope.items[index].suggestionHash)) return;
     const payload = { warehouseId: body.warehouseId, supplierId: body.supplierId, remark: body.remark, items: body.items };
     const command = idempotentCommandKey(
       draftCommandRef.current, 'replenishment-draft', payload,
@@ -131,15 +175,19 @@ export default function ReplenishmentSuggestionsPage() {
     setDraftSubmitting(true);
     try {
       const order = await createPurchaseOrderFromReplenishment({ ...payload, idempotencyKey: command.key });
+      if (draftScopeRef.current !== scope || !isTenantContextCurrent(scope.context)) return;
       message.success(tr("采购草稿已创建，请继续提交审批"));
+      draftScopeRef.current = undefined;
       draftCommandRef.current = undefined;
       setDraftModalOpen(false);
       setSelectedRows([]);
       actionRef.current?.reload();
       history.push(`/procurement/purchase-orders/${order.id}`);
     } catch (error) {
+      if (draftScopeRef.current !== scope || !isTenantContextCurrent(scope.context)) return;
       const apiError = extractProcurementAPIError(error);
       if (apiError.message.toLowerCase().includes('replenishment ')) {
+        draftScopeRef.current = undefined;
         draftCommandRef.current = undefined;
         setDraftModalOpen(false);
         setSelectedRows([]);
@@ -166,9 +214,9 @@ export default function ReplenishmentSuggestionsPage() {
       <Alert type="info" showIcon message={tr("库存账和供应商资料采用安全阻断规则")} description={tr("库存账不一致、尚未迁移或无有效供应商时不能创建草稿；存在多个供应商时必须人工选择。创建前服务端会重新计算并校验建议，避免使用过期数据。")} />
       {!canManage ? <Alert type="warning" showIcon message={tr("当前账号仅可查看和导出补货建议，不能创建采购草稿。")} /> : null}
       <Space wrap size={[16, 12]} className="tm-replenishment-filters" style={{ width: '100%' }}>
-        <Select aria-label={tr("目标仓库")} showSearch optionFilterProp="label" placeholder={tr("请选择目标仓库（必选）")} loading={warehouseLoading} disabled={!warehouseLoading && !warehouses.length} value={warehouseId || undefined} style={{ minWidth: 260 }} options={warehouses.map((row) => ({ value: row.id, label: `${row.code} · ${row.name}` }))} onChange={setWarehouseId} />
-        <Input.Search aria-label={tr("搜索商品或规格")} allowClear placeholder={tr("搜索商品标题、规格编码或名称")} style={{ width: 300, maxWidth: '100%' }} onSearch={setKeyword} onChange={(event) => { if (!event.target.value) setKeyword(''); }} />
-        <Select aria-label={tr("建议状态")} allowClear placeholder={tr("全部状态")} value={status || undefined} style={{ width: 170 }} options={statusOptions} onChange={(value) => setStatus(value || '')} />
+        <Select aria-label={tr("目标仓库")} showSearch optionFilterProp="label" placeholder={tr("请选择目标仓库（必选）")} loading={warehouseLoading} disabled={!warehouseLoading && !warehouses.length} value={warehouseId || undefined} style={{ minWidth: 260 }} options={warehouses.map((row) => ({ value: row.id, label: `${row.code} · ${row.name}` }))} onChange={(value) => { invalidateSelection(); setWarehouseId(value); }} />
+        <Input.Search aria-label={tr("搜索商品或规格")} allowClear placeholder={tr("搜索商品标题、规格编码或名称")} style={{ width: 300, maxWidth: '100%' }} onSearch={(value) => { invalidateSelection(); setKeyword(value); }} onChange={(event) => { if (!event.target.value) { invalidateSelection(); setKeyword(''); } }} />
+        <Select aria-label={tr("建议状态")} allowClear placeholder={tr("全部状态")} value={status || undefined} style={{ width: 170 }} options={statusOptions} onChange={(value) => { invalidateSelection(); setStatus(value || ''); }} />
         {warehouseId ? <Typography.Text type="secondary">{tr("当前仓库：")}{warehouseLabel}</Typography.Text> : null}
       </Space>
       {!warehouseLoading && !warehouseError && !warehouses.length ? <Alert type="warning" showIcon message={tr("暂无启用仓库，维护仓库后才能查看补货建议。")} /> : null}
@@ -183,7 +231,7 @@ export default function ReplenishmentSuggestionsPage() {
         scroll={{ x: 1500 }}
         rowSelection={canManage ? {
           selectedRowKeys: selectedRows.map((row) => row.productSkuId),
-          onChange: (_, rows) => setSelectedRows(rows),
+          onChange: (_, rows) => setSelectedRows(rows.filter((row) => row.warehouseId === warehouseId && canCreateDraft(row))),
           getCheckboxProps: (row) => ({
             disabled: !canCreateDraft(row),
             'aria-label': trFormat("选择 {value0}", { value0: String(row.skuCode || row.skuName || row.productSkuId) }),
@@ -191,13 +239,15 @@ export default function ReplenishmentSuggestionsPage() {
         } : undefined}
         locale={{ emptyText: warehouseId ? (listError ? tr('补货建议暂不可用') : tr('暂无符合条件的规格')) : tr('请选择目标仓库') }}
         request={async (params) => {
+          const isCurrent = suggestionsRead.begin();
           if (!warehouseId || !canRead) return { data: [], total: 0, success: true };
           try {
             const result = await queryReplenishmentSuggestions({ warehouseId, keyword, status, page: params.current, pageSize: params.pageSize });
+            if (!isCurrent()) return { data: [], total: 0, success: false };
             setListError('');
             return { data: result.list ?? [], total: result.total ?? 0, success: true };
           } catch (error) {
-            setListError((error as Error)?.message || '补货建议加载失败，请稍后重试。');
+            if (isCurrent()) setListError((error as Error)?.message || '补货建议加载失败，请稍后重试。');
             return { data: [], total: 0, success: false };
           }
         }}
@@ -212,6 +262,7 @@ export default function ReplenishmentSuggestionsPage() {
         submitting={draftSubmitting}
         onCancel={() => {
           if (draftSubmittingRef.current) return;
+          draftScopeRef.current = undefined;
           draftCommandRef.current = undefined;
           setDraftModalOpen(false);
         }}

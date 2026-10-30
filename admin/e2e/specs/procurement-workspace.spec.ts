@@ -200,6 +200,35 @@ test.describe('@smoke procurement workspace', () => {
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });
 
+  test('clears selected replenishment rows when changing the target warehouse', async ({ admin, page }) => {
+    const secondaryWarehouse = { id: 'e2e-warehouse-secondary', code: 'SECOND', name: 'E2E 备用仓', status: 'active', isDefault: false };
+    await page.route((url) => url.pathname === '/api/v1/warehouses', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [
+        { id: E2E_WAREHOUSE_ID, code: 'MAIN', name: 'E2E 华东主仓', status: 'active', isDefault: true },
+        secondaryWarehouse,
+      ] })) });
+    });
+    await page.route((url) => url.pathname === '/api/v1/procurement/replenishment-suggestions'
+      && url.searchParams.get('warehouseId') === secondaryWarehouse.id, async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({
+        warehouseId: secondaryWarehouse.id, list: [], page: 1, pageSize: 20, total: 0, totalPages: 0,
+      })) });
+    });
+
+    await admin.goto('/procurement/replenishment-suggestions');
+    await page.getByRole('combobox', { name: '目标仓库' }).click();
+    await page.getByText('MAIN · E2E 华东主仓', { exact: true }).click();
+    await expect(page.getByText('E2E 补货耳机')).toBeVisible();
+    await page.getByRole('checkbox', { name: '选择 BLUE-01' }).check();
+    await expect(page.getByRole('button', { name: '创建采购草稿（1）' })).toBeEnabled();
+
+    await page.getByRole('combobox', { name: '目标仓库' }).press('ArrowDown');
+    await page.locator('.ant-select-dropdown:visible').getByText('SECOND · E2E 备用仓', { exact: true }).click();
+    await expect(page.getByRole('button', { name: '创建采购草稿', exact: true })).toBeDisabled();
+    await expect(page.getByText('E2E 补货耳机')).toHaveCount(0);
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
   test('creates one replenishment purchase draft only after explicit confirmation', async ({ admin, page }) => {
     admin.writeGuard.allow({
       operation: 'create-replenishment-draft',
