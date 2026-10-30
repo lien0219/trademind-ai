@@ -172,7 +172,9 @@ test.describe('@smoke procurement workspace', () => {
       await page.getByText('SUP-002 · E2E 次选供应商', { exact: true }).click();
       await expect(dialog.getByRole('button', { name: '创建采购单草稿' })).toBeEnabled();
       releasePrimary?.();
-      await expect(dialog.getByText('SUP-002 · E2E 次选供应商', { exact: true })).toBeVisible();
+      // Ant Design also renders an aria-live announcement with the selected label.
+      // Assert the actual selected option, not both matching text nodes.
+      await expect(dialog.locator('.ant-select-selection-item[title="SUP-002 · E2E 次选供应商"]')).toHaveText('SUP-002 · E2E 次选供应商');
       await admin.writeGuard.expectRequestCount('unexpected', 0);
     } finally {
       releasePrimary?.();
