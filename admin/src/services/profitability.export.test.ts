@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { request } from '@umijs/max';
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
@@ -10,9 +10,23 @@ vi.mock('@umijs/max', () => ({
 }));
 
 describe('order profit export tenant isolation', () => {
+  // jsdom does not expose browser blob URL helpers; install the same stubs
+  // used by the existing profitability service tests and restore them after.
+  const originalCreateObjectURL = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+  const originalRevokeObjectURL = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
+
+  beforeEach(() => {
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn() });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.mocked(request).mockReset();
+    if (originalCreateObjectURL) Object.defineProperty(URL, 'createObjectURL', originalCreateObjectURL);
+    else Reflect.deleteProperty(URL, 'createObjectURL');
+    if (originalRevokeObjectURL) Object.defineProperty(URL, 'revokeObjectURL', originalRevokeObjectURL);
+    else Reflect.deleteProperty(URL, 'revokeObjectURL');
     localStorage.clear();
     resetTenantSwitchState();
   });

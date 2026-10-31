@@ -62,7 +62,7 @@ describe('order profitability API service', () => {
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
 
-    await downloadOrderProfits({ orderNo: ' TM-1 ', currency: 'cny', status: 'pending' });
+    expect(await downloadOrderProfits({ orderNo: ' TM-1 ', currency: 'cny', status: 'pending' }, () => true)).toBe(true);
 
     expect(requestMock).toHaveBeenCalledWith(
       '/api/v1/order-profits?format=csv&orderNo=TM-1&currency=CNY&status=pending',

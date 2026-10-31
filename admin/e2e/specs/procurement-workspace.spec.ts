@@ -520,7 +520,9 @@ test.describe('@smoke procurement workspace', () => {
 
     await admin.goto('/procurement/purchase-returns');
     await expect(page.getByText('暂无采购退货记录。')).toBeVisible();
-    expect(purchaseReturnListRequests).toBeGreaterThan(0);
+    // ProTable renders the empty placeholder before its async list request settles.
+    // Wait until the intended API route has actually been intercepted.
+    await expect.poll(() => purchaseReturnListRequests).toBeGreaterThan(0);
     await expect(page.getByRole('button', { name: '选择采购单' })).toBeDisabled();
     await expect(page.getByText(/只读模式/)).toBeVisible();
 
