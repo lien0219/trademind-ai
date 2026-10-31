@@ -78,4 +78,36 @@ describe('settlement API service', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:settlement');
     click.mockRestore();
   });
+  it('does not download a settlement CSV after tenant context changes during the request', async () => {
+    const { createTenantReadGuard } = await import('@/utils/tenantAsync');
+    const { markTenantContextChanged, resetTenantSwitchState } = await import('@/utils/tenantContext');
+    const guard = createTenantReadGuard();
+    let resolveRequest!: (value: Blob) => void;
+    requestMock.mockImplementationOnce(() => new Promise<Blob>((resolve) => { resolveRequest = resolve; }) as ReturnType<typeof request>);
+    const createObjectURL = vi.fn(() => 'blob:stale-settlement');
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    try {
+      const pending = downloadSettlementReconciliation({}, guard.begin());
+      markTenantContextChanged();
+      resolveRequest(new Blob(['stale data']));
+      expect(await pending).toBe(false);
+      expect(createObjectURL).not.toHaveBeenCalled();
+      expect(click).not.toHaveBeenCalled();
+    } finally {
+      resetTenantSwitchState();
+      click.mockRestore();
+    }
+  });
+
+  it('rejects a settlement export invalidated before the network request', async () => {
+    const { createTenantReadGuard } = await import('@/utils/tenantAsync');
+    const guard = createTenantReadGuard();
+    const isCurrent = guard.begin();
+    guard.invalidate();
+    requestMock.mockClear();
+    expect(await downloadSettlementReconciliation({}, isCurrent)).toBe(false);
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
 });

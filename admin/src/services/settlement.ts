@@ -1,5 +1,6 @@
 import { request } from '@umijs/max';
 import { getJSON, getWithParams, postFormData } from '@/services/request';
+import { captureTenantContext, isTenantContextCurrent, isTenantSwitching } from '@/utils/tenantContext';
 
 export type SettlementStatus = 'matched' | 'pending' | 'mismatch' | 'blocked';
 export type SettlementDisposition = 'new' | 'duplicate';
@@ -155,7 +156,11 @@ export async function getSettlementReconciliation(id: string) {
 
 export async function downloadSettlementReconciliation(
   params: Omit<SettlementListParams, 'page' | 'pageSize'>,
-) {
+  isCurrent?: () => boolean,
+): Promise<boolean> {
+  const context = captureTenantContext();
+  const mayDownload = () => !isTenantSwitching() && isTenantContextCurrent(context) && (isCurrent?.() ?? true);
+  if (!mayDownload()) return false;
   const query = new URLSearchParams({ format: 'csv' });
   const entries: Array<[string, string | undefined]> = [
     ['orderNo', params.orderNo?.trim() || undefined],
@@ -171,15 +176,21 @@ export async function downloadSettlementReconciliation(
     `/api/v1/settlement-reconciliation?${query.toString()}`,
     { method: 'GET', responseType: 'blob' },
   );
+  // An export may resolve after tenant switch, token rotation, or navigation.
+  if (!mayDownload()) return false;
   const objectURL = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
-  anchor.href = objectURL;
-  anchor.download = 'settlement-reconciliation.csv';
-  anchor.rel = 'noopener';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(objectURL);
+  try {
+    anchor.href = objectURL;
+    anchor.download = 'settlement-reconciliation.csv';
+    anchor.rel = 'noopener';
+    document.body.appendChild(anchor);
+    anchor.click();
+    return true;
+  } finally {
+    anchor.remove();
+    URL.revokeObjectURL(objectURL);
+  }
 }
 
 export function settlementImportIdempotencyKey() {
