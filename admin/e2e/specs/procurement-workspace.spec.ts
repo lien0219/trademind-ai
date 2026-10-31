@@ -343,7 +343,9 @@ test.describe('@smoke procurement workspace', () => {
     await admin.goto(`/procurement/purchase-orders/${E2E_REPLENISHMENT_DRAFT_ID}`);
     await page.getByRole('button', { name: '取消采购单' }).click();
     let dialog = page.getByRole('dialog', { name: '取消采购单' });
-    await dialog.getByRole('button', { name: '取消', exact: true }).click();
+    // Ant Design may render the cancel button as “取 消” (with spacing).
+    // Match only the cancel action, not the separate “取消采购单” confirm button.
+    await dialog.getByRole('button', { name: /^取\s*消$/ }).click();
     await admin.writeGuard.expectRequestCount('cancel-purchase-order', 0);
 
     await page.getByRole('button', { name: '取消采购单' }).click();
