@@ -19,11 +19,13 @@ import {
 } from '@/services/procurement';
 import { PERMISSIONS } from '@/utils/permission';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
+import { isTenantSwitching } from '@/utils/tenantContext';
+import { canTransitionPurchaseReturn, type PurchaseReturnTransition } from '@/utils/purchaseReturnTransition';
 import { idempotentCommandKey, type IdempotentCommandKey } from '@/utils/idempotentCommandKey';
 import { formatDateTime } from '@/utils/formatTime';
 import '../index.less';
 
-type ReturnAction = 'submit' | 'approve' | 'complete' | 'cancel';
+type ReturnAction = PurchaseReturnTransition;
 type ActionState = { action: ReturnAction; label: string; danger?: boolean };
 type ActionValues = { reason: string };
 
@@ -52,11 +54,16 @@ export default function PurchaseReturnDetailPage() {
   const submittingRef = useRef(false);
   const detailRead = useMemo(createTenantReadGuard, []);
   const actionGuard = useMemo(createTenantReadGuard, []);
-  const actionScope = useRef<{ rowId: string; revision: number; isCurrent: () => boolean }>();
+  const actionScope = useRef<{ rowId: string; revision: number; action: ReturnAction; isCurrent: () => boolean }>();
   const commandRef = useRef<IdempotentCommandKey>();
 
   const load = useCallback(async () => {
     const isCurrent = detailRead.begin();
+    // A manual refresh or route change invalidates an open confirmation.
+    actionGuard.invalidate();
+    actionScope.current = undefined;
+    commandRef.current = undefined;
+    setAction(undefined);
     setRow(undefined);
     setError('');
     setLoading(true);
@@ -74,7 +81,7 @@ export default function PurchaseReturnDetailPage() {
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [detailRead, id]);
+  }, [actionGuard, detailRead, id]);
 
   useEffect(() => {
     void load();
@@ -86,9 +93,10 @@ export default function PurchaseReturnDetailPage() {
   }, [actionGuard, detailRead, load]);
 
   const openAction = (next: ActionState) => {
-    if (!row || submittingRef.current) return;
+    if (!row || row.id !== id || submittingRef.current || isTenantSwitching() ||
+      !canTransitionPurchaseReturn(next.action, row.status, { canManage, canApprove, canReturn })) return;
     const isCurrent = actionGuard.begin();
-    actionScope.current = { rowId: row.id, revision: row.revision, isCurrent };
+    actionScope.current = { rowId: row.id, revision: row.revision, action: next.action, isCurrent };
     commandRef.current = undefined;
     form.setFieldsValue({ reason: '' });
     setActionKey(createProcurementIdempotencyKey(`purchase-return-${next.action}`));
@@ -105,8 +113,10 @@ export default function PurchaseReturnDetailPage() {
 
   const submitAction = async (values: ActionValues) => {
     const scope = actionScope.current;
-    if (!row || !action || submittingRef.current || !scope ||
-      !scope.isCurrent() || scope.rowId !== row.id || scope.revision !== row.revision) return;
+    if (!row || !action || submittingRef.current || !scope || isTenantSwitching() ||
+      !scope.isCurrent() || scope.rowId !== row.id || scope.rowId !== id ||
+      scope.revision !== row.revision || scope.action !== action.action ||
+      !canTransitionPurchaseReturn(action.action, row.status, { canManage, canApprove, canReturn })) return;
     const reason = values.reason?.trim() || '';
     const command = idempotentCommandKey(
       commandRef.current,
@@ -160,10 +170,10 @@ export default function PurchaseReturnDetailPage() {
     if (!row) return null;
     return <Space wrap>
       <Button icon={<ArrowLeftOutlined />} onClick={() => history.push('/procurement/purchase-returns')}>{tr("返回列表")}</Button>
-      {row.status === 'draft' && canManage ? <Button type="primary" onClick={() => openAction({ action: 'submit', label: tr("提交审批") })}>{tr("提交审批")}</Button> : null}
-      {row.status === 'pending_approval' && canApprove ? <Button type="primary" onClick={() => openAction({ action: 'approve', label: tr("审批通过") })}>{tr("审批通过")}</Button> : null}
-      {row.status === 'approved' && canReturn ? <Button type="primary" danger onClick={() => openAction({ action: 'complete', label: tr("执行退货"), danger: true })}>{tr("执行退货")}</Button> : null}
-      {canManage && ['draft', 'pending_approval', 'approved'].includes(row.status) ? <Button danger onClick={() => openAction({ action: 'cancel', label: tr("取消退货单"), danger: true })}>{tr("取消退货单")}</Button> : null}
+      {canTransitionPurchaseReturn('submit', row.status, { canManage, canApprove, canReturn }) ? <Button type="primary" onClick={() => openAction({ action: 'submit', label: tr("提交审批") })}>{tr("提交审批")}</Button> : null}
+      {canTransitionPurchaseReturn('approve', row.status, { canManage, canApprove, canReturn }) ? <Button type="primary" onClick={() => openAction({ action: 'approve', label: tr("审批通过") })}>{tr("审批通过")}</Button> : null}
+      {canTransitionPurchaseReturn('complete', row.status, { canManage, canApprove, canReturn }) ? <Button type="primary" danger onClick={() => openAction({ action: 'complete', label: tr("执行退货"), danger: true })}>{tr("执行退货")}</Button> : null}
+      {canTransitionPurchaseReturn('cancel', row.status, { canManage, canApprove, canReturn }) ? <Button danger onClick={() => openAction({ action: 'cancel', label: tr("取消退货单"), danger: true })}>{tr("取消退货单")}</Button> : null}
     </Space>;
   }, [canApprove, canManage, canReturn, row]);
 
@@ -204,7 +214,11 @@ export default function PurchaseReturnDetailPage() {
           open={Boolean(action)}
           confirmLoading={submitting}
           okText={action?.label || tr('确认')}
-          okButtonProps={{ danger: action?.danger }}
+          okButtonProps={{
+            danger: action?.danger,
+            disabled: !action || !row || isTenantSwitching() ||
+              !canTransitionPurchaseReturn(action.action, row.status, { canManage, canApprove, canReturn }),
+          }}
           cancelText={tr("取消")}
           onCancel={closeAction}
           onOk={() => form.submit()}
