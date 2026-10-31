@@ -165,6 +165,8 @@ export default function OrderProfitsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const exportLockRef = useRef(false);
+  const exportReadGuard = useMemo(createTenantReadGuard, []);
 
   const page = parsePositiveInt(urlState.page, 1);
   const pageSize = parsePositiveInt(urlState.pageSize, 20);
@@ -223,6 +225,7 @@ export default function OrderProfitsPage() {
   ]);
 
   useEffect(() => () => listReadGuard.invalidate(), [listReadGuard]);
+  useEffect(() => () => exportReadGuard.invalidate(), [exportReadGuard]);
 
   const loadDetail = useCallback(async (orderId: string) => {
     const isCurrent = detailReadGuard.begin();
@@ -276,18 +279,21 @@ export default function OrderProfitsPage() {
   );
 
   const exportCurrent = useCallback(async () => {
-    if (!canExport || exporting) return;
+    if (!canExport || exporting || exportLockRef.current) return;
+    const isCurrent = exportReadGuard.begin();
+    exportLockRef.current = true;
     setExporting(true);
     try {
       const { page: _page, pageSize: _pageSize, ...filters } = queryParams();
-      await downloadOrderProfits(filters);
-      message.success(tr('预估利润明细已导出'));
+      const downloaded = await downloadOrderProfits(filters, isCurrent);
+      if (downloaded && isCurrent()) message.success(tr('预估利润明细已导出'));
     } catch (error) {
-      message.error((error as Error)?.message || tr('导出失败，请收窄筛选条件后重试'));
+      if (isCurrent()) message.error((error as Error)?.message || tr('导出失败，请收窄筛选条件后重试'));
     } finally {
-      setExporting(false);
+      exportLockRef.current = false;
+      if (isCurrent()) setExporting(false);
     }
-  }, [canExport, exporting, queryParams]);
+  }, [canExport, exportReadGuard, exporting, queryParams]);
 
   const columns: ProColumns<OrderProfit>[] = [
     {

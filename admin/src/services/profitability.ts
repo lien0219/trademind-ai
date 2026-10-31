@@ -145,7 +145,13 @@ export async function getOrderProfit(orderId: string) {
   return getJSON<OrderProfitDetail>(`/api/v1/order-profits/${encodeURIComponent(orderId)}`);
 }
 
-export async function downloadOrderProfits(params: Omit<OrderProfitListParams, 'page' | 'pageSize'>) {
+export async function downloadOrderProfits(
+  params: Omit<OrderProfitListParams, 'page' | 'pageSize'>,
+  isCurrent: () => boolean,
+): Promise<boolean> {
+  // This authorization check protects the local file download from a late
+  // response after tenant switch, logout, or page disposal.
+  if (!isCurrent()) return false;
   const query = new URLSearchParams({ format: 'csv' });
   const entries: Array<[string, string | undefined]> = [
     ['orderNo', params.orderNo?.trim() || undefined],
@@ -164,15 +170,20 @@ export async function downloadOrderProfits(params: Omit<OrderProfitListParams, '
     method: 'GET',
     responseType: 'blob',
   });
+  if (!isCurrent()) return false;
   const objectURL = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
-  anchor.href = objectURL;
-  anchor.download = 'order-profit-estimates.csv';
-  anchor.rel = 'noopener';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(objectURL);
+  try {
+    anchor.href = objectURL;
+    anchor.download = 'order-profit-estimates.csv';
+    anchor.rel = 'noopener';
+    document.body.appendChild(anchor);
+    anchor.click();
+    return true;
+  } finally {
+    anchor.remove();
+    URL.revokeObjectURL(objectURL);
+  }
 }
 
 export function currencyMinorExponent(currency: string) {
