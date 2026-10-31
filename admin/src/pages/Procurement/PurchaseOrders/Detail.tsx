@@ -24,6 +24,8 @@ import {
   type ReturnableReceiptItem,
 } from '@/services/procurement';
 import { PERMISSIONS } from '@/utils/permission';
+import { idempotentCommandKey, type IdempotentCommandKey } from '@/utils/idempotentCommandKey';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
 import { formatDateTime } from '@/utils/formatTime';
 import { canReceivePurchaseOrder, formatMinorAmount, PURCHASE_ORDER_STATUS, remainingQuantity } from '../helpers';
 import '../index.less';
@@ -66,33 +68,55 @@ export default function PurchaseOrderDetailPage() {
   const [returnItems, setReturnItems] = useState<ReturnableReceiptItem[]>([]);
   const [returnKey, setReturnKey] = useState('');
   const returnSubmittingRef = useRef(false);
+  const receiptSubmittingRef = useRef(false);
+  const receiptCommandRef = useRef<IdempotentCommandKey>();
+  const returnCommandRef = useRef<IdempotentCommandKey>();
+  const detailRead = useMemo(createTenantReadGuard, []);
+  const returnItemsRead = useMemo(createTenantReadGuard, []);
+  const receiptWriteGuard = useMemo(createTenantReadGuard, []);
+  const returnWriteGuard = useMemo(createTenantReadGuard, []);
+  const receiptIsCurrentRef = useRef<() => boolean>(() => false);
+  const returnIsCurrentRef = useRef<() => boolean>(() => false);
   const returnLoadSequenceRef = useRef(0);
 
   const load = useCallback(async () => {
-    if (!id) return;
+    const isCurrent = detailRead.begin();
     setLoading(true);
     setError(undefined);
+    setOrder(undefined);
+    setSupplierName('');
+    setWarehouseName('');
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     try {
       const [nextOrder, supplierResult, warehouseResult] = await Promise.all([
         getPurchaseOrder(id), listSuppliers(), listWarehouses(),
       ]);
+      if (!isCurrent()) return;
       setOrder(nextOrder);
       setSupplierName(supplierResult.list.find((row) => row.id === nextOrder.supplierId)?.name || nextOrder.supplierId);
       setWarehouseName(warehouseResult.list.find((row) => row.id === nextOrder.warehouseId)?.name || nextOrder.warehouseId);
     } catch (nextError) {
-      setError(procurementErrorMessage(extractProcurementAPIError(nextError), '采购单详情加载失败，请稍后重试。'));
+      if (isCurrent()) {
+        setError(procurementErrorMessage(extractProcurementAPIError(nextError), '采购单详情加载失败，请稍后重试。'));
+      }
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [id]);
+  }, [detailRead, id]);
 
   useEffect(() => {
     void load();
-  }, [load]);
-
-  useEffect(() => () => {
-    returnLoadSequenceRef.current += 1;
-  }, []);
+    return () => {
+      detailRead.invalidate();
+      returnItemsRead.invalidate();
+      receiptWriteGuard.invalidate();
+      returnWriteGuard.invalidate();
+      returnLoadSequenceRef.current += 1;
+    };
+  }, [detailRead, load, receiptWriteGuard, returnItemsRead, returnWriteGuard]);
 
   const openTransition = (state: TransitionState) => {
     transitionForm.setFieldsValue({ reason: '' });
@@ -123,12 +147,22 @@ export default function PurchaseOrderDetailPage() {
     if (!order?.items) return;
     const quantities = Object.fromEntries(order.items.map((item) => [item.id, 0]));
     receiptForm.setFieldsValue({ quantities });
+    receiptIsCurrentRef.current = receiptWriteGuard.begin();
+    receiptCommandRef.current = undefined;
     setReceiptKey(createProcurementIdempotencyKey('goods-receipt'));
     setReceiptOpen(true);
   };
 
+  const closeReceipt = () => {
+    if (receiptSubmittingRef.current) return;
+    receiptWriteGuard.invalidate();
+    receiptIsCurrentRef.current = () => false;
+    receiptCommandRef.current = undefined;
+    setReceiptOpen(false);
+  };
+
   const submitReceipt = async (values: ReceiptValues) => {
-    if (!order?.items) return;
+    if (!order?.items || receiptSubmittingRef.current || !canReceive || !receiptIsCurrentRef.current()) return;
     const items = order.items
       .map((item) => ({ purchaseOrderItemId: item.id, quantity: Number(values.quantities?.[item.id] || 0) }))
       .filter((item) => item.quantity > 0);
@@ -136,21 +170,40 @@ export default function PurchaseOrderDetailPage() {
       message.warning(tr("请至少填写一项本次收货数量"));
       return;
     }
+    const isCurrent = receiptIsCurrentRef.current;
+    const payload = { orderId: order.id, expectedRevision: order.revision, items };
+    const command = idempotentCommandKey(
+      receiptCommandRef.current, 'goods-receipt', payload, createProcurementIdempotencyKey, receiptKey,
+    );
+    receiptCommandRef.current = command;
+    receiptSubmittingRef.current = true;
     setReceiptSubmitting(true);
     try {
       const result = await receivePurchaseOrder(order.id, {
         expectedRevision: order.revision,
-        idempotencyKey: receiptKey,
+        idempotencyKey: command.key,
         items,
       });
+      if (!isCurrent()) return;
       setOrder(result.purchaseOrder);
+      receiptWriteGuard.invalidate();
+      receiptIsCurrentRef.current = () => false;
+      receiptCommandRef.current = undefined;
       setReceiptOpen(false);
       message.success(trFormat("收货已确认，收货单号：{value0}", { value0: result.receipt.receiptNo }));
     } catch (nextError) {
+      if (!isCurrent()) return;
       const apiError = extractProcurementAPIError(nextError);
       message.error(tr(procurementErrorMessage(apiError, tr('收货确认失败，请核对数量后重试。'))));
-      if (apiError.message.toLowerCase().includes('revision conflict')) await load();
+      if (apiError.message.toLowerCase().includes('revision conflict')) {
+        receiptWriteGuard.invalidate();
+        receiptIsCurrentRef.current = () => false;
+        receiptCommandRef.current = undefined;
+        setReceiptOpen(false);
+        await load();
+      }
     } finally {
+      receiptSubmittingRef.current = false;
       setReceiptSubmitting(false);
     }
   };
@@ -158,6 +211,9 @@ export default function PurchaseOrderDetailPage() {
   const openReturn = async () => {
     if (!order) return;
     const loadSequence = ++returnLoadSequenceRef.current;
+    const isCurrent = returnItemsRead.begin();
+    returnIsCurrentRef.current = returnWriteGuard.begin();
+    returnCommandRef.current = undefined;
     setReturnOpen(true);
     setReturnLoading(true);
     setReturnError('');
@@ -166,7 +222,7 @@ export default function PurchaseOrderDetailPage() {
     setReturnKey(createProcurementIdempotencyKey('purchase-return-create'));
     try {
       const result = await listReturnableReceiptItems(order.id);
-      if (returnLoadSequenceRef.current !== loadSequence) return;
+      if (returnLoadSequenceRef.current !== loadSequence || !isCurrent()) return;
       const items = result.list || [];
       setReturnItems(items);
       returnForm.setFieldsValue({
@@ -175,22 +231,26 @@ export default function PurchaseOrderDetailPage() {
         quantities: Object.fromEntries(items.map((item) => [item.goodsReceiptItemId, 0])),
       });
     } catch (nextError) {
-      if (returnLoadSequenceRef.current !== loadSequence) return;
+      if (returnLoadSequenceRef.current !== loadSequence || !isCurrent()) return;
       setReturnError(procurementErrorMessage(extractProcurementAPIError(nextError), '可退收货记录加载失败，请稍后重试。'));
     } finally {
-      if (returnLoadSequenceRef.current === loadSequence) setReturnLoading(false);
+      if (returnLoadSequenceRef.current === loadSequence && isCurrent()) setReturnLoading(false);
     }
   };
 
   const closeReturn = () => {
     if (returnSubmittingRef.current) return;
     returnLoadSequenceRef.current += 1;
+    returnItemsRead.invalidate();
+    returnWriteGuard.invalidate();
+    returnIsCurrentRef.current = () => false;
+    returnCommandRef.current = undefined;
     setReturnOpen(false);
     setReturnLoading(false);
   };
 
   const submitReturn = async (values: ReturnValues) => {
-    if (!order || returnSubmittingRef.current) return;
+    if (!order || returnSubmittingRef.current || !canManage || !returnIsCurrentRef.current() || returnLoading || Boolean(returnError)) return;
     const items = returnItems
       .map((item) => ({ goodsReceiptItemId: item.goodsReceiptItemId, quantity: Number(values.quantities?.[item.goodsReceiptItemId] || 0) }))
       .filter((item) => item.quantity > 0);
@@ -198,21 +258,26 @@ export default function PurchaseOrderDetailPage() {
       message.warning(tr("请至少填写一项本次退货数量"));
       return;
     }
+    const isCurrent = returnIsCurrentRef.current;
+    const payload = { purchaseOrderId: order.id, reason: values.reason.trim(), remark: values.remark?.trim() || '', items };
+    const command = idempotentCommandKey(
+      returnCommandRef.current, 'purchase-return-create', payload, createProcurementIdempotencyKey, returnKey,
+    );
+    returnCommandRef.current = command;
     returnSubmittingRef.current = true;
     setReturnSubmitting(true);
     try {
-      const purchaseReturn = await createPurchaseReturn({
-        idempotencyKey: returnKey,
-        purchaseOrderId: order.id,
-        reason: values.reason.trim(),
-        remark: values.remark?.trim() || '',
-        items,
-      });
+      const purchaseReturn = await createPurchaseReturn({ ...payload, idempotencyKey: command.key });
+      if (!isCurrent()) return;
+      returnWriteGuard.invalidate();
+      returnItemsRead.invalidate();
+      returnIsCurrentRef.current = () => false;
+      returnCommandRef.current = undefined;
       setReturnOpen(false);
       message.success(trFormat("采购退货草稿已创建：{value0}", { value0: purchaseReturn.returnNo }));
       history.push(`/procurement/purchase-returns/${purchaseReturn.id}`);
     } catch (nextError) {
-      message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('采购退货创建失败，请核对数量后重试。'))));
+      if (isCurrent()) message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('采购退货创建失败，请核对数量后重试。'))));
     } finally {
       returnSubmittingRef.current = false;
       setReturnSubmitting(false);
@@ -314,7 +379,7 @@ export default function PurchaseOrderDetailPage() {
           confirmLoading={receiptSubmitting}
           okText={tr("确认本次收货")}
           cancelText={tr("取消")}
-          onCancel={() => !receiptSubmitting && setReceiptOpen(false)}
+          onCancel={closeReceipt}
           onOk={() => receiptForm.submit()}
           forceRender
         >

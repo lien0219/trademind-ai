@@ -71,4 +71,27 @@ describe('procurement command idempotency', () => {
     expect(new Set([first.key, changedReason.key, changedRevision.key, changedAction.key]).size).toBe(4);
   });
 
+  it('reuses a goods receipt retry key only when order, revision and quantities are unchanged', () => {
+    let sequence = 0;
+    const generate = (action: string) => `admin-${action}-${++sequence}`;
+    const payload = { orderId: 'order-a', expectedRevision: 3, items: [{ purchaseOrderItemId: 'item-a', quantity: 2 }] };
+    const first = idempotentCommandKey(undefined, 'goods-receipt', payload, generate, 'receipt-initial');
+    const retry = idempotentCommandKey(first, 'goods-receipt', { ...payload, items: [{ ...payload.items[0] }] }, generate);
+    const changedQuantity = idempotentCommandKey(retry, 'goods-receipt', { ...payload, items: [{ ...payload.items[0], quantity: 3 }] }, generate);
+    const changedRevision = idempotentCommandKey(changedQuantity, 'goods-receipt', { ...payload, expectedRevision: 4, items: [{ ...payload.items[0], quantity: 3 }] }, generate);
+    expect(retry.key).toBe(first.key);
+    expect(new Set([first.key, changedQuantity.key, changedRevision.key]).size).toBe(3);
+  });
+
+  it('rotates a purchase-return draft key after changing reason, remark or quantity', () => {
+    let sequence = 0;
+    const generate = (action: string) => `admin-${action}-${++sequence}`;
+    const payload = { purchaseOrderId: 'order-a', reason: 'damaged', remark: '', items: [{ goodsReceiptItemId: 'receipt-item-a', quantity: 2 }] };
+    const first = idempotentCommandKey(undefined, 'purchase-return-create', payload, generate, 'return-initial');
+    const reason = idempotentCommandKey(first, 'purchase-return-create', { ...payload, reason: 'wrong item' }, generate);
+    const remark = idempotentCommandKey(reason, 'purchase-return-create', { ...payload, reason: 'wrong item', remark: 'supplier follow-up' }, generate);
+    const quantity = idempotentCommandKey(remark, 'purchase-return-create', { ...payload, reason: 'wrong item', remark: 'supplier follow-up', items: [{ ...payload.items[0], quantity: 1 }] }, generate);
+    expect(new Set([first.key, reason.key, remark.key, quantity.key]).size).toBe(4);
+  });
+
 });
