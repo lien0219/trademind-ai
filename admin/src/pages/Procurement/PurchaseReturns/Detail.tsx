@@ -18,6 +18,8 @@ import {
   type PurchaseReturnItem,
 } from '@/services/procurement';
 import { PERMISSIONS } from '@/utils/permission';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
+import { idempotentCommandKey, type IdempotentCommandKey } from '@/utils/idempotentCommandKey';
 import { formatDateTime } from '@/utils/formatTime';
 import '../index.less';
 
@@ -48,45 +50,98 @@ export default function PurchaseReturnDetailPage() {
   const [actionKey, setActionKey] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  const detailRead = useMemo(createTenantReadGuard, []);
+  const actionGuard = useMemo(createTenantReadGuard, []);
+  const actionScope = useRef<{ rowId: string; revision: number; isCurrent: () => boolean }>();
+  const commandRef = useRef<IdempotentCommandKey>();
 
   const load = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
+    const isCurrent = detailRead.begin();
+    setRow(undefined);
     setError('');
-    try {
-      setRow(await getPurchaseReturn(id));
-    } catch (nextError) {
-      setError(procurementErrorMessage(extractProcurementAPIError(nextError), '采购退货详情加载失败，请稍后重试。'));
-    } finally {
+    setLoading(true);
+    if (!id) {
       setLoading(false);
+      return;
     }
-  }, [id]);
+    try {
+      const result = await getPurchaseReturn(id);
+      if (isCurrent()) setRow(result);
+    } catch (nextError) {
+      if (isCurrent()) {
+        setError(procurementErrorMessage(extractProcurementAPIError(nextError), '采购退货详情加载失败，请稍后重试。'));
+      }
+    } finally {
+      if (isCurrent()) setLoading(false);
+    }
+  }, [detailRead, id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => {
+      detailRead.invalidate();
+      actionGuard.invalidate();
+      actionScope.current = undefined;
+    };
+  }, [actionGuard, detailRead, load]);
 
   const openAction = (next: ActionState) => {
+    if (!row || submittingRef.current) return;
+    const isCurrent = actionGuard.begin();
+    actionScope.current = { rowId: row.id, revision: row.revision, isCurrent };
+    commandRef.current = undefined;
     form.setFieldsValue({ reason: '' });
     setActionKey(createProcurementIdempotencyKey(`purchase-return-${next.action}`));
     setAction(next);
   };
 
+  const closeAction = () => {
+    if (submittingRef.current) return;
+    actionGuard.invalidate();
+    actionScope.current = undefined;
+    commandRef.current = undefined;
+    setAction(undefined);
+  };
+
   const submitAction = async (values: ActionValues) => {
-    if (!row || !action || submittingRef.current) return;
+    const scope = actionScope.current;
+    if (!row || !action || submittingRef.current || !scope ||
+      !scope.isCurrent() || scope.rowId !== row.id || scope.revision !== row.revision) return;
+    const reason = values.reason?.trim() || '';
+    const command = idempotentCommandKey(
+      commandRef.current,
+      `purchase-return-${action.action}`,
+      { rowId: row.id, expectedRevision: row.revision, reason },
+      createProcurementIdempotencyKey,
+      actionKey,
+    );
+    commandRef.current = command;
     submittingRef.current = true;
     setSubmitting(true);
     try {
       const updated = await transitionPurchaseReturn(row.id, action.action, {
         expectedRevision: row.revision,
-        idempotencyKey: actionKey,
-        reason: values.reason?.trim() || '',
+        idempotencyKey: command.key,
+        reason,
       });
+      if (!scope.isCurrent() || actionScope.current !== scope) return;
       setRow(updated);
+      actionGuard.invalidate();
+      actionScope.current = undefined;
+      commandRef.current = undefined;
       setAction(undefined);
       message.success(trFormat("{value0}成功", { value0: tr(action.label) }));
     } catch (nextError) {
+      if (!scope.isCurrent() || actionScope.current !== scope) return;
       const apiError = extractProcurementAPIError(nextError);
       message.error(tr(procurementErrorMessage(apiError, trFormat("{value0}失败，请稍后重试。", { value0: tr(action.label) }))));
-      if (apiError.message.toLowerCase().includes('revision conflict')) await load();
+      if (apiError.message.toLowerCase().includes('revision conflict')) {
+        actionGuard.invalidate();
+        actionScope.current = undefined;
+        commandRef.current = undefined;
+        setAction(undefined);
+        await load();
+      }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -151,7 +206,7 @@ export default function PurchaseReturnDetailPage() {
           okText={action?.label || tr('确认')}
           okButtonProps={{ danger: action?.danger }}
           cancelText={tr("取消")}
-          onCancel={() => !submitting && setAction(undefined)}
+          onCancel={closeAction}
           onOk={() => form.submit()}
           forceRender
         >

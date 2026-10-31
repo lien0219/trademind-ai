@@ -58,4 +58,17 @@ describe('procurement command idempotency', () => {
     const second = idempotentCommandKey(first, 'replenishment-draft', purchase(), generate);
     expect(second.key).not.toBe(first.key);
   });
+  it('preserves a failed return transition retry but rotates on reason or revision changes', () => {
+    let sequence = 0;
+    const generate = (action: string) => `admin-${action}-${++sequence}`;
+    const originalPayload = { rowId: 'e2e-return-a', expectedRevision: 3, reason: 'first reason' };
+    const first = idempotentCommandKey(undefined, 'purchase-return-complete', originalPayload, generate, 'original-key');
+    const retry = idempotentCommandKey(first, 'purchase-return-complete', { ...originalPayload }, generate);
+    const changedReason = idempotentCommandKey(retry, 'purchase-return-complete', { ...originalPayload, reason: 'updated reason' }, generate);
+    const changedRevision = idempotentCommandKey(changedReason, 'purchase-return-complete', { ...originalPayload, expectedRevision: 4, reason: 'updated reason' }, generate);
+    const changedAction = idempotentCommandKey(changedRevision, 'purchase-return-cancel', { ...originalPayload, expectedRevision: 4, reason: 'updated reason' }, generate);
+    expect(retry.key).toBe(first.key);
+    expect(new Set([first.key, changedReason.key, changedRevision.key, changedAction.key]).size).toBe(4);
+  });
+
 });
