@@ -4,7 +4,7 @@ import { EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import { history, useSearchParams } from '@umijs/max';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { Alert, Button, Select, Space, Tag } from 'antd';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import PermissionGuard from '@/components/PermissionGuard';
 import { ErrorAlert, TmPageContainer, TmPageHeaderExtra, TmProTable } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
@@ -15,6 +15,7 @@ import {
   type PurchaseReturn,
 } from '@/services/procurement';
 import { PERMISSIONS } from '@/utils/permission';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
 import '../index.less';
 
 const RETURN_STATUS: Record<string, { source: string; color: string }> = {
@@ -34,10 +35,15 @@ export default function PurchaseReturnsPage() {
   const purchaseOrderId = searchParams.get('purchaseOrderId')?.trim() || undefined;
   const [status, setStatus] = useState<string>();
   const [error, setError] = useState('');
+  const returnsRead = useMemo(createTenantReadGuard, []);
 
   useEffect(() => {
+    returnsRead.invalidate();
+    setError('');
     void actionRef.current?.reload();
-  }, [purchaseOrderId, status]);
+  }, [purchaseOrderId, returnsRead, status]);
+
+  useEffect(() => () => returnsRead.invalidate(), [returnsRead]);
 
   const columns: ProColumns<PurchaseReturn>[] = [
     {
@@ -88,12 +94,16 @@ export default function PurchaseReturnsPage() {
             />
           }
           request={async (params) => {
+            const isCurrent = returnsRead.begin();
             try {
               const result = await listPurchaseReturns({ page: params.current, pageSize: params.pageSize, status, purchaseOrderId });
+              if (!isCurrent()) return { data: [], success: false, total: 0 };
               setError('');
               return { data: result.list || [], success: true, total: result.total || 0 };
             } catch (nextError) {
-              setError(procurementErrorMessage(extractProcurementAPIError(nextError), '采购退货列表加载失败，请稍后重试。'));
+              if (isCurrent()) {
+                setError(procurementErrorMessage(extractProcurementAPIError(nextError), '采购退货列表加载失败，请稍后重试。'));
+              }
               return { data: [], success: false, total: 0 };
             }
           }}

@@ -3,7 +3,7 @@ import { useLanguage } from '@/i18n/useLanguage';
 import { CheckCircleOutlined, HomeOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { Alert, Button, Form, Input, Modal, Radio, Switch, Tag, Typography, message } from 'antd';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorAlert, TmPageContainer, TmPageHeaderExtra, TmProTable } from '@/components/ui';
 import PermissionGuard from '@/components/PermissionGuard';
 import { usePermission } from '@/hooks/usePermission';
@@ -16,6 +16,7 @@ import {
   type Warehouse,
 } from '@/services/procurement';
 import { PERMISSIONS } from '@/utils/permission';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
 import '../index.less';
 
 type WarehouseFormValues = {
@@ -37,23 +38,31 @@ export default function WarehousesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Warehouse>();
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const warehouseRead = useMemo(createTenantReadGuard, []);
+  const saveContext = useMemo(createTenantReadGuard, []);
 
   const load = useCallback(async () => {
+    const isCurrent = warehouseRead.begin();
     setLoading(true);
     setError(undefined);
+    setRows([]);
     try {
       const result = await listWarehouses();
-      setRows(result.list || []);
+      if (isCurrent()) setRows(result.list || []);
     } catch (nextError) {
-      setError(procurementErrorMessage(extractProcurementAPIError(nextError), '仓库列表加载失败，请稍后重试。'));
+      if (isCurrent()) {
+        setError(procurementErrorMessage(extractProcurementAPIError(nextError), '仓库列表加载失败，请稍后重试。'));
+      }
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, []);
+  }, [warehouseRead]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+    return () => { warehouseRead.invalidate(); saveContext.invalidate(); };
+  }, [load, warehouseRead, saveContext]);
 
   const filteredRows = useMemo(() => {
     const normalized = keyword.trim().toLowerCase();
@@ -77,6 +86,9 @@ export default function WarehousesPage() {
   };
 
   const save = async (values: WarehouseFormValues) => {
+    if (!canManage || submittingRef.current) return;
+    const isCurrent = saveContext.begin();
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       if (editing) {
@@ -85,17 +97,20 @@ export default function WarehousesPage() {
           status: values.status,
           isDefault: values.isDefault,
         });
+        if (!isCurrent()) return;
         message.success(tr("仓库信息已更新"));
       } else {
         await createWarehouse({ code: values.code.trim().toUpperCase(), name: values.name.trim(), isDefault: values.isDefault });
+        if (!isCurrent()) return;
         message.success(tr("仓库已创建"));
       }
       setModalOpen(false);
       await load();
     } catch (nextError) {
-      message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('仓库保存失败，请检查填写内容。'))));
+      if (isCurrent()) message.error(tr(procurementErrorMessage(extractProcurementAPIError(nextError), tr('仓库保存失败，请检查填写内容。'))));
     } finally {
-      setSubmitting(false);
+      submittingRef.current = false;
+      if (isCurrent()) setSubmitting(false);
     }
   };
 
@@ -186,7 +201,7 @@ export default function WarehousesPage() {
           confirmLoading={submitting}
           okText={editing ? tr('保存仓库') : tr('创建仓库')}
           cancelText={tr("取消")}
-          onCancel={() => !submitting && setModalOpen(false)}
+          onCancel={() => { if (!submittingRef.current) setModalOpen(false); }}
           onOk={() => form.submit()}
           forceRender
         >
