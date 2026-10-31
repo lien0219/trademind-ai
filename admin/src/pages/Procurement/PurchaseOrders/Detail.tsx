@@ -26,6 +26,7 @@ import {
 import { PERMISSIONS } from '@/utils/permission';
 import { idempotentCommandKey, type IdempotentCommandKey } from '@/utils/idempotentCommandKey';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
+import { isTenantSwitching } from '@/utils/tenantContext';
 import { formatDateTime } from '@/utils/formatTime';
 import { canReceivePurchaseOrder, formatMinorAmount, PURCHASE_ORDER_STATUS, remainingQuantity } from '../helpers';
 import '../index.less';
@@ -58,6 +59,9 @@ export default function PurchaseOrderDetailPage() {
   const [error, setError] = useState<string>();
   const [transition, setTransition] = useState<TransitionState>();
   const [transitionSubmitting, setTransitionSubmitting] = useState(false);
+  const transitionSubmittingRef = useRef(false);
+  const transitionGuard = useMemo(createTenantReadGuard, []);
+  const transitionScope = useRef<{ orderId: string; revision: number; action: TransitionAction; isCurrent: () => boolean }>();
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptSubmitting, setReceiptSubmitting] = useState(false);
   const [receiptKey, setReceiptKey] = useState('');
@@ -114,31 +118,66 @@ export default function PurchaseOrderDetailPage() {
       returnItemsRead.invalidate();
       receiptWriteGuard.invalidate();
       returnWriteGuard.invalidate();
+      transitionGuard.invalidate();
+      transitionScope.current = undefined;
       returnLoadSequenceRef.current += 1;
     };
-  }, [detailRead, load, receiptWriteGuard, returnItemsRead, returnWriteGuard]);
+  }, [detailRead, load, receiptWriteGuard, returnItemsRead, returnWriteGuard, transitionGuard]);
+
+  const canTransition = (state: TransitionAction, current: PurchaseOrder) => {
+    if (state === 'submit') return canManage && current.status === 'draft';
+    if (state === 'approve') return canApprove && current.status === 'pending_approval';
+    if (state === 'close') return canManage && ['approved', 'partially_received'].includes(current.status);
+    return canManage && ['draft', 'pending_approval', 'approved'].includes(current.status)
+      && (current.items || []).every((item) => item.receivedQuantity === 0);
+  };
 
   const openTransition = (state: TransitionState) => {
+    if (!order || transitionSubmittingRef.current || isTenantSwitching() || !canTransition(state.action, order)) return;
+    const isCurrent = transitionGuard.begin();
+    transitionScope.current = { orderId: order.id, revision: order.revision, action: state.action, isCurrent };
     transitionForm.setFieldsValue({ reason: '' });
     setTransition(state);
   };
 
+  const closeTransition = () => {
+    if (transitionSubmittingRef.current) return;
+    transitionGuard.invalidate();
+    transitionScope.current = undefined;
+    setTransition(undefined);
+  };
+
   const submitTransition = async (values: TransitionValues) => {
-    if (!order || !transition) return;
+    const scope = transitionScope.current;
+    if (!order || !transition || !scope || transitionSubmittingRef.current || isTenantSwitching()
+      || !scope.isCurrent() || scope.orderId !== order.id || scope.revision !== order.revision
+      || scope.action !== transition.action || !canTransition(transition.action, order)) return;
+
+    transitionSubmittingRef.current = true;
     setTransitionSubmitting(true);
     try {
-      const updated = await transitionPurchaseOrder(order.id, transition.action, {
-        expectedRevision: order.revision,
+      const updated = await transitionPurchaseOrder(scope.orderId, scope.action, {
+        expectedRevision: scope.revision,
         reason: values.reason?.trim() || '',
       });
+      if (!scope.isCurrent() || transitionScope.current !== scope) return;
       setOrder(updated);
+      transitionGuard.invalidate();
+      transitionScope.current = undefined;
       setTransition(undefined);
       message.success(trFormat("{value0}成功", { value0: transition.label }));
     } catch (nextError) {
+      if (!scope.isCurrent() || transitionScope.current !== scope) return;
       const apiError = extractProcurementAPIError(nextError);
       message.error(tr(procurementErrorMessage(apiError)));
-      if (apiError.message.toLowerCase().includes('revision conflict')) await load();
+      if (apiError.message.toLowerCase().includes('revision conflict')) {
+        transitionGuard.invalidate();
+        transitionScope.current = undefined;
+        setTransition(undefined);
+        await load();
+      }
     } finally {
+      transitionSubmittingRef.current = false;
       setTransitionSubmitting(false);
     }
   };
@@ -360,7 +399,7 @@ export default function PurchaseOrderDetailPage() {
           okText={transition?.label || tr('确认')}
           okButtonProps={{ danger: transition?.danger }}
           cancelText={tr("取消")}
-          onCancel={() => !transitionSubmitting && setTransition(undefined)}
+          onCancel={closeTransition}
           onOk={() => transitionForm.submit()}
           forceRender
         >

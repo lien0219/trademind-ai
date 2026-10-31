@@ -332,6 +332,365 @@ test.describe('@smoke procurement workspace', () => {
     });
   });
 
+  test('cancels a purchase-order transition without writing and submits once with the current revision', async ({ admin, page }) => {
+    admin.writeGuard.allow({
+      operation: 'cancel-purchase-order',
+      method: 'POST',
+      path: new RegExp(`^/api/v1/purchase-orders/${E2E_REPLENISHMENT_DRAFT_ID}/cancelimport { test, expect } from '../fixtures/admin.fixture';
+import { e2eUser } from '../mocks/auth';
+import { ok } from '../mocks/envelope';
+import {
+  E2E_PRODUCT_SKU_ID,
+  E2E_GOODS_RECEIPT_ITEM_ID,
+  E2E_PURCHASE_ORDER_ID,
+  E2E_PURCHASE_ORDER_ITEM_ID,
+  E2E_PURCHASE_RETURN_ID,
+  E2E_REPLENISHMENT_DRAFT_ID,
+  E2E_SUPPLIER_ID,
+  E2E_SUPPLIER_SKU_ID,
+  E2E_WAREHOUSE_ID,
+  e2eProductSkuHit,
+  e2ePurchaseOrder,
+  e2ePurchaseReturn,
+  e2eReplenishmentDraft,
+  e2eReceivedPurchaseOrder,
+  e2eReturnableReceiptItem,
+  e2eSupplier,
+  e2eSupplierSKU,
+} from '../mocks/procurement';
+import {
+  expectHeaderContentAligned,
+  expectModalWithinViewport,
+  expectNoRootOverflow,
+  expectTableFilterBarAlignedLeft,
+} from '../utils/assertions';
+
+const viewports = [
+  { width: 1440, height: 900 },
+  { width: 1280, height: 800 },
+  { width: 1024, height: 768 },
+  { width: 768, height: 900 },
+  { width: 375, height: 812 },
+];
+
+test.describe('@smoke procurement workspace', () => {
+  for (const viewport of viewports) {
+    test(`renders procurement workspace at ${viewport.width}x${viewport.height} without writes`, async ({ admin, page }) => {
+      await page.setViewportSize(viewport);
+      for (const route of [
+        { path: '/procurement/warehouses', text: 'E2E 华东主仓' },
+        { path: '/procurement/suppliers', text: 'E2E 核心供应商' },
+        { path: '/procurement/purchase-orders', text: 'PO-E2E-0001' },
+        { path: '/procurement/purchase-returns', text: 'PR-E2E-0001' },
+        { path: '/procurement/replenishment-suggestions', text: 'E2E 补货耳机', requiresWarehouse: true, checksDraftModal: true },
+        { path: `/procurement/purchase-returns/${E2E_PURCHASE_RETURN_ID}`, text: '到货质量异常' },
+      ]) {
+        await admin.goto(route.path);
+        if (route.requiresWarehouse) {
+          await page.getByRole('combobox', { name: '目标仓库' }).click();
+          await page.getByText('MAIN · E2E 华东主仓', { exact: true }).click();
+        }
+        await expect(page.getByText(route.text).first()).toBeVisible({ timeout: 30_000 });
+        await expectNoRootOverflow(page);
+        await expectHeaderContentAligned(page);
+        if (['/procurement/warehouses', '/procurement/suppliers', '/procurement/purchase-returns'].includes(route.path)) {
+          await expectTableFilterBarAlignedLeft(page);
+        }
+        if (route.checksDraftModal) {
+          await page.getByRole('checkbox', { name: '选择 BLUE-01' }).check();
+          await page.getByRole('button', { name: '创建采购草稿（1）' }).click();
+          await expectModalWithinViewport(page);
+          await page.getByRole('dialog', { name: '从补货建议创建采购草稿' }).getByRole('button', { name: /取\s*消/ }).click();
+        }
+      }
+      await admin.writeGuard.expectRequestCount('unexpected', 0);
+    });
+  }
+
+  test('creates a warehouse only after explicit confirmation', async ({ admin, page }) => {
+    admin.writeGuard.allow({
+      operation: 'create-warehouse',
+      method: 'POST',
+      path: /^\/api\/v1\/warehouses$/,
+      response: ok({ id: 'e2e-warehouse-west', code: 'WEST', name: 'E2E 西部仓', status: 'active', isDefault: false }),
+    });
+
+    await admin.goto('/procurement/warehouses');
+    await page.getByRole('button', { name: '新建仓库' }).click();
+    let dialog = page.getByRole('dialog', { name: '新建仓库' });
+    await expectModalWithinViewport(page);
+    await dialog.getByRole('button', { name: /取\s*消/ }).click();
+    await admin.writeGuard.expectRequestCount('create-warehouse', 0);
+
+    await page.getByRole('button', { name: '新建仓库' }).click();
+    dialog = page.getByRole('dialog', { name: '新建仓库' });
+    await dialog.getByLabel('仓库编码').fill('west');
+    await dialog.getByLabel('仓库名称').fill('E2E 西部仓');
+    await dialog.getByRole('button', { name: '创建仓库' }).click();
+
+    await admin.writeGuard.expectRequestCount('create-warehouse', 1);
+    expect(admin.writeGuard.calls('create-warehouse')[0]?.postDataJSON).toEqual({
+      code: 'WEST',
+      name: 'E2E 西部仓',
+      isDefault: false,
+    });
+  });
+
+  test('creates a purchase-order draft with an idempotency key and exact minor-unit amount', async ({ admin, page }) => {
+    admin.writeGuard.allow({
+      operation: 'create-purchase-order',
+      method: 'POST',
+      path: /^\/api\/v1\/purchase-orders$/,
+      response: ok({ ...e2ePurchaseOrder, id: 'e2e-purchase-order-new', status: 'draft', revision: 1 }),
+    });
+    await page.route('**/api/v1/purchase-orders/e2e-purchase-order-new', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(ok({ ...e2ePurchaseOrder, id: 'e2e-purchase-order-new', status: 'draft', revision: 1 })),
+      });
+    });
+    await page.route('**/api/v1/product-skus/search**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(ok({ list: [e2eProductSkuHit] })),
+      });
+    });
+
+    await admin.goto('/procurement/purchase-orders');
+    await page.getByRole('button', { name: '新建采购单' }).click();
+    const dialog = page.getByRole('dialog', { name: '新建采购单' });
+    await expectModalWithinViewport(page);
+    await dialog.getByRole('combobox', { name: '商品规格 1' }).press('ArrowDown');
+    await page.locator('.ant-select-dropdown:visible').getByText('E2E 蓝牙耳机 · 蓝色', { exact: true }).click();
+    await dialog.getByLabel('采购单价').fill('25.99');
+    await dialog.getByRole('button', { name: '创建采购单草稿' }).click();
+
+    await admin.writeGuard.expectRequestCount('create-purchase-order', 1);
+    const payload = admin.writeGuard.calls('create-purchase-order')[0]?.postDataJSON as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      supplierId: E2E_SUPPLIER_ID,
+      warehouseId: E2E_WAREHOUSE_ID,
+      currency: 'CNY',
+      items: [{
+        productSkuId: E2E_PRODUCT_SKU_ID,
+        supplierSkuId: E2E_SUPPLIER_SKU_ID,
+        quantity: 2,
+        unitCostMinor: 2599,
+      }],
+    });
+    expect(String(payload.idempotencyKey)).toMatch(/^admin-purchase-order-/);
+  });
+
+  test('ignores a late supplier binding response after switching suppliers', async ({ admin, page }) => {
+    const otherSupplier = { ...e2eSupplier, id: 'e2e-supplier-secondary', code: 'SUP-002', name: 'E2E 次选供应商' };
+    await page.route((url) => url.pathname === '/api/v1/suppliers', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [e2eSupplier, otherSupplier] })) });
+    });
+    let releasePrimary: (() => void) | undefined;
+    const primaryStarted = new Promise<void>((resolve) => {
+      void page.route((url) => url.pathname === `/api/v1/suppliers/${E2E_SUPPLIER_ID}/skus`, async (route) => {
+        resolve();
+        await new Promise<void>((done) => { releasePrimary = done; });
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [e2eSupplierSKU] })) });
+      });
+    });
+    await page.route('**/api/v1/suppliers/e2e-supplier-secondary/skus', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [] })) });
+    });
+
+    try {
+      await admin.goto('/procurement/purchase-orders');
+      await page.getByRole('button', { name: '新建采购单' }).click();
+      await primaryStarted;
+      const dialog = page.getByRole('dialog', { name: '新建采购单' });
+      // The selected value overlays rc-select's search input; keyboard focus avoids a blocked pointer click.
+      await dialog.getByRole('combobox', { name: '供应商' }).press('ArrowDown');
+      await page.getByText('SUP-002 · E2E 次选供应商', { exact: true }).click();
+      await expect(dialog.getByRole('button', { name: '创建采购单草稿' })).toBeEnabled();
+      releasePrimary?.();
+      // Ant Design also renders an aria-live announcement with the selected label.
+      // Assert the actual selected option, not both matching text nodes.
+      await expect(dialog.locator('.ant-select-selection-item[title="SUP-002 · E2E 次选供应商"]')).toHaveText('SUP-002 · E2E 次选供应商');
+      await admin.writeGuard.expectRequestCount('unexpected', 0);
+    } finally {
+      releasePrimary?.();
+    }
+  });
+
+  test('requires a target warehouse and keeps replenishment suggestions read-only before confirmation', async ({ admin, page }) => {
+    await admin.goto('/procurement/replenishment-suggestions');
+    await expect(page.getByText('必须选择目标仓库后才会加载建议。')).toBeVisible();
+    await expect(page.getByText('E2E 补货耳机')).toHaveCount(0);
+    await page.getByRole('combobox', { name: '目标仓库' }).click();
+    await page.getByText('MAIN · E2E 华东主仓', { exact: true }).click();
+    await expect(page.getByText('E2E 补货耳机')).toBeVisible();
+    await expect(page.getByText('可人工采购')).toBeVisible();
+    await expect(page.getByRole('button', { name: '导出筛选结果' })).toBeEnabled();
+    await page.route('**/api/v1/procurement/replenishment-suggestions*format=csv*', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'text/csv; charset=utf-8', body: '仓库,商品,规格编码\nMAIN,E2E 补货耳机,BLUE-01\n' });
+    });
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: '导出筛选结果' }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe('replenishment-suggestions.csv');
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
+  test('clears selected replenishment rows when changing the target warehouse', async ({ admin, page }) => {
+    const secondaryWarehouse = { id: 'e2e-warehouse-secondary', code: 'SECOND', name: 'E2E 备用仓', status: 'active', isDefault: false };
+    await page.route((url) => url.pathname === '/api/v1/warehouses', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [
+        { id: E2E_WAREHOUSE_ID, code: 'MAIN', name: 'E2E 华东主仓', status: 'active', isDefault: true },
+        secondaryWarehouse,
+      ] })) });
+    });
+    await page.route((url) => url.pathname === '/api/v1/procurement/replenishment-suggestions'
+      && url.searchParams.get('warehouseId') === secondaryWarehouse.id, async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({
+        warehouseId: secondaryWarehouse.id, list: [], page: 1, pageSize: 20, total: 0, totalPages: 0,
+      })) });
+    });
+
+    await admin.goto('/procurement/replenishment-suggestions');
+    await page.getByRole('combobox', { name: '目标仓库' }).click();
+    await page.getByText('MAIN · E2E 华东主仓', { exact: true }).click();
+    await expect(page.getByText('E2E 补货耳机')).toBeVisible();
+    await page.getByRole('checkbox', { name: '选择 BLUE-01' }).check();
+    await expect(page.getByRole('button', { name: '创建采购草稿（1）' })).toBeEnabled();
+
+    await page.getByRole('combobox', { name: '目标仓库' }).press('ArrowDown');
+    await page.locator('.ant-select-dropdown:visible').getByText('SECOND · E2E 备用仓', { exact: true }).click();
+    // The Ant Design icon contributes a "plus " prefix to the accessible name.
+    // Match the actual button while checking its label has no stale selection count.
+    const createDraftButton = page.getByRole('button', { name: /创建采购草稿/ });
+    await expect(createDraftButton).toHaveAccessibleName(/创建采购草稿$/);
+    await expect(createDraftButton).toBeDisabled();
+    await expect(page.getByText('E2E 补货耳机')).toHaveCount(0);
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
+  test('creates one replenishment purchase draft only after explicit confirmation', async ({ admin, page }) => {
+    admin.writeGuard.allow({
+      operation: 'create-replenishment-draft',
+      method: 'POST',
+      path: /^\/api\/v1\/purchase-orders\/from-replenishment$/,
+      response: ok(e2eReplenishmentDraft),
+    });
+
+    await admin.goto('/procurement/replenishment-suggestions');
+    await page.getByRole('combobox', { name: '目标仓库' }).click();
+    await page.getByText('MAIN · E2E 华东主仓', { exact: true }).click();
+    await expect(page.getByText('E2E 补货耳机')).toBeVisible();
+    await page.getByRole('checkbox', { name: '选择 BLUE-01' }).check();
+    await page.getByRole('button', { name: '创建采购草稿（1）' }).click();
+    let dialog = page.getByRole('dialog', { name: '从补货建议创建采购草稿' });
+    await expectModalWithinViewport(page);
+    await dialog.getByRole('button', { name: /取\s*消/ }).click();
+    await admin.writeGuard.expectRequestCount('create-replenishment-draft', 0);
+
+    await page.getByRole('button', { name: '创建采购草稿（1）' }).click();
+    dialog = page.getByRole('dialog', { name: '从补货建议创建采购草稿' });
+    await dialog.getByRole('combobox', { name: '采购供应商' }).click();
+    await page.locator('.ant-select-dropdown:visible').getByText('E2E 核心供应商', { exact: true }).click();
+    await expect(dialog.getByRole('spinbutton', { name: '采购数量 1' })).toHaveValue('8');
+    await dialog.getByRole('button', { name: '确认创建采购草稿' }).click();
+
+    await admin.writeGuard.expectRequestCount('create-replenishment-draft', 1);
+    const payload = admin.writeGuard.calls('create-replenishment-draft')[0]?.postDataJSON as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      warehouseId: E2E_WAREHOUSE_ID,
+      supplierId: E2E_SUPPLIER_ID,
+      remark: '补货建议人工确认',
+      items: [{
+        productSkuId: E2E_PRODUCT_SKU_ID,
+        supplierSkuId: E2E_SUPPLIER_SKU_ID,
+        quantity: 8,
+        suggestionHash: 'a'.repeat(64),
+      }],
+    });
+    expect(String(payload.idempotencyKey)).toMatch(/^admin-replenishment-draft-/);
+    await expect(page).toHaveURL(new RegExp(`/procurement/purchase-orders/${E2E_REPLENISHMENT_DRAFT_ID}$`));
+    await expect(page.getByText('PO-E2E-REPLENISHMENT').first()).toBeVisible();
+  });
+
+  test('distinguishes replenishment empty and API error states', async ({ admin, page }) => {
+    await page.route('**/api/v1/warehouses', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [] })) });
+    });
+    await admin.goto('/procurement/replenishment-suggestions');
+    await expect(page.getByText('暂无启用仓库，维护仓库后才能查看补货建议。')).toBeVisible();
+    await expect(page.getByRole('combobox', { name: '目标仓库' })).toBeDisabled();
+
+    await page.unroute('**/api/v1/warehouses');
+    await page.route('**/api/v1/procurement/replenishment-suggestions*', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 50301, message: 'E2E 补货建议接口不可用', data: null }) });
+    });
+    await admin.goto('/procurement/replenishment-suggestions');
+    await page.getByRole('combobox', { name: '目标仓库' }).click();
+    await page.getByText('MAIN · E2E 华东主仓', { exact: true }).click();
+    await expect(page.getByText('E2E 补货建议接口不可用')).toBeVisible();
+    await expect(page.getByText('补货建议暂不可用')).toBeVisible();
+  });
+
+  test('preserves masked supplier contact fields when an operator updates other data', async ({ admin, page }) => {
+    await page.route('**/api/v1/auth/profile', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(ok({
+          ...e2eUser,
+          role: 'operator',
+          permissions: ['supplier.view', 'supplier.manage'],
+        })),
+      });
+    });
+    admin.writeGuard.allow({
+      operation: 'update-supplier',
+      method: 'PUT',
+      path: new RegExp(`^/api/v1/suppliers/${E2E_SUPPLIER_ID}$`),
+      response: ok({ ...e2eSupplier, name: 'E2E 核心供应商（更新）' }),
+    });
+
+    await admin.goto('/procurement/suppliers');
+    await page.getByRole('button', { name: '编辑' }).click();
+    const dialog = page.getByRole('dialog', { name: /编辑供应商/ });
+    await expect(dialog.getByLabel('联系电话')).toHaveValue('');
+    await expect(dialog.getByLabel('联系邮箱')).toHaveValue('');
+    await expect(dialog.getByText(/留空将保留原值/)).toHaveCount(2);
+    await dialog.getByLabel('供应商名称').fill('E2E 核心供应商（更新）');
+    await dialog.getByRole('button', { name: '保存供应商' }).click();
+
+    await admin.writeGuard.expectRequestCount('update-supplier', 1);
+    expect(admin.writeGuard.calls('update-supplier')[0]?.postDataJSON).toEqual({
+      name: 'E2E 核心供应商（更新）',
+      status: 'active',
+      contactName: '测试联系人',
+    });
+  });
+
+),
+      response: ok({ ...e2eReplenishmentDraft, status: 'cancelled', revision: 2 }),
+    });
+
+    await admin.goto(`/procurement/purchase-orders/${E2E_REPLENISHMENT_DRAFT_ID}`);
+    await page.getByRole('button', { name: '取消采购单' }).click();
+    let dialog = page.getByRole('dialog', { name: '取消采购单' });
+    await dialog.getByRole('button', { name: '取消', exact: true }).click();
+    await admin.writeGuard.expectRequestCount('cancel-purchase-order', 0);
+
+    await page.getByRole('button', { name: '取消采购单' }).click();
+    dialog = page.getByRole('dialog', { name: '取消采购单' });
+    await dialog.getByLabel('操作说明').fill('人工确认取消');
+    await dialog.getByRole('button', { name: '取消采购单' }).click();
+    await admin.writeGuard.expectRequestCount('cancel-purchase-order', 1);
+    expect(admin.writeGuard.calls('cancel-purchase-order')[0]?.postDataJSON).toEqual({
+      expectedRevision: 1,
+      reason: '人工确认取消',
+    });
+  });
+
   test('cancels receipt without a write and submits one revision-checked receipt', async ({ admin, page }) => {
     admin.writeGuard.allow({
       operation: 'receive-purchase-order',
