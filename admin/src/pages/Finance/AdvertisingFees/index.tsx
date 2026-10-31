@@ -70,6 +70,7 @@ import { PERMISSIONS } from '@/utils/permission';
 import { financialActionRequestKey, type FinancialActionRequestKey } from '@/utils/financialActionKey';
 import { parsePositiveInt } from '@/utils/urlState';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
+import { canConfirmFinanceImport, type FinanceImportPreviewScope } from '@/utils/financeImportPreview';
 import './index.less';
 
 const QUERY_KEYS = ['page', 'pageSize', 'orderNo', 'shopId', 'currency', 'settlementCoverage', 'drawer', 'id'] as const;
@@ -113,7 +114,7 @@ export default function AdvertisingFeesPage() {
   const listReadGuard = useMemo(createTenantReadGuard, []);
   const previewReadGuard = useMemo(createTenantReadGuard, []);
   const previewRequestRef = useRef(0);
-  const isPreviewCurrentRef = useRef<() => boolean>(() => false);
+  const currentImportScope = useRef<FinanceImportPreviewScope>();
   const submittingRef = useRef(false);
   const adjustmentSubmittingRef = useRef(false);
   const adjustmentKeyRef = useRef<FinancialActionRequestKey>();
@@ -204,7 +205,7 @@ export default function AdvertisingFeesPage() {
   const invalidatePreview = useCallback(() => {
     previewRequestRef.current += 1;
     previewReadGuard.invalidate();
-    isPreviewCurrentRef.current = () => false;
+    currentImportScope.current = undefined;
     setPreview(undefined);
     setIdempotencyKey('');
     setPreviewing(false);
@@ -222,13 +223,22 @@ export default function AdvertisingFeesPage() {
     if (!file || !importShopID || previewing) return;
     const requestID = ++previewRequestRef.current;
     const isCurrent = previewReadGuard.begin();
-    isPreviewCurrentRef.current = isCurrent;
+    currentImportScope.current = undefined;
     setPreviewing(true);
     try {
       const result = await previewAdvertisingFeeImport(file, importShopID);
       if (requestID !== previewRequestRef.current || !isCurrent()) return;
+      if (result.shopId !== importShopID || !result.fileHash || (result.valid && !result.calculationHash)) {
+        currentImportScope.current = undefined;
+        message.error(tr('广告费用校验失败'));
+        return;
+      }
+      const key = advertisingFeeIdempotencyKey('import');
+      currentImportScope.current = {
+        file, shopId: importShopID, fileHash: result.fileHash, calculationHash: result.calculationHash, idempotencyKey: key, isCurrent,
+      };
       setPreview(result);
-      setIdempotencyKey(advertisingFeeIdempotencyKey('import'));
+      setIdempotencyKey(key);
     } catch (error) {
       if (requestID === previewRequestRef.current && isCurrent()) message.error((error as Error)?.message || tr('广告费用校验失败'));
     } finally {
@@ -240,12 +250,15 @@ export default function AdvertisingFeesPage() {
 
   const confirmImport = useCallback(async () => {
     const file = nativeFile(fileList);
-    if (!file || !importShopID || !preview?.valid || !idempotencyKey || submittingRef.current) return;
-    if (!isPreviewCurrentRef.current()) {
+    if (!canImport || !file || !importShopID || !preview?.valid || !idempotencyKey || submittingRef.current) return;
+    const scope = currentImportScope.current;
+    if (!canConfirmFinanceImport(scope, scope, {
+      file, shopId: importShopID, fileHash: preview.fileHash, calculationHash: preview.calculationHash, idempotencyKey,
+    }) || preview.shopId !== importShopID) {
       invalidatePreview();
       return;
     }
-    const isCurrent = isPreviewCurrentRef.current;
+    const isCurrent = scope!.isCurrent;
     submittingRef.current = true;
     setSubmitting(true);
     try {

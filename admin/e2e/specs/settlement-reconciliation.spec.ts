@@ -107,6 +107,32 @@ test.describe('@smoke settlement reconciliation', () => {
     await admin.writeGuard.expectRequestCount('settlement-confirm', 1);
   });
 
+  test('refuses to confirm a settlement preview for a different shop', async ({ admin, page }) => {
+    admin.writeGuard.allow({
+      operation: 'settlement-preview',
+      method: 'POST',
+      path: /^\/api\/v1\/settlement-imports\/preview$/,
+      response: ok({
+        fileName: 'bill.csv', fileHash: 'a'.repeat(64),
+        shopId: 'e2e-other-shop', shopName: 'Other shop', platform: 'douyin_shop',
+        valid: true, sourceRows: 1, newRows: 1, duplicateRows: 0, issues: [], rows: [],
+      }),
+    });
+
+    await admin.goto('/finance/settlement-reconciliation');
+    await page.getByRole('button', { name: '导入账单' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('combobox', { name: '账单店铺' }).click();
+    await page.locator('.ant-select-dropdown:visible').getByText('E2E 抖店测试店铺 · 抖店', { exact: true }).click();
+    await dialog.locator('input[type="file"]').setInputFiles({ name: 'bill.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+    await dialog.getByRole('button', { name: '校验预览' }).click();
+
+    await expect(page.getByText('账单校验失败')).toBeVisible();
+    await expect(dialog.getByRole('button', { name: '确认导入' })).toHaveCount(0);
+    await admin.writeGuard.expectRequestCount('settlement-preview', 1);
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
   test('keeps import and export unavailable to readonly viewers', async ({ admin, page }) => {
     await page.route('**/api/v1/auth/profile', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ ...e2eUser, role: 'readonly', permissions: ['settlement.view'] })) });
