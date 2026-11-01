@@ -317,7 +317,7 @@ export default function AdvertisingFeesPage() {
       const command = financialActionRequestKey(
         adjustmentKeyRef.current,
         reversingAdjustment ? 'reverse' : 'adjust',
-        [detail.id, reversingAdjustment?.id || '', amountMinor ?? null, reason],
+        [scope!.recordId, reversingAdjustment?.id || '', amountMinor ?? null, reason],
         advertisingFeeIdempotencyKey,
       );
       adjustmentKeyRef.current = command;
