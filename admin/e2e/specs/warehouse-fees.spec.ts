@@ -188,6 +188,25 @@ test.describe('@smoke warehouse operation fee ledger', () => {
     await expect(page).toHaveURL(/drawer=warehouse-fee/);
   });
 
+  test('invalidates a cancelled adjustment and clears its values before reopening', async ({ admin, page }) => {
+    await admin.goto(`/finance/warehouse-fees?drawer=warehouse-fee&id=${E2E_WAREHOUSE_FEE_SNAPSHOT_ID}`);
+    await expect(page.getByRole('dialog')).toContainText('加固包装材料补收');
+    await page.getByRole('button', { name: '追加调整' }).click();
+    let dialog = page.getByRole('dialog').last();
+    await dialog.getByRole('spinbutton', { name: /调整金额/ }).fill('42');
+    await dialog.getByRole('textbox', { name: '原因' }).fill('E2E 未确认的调整');
+    await dialog.getByRole('button', { name: /^取\s*消$/ }).click();
+    await expect(page.getByRole('dialog', { name: '追加费用调整' })).toHaveCount(0);
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+
+    await page.getByRole('button', { name: '追加调整' }).click();
+    dialog = page.getByRole('dialog').last();
+    await expect(dialog.getByRole('spinbutton', { name: /调整金额/ })).toBeEmpty();
+    await expect(dialog.getByRole('textbox', { name: '原因' })).toBeEmpty();
+    await dialog.getByRole('button', { name: /^取\s*消$/ }).click();
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
   test('reuses the adjustment idempotency key after a recoverable failure', async ({ admin, page }) => {
     let attempts = 0;
     admin.writeGuard.allow({

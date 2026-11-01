@@ -69,6 +69,7 @@ import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import { financialActionRequestKey, type FinancialActionRequestKey } from '@/utils/financialActionKey';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
+import { canSubmitFinanceAdjustment, type FinanceAdjustmentScope } from '@/utils/financeAdjustmentScope';
 import { canConfirmWarehouseFeePreview, createWarehouseFeeConfirmationScope, type WarehouseFeeConfirmationScope } from '@/utils/warehouseFeeConfirmation';
 import './index.less';
 
@@ -117,6 +118,8 @@ export default function WarehouseFeesPage() {
   const confirmationRequestKey = useRef<FinancialActionRequestKey>();
   const confirmationScope = useRef<WarehouseFeeConfirmationScope>();
   const adjustmentRequestKey = useRef<FinancialActionRequestKey>();
+  const adjustmentScope = useRef<FinanceAdjustmentScope>();
+  const adjustmentRead = useMemo(createTenantReadGuard, []);
   const detailRequest = useRef(0);
   const historyRequest = useRef(0);
   const warehouseRead = useMemo(createTenantReadGuard, []);
@@ -240,6 +243,19 @@ export default function WarehouseFeesPage() {
     }
     return () => { detailRequest.current += 1; detailRead.invalidate(); };
   }, [detailRead, drawer.id, loadDetail]);
+
+  useEffect(() => {
+    // Old detail confirmations must not submit to a newly opened record.
+    adjustmentRead.invalidate();
+    adjustmentScope.current = undefined;
+    adjustmentRequestKey.current = undefined;
+    setAdjustmentOpen(false);
+    setReversingAdjustment(undefined);
+    return () => {
+      adjustmentRead.invalidate();
+      adjustmentScope.current = undefined;
+    };
+  }, [adjustmentRead, drawer.id]);
 
   const resetPreview = useCallback(() => {
     previewSession.current += 1;
@@ -440,13 +456,36 @@ export default function WarehouseFeesPage() {
   }, [historyRead, previewRead, candidatesRead, ledgerRead, ratesRead]);
 
   const openAdjustment = useCallback((row?: WarehouseFeeAdjustment) => {
+    if (!canManage || !detail || detail.id !== drawer.id || adjustmentSubmissionLock.current) return;
+    adjustmentScope.current = {
+      recordId: detail.id,
+      action: row ? 'reverse' : 'adjust',
+      targetId: row?.id,
+      isCurrent: adjustmentRead.begin(),
+    };
     adjustmentRequestKey.current = undefined;
     setReversingAdjustment(row);
     setAdjustmentOpen(true);
-  }, []);
+  }, [adjustmentRead, canManage, detail, drawer.id]);
+
+  const closeAdjustment = () => {
+    if (adjustmentSubmissionLock.current) return;
+    adjustmentRead.invalidate();
+    adjustmentScope.current = undefined;
+    adjustmentRequestKey.current = undefined;
+    setAdjustmentOpen(false);
+    setReversingAdjustment(undefined);
+  };
 
   const saveAdjustment = useCallback(async () => {
-    if (!detail || !canManage || adjusting || adjustmentSubmissionLock.current) return;
+    const scope = adjustmentScope.current;
+    const isAllowed = () => canSubmitFinanceAdjustment(scope, {
+      recordId: drawer.id === detail?.id ? detail?.id : undefined,
+      action: reversingAdjustment ? 'reverse' : 'adjust',
+      targetId: reversingAdjustment?.id,
+      canManage,
+    }) && adjustmentScope.current === scope;
+    if (!scope || !isAllowed() || adjusting || adjustmentSubmissionLock.current) return;
     adjustmentSubmissionLock.current = true;
     let values: AdjustmentFormValues;
     try {
@@ -455,51 +494,56 @@ export default function WarehouseFeesPage() {
       adjustmentSubmissionLock.current = false;
       return;
     }
+    if (!isAllowed()) {
+      adjustmentSubmissionLock.current = false;
+      return;
+    }
     setAdjusting(true);
     try {
+      const reason = values.reason.trim();
       if (reversingAdjustment) {
-        const reason = values.reason.trim();
         const requestKey = financialActionRequestKey(
           adjustmentRequestKey.current,
           'reverse',
-          [detail.id, reversingAdjustment.id, null, reason],
+          [scope.recordId, reversingAdjustment.id, null, reason],
           warehouseFeeIdempotencyKey,
         );
         adjustmentRequestKey.current = requestKey;
-        await reverseWarehouseFeeAdjustment(detail.id, reversingAdjustment.id, {
+        await reverseWarehouseFeeAdjustment(scope.recordId, reversingAdjustment.id, {
           reason,
           idempotencyKey: requestKey.key,
         });
-        message.success(tr('调整事实已冲正'));
       } else {
         if (typeof values.amountMinor !== 'number') return;
-        const reason = values.reason.trim();
         const requestKey = financialActionRequestKey(
           adjustmentRequestKey.current,
           'adjust',
-          [detail.id, values.amountMinor, null, reason],
+          [scope.recordId, values.amountMinor, null, reason],
           warehouseFeeIdempotencyKey,
         );
         adjustmentRequestKey.current = requestKey;
-        await createWarehouseFeeAdjustment(detail.id, {
+        await createWarehouseFeeAdjustment(scope.recordId, {
           amountMinor: values.amountMinor,
           reason,
           idempotencyKey: requestKey.key,
         });
-        message.success(tr('费用调整已追加'));
       }
+      if (!isAllowed()) return;
+      message.success(reversingAdjustment ? tr('调整事实已冲正') : tr('费用调整已追加'));
+      adjustmentRead.invalidate();
+      adjustmentScope.current = undefined;
       setAdjustmentOpen(false);
       setReversingAdjustment(undefined);
       adjustmentRequestKey.current = undefined;
-      await loadDetail(detail.id);
+      await loadDetail(scope.recordId);
       void ledgerActionRef.current?.reload();
     } catch (error) {
-      message.error((error as Error)?.message || tr('费用调整失败'));
+      if (isAllowed()) message.error((error as Error)?.message || tr('费用调整失败'));
     } finally {
       adjustmentSubmissionLock.current = false;
       setAdjusting(false);
     }
-  }, [adjusting, adjustmentForm, canManage, detail, loadDetail, reversingAdjustment]);
+  }, [adjusting, adjustmentForm, adjustmentRead, canManage, detail, drawer.id, loadDetail, reversingAdjustment]);
 
   const candidateColumns: ProColumns<WarehouseFeeCandidate>[] = [
     { title: tr('订单号'), dataIndex: 'orderNo', fixed: 'left', width: 190, copyable: true, ellipsis: true },
@@ -801,10 +845,10 @@ export default function WarehouseFeesPage() {
         destroyOnHidden
         maskClosable={!adjusting}
         closable={!adjusting}
-        onCancel={() => { if (!adjusting) { adjustmentRequestKey.current = undefined; setAdjustmentOpen(false); setReversingAdjustment(undefined); } }}
+        onCancel={closeAdjustment}
         onOk={() => void saveAdjustment()}
         okText={reversingAdjustment ? tr('确认冲正') : tr('确认追加')}
-        okButtonProps={{ disabled: !canManage }}
+        okButtonProps={{ disabled: !canManage || !detail || !adjustmentScope.current?.isCurrent() }}
         confirmLoading={adjusting}
       >
         {reversingAdjustment ? <Alert type="warning" showIcon message={trFormat('将追加 {amount} 的冲正事实', { amount: formatProfitAmount(-reversingAdjustment.amountMinor, reversingAdjustment.currency) })} /> : null}
