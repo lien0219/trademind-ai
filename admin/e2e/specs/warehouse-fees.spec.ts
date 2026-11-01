@@ -72,7 +72,9 @@ test.describe('@smoke warehouse operation fee ledger', () => {
       await started;
       const dialog = page.getByRole('dialog', { name: '费率修订历史' });
       await expect(dialog).toBeVisible();
-      await page.keyboard.press('Escape');
+      // Use the explicit, accessible close action while the response is held.
+      // Escape is not guaranteed to reach a modal without keyboard focus.
+      await dialog.getByRole('button', { name: /^关\s*闭$/ }).click();
       await expect(dialog).toHaveCount(0);
 
       const returned = page.waitForResponse((response) =>

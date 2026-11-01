@@ -855,7 +855,13 @@ export default function WarehouseFeesPage() {
         </Form>
       </Modal>
 
-      <Modal title={historyDetail ? trFormat('费率卡 {code} 修订历史', { code: historyDetail.code }) : tr('费率修订历史')} open={historyLoading || Boolean(historyDetail)} width={900} footer={null} onCancel={closeRateHistory}>
+      <Modal
+        title={historyDetail ? trFormat('费率卡 {code} 修订历史', { code: historyDetail.code }) : tr('费率修订历史')}
+        open={historyLoading || Boolean(historyDetail)}
+        width={900}
+        footer={<Button onClick={closeRateHistory}>{tr('关闭')}</Button>}
+        onCancel={closeRateHistory}
+      >
         <Table rowKey="id" loading={historyLoading} columns={historyColumns} dataSource={historyDetail?.revisions || []} pagination={false} scroll={{ x: 820 }} />
       </Modal>
 
