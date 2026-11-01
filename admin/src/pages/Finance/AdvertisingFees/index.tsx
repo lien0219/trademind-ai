@@ -71,6 +71,7 @@ import { financialActionRequestKey, type FinancialActionRequestKey } from '@/uti
 import { parsePositiveInt } from '@/utils/urlState';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
 import { canConfirmFinanceImport, type FinanceImportPreviewScope } from '@/utils/financeImportPreview';
+import { canSubmitFinanceAdjustment, type FinanceAdjustmentScope } from '@/utils/financeAdjustmentScope';
 import './index.less';
 
 const QUERY_KEYS = ['page', 'pageSize', 'orderNo', 'shopId', 'currency', 'settlementCoverage', 'drawer', 'id'] as const;
@@ -118,6 +119,8 @@ export default function AdvertisingFeesPage() {
   const submittingRef = useRef(false);
   const adjustmentSubmittingRef = useRef(false);
   const adjustmentKeyRef = useRef<FinancialActionRequestKey>();
+  const adjustmentRead = useMemo(createTenantReadGuard, []);
+  const adjustmentScopeRef = useRef<FinanceAdjustmentScope>();
   const { state: urlState, setState: setUrlState, clearState } = useUrlQueryState<
     Record<(typeof QUERY_KEYS)[number], string | undefined>
   >(QUERY_KEYS);
@@ -174,6 +177,13 @@ export default function AdvertisingFeesPage() {
   }, [urlState.currency, urlState.orderNo, urlState.settlementCoverage, urlState.shopId]);
 
   useEffect(() => () => listReadGuard.invalidate(), [listReadGuard]);
+  useEffect(() => () => adjustmentRead.invalidate(), [adjustmentRead]);
+  useEffect(() => {
+    adjustmentRead.invalidate();
+    adjustmentScopeRef.current = undefined;
+    adjustmentKeyRef.current = undefined;
+    if (!adjustmentSubmittingRef.current) setAdjustmentOpen(false);
+  }, [adjustmentRead, drawer.id]);
 
   const loadDetail = useCallback(async (id: string) => {
     const isCurrent = detailReadGuard.begin();
@@ -283,20 +293,25 @@ export default function AdvertisingFeesPage() {
   }, [fileList, idempotencyKey, importShopID, invalidatePreview, preview, resetImport]);
 
   const openAdjustment = useCallback((target?: AdvertisingAdjustment) => {
+    if (!detail || !canManage || adjustmentSubmittingRef.current) return;
+    adjustmentScopeRef.current = { recordId: detail.id, action: target ? 'reverse' : 'adjust', targetId: target?.id, isCurrent: adjustmentRead.begin() };
     adjustmentKeyRef.current = undefined;
     setReversingAdjustment(target);
     setAdjustmentOpen(true);
-  }, []);
+  }, [adjustmentRead, canManage, detail]);
 
   useEffect(() => {
     if (adjustmentOpen) adjustmentForm.resetFields();
   }, [adjustmentForm, adjustmentOpen]);
 
   const saveAdjustment = useCallback(async () => {
-    if (!detail || adjustmentSubmittingRef.current || !canManage) return;
+    const scope = adjustmentScopeRef.current;
+    const isAllowed = () => canSubmitFinanceAdjustment(scope, { recordId: detail?.id, action: reversingAdjustment ? 'reverse' : 'adjust', targetId: reversingAdjustment?.id, canManage });
+    if (!isAllowed() || adjustmentSubmittingRef.current) return;
     adjustmentSubmittingRef.current = true;
     try {
       const values = await adjustmentForm.validateFields();
+      if (!isAllowed()) return;
       const reason = values.reason.trim();
       const amountMinor = reversingAdjustment ? null : values.amountMinor;
       const command = financialActionRequestKey(
@@ -308,24 +323,26 @@ export default function AdvertisingFeesPage() {
       adjustmentKeyRef.current = command;
       setAdjusting(true);
       if (reversingAdjustment) {
-        await reverseAdvertisingFeeAdjustment(detail.id, reversingAdjustment.id, { reason, idempotencyKey: command.key });
-        message.success(tr('广告费用调整已冲正'));
+        await reverseAdvertisingFeeAdjustment(scope!.recordId, reversingAdjustment.id, { reason, idempotencyKey: command.key });
       } else {
-        await createAdvertisingFeeAdjustment(detail.id, { amountMinor: values.amountMinor!, reason, idempotencyKey: command.key });
-        message.success(tr('广告费用调整已追加'));
+        await createAdvertisingFeeAdjustment(scope!.recordId, { amountMinor: values.amountMinor!, reason, idempotencyKey: command.key });
       }
+      if (!isAllowed()) return;
+      message.success(reversingAdjustment ? tr('广告费用调整已冲正') : tr('广告费用调整已追加'));
+      adjustmentRead.invalidate();
+      adjustmentScopeRef.current = undefined;
       setAdjustmentOpen(false);
       setReversingAdjustment(undefined);
       adjustmentKeyRef.current = undefined;
-      await loadDetail(detail.id);
+      await loadDetail(scope!.recordId);
       void actionRef.current?.reload();
     } catch (error) {
-      message.error((error as Error)?.message || tr('广告费用调整失败'));
+      if (isAllowed()) message.error((error as Error)?.message || tr('广告费用调整失败'));
     } finally {
       adjustmentSubmittingRef.current = false;
       setAdjusting(false);
     }
-  }, [adjustmentForm, canManage, detail, loadDetail, reversingAdjustment]);
+  }, [adjustmentForm, adjustmentRead, canManage, detail, loadDetail, reversingAdjustment]);
 
   const queryParams = useCallback((nextPage?: number, nextPageSize?: number) => ({
     page: nextPage || page,
@@ -515,7 +532,7 @@ export default function AdvertisingFeesPage() {
         destroyOnHidden
         maskClosable={!adjusting}
         closable={!adjusting}
-        onCancel={() => { if (!adjusting) { adjustmentKeyRef.current = undefined; setAdjustmentOpen(false); setReversingAdjustment(undefined); } }}
+        onCancel={() => { if (!adjustmentSubmittingRef.current) { adjustmentRead.invalidate(); adjustmentScopeRef.current = undefined; adjustmentKeyRef.current = undefined; setAdjustmentOpen(false); setReversingAdjustment(undefined); } }}
         onOk={() => void saveAdjustment()}
         okText={reversingAdjustment ? tr('确认冲正') : tr('确认追加')}
         okButtonProps={{ disabled: !canManage }}
