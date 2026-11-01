@@ -102,6 +102,25 @@ test.describe('@smoke warehouse operation fee ledger', () => {
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });
 
+  test('cancels a rate-card create without writes and clears its unfinished form', async ({ admin, page }) => {
+    await admin.goto('/finance/warehouse-fees');
+    await page.getByRole('tab', { name: '费率卡' }).click();
+    await page.getByRole('button', { name: '新增费率卡' }).click();
+    let dialog = page.getByRole('dialog');
+    await dialog.getByRole('textbox', { name: '费率编码' }).fill('E2E-CANCELLED');
+    await dialog.getByRole('textbox', { name: '费率名称' }).fill('E2E 未提交费率卡');
+    await dialog.getByRole('button', { name: /^取\s*消$/ }).click();
+    await expect(page.getByRole('dialog', { name: '新增费率卡' })).toHaveCount(0);
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+
+    await page.getByRole('button', { name: '新增费率卡' }).click();
+    dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('textbox', { name: '费率编码' })).toBeEmpty();
+    await expect(dialog.getByRole('textbox', { name: '费率名称' })).toBeEmpty();
+    await dialog.getByRole('button', { name: /^取\s*消$/ }).click();
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
   test('creates and revises rate cards with one guarded request per action', async ({ admin, page }) => {
     admin.writeGuard.allow({
       operation: 'warehouse-fee-rate-create',

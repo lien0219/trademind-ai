@@ -70,6 +70,8 @@ import { PERMISSIONS } from '@/utils/permission';
 import { financialActionRequestKey, type FinancialActionRequestKey } from '@/utils/financialActionKey';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
 import { canSubmitFinanceAdjustment, type FinanceAdjustmentScope } from '@/utils/financeAdjustmentScope';
+import { canSubmitWarehouseFeeRateMutation, type WarehouseFeeRateMutationScope } from '@/utils/warehouseFeeRateMutation';
+import { isTenantSwitching } from '@/utils/tenantContext';
 import { canConfirmWarehouseFeePreview, createWarehouseFeeConfirmationScope, type WarehouseFeeConfirmationScope } from '@/utils/warehouseFeeConfirmation';
 import './index.less';
 
@@ -120,6 +122,8 @@ export default function WarehouseFeesPage() {
   const adjustmentRequestKey = useRef<FinancialActionRequestKey>();
   const adjustmentScope = useRef<FinanceAdjustmentScope>();
   const adjustmentRead = useMemo(createTenantReadGuard, []);
+  const rateMutationRead = useMemo(createTenantReadGuard, []);
+  const rateMutationScope = useRef<WarehouseFeeRateMutationScope>();
   const detailRequest = useRef(0);
   const historyRequest = useRef(0);
   const warehouseRead = useMemo(createTenantReadGuard, []);
@@ -377,13 +381,34 @@ export default function WarehouseFeesPage() {
   }, [canManage, confirming, preview, resetPreview]);
 
   const openRateModal = useCallback((row?: WarehouseFeeRateCard) => {
+    if (!canManage || rateSubmissionLock.current || isTenantSwitching()) return;
+    rateMutationScope.current = {
+      mode: row ? 'revise' : 'create',
+      rateId: row?.id,
+      revision: row?.revision,
+      isCurrent: rateMutationRead.begin(),
+    };
     setEditingRate(row);
     setRateError('');
     setRateModalOpen(true);
-  }, []);
+  }, [canManage, rateMutationRead]);
+
+  const closeRateModal = () => {
+    if (rateSubmissionLock.current) return;
+    rateMutationRead.invalidate();
+    rateMutationScope.current = undefined;
+    setRateModalOpen(false);
+    setEditingRate(undefined);
+  };
 
   const saveRate = useCallback(async () => {
-    if (!canManage || rateSubmitting || rateSubmissionLock.current) return;
+    const scope = rateMutationScope.current;
+    const isAllowed = () =>
+      rateMutationScope.current === scope &&
+      !isTenantSwitching() &&
+      canSubmitWarehouseFeeRateMutation(scope, { canManage, editing: editingRate });
+    if (!isAllowed() || rateSubmitting || rateSubmissionLock.current) return;
+
     rateSubmissionLock.current = true;
     let values: RateFormValues;
     try {
@@ -392,6 +417,11 @@ export default function WarehouseFeesPage() {
       rateSubmissionLock.current = false;
       return;
     }
+    if (!isAllowed()) {
+      rateSubmissionLock.current = false;
+      return;
+    }
+
     setRateSubmitting(true);
     setRateError('');
     try {
@@ -405,7 +435,6 @@ export default function WarehouseFeesPage() {
           packingFeePerPackageMinor: values.packingFeePerPackageMinor,
           status: values.status,
         });
-        message.success(tr('费率卡已生成新修订'));
       } else {
         await createWarehouseFeeRateCard({
           warehouseId: values.warehouseId,
@@ -416,12 +445,16 @@ export default function WarehouseFeesPage() {
           pickingFeePerItemMinor: values.pickingFeePerItemMinor,
           packingFeePerPackageMinor: values.packingFeePerPackageMinor,
         });
-        message.success(tr('费率卡已创建'));
       }
+      if (!isAllowed()) return;
+      message.success(editingRate ? tr('费率卡已生成新修订') : tr('费率卡已创建'));
+      rateMutationRead.invalidate();
+      rateMutationScope.current = undefined;
       setRateModalOpen(false);
       setEditingRate(undefined);
       void rateActionRef.current?.reload();
     } catch (error) {
+      if (!isAllowed()) return;
       const text = (error as Error)?.message || tr('费率卡保存失败');
       setRateError(text);
       message.error(text);
@@ -429,7 +462,7 @@ export default function WarehouseFeesPage() {
       rateSubmissionLock.current = false;
       setRateSubmitting(false);
     }
-  }, [canManage, editingRate, rateForm, rateSubmitting]);
+  }, [canManage, editingRate, rateForm, rateMutationRead, rateSubmitting]);
 
   const showRateHistory = useCallback(async (row: WarehouseFeeRateCard) => {
     const requestID = ++historyRequest.current;
@@ -447,13 +480,15 @@ export default function WarehouseFeesPage() {
   }, [historyRead]);
 
   useEffect(() => () => {
+    rateMutationRead.invalidate();
+    rateMutationScope.current = undefined;
     confirmationScope.current = undefined;
     historyRead.invalidate();
     previewRead.invalidate();
     candidatesRead.invalidate();
     ledgerRead.invalidate();
     ratesRead.invalidate();
-  }, [historyRead, previewRead, candidatesRead, ledgerRead, ratesRead]);
+  }, [historyRead, previewRead, candidatesRead, ledgerRead, ratesRead, rateMutationRead]);
 
   const openAdjustment = useCallback((row?: WarehouseFeeAdjustment) => {
     if (!canManage || !detail || detail.id !== drawer.id || adjustmentSubmissionLock.current) return;
@@ -777,10 +812,10 @@ export default function WarehouseFeesPage() {
         destroyOnHidden
         maskClosable={!rateSubmitting}
         closable={!rateSubmitting}
-        onCancel={() => { if (!rateSubmitting) { setRateModalOpen(false); setEditingRate(undefined); } }}
+        onCancel={closeRateModal}
         onOk={() => void saveRate()}
         okText={editingRate ? tr('生成新修订') : tr('创建')}
-        okButtonProps={{ disabled: !canManage }}
+        okButtonProps={{ disabled: !canManage || isTenantSwitching() || !canSubmitWarehouseFeeRateMutation(rateMutationScope.current, { canManage, editing: editingRate }) }}
         confirmLoading={rateSubmitting}
       >
         <Form form={rateForm} layout="vertical" preserve={false}>
