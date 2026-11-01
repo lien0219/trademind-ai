@@ -70,8 +70,10 @@ test.describe('@smoke carrier freight fee ledger', () => {
     const dialog = page.getByRole('dialog').first();
     const shopSelect = dialog.getByRole('combobox');
     await shopSelect.click();
-    await shopSelect.press('ArrowDown');
-    await shopSelect.press('Enter');
+    // The fixture contains Douyin and Shopee; ArrowDown can select Shopee
+    // while the preview is correctly scoped to E2E_SHOP_ID (Douyin).
+    await page.locator('.ant-select-dropdown:visible')
+      .getByText('E2E 抖店测试店铺 · douyin_shop', { exact: true }).click();
     await dialog.locator('input[type="file"]').setInputFiles({ name: 'freight.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
     await dialog.getByRole('button', { name: '校验预览' }).click();
     await expect(dialog.getByText(/校验通过/)).toBeVisible();
@@ -102,8 +104,8 @@ test.describe('@smoke carrier freight fee ledger', () => {
       const dialog = page.getByRole('dialog').first();
       const shopSelect = dialog.getByRole('combobox');
       await shopSelect.click();
-      await shopSelect.press('ArrowDown');
-      await shopSelect.press('Enter');
+      await page.locator('.ant-select-dropdown:visible')
+        .getByText('E2E 抖店测试店铺 · douyin_shop', { exact: true }).click();
       await dialog.locator('input[type="file"]').setInputFiles({
         name: 'freight.csv',
         mimeType: 'text/csv',
