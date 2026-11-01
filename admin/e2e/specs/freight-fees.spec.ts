@@ -85,6 +85,40 @@ test.describe('@smoke carrier freight fee ledger', () => {
     await admin.writeGuard.expectRequestCount('freight-fee-confirm', 1);
   });
 
+  for (const scenario of [
+    { name: 'a response for another shop', preview: { ...e2eFreightFeePreview, shopId: 'e2e-other-shop' } },
+    { name: 'a valid response without a calculation hash', preview: { ...e2eFreightFeePreview, calculationHash: '' } },
+  ]) {
+    test(`rejects ${scenario.name} before freight import confirmation`, async ({ admin, page }) => {
+      admin.writeGuard.allow({
+        operation: 'freight-fee-preview',
+        method: 'POST',
+        path: /^\/api\/v1\/freight-fee-imports\/preview$/,
+        response: ok(scenario.preview),
+      });
+
+      await admin.goto('/finance/freight-fees');
+      await page.getByRole('button', { name: '导入账单' }).click();
+      const dialog = page.getByRole('dialog').first();
+      const shopSelect = dialog.getByRole('combobox');
+      await shopSelect.click();
+      await shopSelect.press('ArrowDown');
+      await shopSelect.press('Enter');
+      await dialog.locator('input[type="file"]').setInputFiles({
+        name: 'freight.csv',
+        mimeType: 'text/csv',
+        buffer: Buffer.from(csv),
+      });
+      await dialog.getByRole('button', { name: '校验预览' }).click();
+
+      await admin.writeGuard.expectRequestCount('freight-fee-preview', 1);
+      await expect(dialog.getByRole('button', { name: '确认导入' })).toBeDisabled();
+      await expect(dialog.getByText(/校验通过/)).toHaveCount(0);
+      await admin.writeGuard.expectRequestCount('freight-fee-confirm', 0);
+      await admin.writeGuard.expectRequestCount('unexpected', 0);
+    });
+  }
+
   test('appends a correction and one-time reversal from a deep-linked detail', async ({ admin, page }) => {
     admin.writeGuard.allow({
       operation: 'freight-fee-adjust',

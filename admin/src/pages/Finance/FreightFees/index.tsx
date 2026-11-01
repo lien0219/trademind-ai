@@ -254,10 +254,19 @@ export default function FreightFeesPage() {
     if (!file || !importShopID || previewing) return;
     const requestID = ++requestIDRef.current;
     const isCurrent = previewRead.begin();
+    // Retrying preview must revoke the previous authorization immediately.
+    currentImportScope.current = undefined;
+    setPreview(undefined);
+    setImportKey('');
     setPreviewing(true);
     try {
       const result = await previewFreightFeeImport(file, importShopID);
       if (requestID !== requestIDRef.current || !isCurrent()) return;
+      // A stale or incorrectly scoped response is never confirmation evidence.
+      if (result.shopId !== importShopID || !result.fileHash || (result.valid && !result.calculationHash)) {
+        message.error(tr('CSV 校验失败'));
+        return;
+      }
       const key = freightFeeIdempotencyKey('import');
       currentImportScope.current = { file, shopId: importShopID, fileHash: result.fileHash, calculationHash: result.calculationHash, idempotencyKey: key, isCurrent };
       setPreview(result);
@@ -273,7 +282,7 @@ export default function FreightFeesPage() {
 
   const confirmImport = useCallback(async (expectedScope: FinanceImportPreviewScope | undefined) => {
     const file = nativeFile(fileList);
-    if (!file || !importShopID || !preview?.valid || !importKey || inFlightRef.current) return;
+    if (!canImport || !file || !importShopID || !preview?.valid || !importKey || inFlightRef.current || preview.shopId !== importShopID || !preview.fileHash || !preview.calculationHash) return;
     if (!canConfirmFinanceImport(currentImportScope.current, expectedScope, { file, shopId: importShopID, fileHash: preview.fileHash, calculationHash: preview.calculationHash, idempotencyKey: importKey })) return;
     const isCurrent = expectedScope!.isCurrent;
     inFlightRef.current = true;
@@ -293,7 +302,7 @@ export default function FreightFeesPage() {
       inFlightRef.current = false;
       setSubmitting(false);
     }
-  }, [fileList, importKey, importShopID, preview, resetImport]);
+  }, [canImport, fileList, importKey, importShopID, preview, resetImport]);
 
   const openAdjustment = useCallback((mode: 'adjust' | 'reverse', target?: FreightAdjustment) => {
     if (!canManage || !detail || drawer.id !== detail.id || adjustmentInFlightRef.current ||
