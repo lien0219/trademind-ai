@@ -479,6 +479,15 @@ export default function WarehouseFeesPage() {
     }
   }, [historyRead]);
 
+  const closeRateHistory = () => {
+    // Closing must work even if the server has not returned. Invalidate the
+    // pending request so its late result cannot reopen the dialog.
+    historyRequest.current += 1;
+    historyRead.invalidate();
+    setHistoryLoading(false);
+    setHistoryDetail(undefined);
+  };
+
   useEffect(() => () => {
     rateMutationRead.invalidate();
     rateMutationScope.current = undefined;
@@ -846,7 +855,7 @@ export default function WarehouseFeesPage() {
         </Form>
       </Modal>
 
-      <Modal title={historyDetail ? trFormat('费率卡 {code} 修订历史', { code: historyDetail.code }) : tr('费率修订历史')} open={historyLoading || Boolean(historyDetail)} width={900} footer={null} onCancel={() => { if (!historyLoading) { historyRequest.current += 1; setHistoryDetail(undefined); } }}>
+      <Modal title={historyDetail ? trFormat('费率卡 {code} 修订历史', { code: historyDetail.code }) : tr('费率修订历史')} open={historyLoading || Boolean(historyDetail)} width={900} footer={null} onCancel={closeRateHistory}>
         <Table rowKey="id" loading={historyLoading} columns={historyColumns} dataSource={historyDetail?.revisions || []} pagination={false} scroll={{ x: 820 }} />
       </Modal>
 

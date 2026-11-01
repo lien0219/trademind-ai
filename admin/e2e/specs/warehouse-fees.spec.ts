@@ -49,6 +49,45 @@ test.describe('@smoke warehouse operation fee ledger', () => {
     });
   }
 
+  test('can close rate-card history while loading and ignores the late response', async ({ admin, page }) => {
+    await admin.goto('/finance/warehouse-fees');
+    await page.getByRole('tab', { name: '费率卡' }).click();
+
+    let signalStarted!: () => void;
+    const started = new Promise<void>((resolve) => { signalStarted = resolve; });
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route(`**/api/v1/warehouse-fee-rate-cards/${E2E_WAREHOUSE_FEE_RATE_ID}`, async (route) => {
+      signalStarted();
+      await held;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(ok({ ...e2eWarehouseFeeRate, revisions: [] })),
+      });
+    });
+
+    await page.getByRole('button', { name: '历史' }).click();
+    try {
+      await started;
+      const dialog = page.getByRole('dialog', { name: '费率修订历史' });
+      await expect(dialog).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+
+      const returned = page.waitForResponse((response) =>
+        response.url().includes(`/api/v1/warehouse-fee-rate-cards/${E2E_WAREHOUSE_FEE_RATE_ID}`) &&
+        response.request().method() === 'GET',
+      );
+      release();
+      await returned;
+      await expect(page.getByRole('dialog', { name: /修订历史/ })).toHaveCount(0);
+      await admin.writeGuard.expectRequestCount('unexpected', 0);
+    } finally {
+      release();
+    }
+  });
+
   test('cancels preview without any request', async ({ admin, page }) => {
     await admin.goto('/finance/warehouse-fees');
     await page.getByRole('button', { name: '预览' }).click();
