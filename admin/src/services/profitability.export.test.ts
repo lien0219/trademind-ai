@@ -66,6 +66,21 @@ describe('order profit export tenant isolation', () => {
     expect(click).not.toHaveBeenCalled();
   });
 
+  it('rejects a stale export even when its caller always returns true', async () => {
+    localStorage.setItem(AUTH_TOKEN_KEY, 'tenant-a');
+    let resolveRequest!: (blob: Blob) => void;
+    vi.mocked(request).mockImplementation(() => new Promise<Blob>((resolve) => { resolveRequest = resolve; }) as ReturnType<typeof request>);
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:stale');
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    const pending = downloadOrderProfits({}, () => true);
+    markTenantContextChanged();
+    resolveRequest(new Blob(['private-tenant-a-report']));
+    expect(await pending).toBe(false);
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(click).not.toHaveBeenCalled();
+  });
+
   it('does not request or download when the context is invalid before export', async () => {
     const guard = createTenantReadGuard();
     const isCurrent = guard.begin();
