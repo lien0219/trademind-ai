@@ -47,6 +47,9 @@
 
 ## 开发规则
 
+- 删除界面中多余的标语、说明文字和次要标签；删除后若界面难以理解，必须重新设计受影响区域的布局与信息层级，不能靠堆叠说明补救。必要业务信息与可访问性要求按 `.agents/skills/frontend-design/SKILL.md` 保留。
+- UI 首次交付必须自检布局结构、内容宽度、内外边距、对齐和操作层级并主动修正明显问题，不能把视觉完善留给用户二次指出；具体基线与验证要求见 `.agents/skills/frontend-design/SKILL.md` 第 3.1 节。
+- 每次修改必须同时改善用户体验、开发体验和 AI Agent 的使用体验，三者都要有具体改善且不能破坏现有功能；按 `docs/ai-coding-rules.md` 分别说明改善与验证依据。
 - 任何代码新增、修改、重构或 Bug 修复都适用代码质量规范；高风险修改执行深度审查。
 - 新模块、跨模块修改、shared/common、adapter、worker/queue/scheduler、migration/repository、公共 API/type 或大型重构都适用模块化架构规范。
 - 新代码不得扩大 TypeScript、Go、lint、安全或架构 baseline；不得用 skip、ignore、宽泛 allowlist 掩盖失败。
