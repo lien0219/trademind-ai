@@ -1,6 +1,8 @@
 import { useLanguage } from '@/i18n/useLanguage';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Card, InputNumber, Select, Space, Tag, Typography, message } from 'antd';
+import { Alert, Button, Form, InputNumber, Select, Tag, Typography, message } from 'antd';
+import { ActionBar } from '@/components/ui';
+import { layoutTokens } from '@/constants/layoutTokens';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { getJSON, putJSON } from '@/services/request';
 import { usePermission } from '@/hooks/usePermission';
@@ -84,18 +86,25 @@ export default function ShopInventoryOverride() {
         message.error((e as Error)?.message || tr("保存失败，可能存在版本冲突"));
     } finally {mutationPending.current = false;setSaving(false);}
   };
-  return <Card type="inner" title={tr("店铺级库存阈值覆盖")} size="small" style={{marginTop:18}}>
-    <Space direction="vertical" style={{width:'100%'}}>
-      <Typography.Text type="secondary">{tr("按店铺筛选库存预警时优先使用此阈值；不修改库存数量或已有规格阈值。")}</Typography.Text>
-      <Select style={{width:'100%'}} placeholder={tr("选择店铺")} value={selected || undefined}
+  return <section className="tm-tenant-business-settings__shop-override" aria-label={tr("店铺级库存阈值覆盖")} style={{marginTop:layoutTokens.sectionGap}}>
+    <Typography.Title level={5}>{tr("店铺级库存阈值覆盖")}</Typography.Title>
+    <Typography.Paragraph type="secondary">{tr("按店铺筛选库存预警时优先使用此阈值；不修改库存数量或已有规格阈值。")}</Typography.Paragraph>
+    <Form layout="vertical" component={false}>
+      <Form.Item label={tr("选择店铺")} htmlFor="tenant-inventory-override-shop">
+      <Select id="tenant-inventory-override-shop" style={{width:'100%'}} placeholder={tr("选择店铺")} value={selected || undefined}
         options={shops.map(shop=>({label:`${shop.shopName} (${shop.platform})`,value:shop.id}))}
         disabled={saving} onChange={setSelected} />
+      </Form.Item>
       {error?<Alert type="warning" message={error} showIcon />:null}
       {snapshot?<><Tag>{snapshot.origin==='shop'?tr("店铺覆盖"):tr("继承企业默认")} · {tr('版本')} {snapshot.version}</Tag>
-        <InputNumber style={{width:'100%'}} value={threshold} min={0} max={1000000} disabled={!canWrite || loading || saving}
+        <Form.Item label={tr("预警阈值")} htmlFor="tenant-inventory-override-threshold" style={{marginTop:layoutTokens.fieldGroupGap}}>
+        <InputNumber id="tenant-inventory-override-threshold" style={{width:'100%'}} value={threshold} min={0} max={1000000} disabled={!canWrite || loading || saving}
           onChange={value=>setThreshold(value ?? 0)} />
+        </Form.Item>
+        <ActionBar>
         <Button type="primary" disabled={!canWrite || loading || saving} loading={saving} onClick={()=>void save()}>{tr("保存店铺覆盖")}</Button>
+        </ActionBar>
       </>:null}
-    </Space>
-  </Card>;
+    </Form>
+  </section>;
 }

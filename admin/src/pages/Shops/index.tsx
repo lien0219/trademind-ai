@@ -482,7 +482,6 @@ export default function ShopsPage() {
   return (
     <TmPageContainer
       title={tr("店铺管理")}
-      subTitle={tr("授权并管理已连接的电商平台店铺，可在此同步订单与更新店铺信息。")}
     >
       <ProTable<ShopListRow>
         rowKey="id"

@@ -4,6 +4,13 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Admin interface and layout maintenance (2026-11-02)
+
+- Simplified page headings, secondary labels, settings panels and authentication screens while retaining actionable status and risk guidance; removed fabricated login metrics.
+- Reused shared spacing and form components, bounded short configuration forms, and corrected nested card padding, narrow-screen header clipping and product metadata wrapping.
+- Stopped the business settings loading indicator after a failed read and preserved retry, readonly and submission behavior. Extended existing regression coverage for responsive layouts and guarded configuration writes.
+- Audited repository entry points beyond Admin and corrected stale Collector paths, environment-variable names, command descriptions, queue and E2E guidance, and misleading provider metadata without changing runtime contracts.
+
 ### Six-language Admin localization and tenant branding (2026-10-28)
 
 - Completed the strict Admin source audit with six-locale coverage, dynamic language-switch labels, localized API error guidance, and regression checks that preserve raw business identifiers and diagnostics.

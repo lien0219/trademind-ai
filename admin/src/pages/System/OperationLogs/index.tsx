@@ -139,7 +139,7 @@ export default function OperationLogsPage() {
   ];
 
   return (
-    <TmPageContainer title={PAGE_COPY.operationLogs.title} subTitle={PAGE_COPY.operationLogs.description}>
+    <TmPageContainer title={PAGE_COPY.operationLogs.title}>
       <ProTable<OperationLogRow>
         rowKey="id"
         actionRef={actionRef}

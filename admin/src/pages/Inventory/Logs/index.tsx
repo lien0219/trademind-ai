@@ -118,7 +118,7 @@ export default function InventoryLogsPage() {
   );
 
   return (
-    <TmPageContainer title={tr("库存流水")} subTitle={tr("查看本地库存变更记录，便于核对扣减、恢复与手动调整。")}>
+    <TmPageContainer title={tr("库存流水")}>
       <ProTable<InventoryChangeLogRow>
         rowKey="id"
         actionRef={actionRef}

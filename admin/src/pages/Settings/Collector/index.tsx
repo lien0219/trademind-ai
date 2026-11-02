@@ -375,7 +375,6 @@ function CollectorCustomSection({ providerRow }: { providerRow?: CollectProvider
           type="info"
           showIcon
           message={tr("用于采集没有专用采集器的网站商品页")}
-          description={tr("请先创建采集规则，再开始采集。需要登录的网站，可管理登录状态并在采集浏览器中自行登录后再测试与采集。")}
         />
         <Space wrap className="tm-action-space">
           <Button type="primary" onClick={() => history.push('/collect/browser-profiles')}>{tr("管理登录状态")}</Button>

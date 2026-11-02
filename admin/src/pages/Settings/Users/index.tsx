@@ -442,7 +442,6 @@ export default function SettingsUsersPage() {
               await loadRoles();
               actionRef.current?.reload();
           })}>
-            <p className="tm-role-editor__intro">{tr("按岗位配置权限，创建后可分配给用户。")}</p>
             {roleEdit && <Alert className="tm-role-editor__notice" type="info" showIcon message={trFormat("当前关联用户：{value0} 人。保存权限或停用角色会触发重新鉴权。", { value0: roleEdit.memberCount })} />}
             <div className="tm-role-editor__fields">
               <Form.Item label={tr("角色名称")} name="name" rules={[{ required: true, message: tr("请输入角色名称") }, { max: 80, message: tr("角色名称不能超过 80 个字符") }]}>

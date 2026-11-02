@@ -8,7 +8,6 @@ import {
   Collapse,
   Form,
   Image,
-  Space,
   Spin,
   Tag,
   Typography,
@@ -108,9 +107,6 @@ export function TranslateImageTextModal({
   const [ocrMessage, setOcrMessage] = useState('');
   const [ocrCheckFailed, setOcrCheckFailed] = useState(false);
   const [sourceImageFailed, setSourceImageFailed] = useState(false);
-  const watchedSourceLanguage = Form.useWatch('sourceLanguage', form) ?? prefill?.sourceLanguage ?? 'auto';
-  const watchedTargetLanguage = Form.useWatch('targetLanguage', form) ?? prefill?.targetLanguage ?? 'en';
-
   const productId = (fixedProductId || prefill?.productId || '').trim();
   const sourceImageId = (prefill?.sourceImageId || sourceImage?.id || '').trim();
   const sourceImageUrl = (
@@ -121,8 +117,6 @@ export function TranslateImageTextModal({
   ).trim();
 
   const providerOptions = useMemo(() => optionsForTask('translate_image_text'), [optionsForTask]);
-  const sourceLanguageLabel = TRANSLATE_IMAGE_TEXT_SOURCE_LANG_OPTIONS.find((item) => item.value === watchedSourceLanguage)?.label ?? tr("自动识别");
-  const targetLanguageLabel = TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS.find((item) => item.value === watchedTargetLanguage)?.label ?? tr("英文");
   const ocrStatusType = ocrChecking ? 'info' : ocrReady ? 'success' : ocrCheckFailed ? 'error' : 'warning';
   const ocrStatusTitle = ocrChecking
     ? tr("正在检测 OCR 服务")
@@ -350,12 +344,6 @@ export function TranslateImageTextModal({
               <FontColorsOutlined />
               {tr("翻译设置")}
             </Typography.Text>
-            <Space size={[6, 4]} wrap>
-              <Tag bordered={false}>{sourceLanguageLabel}</Tag>
-              <Tag color="blue" bordered={false}>
-                {targetLanguageLabel}
-              </Tag>
-            </Space>
           </div>
           <div className="tm-translate-image-text-modal__field-grid">
             <ProFormSelect
@@ -389,9 +377,6 @@ export function TranslateImageTextModal({
               <CloudUploadOutlined />
               {tr("结果处理")}
             </Typography.Text>
-            <Tag color="default" bordered={false}>
-              {tr("不覆盖原图")}
-            </Tag>
           </div>
           <div className="tm-translate-image-text-modal__result-options">
             <div className="tm-translate-image-text-modal__option">

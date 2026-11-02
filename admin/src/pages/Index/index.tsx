@@ -8,7 +8,6 @@ import {
   CloudDownloadOutlined,
   CloudServerOutlined,
   FileImageOutlined,
-  GlobalOutlined,
   InboxOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
@@ -186,13 +185,8 @@ export default function IndexPage() {
           />
           <div className="landing-section landing-hero__inner">
             <div className="landing-hero__copy" data-landing-reveal>
-              <div className="landing-eyebrow">
-                <GlobalOutlined />
-                <span>{tr("开源 AI 跨境电商运营平台")}</span>
-              </div>
               <h1 id="landing-hero-title">
-                {tr("让商品运营，")}
-                <span>{tr("从采集到刊登更顺畅")}</span>
+                {tr("AI 跨境电商运营平台")}
               </h1>
               <p>
                 {tr("TradeMind 聚焦商品采集、草稿整理、AI 内容优化、图片处理、多平台刊登与库存协同，为跨境团队提供一套可部署、可扩展的运营工作台。")}
@@ -337,21 +331,6 @@ export default function IndexPage() {
           </div>
         </section>
 
-        <section className="landing-proof" aria-label={tr("技术特点")}>
-          <div
-            className="landing-section landing-proof__inner"
-            data-landing-reveal
-          >
-            <span>{tr("开源可审计")}</span>
-            <i />
-            <span>PostgreSQL + Redis</span>
-            <i />
-            <span>Docker Compose</span>
-            <i />
-            <span>React + Go</span>
-          </div>
-        </section>
-
         <section
           id="capabilities"
           className="landing-content-section landing-capabilities"
@@ -359,11 +338,7 @@ export default function IndexPage() {
         >
           <div className="landing-section">
             <div className="landing-section-heading" data-landing-reveal>
-              <span>{tr("产品能力")}</span>
-              <h2 id="capabilities-title">{tr("围绕高频运营链路，减少工具切换")}</h2>
-              <p>
-                {tr("用清晰的任务、草稿与状态承接跨境商品运营，不把平台扩展成难以维护的重型 ERP。")}
-              </p>
+              <h2 id="capabilities-title">{tr("产品能力")}</h2>
             </div>
             <div className="landing-capability-grid">
               {capabilities.map((item, index) => (
@@ -396,8 +371,7 @@ export default function IndexPage() {
               className="landing-section-heading landing-section-heading--left"
               data-landing-reveal
             >
-              <span>{tr("工作流程")}</span>
-              <h2 id="workflow-title">{tr("一条可追踪、可复核的商品运营主线")}</h2>
+              <h2 id="workflow-title">{tr("工作流程")}</h2>
             </div>
             <ol className="landing-workflow-list">
               {workflow.map((item, index) => (
@@ -426,11 +400,8 @@ export default function IndexPage() {
         >
           <div className="landing-section landing-deployment__inner">
             <div className="landing-deployment__copy" data-landing-reveal>
-              <span className="landing-deployment__label">
-                {tr("为自部署与二次开发而设计")}
-              </span>
               <h2 id="deployment-title">
-                {tr("保留数据控制权，也保留持续扩展的空间")}
+                {tr("开源部署")}
               </h2>
               <p>
                 {tr("前后端、采集服务、PostgreSQL 与 Redis 统一维护；AI、图片、存储、平台和采集能力通过标准化接口接入。")}

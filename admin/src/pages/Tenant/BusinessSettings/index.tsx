@@ -2,7 +2,8 @@ import { useLanguage } from '@/i18n/useLanguage';
 import { useEffect, useState, useRef } from 'react';
 import { Alert, Button, Card, Form, Grid, Input, InputNumber, Modal, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
 import { HistoryOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
-import { TmPageContainer } from '@/components/ui';
+import { ActionBar, TmPageContainer } from '@/components/ui';
+import { layoutTokens } from '@/constants/layoutTokens';
 import { tr, formatLocalizedDate } from '@/i18n';
 import { languageNames, supportedLanguages } from '@/i18n/dictionaries';
 import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
@@ -10,6 +11,7 @@ import ShopInventoryOverride from './ShopInventoryOverride';
 import { usePermission } from '@/hooks/usePermission';
 import { PERMISSIONS } from '@/utils/permission';
 import { getBusinessSettings, putBusinessSettings, listBusinessSettingsHistory, restoreBusinessSettings, type BusinessModule, type BusinessSnapshot, type BusinessRevision } from '@/services/tenantBusinessSettings';
+import './index.less';
 
 const labels: Record<BusinessModule, string> = {
   general: '基础偏好',
@@ -223,19 +225,21 @@ export default function TenantBusinessSettingsPage() {
         <Button disabled={!snapshot || saving} onClick={()=>fileInput.current?.click()}>{tr("导入预览")}</Button></>:null}
       <Button icon={<ReloadOutlined />} disabled={saving} onClick={() => void load(module)} loading={loading}>{tr("刷新")}</Button>
     </Space>}>
-    <div style={{display:'grid',gridTemplateColumns:screens.md ? 'minmax(150px, 210px) minmax(0, 1fr)' : 'minmax(0,1fr)',gap:16}}>
+    <div style={{display:'grid',gridTemplateColumns:screens.lg ? 'minmax(150px, 210px) minmax(0, 1fr)' : 'minmax(0,1fr)',gap:16}}>
       <Card size="small" styles={{body:{padding:8}}}>
-        <Space direction="vertical" style={{width:'100%'}}>
-          {modules.map(item=><Button key={item} block disabled={saving} type={module===item?'primary':'text'} style={{textAlign:'left'}} onClick={()=>chooseModule(item)}>{tr(labels[item])}</Button>)}
-        </Space>
+        <nav aria-label={tr("企业业务配置")}>
+          <Space direction={screens.lg ? 'vertical' : 'horizontal'} wrap={!screens.lg} style={{width:'100%'}}>
+            {modules.map(item=><Button key={item} block={screens.lg} disabled={saving} type={module===item?'primary':'text'} style={{textAlign:'left'}} onClick={()=>chooseModule(item)}>{tr(labels[item])}</Button>)}
+          </Space>
+        </nav>
       </Card>
       <Card title={<div style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center',justifyContent:'space-between',whiteSpace:'normal'}}>
         <span>{tr(labels[module])}</span>
         <Space wrap><Tag>{snapshot?.inherited?tr('继承默认值'):`${tr('版本')} ${snapshot?.version || 0}`}</Tag>{writable?<Button icon={<HistoryOutlined />} onClick={()=>void openHistory()}>{tr("版本历史")}</Button>:null}</Space>
       </div>}>
         {error?<Alert type="error" showIcon message={error} action={<Button onClick={()=>void load(module)}>{tr("重试")}</Button>}/>:null}
-        {loading || !snapshot?<div style={{padding:30,textAlign:'center'}}><Spin /></div>:
-          <Form form={form} layout="vertical" disabled={!writable || saving} onValuesChange={() => { formDirty.current = true; }}>
+        {loading || !snapshot?(error ? null : <div style={{padding:30,textAlign:'center'}}><Spin /></div>):
+          <Form className="tm-tenant-business-settings__form" form={form} layout="vertical" disabled={!writable || saving} onValuesChange={() => { formDirty.current = true; }}>
             {module==='general'?<>
               <Form.Item name="language" label={tr("默认界面语言")} rules={[{required:true}]}><Select options={languageOptions}/></Form.Item>
               <Form.Item name="timezone" label={tr("默认时区")} rules={[{required:true}]}><Select options={[
@@ -244,47 +248,47 @@ export default function TenantBusinessSettingsPage() {
               <Form.Item name="currency" label={tr("报表显示货币")} rules={[{required:true}]}><Select options={[
                 {value:'CNY',label:tr("人民币 CNY")}, {value:'USD',label:tr("美元 USD")}, {value:'JPY',label:tr("日元 JPY")},
               ]}/></Form.Item>
-              <Alert type="info" showIcon message={tr("语言与时区用于界面显示")} description={tr("个人语言优先于企业默认语言；货币偏好不执行换汇，也不改写订单金额。")}/>
+              <Alert type="info" showIcon message={tr("个人语言优先于企业默认语言；货币偏好不执行换汇，也不改写订单金额。")}/>
             </>:null}
             {module==='ai'?<>
               <Form.Item name="defaultLanguage" label={tr("AI 文案默认语言")} rules={[{required:true}]}><Select options={languageOptions}/></Form.Item>
-              <Alert type="success" showIcon message={tr("已接入 AI 文案批次")} description={tr("新建 AI 文案批次未显式指定语言时使用此默认值；已有任务保留创建时输入。")}/>
+              <Alert type="info" showIcon message={tr("新建 AI 文案批次未显式指定语言时使用此默认值；已有任务保留创建时输入。")}/>
             </>:null}
             {module==='collect'?<>
               <Form.Item name="allowedSources" label={tr("允许的采集来源")} extra={tr("留空表示继承平台所有已开放来源；设置后，未选来源会被后端拒绝。")}><Select mode="multiple" allowClear options={sourceOptions.map(item => ({...item, label:tr(item.label)}))} placeholder={tr("继承全部来源")}/></Form.Item>
               <Form.Item name="maxBatchURLs" label={tr("企业采集批次链接上限")} extra={tr("0 表示继承平台上限；企业值只能收紧，不能提高平台上限。")} rules={[{required:true}]}><InputNumber min={0} max={100} style={{width:'100%'}}/></Form.Item>
-              <Alert type="success" showIcon message={tr("已接入采集任务创建")} description={tr("单条与批量新任务执行服务端校验，不能仅通过绕开 UI 来突破企业限制。")}/>
+              <Alert type="info" showIcon message={tr("单条与批量新任务执行服务端校验，不能仅通过绕开 UI 来突破企业限制。")}/>
             </>:null}
             {module==='inventory'?<>
               <Form.Item name="lowStockThreshold" label={tr("企业默认低库存阈值")} rules={[{required:true}]}><InputNumber min={0} max={1000000} style={{width:'100%'}}/></Form.Item>
-              <Alert type="info" showIcon message={tr("已接入新商品库存阈值")} description={tr("新采集商品使用企业默认阈值；已有规格保留显式阈值，按店铺筛选预警时使用店铺覆盖。")} />
+              <Alert type="info" showIcon message={tr("新采集商品使用企业默认阈值；已有规格保留显式阈值，按店铺筛选预警时使用店铺覆盖。")} />
             </>:null}
             {module==='notifications'?<>
               <Form.Item name="businessAlertsEnabled" label={tr("开启企业业务通知")} valuePropName="checked"><Switch/></Form.Item>
               <Form.Item name="mailRecipients" label={tr("企业告警邮件接收人")} extra={tr("最多 10 个地址；留空继承平台通知收件人。SMTP 配置由平台统一管理。")}>
                 <Select mode="tags" tokenSeparators={[',']} maxCount={10} placeholder="ops@example.com"/>
               </Form.Item>
-              <Alert type="info" showIcon message={tr("已接入任务告警通知")} description={tr("关闭后停止当前企业任务告警的自动投递；不影响人工通知或平台渠道安全限制。")} />
+              <Alert type="info" showIcon message={tr("关闭后停止当前企业任务告警的自动投递；不影响人工通知或平台渠道安全限制。")} />
             </>:null}
             {module==='orders'?<>
               <Form.Item name="defaultCurrency" label={tr("手工订单默认币种")} rules={[{required:true}]}>
                 <Select options={[{value:'USD',label:tr("美元 USD")},{value:'CNY',label:tr("人民币 CNY")},{value:'JPY',label:tr("日元 JPY")},{value:'EUR',label:tr("欧元 EUR")},{value:'GBP',label:tr("英镑 GBP")}]}/>
               </Form.Item>
-              <Alert type="success" showIcon message={tr("已接入手工订单创建")} description={tr("创建手工订单且未指定币种时应用当前企业默认值；平台订单同步不会被改写，已存在订单的币种和金额保持不变。")}/>
+              <Alert type="info" showIcon message={tr("创建手工订单且未指定币种时应用当前企业默认值；平台订单同步不会被改写，已存在订单的币种和金额保持不变。")}/>
             </>:null}
             {module==='branding'?<>
               <Form.Item name="displayName" label={tr("企业展示名称")}><Input maxLength={120}/></Form.Item>
               <Form.Item name="logoUrl" label={tr("企业 Logo HTTPS 地址")} rules={[{type:'url'}]}><Input placeholder="https://..."/></Form.Item>
               <Form.Item name="labels" label={tr("企业标签")}><Select mode="tags" maxCount={20} placeholder={tr("添加标签，回车确认")}/></Form.Item>
             </>:null}
-            {writable && (templates[module]?.length ?? 0)>0?<div style={{marginBottom:16}}>
+            {writable && (templates[module]?.length ?? 0)>0?<div style={{marginTop:layoutTokens.fieldGroupGap}}>
               <Typography.Text strong>{tr("配置模板")}</Typography.Text>
               <div style={{marginTop:8}}><Space wrap>{templates[module]?.map(template=>
                 <Button key={template.name} size="small" onClick={()=>setPreview(template)}>{tr(template.name)}</Button>
               )}</Space></div>
               <Typography.Text type="secondary">{tr("模板只会预填表单；保存后才会生效。")}</Typography.Text>
             </div>:null}
-            <Space wrap><Button type="primary" icon={<SaveOutlined />} disabled={!writable} loading={saving} onClick={()=>void save()}>{tr("保存企业配置")}</Button><Button onClick={()=>void load(module)}>{tr("放弃更改")}</Button></Space>
+            <ActionBar><Button type="primary" icon={<SaveOutlined />} disabled={!writable} loading={saving} onClick={()=>void save()}>{tr("保存企业配置")}</Button><Button onClick={()=>void load(module)}>{tr("放弃更改")}</Button></ActionBar>
           </Form>}
         {module==='inventory' && !loading && snapshot ? <ShopInventoryOverride/> : null}
         {historyOpen?<div style={{marginTop:20}}>

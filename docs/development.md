@@ -109,7 +109,7 @@ pnpm dev:collector
 pnpm collect:test
 ```
 
-`collect:test` 仅用于采集器测试模式，不等同于生产平台验收。
+`collect:test` 是需要显式 URL 的手动真实采集调试命令，会启动浏览器并访问目标页面；它不是 Mock/offline 测试，也不等同于生产平台验收。自动化采集回归使用 `pnpm test:collector`。
 
 ## 本地产物
 

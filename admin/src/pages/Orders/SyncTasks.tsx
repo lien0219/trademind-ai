@@ -255,7 +255,7 @@ export default function OrderSyncTasksPage() {
   const output = parseOutput(detail?.output);
 
   return (
-    <TmPageContainer title={PAGE_COPY.orderSyncTasks.title} subTitle={PAGE_COPY.orderSyncTasks.description}>
+    <TmPageContainer title={PAGE_COPY.orderSyncTasks.title}>
       <ProTable<OrderSyncTaskDTO>
         rowKey="id"
         actionRef={actionRef}

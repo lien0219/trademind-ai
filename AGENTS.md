@@ -82,8 +82,10 @@ pnpm check:ui-copy --strict
 pnpm build:admin
 pnpm build:collector
 pnpm architecture:check
-pnpm workflow:verify
+pnpm workflow:check
 ```
+
+`pnpm workflow:verify` 还会执行 Vitest 工作流测试；本地未运行的自动化回归仍交由 CI。
 
 核心自动化回归命令由 GitHub Actions 编排，包括：
 

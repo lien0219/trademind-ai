@@ -738,7 +738,6 @@ export default function OrdersPage() {
   return (
     <TmPageContainer
       title={PAGE_COPY.orderList.title}
-      subTitle={PAGE_COPY.orderList.description}
     >
       <KeywordSafetyHint visible={showSensitiveHint} />
       <ProTable<OrderListRow>

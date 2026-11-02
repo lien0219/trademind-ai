@@ -365,7 +365,6 @@ export default function PlatformTenantsPage() {
   return (
     <TmPageContainer
       title={tr("租户管理")}
-      subTitle={tr("管理企业开通、状态、联系人与平台审计。")}
       extra={[
         <Button key="create" type="primary" icon={<PlusOutlined />} onClick={openCreate}>{tr("创建企业")}</Button>,
       ]}

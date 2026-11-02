@@ -104,7 +104,6 @@ export default function FilesPage() {
   return (
     <TmPageContainer
       title={tr("文件管理")}
-      subTitle={tr("管理已上传的商品图片与附件。")}
       extra={
         <Link key="hint" to="/settings/storage">
           {tr('存储设置')}

@@ -63,7 +63,6 @@ export default function CustomerHubPage() {
   return (
     <TmPageContainer
       title={tr("客服中心")}
-      subTitle={tr("查看待回复会话、AI 建议、受控自动回复与消息同步状态。")}
     >
       <Alert
         type="info"

@@ -1,16 +1,8 @@
 import { useLanguage } from '@/i18n/useLanguage';
 import {
   ArrowRightOutlined,
-  CheckCircleOutlined,
-  CloudDownloadOutlined,
-  CloudUploadOutlined,
-  DashboardOutlined,
-  FileImageOutlined,
-  InboxOutlined,
   LockOutlined,
   MailOutlined,
-  RobotOutlined,
-  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { Alert, Form, Input, Checkbox, Button, Tabs, Row, Col } from 'antd';
 import { history, Link, useLocation } from '@umijs/max';
@@ -25,17 +17,6 @@ import { formatUserErrorMessage } from '@/constants/errorMessages';
 import { PASSWORD_HINT, passwordError } from '@/utils/password';
 import { changeRequiredPassword, getProfile, isPasswordChangeRequired, login, register, sendEmailCode, type LoginResult } from '@/services/auth';
 import './index.less';
-
-const FEATURE_TAGS = [
-  { icon: <CloudDownloadOutlined />, get label() { return tr("多平台商品采集"); }, className: 'tag-blue' },
-  { icon: <RobotOutlined />, get label() { return tr("AI 商品运营"); }, className: 'tag-violet' },
-  { icon: <FileImageOutlined />, get label() { return tr("图片智能处理"); }, className: 'tag-teal' },
-  { icon: <CloudUploadOutlined />, get label() { return tr("多平台刊登"); }, className: 'tag-indigo' },
-  { icon: <InboxOutlined />, get label() { return tr("库存同步"); }, className: 'tag-green' },
-  { icon: <DashboardOutlined />, get label() { return tr("运营看板"); }, className: 'tag-amber' },
-] as const;
-
-const PLATFORM_ITEMS = ['1688', 'Shopee', 'Lazada', 'Temu'];
 
 type AuthTabKey = 'login' | 'register';
 
@@ -182,7 +163,6 @@ export default function LoginPage() {
     }
   };
 
-  const [heroBeforeAI, heroAfterAI] = tr('用 {ai} 串联商品、刊登与库存增长').split('{ai}');
   return (
     <div className="login-shell">
       <div style={{position:'absolute',top:16,right:24,zIndex:20}}>
@@ -194,84 +174,13 @@ export default function LoginPage() {
         </select>
       </div>
       <div className="login-container">
-        <div className="login-left">
-          <div className="login-left-decor" aria-hidden="true">
-            <div className="decor-line decor-line-1" />
-            <div className="decor-line decor-line-2" />
-            <div className="decor-card decor-card-1" />
-            <div className="decor-card decor-card-2" />
-            <div className="decor-card decor-card-3" />
-          </div>
-
-          <div className="login-left-content">
-            <div className="brand">
-              <BrandLogo height={32} />
-              <div>
-                <div className="brand-text">{tr("贸灵 TradeMind")}</div>
-                <div className="brand-sub">AI-Powered Cross-Border ERP</div>
-              </div>
-            </div>
-
-            <div className="slogan">
-              <div className="eyebrow">
-                <SafetyCertificateOutlined />
-                <span>{tr("面向跨境团队的 AI 运营工作台")}</span>
-              </div>
-              <h1>
-                {heroBeforeAI}<span className="highlight">AI</span>{heroAfterAI}
-              </h1>
-              <p>
-                {tr('从商品采集、图片处理、AI 优化到多平台刊登，TradeMind 把高频运营动作收进一个更轻、更快的工作台。')}
-              </p>
-            </div>
-
-            <div className="features">
-              {FEATURE_TAGS.map((tag, index) => (
-                <div
-                  key={tag.label}
-                  className={`feature-tag ${tag.className}`}
-                  style={{ animationDelay: `${index * 80 + 180}ms` }}
-                >
-                  {tag.icon} {tr(tag.label)}
-                </div>
-              ))}
-            </div>
-
-            <div className="hero-board" aria-hidden="true">
-              <div className="hero-board__top">
-                <div>
-                  <span className="hero-board__label">Today GMV</span>
-                  <strong>¥128,430</strong>
-                </div>
-                <span className="hero-board__badge">+18.6%</span>
-              </div>
-              <div className="hero-board__chart">
-                <span className="chart-bar chart-bar-1" />
-                <span className="chart-bar chart-bar-2" />
-                <span className="chart-bar chart-bar-3" />
-                <span className="chart-bar chart-bar-4" />
-                <span className="chart-bar chart-bar-5" />
-              </div>
-              <div className="hero-board__flow">
-                {PLATFORM_ITEMS.map((platform) => (
-                  <span key={platform}>{platform}</span>
-                ))}
-              </div>
-              <div className="hero-board__task">
-                <CheckCircleOutlined />
-                <span>{tr("AI 已生成 36 条商品优化建议")}</span>
-              </div>
-            </div>
-          </div>
-        </div>
 
         <div className="login-right">
           <div className="login-right-inner">
-            <div className="mobile-brand">
+            <div className="auth-brand">
               <BrandLogo height={28} />
               <div>
-                <div className="brand-text">{tr("贸灵 TradeMind")}</div>
-                <div className="brand-sub">AI-Powered Cross-Border ERP</div>
+                <h1 className="brand-text">{tr("贸灵 TradeMind")}</h1>
               </div>
             </div>
 
@@ -286,15 +195,6 @@ export default function LoginPage() {
                   { key: 'register', label: tr('注册') },
                 ]}
               />
-
-              <div className="welcome-text" key={`welcome-${activeTab}`}>
-                <h2>{activeTab === 'login' ? tr('欢迎回来') : tr('注册账号')}</h2>
-                <p>
-                  {activeTab === 'login'
-                    ? tr('登录你的 TradeMind 工作台')
-                    : tr('开启你的 AI 跨境之旅')}
-                </p>
-              </div>
 
             {activeTab === 'login' && passwordChangeAccount ? (
               <Form

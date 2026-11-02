@@ -30,25 +30,23 @@ async function expectOperationTaskListLayout(page: Page) {
   const tableScroller = page.locator('.operation-tasks-page__table .ant-table-content');
 
   await expect(title).toHaveText('运营任务中心');
-  await expect(subtitle).toContainText('查看运营任务、草稿版本、人工审核');
+  await expect(subtitle).toHaveCount(0);
+  await expect(page.locator('.operation-tasks-page__runtime')).toBeVisible();
   await expect(page.getByText('任务列表', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '应用筛选' })).toBeVisible();
   await expect(page.getByRole('button', { name: '清除筛选' })).toBeVisible();
 
   const metrics = await page.evaluate(() => {
     const titleElement = document.querySelector<HTMLElement>('.operation-tasks-page-shell .ant-page-header-heading-title');
-    const subtitleElement = document.querySelector<HTMLElement>('.operation-tasks-page-shell .ant-page-header-heading-sub-title');
     const actionsElement = document.querySelector<HTMLElement>('.operation-tasks-page__header-actions');
     const tableElement = document.querySelector<HTMLElement>('.operation-tasks-page__table');
     const tableScrollerElement = document.querySelector<HTMLElement>('.operation-tasks-page__table .ant-table-content');
-    if (!titleElement || !subtitleElement || !actionsElement || !tableElement || !tableScrollerElement) return null;
+    if (!titleElement || !actionsElement || !tableElement || !tableScrollerElement) return null;
     const actions = actionsElement.getBoundingClientRect();
     const table = tableElement.getBoundingClientRect();
     return {
       titleClientWidth: titleElement.clientWidth,
       titleScrollWidth: titleElement.scrollWidth,
-      subtitleClientWidth: subtitleElement.clientWidth,
-      subtitleScrollWidth: subtitleElement.scrollWidth,
       actionsLeft: actions.left,
       actionsRight: actions.right,
       tableLeft: table.left,
@@ -62,7 +60,6 @@ async function expectOperationTaskListLayout(page: Page) {
   expect(metrics, 'operation task list layout metrics').not.toBeNull();
   if (!metrics) return;
   expect(metrics.titleScrollWidth, `page title clipping ${JSON.stringify(metrics)}`).toBeLessThanOrEqual(metrics.titleClientWidth + 1);
-  expect(metrics.subtitleScrollWidth, `page subtitle clipping ${JSON.stringify(metrics)}`).toBeLessThanOrEqual(metrics.subtitleClientWidth + 1);
   expect(metrics.actionsLeft, `header actions left ${JSON.stringify(metrics)}`).toBeGreaterThanOrEqual(0);
   expect(metrics.actionsRight, `header actions right ${JSON.stringify(metrics)}`).toBeLessThanOrEqual(metrics.viewportWidth + 1);
   expect(metrics.tableLeft, `table left ${JSON.stringify(metrics)}`).toBeGreaterThanOrEqual(0);

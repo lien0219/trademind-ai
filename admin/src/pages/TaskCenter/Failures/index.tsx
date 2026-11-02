@@ -668,7 +668,6 @@ export default function TaskCenterFailuresPage() {
   return (
     <TmPageContainer
       title={PAGE_COPY.taskFailures.title}
-      subTitle={PAGE_COPY.taskFailures.description}
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <KeywordSafetyHint visible={showSensitiveHint} />

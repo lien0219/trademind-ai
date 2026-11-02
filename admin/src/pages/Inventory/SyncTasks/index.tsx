@@ -272,7 +272,7 @@ export default function InventorySyncTasksPage() {
   );
 
   return (
-    <TmPageContainer title={PAGE_COPY.inventorySyncTasks.title} subTitle={PAGE_COPY.inventorySyncTasks.description}>
+    <TmPageContainer title={PAGE_COPY.inventorySyncTasks.title}>
       <InventorySyncDisabledBanner />
       <Alert
         showIcon

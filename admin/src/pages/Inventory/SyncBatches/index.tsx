@@ -246,7 +246,7 @@ export default function InventorySyncBatchesPage() {
   );
 
   return (
-    <TmPageContainer title={tr("库存同步批次")} subTitle={tr("查看批量库存同步任务的批次进度与汇总结果。")}>
+    <TmPageContainer title={tr("库存同步批次")}>
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         {tr("批量创建的库存同步任务会归入批次；后台任务进程完成后按任务聚合回写批次统计。单次创建上限见")}{' '}
         <Typography.Link href="/settings/inventory">{tr("设置 · 库存 / 订单")}</Typography.Link>{' '}

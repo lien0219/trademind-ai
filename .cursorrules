@@ -3,7 +3,7 @@
 项目名称：贸灵 TradeMind
 定位：开源 AI 跨境电商运营平台。
 当前生命周期：生产维护；仓库默认运行时能力仍保持 fail closed，真实能力由外部审批启用。
-核心方向：商品采集、商品草稿、AI 标题优化、AI 描述生成、图片处理预留、店铺授权预留、AI 客服预留、ERP 扩展预留。
+核心方向：商品采集、商品草稿、AI 内容与图片处理、店铺与平台协同、订单库存及 ERP 扩展。具体可用状态以 README、`docs/module-map.md`、Provider registry 和设置页能力元数据为准，不要仅凭“预留”字样判断模块是否已实现。
 
 ## 技术栈
 
@@ -12,8 +12,8 @@
 - 数据库：**PostgreSQL**（本地与默认开发）；MySQL 仅可选（`DB_DRIVER=mysql`）
 - 队列缓存：Redis
 - 采集服务：Node.js + TypeScript + Playwright
-- AI：OpenAI-compatible Provider 优先，DeepSeek / Qwen / Doubao / Gemini / Claude / Ollama 预留
-- 存储：local 优先，S3 / COS / OSS / R2 / MinIO 预留
+- AI：通过 AI Gateway 和 Provider 接入；Provider 的可用状态与配置要求以代码注册表和设置页能力元数据为准
+- 存储：支持 local 及已注册的云存储 Provider；未配置或未获批准的能力保持 fail closed
 
 ## MVP 闭环
 
@@ -79,13 +79,13 @@
 - AI 能力必须通过 AI Gateway + AI Provider。
 - Prompt 必须可配置，不能只写死在代码中。
 - AI 调用必须记录 provider、model、prompt_code、input、output、status、token_input、token_output、error_message。
-- AI 客服 MVP 阶段默认只生成建议回复，必须人工确认，不自动发送。
+- AI 客服默认生成建议回复；低风险自动回复只有在店铺级开关、频率、敏感承诺、审计和人工接管保护均满足时才可启用。
 - AI 图片能力必须通过 Image Provider 扩展。
 
 ## 存储规则
 
 - MVP 必须支持 local storage。
-- 后期预留 S3 / COS / OSS / R2 / MinIO。
+- 云存储能力按已注册 Provider 和运行配置启用，未配置时保持 fail closed。
 - 业务模块不得直接依赖具体云存储 SDK。
 - 必须保存 object_key 和 public_url。
 - Secret 必须加密存储和脱敏展示。

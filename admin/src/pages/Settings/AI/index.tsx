@@ -4,7 +4,6 @@ import { Link } from '@umijs/renderer-react';
 import {
   ApiOutlined,
   CloudOutlined,
-  ExperimentOutlined,
   LinkOutlined,
   ReloadOutlined,
   RobotOutlined,
@@ -23,7 +22,6 @@ import {
   Row,
   Space,
   Switch,
-  Tag,
   Typography,
   message,
 } from 'antd';
@@ -33,7 +31,6 @@ import {
   AI_PROVIDER_DOCS,
   AI_PROVIDER_FIELD_KEYS,
   AI_PROVIDER_METAS,
-  AI_PROVIDER_PRESETS,
   ALL_AI_CONNECTION_FIELD_SPECS,
   aiProviderDocs,
   allAIConnectionFieldKeys,
@@ -45,7 +42,7 @@ import {
   initialAIConnectionFormValues,
   type AIProviderValue,
 } from '@/constants/aiProviders';
-import { ACTION_COPY, PAGE_COPY } from '@/constants/copywriting';
+import { ACTION_COPY } from '@/constants/copywriting';
 import { fetchSettingsList, saveSettingsItems, testAIConnection } from '@/services/settings';
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
 
@@ -76,7 +73,6 @@ export default function AISettingsPage() {
   const [testing, setTesting] = useState(false);
   const provider = Form.useWatch('provider', form) as AIProviderValue | undefined;
   const batchEnabled = Form.useWatch('ai_batch_enabled', form) as boolean | undefined;
-  const preset = provider ? AI_PROVIDER_PRESETS[provider] : AI_PROVIDER_PRESETS.openai_compatible;
   const providerDocs = aiProviderDocs(provider);
 
   const visibleFieldKeys = useMemo(
@@ -191,31 +187,8 @@ export default function AISettingsPage() {
   };
 
   return (
-    <TmPageContainer
-      title={tr("AI 设置")}
-      subTitle={PAGE_COPY.aiSettings.description}
-    >
+    <TmPageContainer title={tr("AI 设置")}>
       <div className="tm-ai-settings">
-        <ProCard variant="outlined" className="tm-ai-settings__hero">
-          <div className="tm-ai-settings__hero-inner">
-            <div className="tm-ai-settings__hero-icon">
-              <ExperimentOutlined />
-            </div>
-            <div className="tm-ai-settings__hero-body">
-              <Typography.Title level={5} className="tm-ai-settings__hero-title">{tr("自备大模型接口")}</Typography.Title>
-              <Typography.Paragraph type="secondary" className="tm-ai-settings__hero-desc">{tr("在 OpenAI、DeepSeek、通义千问、Ollama 等渠道申请接口密钥。各服务商可分别保存配置；下方选择「当前默认使用」的服务商，保存时仅更新该服务商连接信息，不会影响其他已保存密钥。")}</Typography.Paragraph>
-              <Space wrap size={[8, 8]}>
-                <Tag color="blue">{tr("统一后端调用")}</Tag>
-                <Tag>{tr("标题优化")}</Tag>
-                <Tag>{tr("描述生成")}</Tag>
-                <Tag>{tr("批量 AI")}</Tag>
-                <Tag>{tr("AI 生成采集规则")}</Tag>
-                <Link to="/settings/integrations">{tr("第三方集成总览 →")}</Link>
-              </Space>
-            </div>
-          </div>
-        </ProCard>
-
         <Form
           form={form}
           layout="vertical"
@@ -250,12 +223,17 @@ export default function AISettingsPage() {
         >
           <ProCard
             variant="outlined"
-            title={tr("AI 服务商")}
+            title={<span style={{ whiteSpace: 'nowrap' }}>{tr("AI 服务商")}</span>}
             className="tm-ai-settings__panel"
+            headStyle={{ flexWrap: 'wrap', gap: 8 }}
             extra={
-              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>{tr("重新加载")}</Button>
+              <Space wrap>
+                <Link to="/settings/integrations">{tr("第三方集成总览 →")}</Link>
+                <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>{tr("重新加载")}</Button>
+              </Space>
             }
           >
+            <Typography.Paragraph type="secondary">{tr("在 OpenAI、DeepSeek、通义千问、Ollama 等渠道申请接口密钥。各服务商可分别保存配置；下方选择「当前默认使用」的服务商，保存时仅更新该服务商连接信息，不会影响其他已保存密钥。")}</Typography.Paragraph>
             <Form.Item name="provider" rules={[{ required: true }]} style={{ marginBottom: 0 }}>
               <Radio.Group
                 className="tm-ai-provider-group"
@@ -275,7 +253,7 @@ export default function AISettingsPage() {
                 }}
               >
                 <Row gutter={[12, 12]}>
-                  {AI_PROVIDER_METAS.map(({ value, title, desc, tag }) => {
+                  {AI_PROVIDER_METAS.map(({ value, title, desc }) => {
                     const Icon = PROVIDER_ICONS[value];
                     const docs = AI_PROVIDER_DOCS[value];
                     return (
@@ -288,7 +266,6 @@ export default function AISettingsPage() {
                             <div className="tm-ai-provider-text">
                               <div className="tm-ai-provider-title-row">
                                 <span className="tm-ai-provider-title">{title}</span>
-                                {tag ? <Tag className="tm-ai-provider-tag">{tag}</Tag> : null}
                               </div>
                               <div className="tm-ai-provider-desc">{desc}</div>
                               {docs ? (
@@ -322,19 +299,9 @@ export default function AISettingsPage() {
             <Col xs={24} lg={14}>
               <ProCard variant="outlined" title={tr("连接配置")} className="tm-ai-settings__panel tm-ai-settings__panel--fill">
                 {providerDocs ? (
-                  <Alert
-                    type="info"
-                    showIcon
-                    className="tm-ai-settings__doc-alert"
-                    style={{ marginBottom: 16 }}
-                    message={tr("配置指引")}
-                    description={
-                      <>
-                        <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>{tr("请参考官方文档确认接口地址、模型名称，并在控制台申请接口密钥后填入下方表单。")}</Typography.Paragraph>
-                        {renderProviderDocLinks()}
-                      </>
-                    }
-                  />
+                  <div className="tm-ai-settings__doc-alert" style={{ marginBottom: 16 }}>
+                    {renderProviderDocLinks()}
+                  </div>
                 ) : null}
                 {visibleFieldKeys.map((k) => renderConnectionField(k))}
                 {allAIConnectionFieldKeys()
@@ -349,12 +316,12 @@ export default function AISettingsPage() {
             <Col xs={24} lg={10}>
               <ProCard variant="outlined" title={tr("生成参数")} className="tm-ai-settings__panel tm-ai-settings__panel--fill">
                 <Row gutter={12}>
-                  <Col span={12}>
+                  <Col xs={24} sm={12}>
                     <Form.Item label={tr("随机度（Temperature）")} name="temperature" extra={tr("默认 0.7，越低越稳定")}>
                       <InputNumber min={0} max={2} step={0.1} style={{ width: '100%' }} />
                     </Form.Item>
                   </Col>
-                  <Col span={12}>
+                  <Col xs={24} sm={12}>
                     <Form.Item label={tr("最大输出长度（tokens）")} name="max_tokens" extra={tr("默认 512")}>
                       <InputNumber min={1} max={32000} style={{ width: '100%' }} />
                     </Form.Item>
@@ -368,17 +335,6 @@ export default function AISettingsPage() {
                 >
                   <InputNumber min={5} max={600} style={{ width: '100%' }} />
                 </Form.Item>
-                <div className="tm-ai-settings__tips">
-                  <Typography.Text type="secondary" className="tm-ai-settings__tips-title">{tr("参数建议")}</Typography.Text>
-                  <ul className="tm-ai-settings__tips-list">
-                    <li>{tr("标题优化：Temperature 0.4–0.7，Max tokens ≥1024")}</li>
-                    <li>{tr("描述生成：Timeout ≥120，Max tokens 2000+")}</li>
-                    <li>{tr("DeepSeek 等大模型：Timeout 建议 180")}</li>
-                  </ul>
-                  {preset ? (
-                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>{trFormat("当前服务商默认接口：{value0} · 模型：{value1}", { value0: preset.baseUrl, value1: preset.model })}</Typography.Paragraph>
-                  ) : null}
-                </div>
               </ProCard>
             </Col>
           </Row>

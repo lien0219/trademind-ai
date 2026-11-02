@@ -10,7 +10,6 @@ function DisableUserContent({ username }: { username: string }) {
   useLanguage();
   return (
       <div className="tm-disable-user-confirm">
-        <p className="tm-disable-user-confirm__intro">{tr("请确认是否暂停以下账号的访问权限。")}</p>
         <div className="tm-disable-user-confirm__account" role="group" aria-label={tr("禁用目标账号")}>
           <span className="tm-disable-user-confirm__avatar" aria-hidden="true"><UserOutlined /></span>
           <div className="tm-disable-user-confirm__identity">

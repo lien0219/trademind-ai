@@ -51,7 +51,7 @@ import CollectSourceCard, {
 } from './components/CollectSourceCard';
 import './index.less';
 
-const { Paragraph, Text, Title } = Typography;
+const { Paragraph, Text } = Typography;
 
 const DEDICATED_FEATURE_LABEL: Record<string, string> = {
   title: 'Product title',
@@ -453,17 +453,13 @@ export default function CollectHubPage() {
   return (
     <TmPageContainer
       title={PAGE_COPY.collectHub.title}
-      subTitle={PAGE_COPY.collectHub.description}
       contentMaxWidth={layoutTokens.dashboardMaxWidth}
       extra={pageExtra}
     >
       <div className="tm-collect-hub">
-        <section className="tm-collect-hub-hero">
-          <div className="tm-collect-hub-hero__main">
-            <Text className="tm-collect-hub-hero__eyebrow">{tr("跨境商品采集入口")}</Text>
-            <Title level={4} className="tm-collect-hub-hero__title">
-              {tr("先选择来源，再把商品链接转成可运营草稿")}</Title>
-            <Paragraph className="tm-collect-hub-hero__desc">
+        <section className="tm-collect-hub-overview">
+          <div className="tm-collect-hub-overview__actions">
+            <Paragraph className="tm-collect-hub-overview__hint">
               {tr("采集任务会进入队列处理。遇到登录、验证码或平台限制时，请先完成采集浏览器登录状态检测，再重试或批量恢复失败任务。")}</Paragraph>
             <OperationToolbar>
               <Button
@@ -480,32 +476,28 @@ export default function CollectHubPage() {
                 {tr("管理采集规则")}</Button> : null}
             </OperationToolbar>
           </div>
-          <div className="tm-collect-hub-hero__side">
+          <div className="tm-collect-hub-overview__metrics">
             <MetricCard
-              title={tr("支持来源")}
+              title={tr("采集来源")}
               value={providerState.loading ? '—' : sortedProviders.length}
-              description={tr("按接口返回的采集器列表")}
               intent="primary"
               icon={<LinkOutlined />}
             />
             <MetricCard
-              title={tr("可单条采集")}
+              title={<span title={tr("已可用或测试中")}>{tr("可单条采集")}</span>}
               value={providerState.loading ? '—' : runnableProviders.length}
-              description={tr("已可用或测试中")}
               intent="success"
               icon={<CloudDownloadOutlined />}
             />
             <MetricCard
-              title={tr("批量入口")}
+              title={<span title={tr("支持批量提交的来源")}>{tr("批量采集")}</span>}
               value={providerState.loading ? '—' : batchProviders.length}
-              description={tr("支持批量提交的来源")}
               intent="data"
               icon={<FileSearchOutlined />}
             />
             <MetricCard
               title={tr("失败待恢复")}
               value={recentState.loading ? '—' : failedTotal ?? '—'}
-              description={tr("来自采集任务接口")}
               intent="warning"
               icon={<WarningOutlined />}
               onClick={() => history.push('/collect/tasks?status=failed')}
@@ -595,9 +587,8 @@ export default function CollectHubPage() {
 
           <Col xs={24} lg={8}>
             <Space direction="vertical" size={16} className="tm-collect-hub__side-stack">
-              <SectionCard
+              {loginSensitiveProviders.length > 0 ? <SectionCard
                 title={tr("登录与验证风险")}
-                description={tr("平台登录态和验证码会影响采集成功率。")}
                 compact
               >
                 <div className="tm-collect-hub-risk-list">
@@ -611,11 +602,10 @@ export default function CollectHubPage() {
                     </div>
                   ))}
                 </div>
-              </SectionCard>
+              </SectionCard> : null}
 
               <SectionCard
                 title={tr("浏览器登录状态")}
-                description={tr("用于处理登录页、验证码和安全验证。")}
                 headerExtra={
                   <Button type="link" onClick={() => history.push('/collect/browser-profiles')}>
                     {tr("管理")}</Button>
@@ -631,14 +621,12 @@ export default function CollectHubPage() {
 
               <SectionCard
                 title={tr("失败恢复")}
-                description={tr("失败任务保留原因和重试入口。")}
                 compact
               >
                 <div className="tm-collect-hub-recovery">
                   <SafetyCertificateOutlined />
                   <div>
                     <Text strong>{failedTotal ?? '—'} {tr("个失败任务")}</Text>
-                    <Text type="secondary">{tr("进入任务列表查看原因、登录提示和重试入口。")}</Text>
                   </div>
                   <Button onClick={() => history.push('/collect/tasks?status=failed')}>{tr("去处理")}</Button>
                 </div>
@@ -651,7 +639,6 @@ export default function CollectHubPage() {
           <Col xs={24} lg={16}>
             <SectionCard
               title={tr("最近采集任务")}
-              description={tr("用于确认任务是否已进入队列，以及失败后下一步处理方式。")}
               headerExtra={
                 <Button type="link" onClick={() => history.push('/collect/tasks')}>
                   {tr("查看全部")}</Button>
@@ -665,7 +652,7 @@ export default function CollectHubPage() {
             </SectionCard>
           </Col>
           <Col xs={24} lg={8}>
-            <SectionCard title={tr("相关管理入口")} description={tr("采集前后的常用配置和记录。")} compact>
+            <SectionCard title={tr("相关管理入口")} compact>
               <div className="tm-collect-hub-links">
                 <Button block onClick={() => history.push('/collect/tasks')}>{tr("采集任务")}</Button>
                 <Button block onClick={() => history.push('/collect/batches')}>{tr("批量采集")}</Button>

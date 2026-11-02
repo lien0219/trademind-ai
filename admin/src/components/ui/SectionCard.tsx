@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { ProCard, type ProCardProps } from '@ant-design/pro-components';
 import { Space, Typography } from 'antd';
 import { tr } from '@/i18n';
+import { layoutTokens } from '@/constants/layoutTokens';
 
 const { Text } = Typography;
 
@@ -25,6 +26,7 @@ export default function SectionCard({
   variant = 'outlined',
   compact,
   bordered,
+  bodyStyle,
   ...rest
 }: SectionCardProps) {
   useLanguage();
@@ -33,6 +35,10 @@ export default function SectionCard({
     <ProCard
       {...rest}
       bordered={showBorder}
+      bodyStyle={{
+        padding: compact ? layoutTokens.cardPaddingCompact : layoutTokens.cardPadding,
+        ...bodyStyle,
+      }}
       className={[
         'tm-section-card',
         `tm-section-card--${variant}`,

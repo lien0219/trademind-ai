@@ -858,7 +858,6 @@ export default function ProductOperationsDashboardPage() {
   return (
     <TmPageContainer
       title={PAGE_COPY.dashboard.title}
-      subTitle={PAGE_COPY.dashboard.description}
       contentMaxWidth={layoutTokens.dashboardMaxWidth}
       extra={
         <OperationToolbar>

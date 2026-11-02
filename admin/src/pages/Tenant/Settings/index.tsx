@@ -4,7 +4,7 @@ import { CodeOutlined, ReloadOutlined, SaveOutlined, QuestionCircleOutlined } fr
 import { Link } from '@umijs/max';
 import { Alert, Button, Descriptions, Form, Input, Modal, Popconfirm, Space, Spin, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ErrorAlert, SectionCard, StatusTag, TmPageContainer } from '@/components/ui';
+import { ActionBar, ErrorAlert, FormGrid, FormGridFull, FormGridItem, SectionCard, StatusTag, TmPageContainer } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
 import { getCurrentTenant, updateCurrentTenant, type TenantDetail, type TenantMetadataBody } from '@/services/tenants';
 import { getBusinessSettings } from '@/services/tenantBusinessSettings';
@@ -12,6 +12,7 @@ import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import { TENANT_SETTINGS_EXAMPLE, formatTenantSettings, inspectTenantSettings, summarizeTenantSettings } from '@/utils/tenantSettings';
 import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
+import './index.less';
 
 const { Text } = Typography;
 
@@ -201,7 +202,7 @@ export default function TenantSettingsPage() {
   return (
     <TmPageContainer
       title={rootWorkspace ? tr("Root 工作台信息") : tr("企业信息与设置")}
-      subTitle={rootWorkspace ? tr("系统自动维护的业务工作空间，不等同于平台全局配置。") : canEdit ? tr("查看当前企业的资料、成员与店铺统计，并管理企业级扩展选项。") : tr("查看当前所属组织信息。")}
+      subTitle={rootWorkspace ? tr("系统自动维护的业务工作空间，不等同于平台全局配置。") : undefined}
       extra={[<Button key="refresh" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>]}
     >
       {error ? <ErrorAlert title={tr("企业资料加载失败")} actionHint={error} action={<Button type="link" onClick={() => void load()}>{tr("重试")}</Button>} /> : null}
@@ -217,7 +218,7 @@ export default function TenantSettingsPage() {
               description={tr("企业级资料和扩展选项只作用于这个工作空间；全平台运行参数请到「设置 → 系统设置」中管理。此处 JSON 不控制 Root 权限。")}
             />
           ) : null}
-          <SectionCard title={brand?.displayName || detail.tenant.name} description={detail.tenant.description || (rootWorkspace ? tr("系统内部业务空间") : tr("当前所属组织"))} headerExtra={!canEdit ? <Tag>{tr("当前组织")}</Tag> : undefined}>
+          <SectionCard title={brand?.displayName || detail.tenant.name} description={detail.tenant.description || undefined} headerExtra={!canEdit ? <Tag>{tr("当前组织")}</Tag> : undefined}>
             {brand?.logoUrl ? <div style={{marginBottom:16}}>
               <img alt={tr("企业 Logo")} src={brand.logoUrl} loading="lazy" referrerPolicy="no-referrer" style={{maxHeight:60,maxWidth:180,objectFit:'contain'}}/>
             </div> : null}
@@ -239,30 +240,36 @@ export default function TenantSettingsPage() {
 
           {canEdit ? <><SectionCard
             title={rootWorkspace ? tr("工作台资料") : tr("企业基本资料")}
-            description={canEdit ? tr("常用资料直接填写；保存不会修改高级 JSON 配置。并发修改需刷新后重试。") : tr("当前账号仅可查看资料，不能修改。")}
-            headerExtra={canEdit ? <Tag color="blue">{tr("可编辑")}</Tag> : <Tag>{tr("只读")}</Tag>}
+            description={tr("常用资料直接填写；保存不会修改高级 JSON 配置。并发修改需刷新后重试。")}
           >
-            <Form form={form} layout="vertical" onFinish={saveProfile} disabled={!canEdit || submitting}>
+            <Form className="tm-tenant-settings__profile" form={form} layout="vertical" onFinish={saveProfile} disabled={!canEdit || submitting}>
+              <FormGrid>
+              <FormGridItem>
               <Form.Item name="name" label={rootWorkspace ? tr("工作台名称") : tr("企业名称")} rules={[{ required: true, message: tr("请输入名称") }, { max: 120, message: tr("名称不能超过 120 个字符") }]}>
                 <Input maxLength={120} />
               </Form.Item>
+              </FormGridItem>
+              <FormGridItem>
               <Form.Item name="legalName" label={tr("法定主体名称")}><Input maxLength={160} placeholder={tr("选填")} /></Form.Item>
+              </FormGridItem>
+              <FormGridFull>
               <Form.Item name="description" label={tr("企业说明")}><Input.TextArea rows={3} maxLength={500} showCount placeholder={tr("描述该企业的用途或经营范围（选填）")} /></Form.Item>
-              <Space wrap style={{ width: '100%' }}>
-                <Form.Item name="contactEmail" label={tr("联系邮箱")} rules={[{ type: 'email', message: tr("请输入有效邮箱") }]} style={{ minWidth: 260 }}><Input placeholder={tr("选填")} /></Form.Item>
-                <Form.Item name="contactPhone" label={tr("联系电话")} style={{ minWidth: 220 }}><Input maxLength={40} placeholder={tr("选填")} /></Form.Item>
-              </Space>
+              </FormGridFull>
+              <FormGridItem>
+                <Form.Item name="contactEmail" label={tr("联系邮箱")} rules={[{ type: 'email', message: tr("请输入有效邮箱") }]}><Input placeholder={tr("选填")} /></Form.Item>
+              </FormGridItem>
+              <FormGridItem>
+                <Form.Item name="contactPhone" label={tr("联系电话")}><Input maxLength={40} placeholder={tr("选填")} /></Form.Item>
+              </FormGridItem>
+              </FormGrid>
               {canEdit ? (
-                <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={submitting} disabled={submitting}>{tr("保存基本资料")}</Button>
+                <ActionBar><Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={submitting} disabled={submitting}>{tr("保存基本资料")}</Button></ActionBar>
               ) : null}
             </Form>
           </SectionCard>
 
-          <SectionCard title={tr("企业业务配置")} description={tr("企业 AI 文案、采集来源与任务上限等规则可视化管理。")}>
-            <Space direction="vertical">
+          <SectionCard title={tr("企业业务配置")} headerExtra={<Link to="/tenant/business-settings">{tr("进入企业业务配置")}</Link>}>
               <Typography.Text type="secondary">{tr("新建业务任务会根据当前企业的有效规则执行；企业资料与全局平台配置互不影响。")}</Typography.Text>
-              <Link to="/tenant/business-settings">{tr("进入企业业务配置")}</Link>
-            </Space>
           </SectionCard>
           <SectionCard
             title={tr("开发者扩展元数据")}
@@ -277,8 +284,7 @@ export default function TenantSettingsPage() {
               <Alert
                 type="info"
                 showIcon
-                message={tr("无需手工编写 JSON")}
-                description={tr("系统尚未为这些扩展字段提供统一的业务开关。请通过各功能页面配置已经支持的选项；仅在明确知道字段用途时使用高级编辑。")}
+                message={tr("系统尚未为这些扩展字段提供统一的业务开关。请通过各功能页面配置已经支持的选项；仅在明确知道字段用途时使用高级编辑。")}
               />
             </Space>
           </SectionCard>

@@ -225,7 +225,7 @@ export default function AiTasksPage() {
   ];
 
   return (
-    <TmPageContainer title={tr("AI 任务记录")} subTitle={tr("查看标题优化、描述生成等 AI 调用记录与失败原因")}>
+    <TmPageContainer title={tr("AI 任务记录")}>
       <ProTable<AiTaskListRow>
         rowKey="id"
         actionRef={actionRef}

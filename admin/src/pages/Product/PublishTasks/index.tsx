@@ -311,7 +311,7 @@ export default function ProductPublishTasksPage() {
   });
 
   return (
-    <TmPageContainer title={tr("商品刊登任务")} subTitle={tr("查看刊登子任务与批量刊登批次进度。")}>
+    <TmPageContainer title={tr("商品刊登任务")}>
       {batchIdFromUrl ? (
         <Alert
           type="info"

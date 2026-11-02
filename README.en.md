@@ -5,10 +5,6 @@
 </p>
 
 <p align="center">
-  From a product link to a ready-to-run, publishable, continuously managed product asset
-</p>
-
-<p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue.svg"></a>
   <img alt="Go" src="https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-18+-61DAFB?logo=react&logoColor=111">
@@ -33,9 +29,7 @@
   <img src="docs/assets/img/readme-hero-en.png" alt="TradeMind Product Preview" width="100%" />
 </p>
 
-TradeMind is an open-source AI operations platform for cross-border sellers, brand teams, and developers. It turns product collection, enrichment, content generation, image processing, draft collaboration, platform listing, order sync, and inventory coordination into one observable workflow, so teams can build a durable product engine instead of moving data by hand.
-
-Whether you are building a private commerce workspace or adding AI and platform integrations to an existing business, TradeMind gives you an auditable, self-hosted foundation that can be extended around your own operating model. Your data stays under your control, while every provider and workflow can evolve with your team.
+TradeMind is an open-source AI operations platform for cross-border sellers, brand teams, and developers. It turns product collection, enrichment, content generation, image processing, draft collaboration, platform listing, order sync, and inventory coordination into one observable workflow, with an auditable, self-hosted foundation that can evolve around each team’s operating model.
 
 ## Why TradeMind
 

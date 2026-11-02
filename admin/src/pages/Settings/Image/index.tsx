@@ -12,11 +12,11 @@ import {
 } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
+import { layoutTokens } from '@/constants/layoutTokens';
 import {
   Alert,
   Button,
   Col,
-  Divider,
   Form,
   Input,
   InputNumber,
@@ -417,30 +417,8 @@ export default function ImageSettingsPage() {
   };
 
   return (
-    <TmPageContainer
-      title={tr("图片处理设置")}
-      subTitle={tr("配置去背景、场景图生成、图片文字翻译等服务连接与默认参数")}
-    >
+    <TmPageContainer title={tr("图片处理设置")}>
       <div className="tm-image-settings">
-        <ProCard variant="outlined" className="tm-image-settings__hero">
-          <div className="tm-image-settings__hero-inner">
-            <div className="tm-image-settings__hero-icon">
-              <PictureOutlined />
-            </div>
-            <div className="tm-image-settings__hero-body">
-              <Typography.Title level={5} className="tm-image-settings__hero-title">{tr("商品图 AI 与 OCR")}</Typography.Title>
-              <Typography.Paragraph type="secondary" className="tm-image-settings__hero-desc">{tr("用于去背景、生成场景图、替换背景与图片文字翻译。所有请求由系统后端发起；API 密钥需自行到对应控制台申请，测试与生成可能产生费用。")}</Typography.Paragraph>
-              <Space wrap size={[8, 8]}>
-                <Tag color="purple">{tr("去背景")}</Tag>
-                <Tag>{tr("场景图")}</Tag>
-                <Tag>{tr("文字翻译")}</Tag>
-                <Tag>ComfyUI</Tag>
-                <Link to="/settings/integrations">{tr("第三方集成总览 →")}</Link>
-              </Space>
-            </div>
-          </div>
-        </ProCard>
-
         <Form
           form={form}
           layout="vertical"
@@ -469,7 +447,6 @@ export default function ImageSettingsPage() {
           }}
         >
           <ProCard variant="outlined" title={tr("使用场景")} className="tm-image-settings__panel">
-            <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>{tr("选择最接近你需求的场景，系统将推荐合适的图片服务（可再手动调整）。")}</Typography.Paragraph>
             <div className="tm-image-scenario-grid">
               {IMAGE_SCENARIOS.map((sc) => {
                 const Icon = SCENARIO_ICONS[sc.id];
@@ -497,19 +474,6 @@ export default function ImageSettingsPage() {
                         <div className="tm-image-scenario-card__desc">{sc.description}</div>
                       </div>
                     </div>
-                    <div className="tm-image-scenario-card__tags">
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>{tr("推荐")}</Typography.Text>
-                      {sc.recommendedProviders
-                        .filter((p) => !isProductionBuild || caps.some((cap) => cap.provider === p))
-                        .map((p) => {
-                        const c = caps.find((x) => x.provider === p);
-                        return (
-                          <Tag key={p} color={active ? 'blue' : 'default'}>
-                            {c?.displayName ?? p}
-                          </Tag>
-                        );
-                        })}
-                    </div>
                   </div>
                 );
               })}
@@ -518,10 +482,14 @@ export default function ImageSettingsPage() {
 
           <ProCard
             variant="outlined"
-            title={tr("图片处理服务")}
+            title={<span style={{ whiteSpace: 'nowrap' }}>{tr("图片处理服务")}</span>}
             className="tm-image-settings__panel"
+            headStyle={{ flexWrap: 'wrap', gap: 8 }}
             extra={
-              <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>{tr("重新加载")}</Button>
+              <Space wrap>
+                <Link to="/settings/integrations">{tr("第三方集成总览 →")}</Link>
+                <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>{tr("重新加载")}</Button>
+              </Space>
             }
           >
             <Form.Item
@@ -564,53 +532,33 @@ export default function ImageSettingsPage() {
             ) : null}
           </ProCard>
 
-          <Row gutter={[16, 16]} className="tm-image-settings__row">
-            <Col xs={24} lg={15}>
-              <ProCard variant="outlined" title={tr("服务连接")} className="tm-image-settings__panel tm-image-settings__panel--fill">
-                {currentCap?.status === 'planned' ? (
-                  <Alert
-                    type="warning"
-                    showIcon
-                    className="tm-image-settings__provider-alert"
-                    message={tr("该图片服务为预留项")}
-                    description={tr("可保存配置项，但无法创建真实图片任务，请等待后续版本。")}
-                  />
-                ) : null}
-                <Row gutter={16}>
-                  {visibleFieldKeys.map((k) => {
-                    const spec = ALL_IMAGE_FIELD_SPECS[k];
-                    const isJson = spec?.valueType === 'json';
-                    const span = isJson ? 24 : 12;
-                    return (
-                      <Col xs={24} md={span} key={k}>
-                        {renderField(k)}
-                      </Col>
-                    );
-                  })}
-                </Row>
-              </ProCard>
-            </Col>
-            <Col xs={24} lg={9}>
-              <ProCard variant="outlined" title={tr("说明与提示")} className="tm-image-settings__panel tm-image-settings__panel--fill">
-                <div className="tm-image-settings__tips">
-                  <Typography.Text type="secondary" className="tm-image-settings__tips-title">{tr("配置建议")}</Typography.Text>
-                  <ul className="tm-image-settings__tips-list">
-                    <li>{tr("去背景：推荐 remove.bg，需单独申请接口密钥")}</li>
-                    <li>{tr("场景图：通义万相、OpenAI Image 等按尺寸计费")}</li>
-                    <li>{tr("ComfyUI：需内网可访问实例与工作流 JSON")}</li>
-                    <li>{tr("图片文字翻译：须在本页配置 OCR 并测试通过")}</li>
-                  </ul>
-                </div>
-                <Divider style={{ margin: '16px 0' }} />
-                <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>{tr("真实调用测试与图片生成可能产生费用；敏感密钥保存后不回显明文。")}</Typography.Paragraph>
-              </ProCard>
-            </Col>
-          </Row>
+          <ProCard variant="outlined" title={tr("服务连接")} className="tm-image-settings__panel">
+            {currentCap?.status === 'planned' ? (
+              <Alert
+                type="warning"
+                showIcon
+                className="tm-image-settings__provider-alert"
+                message={tr("该图片服务为预留项")}
+                description={tr("可保存配置项，但无法创建真实图片任务，请等待后续版本。")}
+              />
+            ) : null}
+            <Row gutter={16}>
+              {visibleFieldKeys.map((k) => {
+                const spec = ALL_IMAGE_FIELD_SPECS[k];
+                const isJson = spec?.valueType === 'json';
+                const span = isJson ? 24 : 12;
+                return (
+                  <Col xs={24} md={span} key={k}>
+                    {renderField(k)}
+                  </Col>
+                );
+              })}
+            </Row>
+          </ProCard>
 
           <ProCard
             variant="outlined"
             title={tr("OCR 配置")}
-            subTitle={tr("用于图片文字翻译与中英文识别")}
             className="tm-image-settings__panel"
           >
             <Row gutter={16}>
@@ -618,7 +566,7 @@ export default function ImageSettingsPage() {
                 <Form.Item
                   label={ALL_IMAGE_FIELD_SPECS.ocr_provider.label}
                   name="ocr_provider"
-                  extra={tr("OCR 主要用于图片文字翻译、图片中文字识别和翻译后结果校验")}
+                  extra={tr("图片文字翻译：须在本页配置 OCR 并测试通过")}
                   rules={[{ required: true, message: tr("请选择 OCR 服务") }]}
                 >
                   <Select options={OCR_PROVIDER_OPTIONS} />
@@ -635,7 +583,7 @@ export default function ImageSettingsPage() {
               if (selectedOCRProvider === 'paddleocr') {
                 return (
                   <Row gutter={16}>
-                    <Col span={12}>
+                    <Col xs={24} md={12}>
                       <Form.Item
                         label={ALL_IMAGE_FIELD_SPECS.ocr_paddleocr_service_url.label}
                         name="ocr_paddleocr_service_url"
@@ -726,7 +674,7 @@ export default function ImageSettingsPage() {
                           <Input placeholder={ALL_IMAGE_FIELD_SPECS.ocr_tencent_endpoint.placeholder} />
                         </Form.Item>
                       </Col>
-                      <Col span={12}>
+                      <Col xs={24} md={12}>
                         <Form.Item
                           label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_region.label}
                           name="ocr_tencent_region"
@@ -735,7 +683,7 @@ export default function ImageSettingsPage() {
                           <Input placeholder={ALL_IMAGE_FIELD_SPECS.ocr_tencent_region.placeholder} />
                         </Form.Item>
                       </Col>
-                      <Col span={12}>
+                      <Col xs={24} md={12}>
                         <Form.Item
                           label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_secret_id.label}
                           name="ocr_tencent_secret_id"
@@ -760,7 +708,7 @@ export default function ImageSettingsPage() {
                           />
                         </Form.Item>
                       </Col>
-                      <Col span={12}>
+                      <Col xs={24} md={12}>
                         <Form.Item
                           label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_secret_key.label}
                           name="ocr_tencent_secret_key"
@@ -785,7 +733,7 @@ export default function ImageSettingsPage() {
                           />
                         </Form.Item>
                       </Col>
-                      <Col span={12}>
+                      <Col xs={24} md={12}>
                         <Form.Item
                           label={ALL_IMAGE_FIELD_SPECS.ocr_tencent_api_name.label}
                           name="ocr_tencent_api_name"
@@ -922,14 +870,14 @@ export default function ImageSettingsPage() {
               return (
                 <>
                   <Row gutter={16}>
-                    <Col span={12}>{renderField('ai_inpaint_comfyui_base_url')}</Col>
+                    <Col xs={24} md={12}>{renderField('ai_inpaint_comfyui_base_url')}</Col>
                   </Row>
                   {renderField('ai_inpaint_comfyui_workflow_json')}
                   <Row gutter={16}>
-                    <Col span={12}>{renderField('ai_inpaint_comfyui_prompt_node_id')}</Col>
-                    <Col span={12}>{renderField('ai_inpaint_comfyui_image_node_id')}</Col>
-                    <Col span={12}>{renderField('ai_inpaint_comfyui_mask_node_id')}</Col>
-                    <Col span={12}>{renderField('ai_inpaint_comfyui_output_node_id')}</Col>
+                    <Col xs={24} md={12}>{renderField('ai_inpaint_comfyui_prompt_node_id')}</Col>
+                    <Col xs={24} md={12}>{renderField('ai_inpaint_comfyui_image_node_id')}</Col>
+                    <Col xs={24} md={12}>{renderField('ai_inpaint_comfyui_mask_node_id')}</Col>
+                    <Col xs={24} md={12}>{renderField('ai_inpaint_comfyui_output_node_id')}</Col>
                   </Row>
                 </>
               );
@@ -938,6 +886,9 @@ export default function ImageSettingsPage() {
           </ProCard>
 
           <ProCard variant="outlined" className="tm-image-settings__footer">
+            <Typography.Paragraph type="secondary" style={{ marginBottom: layoutTokens.fieldGroupGap }}>
+              {tr("真实调用测试与图片生成可能产生费用；敏感密钥保存后不回显明文。")}
+            </Typography.Paragraph>
             <Space wrap className="tm-action-space">
               <Button type="primary" htmlType="submit" loading={loading} size="large">
                 {ACTION_COPY.saveSettings}

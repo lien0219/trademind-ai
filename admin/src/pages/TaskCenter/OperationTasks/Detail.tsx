@@ -5,7 +5,6 @@ import { Button, Descriptions, Form, Input, Modal, Select, Space, Spin, Table, T
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { EmptyState, ErrorAlert, OperationToolbar, SectionCard, TaskJsonBlock, TmPageContainer } from '@/components/ui';
-import { PAGE_COPY } from '@/constants/copywriting';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { useLanguage } from '@/i18n/useLanguage';
 import {
@@ -536,8 +535,7 @@ export default function OperationTaskDetailPage() {
 
   return (
     <TmPageContainer
-      title={PAGE_COPY.operationTasks.title}
-      subTitle={tr("运营任务详情")}
+      title={tr("运营任务详情")}
       extra={
         <Space wrap>
           <Button icon={<ArrowLeftOutlined />} onClick={() => history.push(returnPath)}>{tr("返回列表")}</Button>
@@ -553,7 +551,7 @@ export default function OperationTaskDetailPage() {
         {detail ? (
           <SectionCard
             title={detail.title}
-            description={detail.summary || tr('运营任务概要')}
+            description={detail.summary || undefined}
             headerExtra={<OperationTaskStatusTag status={detail.status} />}
           >
             <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} size="small">

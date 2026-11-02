@@ -144,7 +144,6 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
         </span>
         <span className="tm-tenant-switcher__header-copy">
           <strong>{tr("切换工作空间")}</strong>
-          <span>{tr("选择要进入的组织")}</span>
         </span>
         <button
           type="button"
@@ -263,6 +262,7 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
         aria-label={`${isSystemWorkspace || user.isRoot === true ? tr("当前工作空间") : tr("当前企业")} ${currentLabel}`}
         aria-haspopup="listbox"
         aria-expanded={open}
+        title={currentLabel}
       >
         <span className="tm-app-top-nav__tenant-icon" aria-hidden="true">
           <ApartmentOutlined />
@@ -356,6 +356,7 @@ export default function AppTopNav({
       <TenantSwitchOverlay />
       <TenantSwitcher user={user} />
       <Select
+        className="tm-app-top-nav__language"
         aria-label={tr("语言")}
         loading={changingLanguage}
         disabled={changingLanguage}
@@ -363,7 +364,6 @@ export default function AppTopNav({
         onChange={(next: AppLanguage) => void changeLanguage(next)}
         options={supportedLanguages.map(value=>({value,label:languageNames[value]}))}
         suffixIcon={<GlobalOutlined />}
-        style={{width:128,maxWidth:"32vw"}}
         size="small"
       />
       {showThemeToggle ? (
@@ -440,7 +440,6 @@ export default function AppTopNav({
                   <span className="tm-app-account-dropdown__title">
                     {tr("退出登录")}
                   </span>
-                  <span className="tm-app-account-dropdown__description">{tr("返回登录页面")}</span>
                 </span>
               ),
               onClick: () => {
@@ -461,7 +460,7 @@ export default function AppTopNav({
                 {initial}
               </Avatar>
               <span className="tm-app-account-dropdown__profile-meta">
-                <span className="tm-app-account-dropdown__profile-name">
+                <span className="tm-app-account-dropdown__profile-name" title={primary}>
                   {primary}
                 </span>
                 <span

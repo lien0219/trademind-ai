@@ -910,7 +910,7 @@ export default function ImageTasksPage() {
   ];
 
   return (
-    <TmPageContainer title={PAGE_COPY.aiImageTasks.title} subTitle={PAGE_COPY.aiImageTasks.description}>
+    <TmPageContainer title={PAGE_COPY.aiImageTasks.title}>
       <Card size="small" style={{ marginBottom: 16 }} title={tr("快捷模板")}>
         <Space wrap>
           {IMAGE_TASK_TEMPLATES.map((tpl) => (

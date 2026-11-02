@@ -115,6 +115,32 @@ test.describe('@product-draft @responsive 五档响应式', () => {
         viewport.width <= 480 ? 10 : 14,
       );
       expect(secondSectionBox.y - (firstSectionBox.y + firstSectionBox.height)).toBeGreaterThanOrEqual(12);
+
+      if (viewport.width <= 480) {
+        const sourceFields = secondSection.locator('.ant-descriptions-item-container');
+        await expect(sourceFields).toHaveCount(6);
+        for (let index = 0; index < 6; index += 1) {
+          const field = sourceFields.nth(index);
+          const [labelBox, valueBox] = await Promise.all([
+            field.locator('.ant-descriptions-item-label').boundingBox(),
+            field.locator('.ant-descriptions-item-content').boundingBox(),
+          ]);
+          if (!labelBox || !valueBox) throw new Error('商品来源字段不可见');
+          expect(valueBox.y).toBeGreaterThanOrEqual(labelBox.y + labelBox.height);
+          expect(valueBox.width).toBeGreaterThanOrEqual(labelBox.width - 1);
+        }
+
+        const currency = sourceFields.nth(1).locator('.ant-descriptions-item-content');
+        await expect(currency).toHaveText('CNY');
+        const [currencyBox, lineHeight] = await Promise.all([
+          currency.boundingBox(),
+          currency.evaluate((element) => Number.parseFloat(getComputedStyle(element).lineHeight)),
+        ]);
+        if (!currencyBox) throw new Error('商品币种不可见');
+        expect(currencyBox.height).toBeLessThanOrEqual(lineHeight + 1);
+        await expect(sourceFields.nth(2).getByText(E2E_PRODUCT_ID, { exact: true })).toBeVisible();
+        await expect(sourceFields.nth(2).locator('.ant-typography-copy')).toBeVisible();
+      }
       await expectNoRootOverflow(page);
     });
 

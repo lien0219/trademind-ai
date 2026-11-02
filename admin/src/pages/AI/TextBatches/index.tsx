@@ -73,7 +73,6 @@ export default function AITextBatchListPage() {
   return (
     <TmPageContainer
       title={tr("批量文案任务")}
-      subTitle={tr("批量 AI 标题 / 描述生成与复核")}
       extra={
         <Button type="primary" onClick={() => history.push('/product/drafts')}>
           {tr("从商品列表发起")}

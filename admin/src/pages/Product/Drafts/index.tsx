@@ -558,7 +558,6 @@ export default function ProductDraftsPage() {
     <TmPageContainer
       className="product-drafts-page"
       title={PAGE_COPY.productDrafts.title}
-      subTitle={PAGE_COPY.productDrafts.description}
     >
       <OperationToolbar className="product-drafts-page__toolbar">
         <Button icon={<PlusOutlined />} type="primary" onClick={() => setCreateOpen(true)}>

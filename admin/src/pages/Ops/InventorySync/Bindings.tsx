@@ -124,7 +124,6 @@ export default function InventorySyncBindingsPage() {
   return (
     <TmPageContainer
       title={tr("SKU 绑定列表")}
-      subTitle={tr("查看库存同步绑定记录并进入历史")}
       extra={<Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>}
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>

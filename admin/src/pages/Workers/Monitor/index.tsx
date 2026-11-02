@@ -186,7 +186,6 @@ export default function WorkersMonitorPage() {
   return (
     <TmPageContainer
       title={tr('后台任务监控')}
-      subTitle={tr('查看采集、图片处理、订单同步、商品刊登等后台任务是否在正常运行')}
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         {trFormat('展示各类型后台任务进程状态与正在执行中的任务（每 {value0} 秒刷新；页面隐藏时暂停）。', { value0: POLL_MS / 1000 })}

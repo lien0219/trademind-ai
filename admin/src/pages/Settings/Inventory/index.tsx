@@ -363,9 +363,6 @@ export default function InventorySettingsPage() {
                         </Col>
                       ))}
                     </Row>
-                    {!rateLimitEnabled ? (
-                      <Text type="secondary" style={{ display: 'block', marginTop: -8, fontSize: 12 }}>{tr("启用平台节流后可配置各平台每分钟配额")}</Text>
-                    ) : null}
                   </>
                 );
               }}

@@ -441,7 +441,6 @@ export default function OperationTasksPage() {
     <TmPageContainer
       className="operation-tasks-page-shell"
       title={PAGE_COPY.operationTasks.title}
-      subTitle={PAGE_COPY.operationTasks.description}
       extra={(
         <Space wrap className="operation-tasks-page__header-actions">
           <Button icon={<ReloadOutlined />} onClick={() => { void load(); void loadProductionStatus(); }} loading={loading || productionStatusLoading}>{tr("刷新")}</Button>
@@ -464,7 +463,6 @@ export default function OperationTasksPage() {
         <SectionCard
           className="operation-tasks-page__filters"
           title={tr("筛选任务")}
-          description={tr("按任务状态、平台和任务类型缩小处理范围。")}
           compact
         >
           <Form form={form} layout="vertical" onFinish={updateFilters}>

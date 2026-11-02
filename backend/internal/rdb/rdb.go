@@ -9,7 +9,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/config"
 )
 
-// Client wraps the go-redis client for cache and future queue workers.
+// Client wraps the go-redis client for cache and active queue workers.
 type Client struct {
 	*redis.Client
 }

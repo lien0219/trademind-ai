@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { test, expect } from '../fixtures/admin.fixture';
 import { E2E_TENANT_B_TOKEN, e2eSecondTenant, e2eShop, e2eTenant, mockTenantReads, mockTenantSwitchReads } from '../mocks/tenants';
 import { fail, ok } from '../mocks/envelope';
@@ -5,8 +6,45 @@ import { AUTH_SESSION_MODE_KEY, AUTH_TOKEN_KEY } from '../../src/constants/auth'
 import { AdminPage } from '../pages/admin.page';
 import { e2eUser } from '../mocks/auth';
 import { expectHeaderContentAligned, expectNoRootOverflow } from '../utils/assertions';
+import { layoutTokens } from '../../src/constants/layoutTokens';
 
 const INVITE_SESSION_KEY = 'trademind_invitation_pending';
+const tenantViewports = [
+  { width: 1440, height: 900 },
+  { width: 1280, height: 800 },
+  { width: 1024, height: 768 },
+  { width: 768, height: 900 },
+  { width: 375, height: 812 },
+];
+const generalSettingsPath = '/api/v1/tenant/settings/general';
+
+async function mockGeneralBusinessSettings(page: Page) {
+  await mockTenantReads(page, { platformOperator: true });
+  const state = {
+    snapshot: {
+      module: 'general' as const,
+      version: 2,
+      inherited: false,
+      values: { language: 'zh-CN', timezone: 'Asia/Tokyo', currency: 'JPY' },
+    },
+  };
+  await page.route('**/api/v1/auth/profile', (route) => route.fulfill({
+    json: ok({ ...e2eUser, tenantId: e2eTenant.id, tenantName: e2eTenant.name, platformOperator: true }),
+  }));
+  await page.route('**/api/v1/tenant/preferences', (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    return route.fulfill({ json: ok({
+      values: { language: 'zh-CN', theme: 'light', dateFormat: 'YYYY-MM-DD' },
+      version: 1,
+      inherited: false,
+    }) });
+  });
+  await page.route(`**${generalSettingsPath}`, (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    return route.fulfill({ json: ok(state.snapshot) });
+  });
+  return state;
+}
 
 test('@smoke switches an authorized system administrator back to tenant zero', async ({ admin, page }) => {
   await mockTenantReads(page);
@@ -87,13 +125,7 @@ test('@smoke blocks ungranted enterprise entry even for a platform operator', as
   await admin.writeGuard.expectNoUnexpectedWrites();
 });
 
-for (const viewport of [
-  { width: 1440, height: 900 },
-  { width: 1280, height: 800 },
-  { width: 1024, height: 768 },
-  { width: 768, height: 900 },
-  { width: 375, height: 812 },
-]) {
+for (const viewport of tenantViewports) {
   for (const entry of [
     { path: '/platform/tenants', title: '租户管理' },
     { path: '/platform/tenants/101', title: e2eTenant.name },
@@ -110,7 +142,133 @@ for (const viewport of [
       await expectNoRootOverflow(page);
     });
   }
+
+  test(`@smoke @responsive enterprise business settings keep readable form spacing at ${viewport.width}`, async ({ admin, page }) => {
+    await page.setViewportSize(viewport);
+    await mockGeneralBusinessSettings(page);
+    await admin.goto('/tenant/business-settings');
+
+    const form = page.locator('.tm-tenant-business-settings__form');
+    await expect(form.getByLabel('默认界面语言', { exact: true })).toBeVisible();
+    await expect(form.getByText('日元 JPY', { exact: true })).toBeVisible();
+    await expect(form).toHaveCSS('max-width', '720px');
+    const dimensions = await form.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const parent = element.parentElement!;
+      const style = getComputedStyle(parent);
+      return {
+        width: bounds.width,
+        availableWidth: parent.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+      };
+    });
+    expect(
+      Math.abs(dimensions.width - Math.min(720, dimensions.availableWidth)),
+      `short form width at ${viewport.width}: ${JSON.stringify(dimensions)}`,
+    ).toBeLessThanOrEqual(1);
+
+    const guidance = form.getByRole('alert').filter({
+      hasText: '个人语言优先于企业默认语言；货币偏好不执行换汇，也不改写订单金额。',
+    });
+    const actions = form.locator('.tm-action-bar');
+    await expect(guidance).toBeVisible();
+    await expect(actions.getByRole('button', { name: /保存企业配置$/ })).toBeVisible();
+    await expect(actions.getByRole('button', { name: '放弃更改', exact: true })).toBeVisible();
+    const [guidanceBounds, actionBounds] = await Promise.all([
+      guidance.boundingBox(),
+      actions.boundingBox(),
+    ]);
+    expect(guidanceBounds, 'business preferences guidance bounds').not.toBeNull();
+    expect(actionBounds, 'business preferences action bounds').not.toBeNull();
+    expect(
+      actionBounds!.y - (guidanceBounds!.y + guidanceBounds!.height),
+      `guidance to actions gap at ${viewport.width}`,
+    ).toBeGreaterThanOrEqual(layoutTokens.fieldGroupGap);
+    await expectHeaderContentAligned(page);
+    await expectNoRootOverflow(page);
+    await admin.writeGuard.expectNoUnexpectedWrites();
+  });
 }
+
+test('@smoke business preferences stop loading after a failed read and allow retry', async ({ admin, page }) => {
+  await mockGeneralBusinessSettings(page);
+  let unavailable = true;
+  await page.route(`**${generalSettingsPath}`, (route) => {
+    if (route.request().method() !== 'GET' || !unavailable) return route.fallback();
+    return route.fulfill({ status: 200, json: fail('E2E settings unavailable', 503, null) });
+  });
+  await admin.goto('/tenant/business-settings');
+  const error = page.getByRole('alert').filter({ hasText: 'E2E settings unavailable' });
+  await expect(error).toBeVisible();
+  await expect(page.locator('.ant-spin-spinning')).toHaveCount(0);
+  await expect(page.locator('.tm-tenant-business-settings__form')).toHaveCount(0);
+
+  unavailable = false;
+  await error.getByRole('button', { name: /^重\s*试$/ }).click();
+  await expect(page.getByLabel('默认界面语言', { exact: true })).toBeVisible();
+  await expect(error).toHaveCount(0);
+  expect(admin.writeGuard.allCalls(), 'retry must only read business settings').toHaveLength(0);
+});
+
+test('@smoke business preferences discard local edits and save once on mobile', async ({ admin, page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const state = await mockGeneralBusinessSettings(page);
+  let finishSave!: () => void;
+  const savePending = new Promise<void>((resolve) => { finishSave = resolve; });
+  admin.writeGuard.allow({
+    operation: 'save-business-preferences',
+    method: 'PUT',
+    path: /^\/api\/v1\/tenant\/settings\/general$/,
+    response: async (record) => {
+      expect(record).toMatchObject({ method: 'PUT', path: generalSettingsPath, query: {} });
+      expect(record.postDataJSON).toEqual({
+        expectedVersion: 2,
+        values: { language: 'zh-CN', timezone: 'Asia/Tokyo', currency: 'USD' },
+      });
+      await savePending;
+      state.snapshot = {
+        ...state.snapshot,
+        version: 3,
+        values: { ...state.snapshot.values, currency: 'USD' },
+      };
+      return ok(state.snapshot);
+    },
+  });
+
+  try {
+    await admin.goto('/tenant/business-settings');
+    const form = page.locator('.tm-tenant-business-settings__form');
+    const currency = form.getByLabel('报表显示货币', { exact: true });
+    const chooseDollars = async () => {
+      await currency.press('ArrowDown');
+      await page.locator('.ant-select-dropdown:visible').getByText('美元 USD', { exact: true }).click();
+      await expect(form.getByText('美元 USD', { exact: true })).toBeVisible();
+    };
+    await expect(form.getByText('日元 JPY', { exact: true })).toBeVisible();
+    await chooseDollars();
+    await Promise.all([
+      page.waitForResponse((response) =>
+        new URL(response.url()).pathname === generalSettingsPath && response.request().method() === 'GET',
+      ),
+      form.getByRole('button', { name: '放弃更改', exact: true }).click(),
+    ]);
+    await expect(form.getByText('日元 JPY', { exact: true })).toBeVisible();
+    expect(admin.writeGuard.allCalls(), 'discard must not mutate business settings').toHaveLength(0);
+
+    await chooseDollars();
+    await form.getByRole('button', { name: /保存企业配置$/ }).dblclick();
+    await admin.writeGuard.expectRequestCount('save-business-preferences', 1);
+    await expect(currency).toBeDisabled();
+    finishSave();
+    await expect(currency).toBeEnabled();
+    await expect(form.getByText('美元 USD', { exact: true })).toBeVisible();
+    await expect(page.getByText('版本 3', { exact: true })).toBeVisible();
+    await admin.writeGuard.expectRequestCount('save-business-preferences', 1);
+    expect(admin.writeGuard.allCalls()).toHaveLength(1);
+    await expectNoRootOverflow(page);
+  } finally {
+    finishSave();
+  }
+});
 
 test('@smoke switches credentials and refreshes every tab while clearing tenant drafts', async ({ admin, page, context }) => {
   await mockTenantSwitchReads(page);

@@ -14,7 +14,7 @@ import {
 import { fetchSettingsList, saveSettingsItems, type SettingPutItem } from '@/services/settings';
 import { pickGroup } from '@/utils/settingsForm';
 
-const { Paragraph, Text } = Typography;
+const { Paragraph } = Typography;
 
 const GROUP = 'pricing';
 
@@ -282,9 +282,6 @@ export default function PricingSettingsPage() {
                         </Col>
                       ))}
                     </Row>
-                    {!platformRulesEnabled ? (
-                      <Text type="secondary" style={{ display: 'block', marginTop: -8, fontSize: 12 }}>{tr("启用平台覆盖后可配置各平台加价比例")}</Text>
-                    ) : null}
                   </>
                 );
               }}

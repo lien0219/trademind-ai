@@ -9,7 +9,7 @@ import { AI_IMAGE_WARNING_LABEL, AI_IMAGE_WARNING_CODES } from '@/constants/aiIm
 import { formatDateTime } from '@/utils/formatTime';
 import { normalizeSource, parsePositiveInt } from '@/utils/urlState';
 import { Link, history } from '@umijs/max';
-import { Alert, Button, Select, Space, Table, Tag } from 'antd';
+import { Button, Select, Space, Table, Tag } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const AI_IMAGE_BATCH_QUERY_KEYS = [
@@ -76,21 +76,12 @@ export default function AIImageBatchListPage() {
   return (
     <TmPageContainer
       title={tr("批量图片任务")}
-      subTitle={tr("批量 AI 图片处理与复核")}
       extra={
         <Button type="primary" onClick={() => history.push('/product/drafts')}>
           {tr("从商品列表发起")}
         </Button>
       }
     >
-      {warningFilter ? (
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 12 }}
-          message={tr("warning 筛选已写入 URL，进入批次详情后将用于定位相关子项。")}
-        />
-      ) : null}
       <Space wrap style={{ marginBottom: 16 }}>
         <Select
           allowClear

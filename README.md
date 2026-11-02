@@ -5,10 +5,6 @@
 </p>
 
 <p align="center">
-  从一条商品链接，到可运营、可刊登、可持续协同的商品资产
-</p>
-
-<p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue.svg"></a>
   <img alt="Go" src="https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-18+-61DAFB?logo=react&logoColor=111">
@@ -33,9 +29,7 @@
   <img src="docs/assets/img/readme-hero-zh.png" alt="TradeMind 产品预览" width="100%" />
 </p>
 
-TradeMind 是面向跨境卖家、品牌团队与开发者的开源 AI 运营平台。它把商品采集、信息整理、内容生成、图片处理、草稿协同、平台刊登、订单与库存协同串成一条可观测的工作流，让团队从“重复搬运商品”升级为“持续经营商品资产”。
-
-无论是快速搭建自己的跨境运营工作台，还是为现有业务接入 AI 与平台能力，TradeMind 都提供一套可私有化部署、可审计、可二次开发的开放底座：数据掌握在自己手中，能力可以按团队流程自由组合。
+TradeMind 是面向跨境卖家、品牌团队与开发者的开源 AI 运营平台，将商品采集、信息整理、内容生成、图片处理、草稿协同、平台刊登、订单与库存协同串成可观测的工作流，并提供可私有化部署、可审计、可二次开发的扩展底座。
 
 ## 为什么选择 TradeMind
 

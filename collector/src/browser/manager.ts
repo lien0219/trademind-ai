@@ -10,7 +10,7 @@ import { installPublicNetworkGuard } from "../security/public-url.js";
 
 /**
  * 统一管理 Chromium 实例，避免各 Provider 自行 newBrowser 导致泄漏。
- * 1688 采集使用 BrowserSessionManager 持久化 Profile（collector/data/browser-profiles/1688）。
+ * 1688 采集使用 BrowserSessionManager 持久化 Profile（collector 包根目录下的 data/browser-profiles/1688）。
  */
 export class BrowserManager {
   private browser: Browser | null = null;

@@ -15,7 +15,7 @@ export default function PlatformRuntimeUnavailablePanel({ meta }: Props) {
   const st = PLATFORM_STATUS_META[meta.status] ?? { label: meta.status, color: 'default' };
 
   return (
-    <SectionCard title={trFormat("{value0} 运行状态", { value0: meta.name })} description={tr("该平台尚未接入运行时运维能力。")}>
+    <SectionCard title={trFormat("{value0} 运行状态", { value0: meta.name })}>
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Alert
           showIcon
@@ -26,14 +26,12 @@ export default function PlatformRuntimeUnavailablePanel({ meta }: Props) {
               <Text>
                 {trFormat("{value0} 的运行控制、健康检查、24 小时指标与发布门禁尚未接入，当前仅支持查看平台接入状态。", { value0: meta.name })}
               </Text>
-              <Text type="secondary">{tr("接入后将在此 Tab 展示完整运维面板，无需新增侧栏菜单。")}</Text>
             </Space>
           }
         />
         <Space wrap>
           <Text type="secondary">{tr("平台状态")}</Text>
           <Tag color={st.color}>{st.label}</Tag>
-          <Tag>{tr("未接入运行时")}</Tag>
         </Space>
         <Paragraph type="secondary" style={{ marginBottom: 0 }}>
           {tr("如需配置应用凭证、授权店铺或开启同步能力，请前往平台接入设置。")}

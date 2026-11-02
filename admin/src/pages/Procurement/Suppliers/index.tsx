@@ -294,7 +294,6 @@ export default function SuppliersPage() {
       <TmPageContainer
         className="tm-procurement-page"
         title={tr("供应商管理")}
-        subTitle={tr("维护供应商联系方式，并为本地商品规格设置供应商货号、采购价、起订量和交期。")}
         extra={<TmPageHeaderExtra><Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={openCreate}>{tr("新建供应商")}</Button></TmPageHeaderExtra>}
       >
         {!canManage ? <Alert type="info" showIcon message={tr("当前账号为只读模式；联系方式可能按权限脱敏展示。")} /> : null}

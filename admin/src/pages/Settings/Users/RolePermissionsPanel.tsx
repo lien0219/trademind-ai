@@ -39,7 +39,7 @@ export default function RolePermissionsPanel({ roles, loading, ready, hasError, 
 
   return (
     <div className="tm-role-panel">
-      <SectionCard title={tr("角色管理")} description={tr("按岗位分配权限，预览授权范围并对比角色差异。")} compact>
+      <SectionCard title={tr("角色管理")} compact>
         <OperationToolbar extra={
           <div className="tm-role-panel__compare">
             <span>{tr("对比基准")}</span>
@@ -58,6 +58,7 @@ export default function RolePermissionsPanel({ roles, loading, ready, hasError, 
       <div className="tm-role-panel__grid" aria-label={tr("角色权限管理")}>
         {roles.map((role) => {
           const label = roleLabel(role.code, role.name);
+          const description = role.description || (role.system ? SYSTEM_DESCRIPTIONS[role.code] : '');
           const groups = groupPermissions(role.permissions);
           const additions = comparison ? role.permissions.filter((key) => !comparison.permissions.includes(key)) : [];
           const removals = comparison ? comparison.permissions.filter((key) => !role.permissions.includes(key)) : [];
@@ -66,7 +67,7 @@ export default function RolePermissionsPanel({ roles, loading, ready, hasError, 
               <SectionCard compact title={<span className="tm-role-panel__role-title"><SafetyCertificateOutlined aria-hidden="true" />{label}</span>}
                 headerExtra={<Tag color={role.enabled ? 'success' : 'default'}>{role.enabled ? tr("启用") : tr("已停用")}</Tag>}>
                 <div className="tm-role-panel__identity"><Tag>{role.system ? tr("系统角色") : tr("自定义角色")}</Tag>{role.code === comparison?.code && <Tag color="processing">{tr("对比基准")}</Tag>}</div>
-                <p className="tm-role-panel__description">{role.description || (role.system ? SYSTEM_DESCRIPTIONS[role.code] : '') || tr("按岗位配置所需的页面与操作权限。")}</p>
+                {description ? <p className="tm-role-panel__description">{description}</p> : null}
                 <div className="tm-role-panel__counts"><span><TeamOutlined aria-hidden="true" />{trFormat("成员：{value0} 人", { value0: role.memberCount })}</span><span>{tr("权限：")}<strong>{role.permissions.length}</strong>{tr("项")}</span><span>{trFormat("{value0} 个模块", { value0: groups.length })}</span></div>
                 <div className="tm-role-panel__modules" aria-label={tr("已授权模块")}>
                   {groups.slice(0, 6).map((group) => <Tag key={group.key}>{group.label}</Tag>)}

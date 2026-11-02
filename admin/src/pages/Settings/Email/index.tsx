@@ -4,6 +4,7 @@ import { Link } from '@umijs/renderer-react';
 import { MailOutlined, ReloadOutlined, SaveOutlined, SendOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
+import { layoutTokens } from '@/constants/layoutTokens';
 import { Alert, Button, Col, Form, Input, InputNumber, Radio, Row, Switch, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -121,7 +122,6 @@ export default function EmailSettingsPage() {
             variant="outlined"
             title={tr("服务提供商")}
             className="tm-system-settings__panel"
-            style={{ marginTop: 16 }}
             extra={
               <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>{tr("重新加载")}</Button>
             }
@@ -140,7 +140,7 @@ export default function EmailSettingsPage() {
             </Text>
           </ProCard>
 
-          <ProCard variant="outlined" title={tr("SMTP 连接")} className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title={tr("SMTP 连接")} className="tm-system-settings__panel">
             <Row gutter={[24, 0]}>
               <Col xs={24} md={14}>
                 <Form.Item
@@ -174,7 +174,7 @@ export default function EmailSettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard variant="outlined" title={tr("发件人信息")} className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title={tr("发件人信息")} className="tm-system-settings__panel">
             <Row gutter={[24, 0]}>
               <Col xs={24} md={12}>
                 <Form.Item
@@ -193,7 +193,7 @@ export default function EmailSettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard variant="outlined" title={tr("加密方式")} className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title={tr("加密方式")} className="tm-system-settings__panel">
             <Alert
               type="info"
               showIcon
@@ -221,10 +221,10 @@ export default function EmailSettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard variant="outlined" title={tr("发送测试")} className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title={tr("发送测试")} className="tm-system-settings__panel">
             <Paragraph type="secondary" style={{ marginBottom: 12 }}>{tr("保存 SMTP 配置后，可向指定邮箱发送测试邮件以验证连通性。")}</Paragraph>
             <Form form={testForm} component={false} layout="vertical">
-              <Row gutter={[16, 0]} align="bottom">
+              <Row gutter={[16, layoutTokens.fieldGroupGap]} align="bottom">
                 <Col xs={24} md={12} lg={10}>
                   <Form.Item
                     name="to"
@@ -244,7 +244,7 @@ export default function EmailSettingsPage() {
             </Form>
           </ProCard>
 
-          <ProCard variant="outlined" className="tm-system-settings__footer" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" className="tm-system-settings__footer">
             <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>{tr("保存配置")}</Button>
           </ProCard>
         </Form>

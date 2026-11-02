@@ -584,7 +584,6 @@ export default function OrderExceptionsPage() {
   return (
     <TmPageContainer
       title={tr("订单异常工作台")}
-      subTitle={tr("处理订单同步与规格匹配中的异常情况。")}
     >
       <Typography.Paragraph type="secondary">
         {tr("聚合规格未匹配、扣库存失败与库存同步失败等需人工处理的问题；标记仅影响本列表视图，不改订单与任务原始状态。\r\n        抖店订单同步后若 SKU 未绑定，请在此绑定本地规格后再扣库存或同步抖店库存。")}

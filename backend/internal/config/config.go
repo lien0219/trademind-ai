@@ -41,14 +41,14 @@ type Config struct {
 
 	// CollectorBaseURL is the Node collector HTTP base (e.g. http://127.0.0.1:3100).
 	CollectorBaseURL string
-	// CollectorTimeoutSeconds caps outbound HTTP calls to the collector (default 60).
+	// CollectorTimeoutSeconds caps outbound HTTP calls to the collector (default 120).
 	CollectorTimeoutSeconds int
 	// CollectorServiceToken authenticates backend-to-collector HTTP calls.
 	CollectorServiceToken string
 
 	// CollectQueueEnabled gates async collect jobs (Redis list + worker).
 	CollectQueueEnabled bool
-	// CollectWorkerConcurrency is the number of concurrent BRPOP consumers.
+	// CollectWorkerConcurrency is the number of concurrent ready-to-processing consumers.
 	CollectWorkerConcurrency int
 	// CollectQueueName is the Redis list key for collect job payloads.
 	CollectQueueName string
@@ -71,7 +71,7 @@ type Config struct {
 
 	// ImageQueueEnabled gates async image_tasks (Redis list + in-process worker).
 	ImageQueueEnabled bool
-	// ImageWorkerConcurrency is the number of concurrent BRPOP consumers for image tasks.
+	// ImageWorkerConcurrency is the number of concurrent ready-to-processing consumers for image tasks.
 	ImageWorkerConcurrency int
 	// ImageQueueName is the Redis list key for image task payloads (default image:tasks).
 	ImageQueueName string
@@ -88,14 +88,14 @@ type Config struct {
 	OrderSyncQueueEnabled bool
 	// OrderSyncQueueName is the Redis list key for order sync payloads (default order:sync:tasks).
 	OrderSyncQueueName string
-	// OrderSyncWorkerConcurrency is concurrent BRPOP consumers for order sync (default 1).
+	// OrderSyncWorkerConcurrency is concurrent ready-to-processing consumers for order sync (default 1).
 	OrderSyncWorkerConcurrency int
 	// OrderSyncTaskTimeoutSeconds caps each Provider.SyncOrders context (default 120).
 	OrderSyncTaskTimeoutSeconds int
 
 	// CustomerMessageSyncQueueName is the Redis list key (default customer:message:sync:tasks).
 	CustomerMessageSyncQueueName string
-	// CustomerMessageSyncWorkerConcurrency is concurrent BRPOP consumers (default 1).
+	// CustomerMessageSyncWorkerConcurrency is concurrent ready-to-processing consumers (default 1).
 	CustomerMessageSyncWorkerConcurrency int
 	// CustomerMessageSyncTaskTimeoutSeconds caps each Provider.PullMessages context (default 120).
 	CustomerMessageSyncTaskTimeoutSeconds int
@@ -106,7 +106,7 @@ type Config struct {
 	ProductPublishQueueEnabled bool
 	// ProductPublishQueueName is the Redis list key for product publish payloads (default product:publish:tasks).
 	ProductPublishQueueName string
-	// ProductPublishWorkerConcurrency is concurrent BRPOP consumers (default 1).
+	// ProductPublishWorkerConcurrency is concurrent ready-to-processing consumers (default 1).
 	ProductPublishWorkerConcurrency int
 	// ProductPublishTaskTimeoutSeconds caps publish worker lease TTL and provider timeout (default 180).
 	ProductPublishTaskTimeoutSeconds int
@@ -120,7 +120,7 @@ type Config struct {
 	InventorySyncQueueEnabled bool
 	// InventorySyncQueueName Redis list key (default inventory:sync:tasks).
 	InventorySyncQueueName string
-	// InventorySyncWorkerConcurrency concurrent BRPOP consumers (default 1).
+	// InventorySyncWorkerConcurrency is concurrent ready-to-processing consumers (default 1).
 	InventorySyncWorkerConcurrency int
 	// InventorySyncTaskTimeoutSeconds caps worker lease TTL and provider context (default 120).
 	InventorySyncTaskTimeoutSeconds int
@@ -185,7 +185,7 @@ type DBConfig struct {
 	Timezone string
 }
 
-// RedisConfig is used for cache and future queues.
+// RedisConfig is used for cache and active task queues.
 type RedisConfig struct {
 	Addr     string
 	Password string

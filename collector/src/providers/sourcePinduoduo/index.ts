@@ -61,8 +61,6 @@ class PinduoduoCollectorProvider implements CollectorProvider {
     batchSupported: true,
     urlPatterns: [
       'https://pifa.pinduoduo.com/goods/detail/?gid=*',
-      'https://mobile.yangkeduo.com/goods.html?goods_id=*',
-      'https://yangkeduo.com/goods.html?goods_id=*',
     ],
     features: [
       'title',

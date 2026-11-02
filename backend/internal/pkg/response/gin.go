@@ -32,7 +32,7 @@ func JSON(c *gin.Context, httpStatus, bizCode int, msg string, data any) {
 	})
 }
 
-// HandleError maps errors to HTTP + business codes (extend as domain errors appear).
+// HandleError is the generic HTTP 500 fallback for errors without domain mapping.
 func HandleError(c *gin.Context, err error) {
 	if err == nil {
 		return

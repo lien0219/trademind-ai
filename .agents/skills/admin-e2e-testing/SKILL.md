@@ -30,11 +30,11 @@ description: TradeMind 生产维护阶段的 Admin Playwright CI 回归、写请
 
 ## 3. Playwright MCP 模式
 
-开发时可用 Playwright MCP 访问 `http://localhost:8001`。若用户已经启动 Admin dev server，复用现有服务，不启动、不停止、不杀进程。所有非 GET API 必须先用 `browser_route` 拦截，不得执行真实平台写操作。
+开发时用 Playwright MCP 访问用户提供的 Admin 预览地址；常见本地地址是 `http://localhost:8000`，不要把端口写死为默认值。若用户已经启动 Admin dev server，复用现有服务，不启动、不停止、不杀进程。所有非 GET API 必须先用 `browser_route` 拦截，不得执行真实平台写操作。
 
 ## 4. Playwright Test 模式
 
-持久 E2E 使用 Playwright Test，首期浏览器为 Chromium。默认 `baseURL` 为 `http://127.0.0.1:8001`，本地复用已有 server，CI 由 `webServer` 启动 `pnpm dev:admin`，端口 8001。测试不得依赖后端服务，所有 `/api/v1/**` 业务接口由 Mock 提供。
+持久 E2E 使用 Playwright Test，首期浏览器为 Chromium。默认 `baseURL` 为 `http://127.0.0.1:8001`，本地复用已有 server；CI 由 `webServer` 执行 `pnpm build:admin` 后启动 Admin preview，端口 8001。测试不得依赖后端服务，所有 `/api/v1/**` 业务接口由 Mock 提供。
 
 ## 5. 测试目录规范
 

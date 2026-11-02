@@ -7,16 +7,16 @@ alwaysApply: true
 
 ## 项目定位
 
-贸灵 TradeMind 是一个开源 AI 跨境电商运营平台。当前阶段不是完整 ERP，而是优先实现：
+贸灵 TradeMind 是一个开源 AI 跨境电商运营平台。项目处于生产维护与受控 ERP 扩展阶段；具体可用能力以 README、`docs/module-map.md`、Provider registry、路由和设置页元数据为准：
 
 - 商品采集
 - 商品草稿管理
 - AI 标题优化
 - AI 描述生成
-- AI 商品图处理预留
-- 店铺授权能力预留
-- AI 客服能力预留
-- 跨平台 ERP 扩展能力预留
+- AI 商品图处理
+- 店铺授权与平台协同
+- AI 客服建议与受控自动回复
+- 订单、库存及其他 ERP 扩展
 
 一句话定位：
 
@@ -46,22 +46,9 @@ AI 生成描述
 形成可编辑商品草稿
 ```
 
-## 当前不做的内容
+## 范围边界
 
-MVP 阶段不要主动实现以下复杂能力，除非任务明确要求：
-
-- 完整订单系统
-- 完整库存系统
-- 完整财务系统
-- 完整 WMS 仓储系统
-- 多平台自动刊登
-- AI 自动回复买家
-- 企业级多租户 SaaS
-- Kubernetes 部署
-- 自研大模型
-- 自研图片生成模型
-
-可以预留接口、表字段和 Provider 抽象，但不要过度实现。
+不要把尚未批准的完整 ERP、平台真实写入、自动客服外发、Kubernetes 或自研模型扩展当作默认任务。已有模块、接口和 Provider 不得因为旧规则中的“预留”字样被删除或重写；扩大业务范围前先查 `docs/module-map.md`、相关设计文档和现有权限 / fail-closed 边界。
 
 ## 必须保留的后续扩展方向
 
@@ -86,8 +73,8 @@ MVP 阶段不要主动实现以下复杂能力，除非任务明确要求：
 - 数据库：**PostgreSQL**（推荐与默认）；MySQL 可选、非本地默认
 - 缓存/队列：Redis
 - 采集服务：Node.js + TypeScript + Playwright
-- AI：第三方大模型 API / OpenAI-compatible Provider / 本地 Ollama 预留
-- 存储：local 优先，S3 / COS / OSS / R2 / MinIO 预留
+- AI：第三方大模型 API、OpenAI-compatible Provider 与本地 Provider；具体可用状态以 Provider registry 和设置页能力元数据为准
+- 存储：local 优先，并通过已注册的存储 Provider 扩展云端能力；未配置时保持 fail closed
 
 ## 核心开发原则
 

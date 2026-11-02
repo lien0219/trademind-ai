@@ -281,7 +281,6 @@ export default function AlertNotifySettingsPage() {
             variant="outlined"
             title={tr("通知策略")}
             className="tm-system-settings__panel"
-            style={{ marginTop: 16 }}
             extra={
               <Button type="link" icon={<ReloadOutlined />} onClick={() => void load()} disabled={loading}>{tr("重新加载")}</Button>
             }
@@ -356,16 +355,13 @@ export default function AlertNotifySettingsPage() {
                         </Form.Item>
                       </Col>
                     </Row>
-                    {!externalEnabled ? (
-                      <Text type="secondary" style={{ display: 'block', marginTop: -8, fontSize: 12 }}>{tr("开启外部通知后可配置等级、触发条件与通道")}</Text>
-                    ) : null}
                   </>
                 );
               }}
             </Form.Item>
           </ProCard>
 
-          <ProCard variant="outlined" title={tr("通道配置")} className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title={tr("通道配置")} className="tm-system-settings__panel">
             <Form.Item
               label={tr("通道总开关")}
               name="an_enabled"
@@ -426,12 +422,12 @@ export default function AlertNotifySettingsPage() {
                           <Input.Password placeholder="https://hooks.example.com/alerts" autoComplete="off" />
                         </Form.Item>
                         <Row gutter={12}>
-                          <Col span={12}>
+                          <Col xs={24} sm={12}>
                             <Form.Item label={tr("HTTP 方法")} name="webhook_method">
                               <Select allowClear placeholder="POST" options={WEBHOOK_METHOD_OPTIONS} />
                             </Form.Item>
                           </Col>
-                          <Col span={12}>
+                          <Col xs={24} sm={12}>
                             <Form.Item label={tr("超时（秒）")} name="webhook_timeout_seconds" tooltip={tr("留空使用系统默认值")}>
                               <InputNumber min={1} max={300} style={{ width: '100%' }} placeholder={tr("可选")} />
                             </Form.Item>
@@ -497,7 +493,7 @@ export default function AlertNotifySettingsPage() {
             </Form.Item>
           </ProCard>
 
-          <ProCard variant="outlined" className="tm-system-settings__footer" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" className="tm-system-settings__footer">
             <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>{tr("保存配置")}</Button>
           </ProCard>
         </Form>

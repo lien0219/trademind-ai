@@ -479,7 +479,7 @@ export default function InventoryAlertsPage() {
   );
 
   return (
-    <TmPageContainer title={tr("库存预警")} subTitle={tr("查看低库存、缺货与平台库存不一致等预警，可按需创建同步任务。")}>
+    <TmPageContainer title={tr("库存预警")}>
       <KeywordSafetyHint visible={showSensitiveHint} />
       <Typography.Paragraph type="secondary">
         {tr("本页仅查询库存并提供提醒，不会自动修改平台库存。平台库存推送请从")}{' '}

@@ -169,9 +169,6 @@ export default function AIOperationWorkbenchPage() {
 
   const tableRef = useRef<{ reload: () => void } | null>(null);
   const emptyLocale = useListEmptyLocale('aiOperationWorkbench');
-  const hasActiveFilters = Boolean(
-    filterType || filterPriority || filterPlatform || filterShopId || filterKeyword || dateRange?.[0] || dateRange?.[1],
-  );
 
   useEffect(() => {
     setFilterType(urlState.type);
@@ -447,7 +444,6 @@ export default function AIOperationWorkbenchPage() {
     <TmPageContainer
       className="tm-ai-workbench-page"
       title={tr("AI 商品运营工作台")}
-      subTitle={tr("汇总 AI 文案、AI 图片、发布检查、刊登异常与失败任务，统一处理入口")}
       extra={
         <OperationToolbar
           extra={
@@ -521,23 +517,10 @@ export default function AIOperationWorkbenchPage() {
               ? trFormat('当前有 {count} 个高优先级事项', { count: Number(summary?.highPriorityCount ?? 0) })
               : tr("当前没有高优先级事项")
           }
-          description={tr("高优先级事项来自现有待办汇总，仅作为处理顺序提示。")}
         />
 
         <SectionCard
           title={tr("筛选待办")}
-          description={
-            hasActiveFilters
-              ? tr("当前筛选已生效，列表和汇总会按条件更新。")
-              : tr("按业务环节、优先级、平台、店铺和时间范围定位待处理事项。")
-          }
-          headerExtra={
-            hasActiveFilters ? (
-              <Tag color="blue" className="tm-ai-workbench__active-filter-tag">
-                {tr("筛选中")}
-              </Tag>
-            ) : null
-          }
           compact
         >
           <div className="tm-ai-workbench__filters">
@@ -659,7 +642,6 @@ export default function AIOperationWorkbenchPage() {
 
         <SectionCard
           title={tr("待办列表")}
-          description={tr("点击行查看详情，使用操作入口进入对应业务页面处理。")}
           compact
         >
           <ProTable<WorkbenchTodoItem>

@@ -200,7 +200,6 @@ export default function CollectRulesPage() {
   return (
     <TmPageContainer
       title={tr("采集规则")}
-      subTitle={tr("配置自定义网页采集规则，指定从页面读取商品标题、价格、图片等信息的字段。")}
       extra={
         <Space wrap className="tm-page-header-extra">
           <Button onClick={() => setAiModalOpen(true)}>{tr("AI 帮我生成规则")}</Button>

@@ -240,7 +240,7 @@ export default function SystemSettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard variant="outlined" title={tr("任务中心 · 站内告警策略")} className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title={tr("任务中心 · 站内告警策略")} className="tm-system-settings__panel">
             <Row gutter={[24, 16]}>
               <Col xs={24} md={12} lg={8}>
                 <Form.Item label={tr("自动生成站内告警")} name="enable_task_alerts" valuePropName="checked">
@@ -307,9 +307,6 @@ export default function SystemSettingsPage() {
                         </Form.Item>
                       </Col>
                     </Row>
-                    {!repeatedFailuresEnabled ? (
-                      <Text type="secondary" style={{ display: 'block', marginTop: -8, marginBottom: 8, fontSize: 12 }}>{tr("开启重复失败统计后可配置阈值与时间窗")}</Text>
-                    ) : null}
                   </>
                 );
               }}
@@ -350,16 +347,13 @@ export default function SystemSettingsPage() {
                         </Form.Item>
                       </Col>
                     </Row>
-                    {!scanWorkerEnabled ? (
-                      <Text type="secondary" style={{ display: 'block', marginTop: -8, marginBottom: 8, fontSize: 12 }}>{tr("启用告警定时扫描后可配置扫描间隔")}</Text>
-                    ) : null}
                   </>
                 );
               }}
             </Form.Item>
           </ProCard>
 
-          <ProCard variant="outlined" className="tm-system-settings__footer" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" className="tm-system-settings__footer">
             <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>{tr("保存设置")}</Button>
           </ProCard>
         </Form>

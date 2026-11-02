@@ -451,6 +451,7 @@ function AppHeaderContent({
         canAccessPath={canSearchPath}
         onNavigate={(path) => history.push(path)}
       />
+      <AppTopNavBridge isMobile={layoutProps.isMobile} />
     </div>
   );
 }
@@ -463,9 +464,8 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   layout: "mix",
   navTheme: "light",
   siderWidth: getSiderWidth(),
-  actionsRender: (props: HeaderLayoutProps) => (
-    <AppTopNavBridge isMobile={props.isMobile} />
-  ),
+  // Keep search and account controls in one flex row; ProLayout caches action widths on resize.
+  actionsRender: false,
   avatarProps: false,
   rightContentRender: false,
   // Keep the desktop brand and utility controls in the sider so the whole left

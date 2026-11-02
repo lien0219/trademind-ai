@@ -487,7 +487,7 @@ export default function SecuritySettingsPage() {
         </ProCard>
 
         {overview ? (
-          <ProCard variant="outlined" title={tr("运行概览")} style={{ marginTop: 16 }} loading={centerLoading}>
+          <ProCard variant="outlined" title={tr("运行概览")} loading={centerLoading}>
             <Row gutter={[16, 16]}>
               <Col xs={12} sm={8} md={6}>
                 <Statistic title={tr("认证模式")} value={overview.authSessionMode || '—'} />
@@ -523,7 +523,6 @@ export default function SecuritySettingsPage() {
         <ProCard
           variant="outlined"
           title={tr("认证与会话")}
-          style={{ marginTop: 16 }}
           extra={
             <Space wrap>
               <Button
@@ -570,7 +569,7 @@ export default function SecuritySettingsPage() {
           />
         </ProCard>
 
-        <ProCard variant="outlined" title={tr("租户隔离状态")} style={{ marginTop: 16 }}>
+        <ProCard variant="outlined" title={tr("租户隔离状态")}>
           <Paragraph type="secondary" style={{ marginBottom: 12 }}>{tr("以下项来自配置状态中心的安全检查。完整清单见")}<Link to="/settings/config-status">{tr("配置状态")}</Link>。
           </Paragraph>
           <List
@@ -595,7 +594,6 @@ export default function SecuritySettingsPage() {
         <ProCard
           variant="outlined"
           title={tr("主密钥轮换")}
-          style={{ marginTop: 16 }}
           extra={
             <Space wrap>
               <Button disabled={!canRotateKeys} onClick={() => setPrepareOpen(true)}>{tr("预检（Dry Run）")}</Button>
@@ -678,7 +676,6 @@ export default function SecuritySettingsPage() {
         <ProCard
           variant="outlined"
           title={tr("文件安全")}
-          style={{ marginTop: 16 }}
           extra={
             <Button icon={<ReloadOutlined />} onClick={() => void loadFileStats()}>{tr("刷新")}</Button>
           }
@@ -719,7 +716,6 @@ export default function SecuritySettingsPage() {
         <ProCard
           variant="outlined"
           title={tr("审计完整性")}
-          style={{ marginTop: 16 }}
           extra={
             <Space wrap>
               <Select
@@ -770,7 +766,7 @@ export default function SecuritySettingsPage() {
         </ProCard>
 
         <Form form={form} layout="vertical" onFinish={onFinish}>
-          <ProCard variant="outlined" title={tr("策略配置")} className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title={tr("策略配置")} className="tm-system-settings__panel">
             <Row gutter={[24, 0]}>
               <Col xs={24} md={12} lg={10}>
                 <Form.Item
@@ -802,7 +798,7 @@ export default function SecuritySettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard variant="outlined" title={tr("传输安全")} className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title={tr("传输安全")} className="tm-system-settings__panel">
             <Row gutter={[16, 16]}>
               <Col xs={24} md={16} lg={14}>
                 <SecurityToggleCard
@@ -814,7 +810,7 @@ export default function SecuritySettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard variant="outlined" title={tr("回调签名校验")} className="tm-system-settings__panel" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" title={tr("回调签名校验")} className="tm-system-settings__panel">
             <Paragraph type="secondary" style={{ marginBottom: 16, fontSize: 13 }}>{tr("用于验证外部系统向贸灵发起的运维类回调请求，与告警通知中的回调密钥相互独立。")}</Paragraph>
             <Row gutter={[24, 0]}>
               <Col xs={24} md={14} lg={12}>
@@ -829,7 +825,7 @@ export default function SecuritySettingsPage() {
             </Row>
           </ProCard>
 
-          <ProCard variant="outlined" className="tm-system-settings__footer" style={{ marginTop: 16 }}>
+          <ProCard variant="outlined" className="tm-system-settings__footer">
             <Space wrap>
               <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>{tr("保存配置")}</Button>
               <Button icon={<ReloadOutlined />} onClick={() => void loadSettings()} disabled={loading}>{tr("重新加载")}</Button>

@@ -150,7 +150,6 @@ export default function SalesReturnsPage() {
       <TmPageContainer
         className="tm-sales-return-page"
         title={tr("退货退款")}
-        subTitle={tr("订单售后记录")}
         extra={
           <TmPageHeaderExtra>
             <Button onClick={() => history.push('/orders/refund-executions')}>

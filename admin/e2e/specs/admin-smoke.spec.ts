@@ -9,6 +9,7 @@ import { AUTH_TOKEN_KEY } from "../../src/constants/auth";
 import { THEME_MODE_STORAGE_KEY } from "../../src/theme/themeMode";
 import { ok } from "../mocks/envelope";
 import { e2eUser } from "../mocks/auth";
+import { e2eTenant, mockTenantReads } from "../mocks/tenants";
 
 const themeSurfaceColors = {
   light: {
@@ -409,9 +410,9 @@ test.describe("@smoke Admin route smoke", () => {
     );
     await expect(page.getByText("联系客服")).toHaveCount(0);
     await expect(
-      page.getByRole("menuitem", { name: /退出登录/ }),
+      page.getByRole("menuitem", { name: "退出登录", exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("返回登录页面")).toBeVisible();
+    await expect(page.getByText("返回登录页面")).toHaveCount(0);
 
     await page.keyboard.press("Escape");
     await expect(accountTrigger).toHaveAttribute("aria-expanded", "false");
@@ -569,12 +570,145 @@ test.describe("@smoke Admin route smoke", () => {
     await admin.writeGuard.expectRequestCount("unexpected", 0);
   });
 
-  test("keeps the mobile account actions in one header and uses a readable themed menu", async ({
+  test("keeps long header identities usable across viewport and theme changes", async ({
     admin,
     page,
   }) => {
-    await page.setViewportSize({ width: 375, height: 812 });
+    const headerTenant = {
+      ...e2eTenant,
+      name: `E2E 跨境企业 ${"国际运营与仓储履约中心".repeat(6)}`,
+    };
+    const headerUser = {
+      ...e2eUser,
+      displayName: `E2E 长名称管理员 ${"多平台商品与订单运营".repeat(6)}`,
+      email: `e2e.${"long-account-name-".repeat(5)}@example.test`,
+      tenantId: headerTenant.id,
+      tenantName: headerTenant.name,
+      platformOperator: true,
+    };
+    await mockTenantReads(page, { platformOperator: true });
+    await page.route("**/api/v1/auth/profile", (route) => route.fulfill({
+      json: ok(headerUser),
+    }));
+    await page.route("**/api/v1/auth/tenants", (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      return route.fulfill({ json: ok({
+        currentTenantId: headerTenant.id,
+        items: [{ ...headerTenant, role: "admin" }],
+      }) });
+    });
+    await page.route("**/api/v1/tenant/preferences", (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      return route.fulfill({ json: ok({
+        values: { language: "zh-CN", theme: "light", dateFormat: "YYYY-MM-DD" },
+        version: 1,
+        inherited: false,
+      }) });
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
     await admin.goto("/dashboard/product-operations");
+    await expect(page.getByRole("button", {
+      name: `当前企业 ${headerTenant.name}`,
+      exact: true,
+    })).toBeVisible();
+
+    const navigation = page.getByRole("navigation", { name: "内容导航栏", exact: true });
+    const tenant = navigation.getByRole("button", {
+      name: `当前企业 ${headerTenant.name}`,
+      exact: true,
+    });
+    const language = navigation.getByRole("combobox", { name: "语言", exact: true });
+    const theme = navigation.getByRole("button", { name: /^切换到(?:深色|浅色)模式$/ });
+    const account = navigation.getByRole("button", {
+      name: `当前用户 ${headerUser.displayName}`,
+      exact: true,
+    });
+    const search = page.getByRole("button", { name: "搜索功能或页面", exact: true });
+    const expectControlWithinViewport = async (
+      control: Locator,
+      label: string,
+      path: string,
+      isLanguage = false,
+    ) => {
+      await expect(control, `${path}: ${label} is visible`).toBeVisible();
+      await expect(control, `${path}: ${label} is fully visible`).toBeInViewport({ ratio: 1 });
+      const bounds = await control.evaluate((element, measureSelect) => {
+        // The combobox input is narrower than the painted Select control.
+        const surface = measureSelect ? element.closest(".ant-select") ?? element : element;
+        const rect = surface.getBoundingClientRect();
+        return {
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+        };
+      }, isLanguage);
+      const context = `${path}: ${label} bounds ${JSON.stringify(bounds)}`;
+      expect(bounds.left, context).toBeGreaterThanOrEqual(0);
+      expect(bounds.right, context).toBeLessThanOrEqual(bounds.viewportWidth);
+      expect(bounds.top, context).toBeGreaterThanOrEqual(0);
+      expect(bounds.bottom, context).toBeLessThanOrEqual(bounds.viewportHeight);
+    };
+    const expectHeaderControlsWithinViewport = async (path: string, requireTheme = false) => {
+      await expect(navigation).toHaveCount(1);
+      await expectAccountInTopNavbar(page);
+      for (const [label, control] of [
+        ["tenant", tenant],
+        ["language", language],
+        ["account", account],
+        ["search", search],
+      ] as const) {
+        await expectControlWithinViewport(control, label, path, label === "language");
+      }
+      if (requireTheme || await theme.count()) {
+        await expectControlWithinViewport(theme, "theme", path);
+      }
+      await expectNoRootOverflow(page);
+    };
+
+    const expectMobileHeaderUsable = async (path: string) => {
+      await expectHeaderControlsWithinViewport(path, true);
+
+      await tenant.click();
+      await expect(tenant).toHaveAttribute("aria-expanded", "true");
+      const workspaces = page.getByRole("listbox", { name: "可访问企业", exact: true });
+      await expect(workspaces).toBeVisible();
+      await expect(workspaces.getByRole("option", { name: new RegExp(headerTenant.name) }))
+        .toHaveAttribute("aria-selected", "true");
+      await page.getByRole("button", { name: "关闭工作空间菜单", exact: true }).click();
+      await expect(workspaces).toBeHidden();
+      await expect(tenant).toHaveAttribute("aria-expanded", "false");
+
+      await account.click();
+      await expect(account).toHaveAttribute("aria-expanded", "true");
+      await expect(page.locator(".tm-app-account-dropdown__profile-name")).toBeVisible();
+      await expect(page.locator(".tm-app-account-dropdown__profile-name")).toHaveText(headerUser.displayName);
+      await expect(page.locator(".tm-app-account-dropdown__profile-account")).toBeVisible();
+      await expect(page.locator(".tm-app-account-dropdown__profile-account")).toHaveText(headerUser.email);
+      await expect(page.getByRole("menuitem", { name: "企业信息与设置", exact: true })).toBeVisible();
+      await expect(page.getByRole("menuitem", { name: "退出登录", exact: true })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(account).toHaveAttribute("aria-expanded", "false");
+      await expectNoRootOverflow(page);
+    };
+
+    for (const viewport of [
+      { width: 1440, height: 900 },
+      { width: 1280, height: 800 },
+      { width: 1024, height: 768 },
+      { width: 768, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expectHeaderControlsWithinViewport(`${viewport.width}x${viewport.height}`);
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expectHeaderControlsWithinViewport("desktop before mobile resize");
+    await page.setViewportSize({ width: 375, height: 812 });
+    await expectMobileHeaderUsable("desktop to mobile resize");
+    await page.reload();
+    await expectMobileHeaderUsable("mobile reload");
 
     await expectAccountInTopNavbar(page);
     await expect(
@@ -705,7 +839,7 @@ test.describe("@smoke Admin route smoke", () => {
     await admin.writeGuard.expectRequestCount("unexpected", 0);
   });
 
-  test("centers login and registration safely on mobile", async ({
+  test("centers essential login and registration without fabricated metrics", async ({
     admin,
     page,
   }) => {
@@ -719,6 +853,15 @@ test.describe("@smoke Admin route smoke", () => {
     );
     await page.goto("/user/register");
     await expect(page).toHaveURL(/\/user\/register/);
+    await expect(page.locator(".auth-brand")).toBeVisible();
+    for (const fabricatedMetric of [
+      "Today GMV",
+      "¥128,430",
+      "+18.6%",
+      "AI 已生成 36 条商品优化建议",
+    ]) {
+      await expect(page.getByText(fabricatedMetric, { exact: true })).toHaveCount(0);
+    }
 
     const expectCentered = async (tab: "登录" | "注册") => {
       await expect(page.getByRole("tab", { name: tab })).toHaveAttribute(
@@ -738,6 +881,7 @@ test.describe("@smoke Admin route smoke", () => {
             ),
             top: rect.top,
             bottom: rect.bottom,
+            viewportHeight: window.innerHeight,
           };
         });
 
@@ -756,12 +900,20 @@ test.describe("@smoke Admin route smoke", () => {
       expect(
         metrics.bottom,
         `${tab} bottom in viewport ${JSON.stringify(metrics)}`,
-      ).toBeLessThanOrEqual(1301);
+      ).toBeLessThanOrEqual(metrics.viewportHeight);
     };
 
     await expectCentered("注册");
     await page.getByRole("tab", { name: "登录" }).click();
     await expect(page).toHaveURL(/\/user\/login/);
+    await expectCentered("登录");
+    await expect(page.getByLabel("邮箱 / 手机号", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("密码", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /登录工作台/ })).toBeVisible();
+    await expectNoRootOverflow(page);
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.locator(".auth-brand")).toBeVisible();
     await expectCentered("登录");
     await expectNoRootOverflow(page);
     await admin.writeGuard.expectRequestCount("unexpected", 0);

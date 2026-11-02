@@ -98,7 +98,6 @@ export default function ObservabilityCenterPage() {
   return (
     <TmPageContainer
       title={tr("可观测性中心")}
-      subTitle={tr("查看系统指标、告警评估、SLO 与遥测导出运行状态")}
       className={styles.page}
       extra={[
         <Button

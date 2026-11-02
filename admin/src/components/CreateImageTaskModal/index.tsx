@@ -445,7 +445,7 @@ export function CreateImageTaskModal({
       }}
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        {tr("处理结果会自动保存到「设置 → 存储设置」当前启用的存储位置。普通用户只需选择任务类型和图片即可。")}
+        {tr("处理结果会自动保存到「设置 → 存储设置」当前启用的存储位置。")}
       </Typography.Paragraph>
 
       {showMoreTaskTypes ? (

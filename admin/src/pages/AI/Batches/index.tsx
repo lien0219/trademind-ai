@@ -179,7 +179,6 @@ export default function AiBatchesPage() {
   return (
     <TmPageContainer
       title={tr("历史 AI 批次")}
-      subTitle={tr("查看历史批量 AI 任务的执行记录与结果。")}
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
         {tr("批量结果默认写入商品的")} {AI_FIELD_COPY.aiTitle} / {AI_FIELD_COPY.aiDescription} {tr("字段，或进入图片任务列表，不会自动覆盖正式标题、详情或替换主图。详情见")}{' '}

@@ -657,7 +657,7 @@ export default function DouyinRuntimePanel() {
         </SectionCard>
 
         <div className={styles.lowerGrid}>
-          <SectionCard title={tr("待处理问题")} description={tr("点击条目跳转到对应处理页面。")} className={styles.lowerCard}>
+          <SectionCard title={tr("待处理问题")} className={styles.lowerCard}>
             {issues.length ? (
               <List<IssueRow>
                 size="small"

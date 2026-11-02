@@ -747,7 +747,6 @@ function OperationProgressPanel({
     return (
       <SectionCard
         title={tr("商品运营进度")}
-        description={tr("商品内容仍可以正常编辑。")}
         className="product-draft-progress product-draft-progress--error"
         headerExtra={
           <Button icon={<ReloadOutlined />} onClick={onReload}>
@@ -2641,7 +2640,6 @@ export default function ProductDraftDetailPage() {
                 <Space direction="vertical" className="product-draft-basic" size={0}>
                   <SectionCard
                     title={tr("采集质量")}
-                    description={tr("先看采集结果是否需要人工复核，再进入字段补充。")}
                     className="product-draft-basic__section product-draft-basic__quality"
                   >
                     <div id="collect-review" />
@@ -2781,7 +2779,6 @@ export default function ProductDraftDetailPage() {
                         type="success"
                         showIcon
                         message={tr("基础字段已具备主要内容")}
-                        description={tr("保存前仍可继续调整标题、描述、币种和状态。")}
                       />
                     )}
                     <ProForm
@@ -2874,7 +2871,7 @@ export default function ProductDraftDetailPage() {
                       />
                       <div className="product-draft-basic__form-group-title">{tr("流转属性")}</div>
                       <ProFormText name="currency" label={tr("币种")} extra={tr("仅保存商品基础币种展示，不会重新计算 SKU 价格。")} />
-                      <ProFormSelect name="status" label={tr("状态")} options={productStatusOptions()} extra={tr("状态值保持原有枚举，用于草稿流转。")} />
+                      <ProFormSelect name="status" label={tr("状态")} options={productStatusOptions()} />
                     </ProForm>
                   </SectionCard>
 
@@ -3300,7 +3297,6 @@ export default function ProductDraftDetailPage() {
                   ) : null}
                   <SectionCard
                     title={tr("图片概览")}
-                    description={tr("基于当前商品详情已加载的图片数据展示，不额外请求接口。")}
                     className="product-draft-images__overview-section"
                   >
                     <div className="product-draft-images__overview-grid">
@@ -3461,7 +3457,6 @@ export default function ProductDraftDetailPage() {
 
                   <SectionCard
                     title={tr("图片列表")}
-                    description={tr("每行操作只作用于当前图片，更多菜单中保留低频和危险操作。")}
                     className="product-draft-images__list-section"
                   >
                     <ProTable<ProductImageRow>
@@ -3526,7 +3521,6 @@ export default function ProductDraftDetailPage() {
                         showIcon
                         className="product-draft-skus__alert"
                         message={tr("当前账号处于只读模式")}
-                        description={tr("本区仅强化只读提示，不改变现有新增、编辑、保存、删除或定价按钮的可用规则。")}
                       />
                     ) : null}
                     <div className="product-draft-skus__summary" aria-label={tr("当前商品规格摘要")}>
@@ -3644,7 +3638,6 @@ export default function ProductDraftDetailPage() {
                         showIcon
                         className="product-draft-inventory__alert"
                         message={tr("当前账号处于只读模式")}
-                        description={tr("本轮不改变现有库存按钮的可用条件；如后端拒绝写操作，会按原提示展示失败原因。")}
                       />
                     ) : null}
                     <div className="product-draft-inventory__summary" aria-label={tr("当前商品库存摘要")}>
@@ -4520,7 +4513,6 @@ export default function ProductDraftDetailPage() {
                     </SectionCard>
                     <SectionCard
                       title={tr("当前刊登条件摘要")}
-                      description={tr("仅展示当前页面已经加载到的店铺、平台、图片、规格、抖店配置和发布检查状态。")}
                       className="product-draft-publish__summary-card"
                       headerExtra={<Button onClick={() => void reloadPublishContext()}>{tr("刷新快照")}</Button>}
                     >

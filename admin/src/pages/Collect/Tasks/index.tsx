@@ -429,7 +429,7 @@ export default function CollectTasksPage() {
               {tr("清除筛选")}</Link>
           </span>
         ) : (
-          tr("提交单条商品链接采集任务，查看执行进度与结果。")
+          undefined
         )
       }
     >
