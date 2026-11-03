@@ -11,13 +11,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
 
 type Handler struct {
-	Svc *Service
+	Svc   *Service
+	Audit *operationlog.Service
 }
 
 func (h *Handler) authorize(c *gin.Context, permission string) (int64, *adminperm.Principal, bool) {

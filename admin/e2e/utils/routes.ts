@@ -18,6 +18,7 @@ import { warehouseAllocationResponse } from "../mocks/order-warehouse-allocation
 import { fulfillmentWaveResponse } from "../mocks/fulfillment-waves";
 import { fulfillmentReconciliationResponse } from "../mocks/order-fulfillment-reconciliation";
 import { orderProfitResponse } from "../mocks/order-profits";
+import { fxReportResponse } from "../mocks/fx-report";
 import { settlementResponse } from "../mocks/settlement";
 import { warehouseFeeResponse } from "../mocks/warehouse-fees";
 import { advertisingFeeResponse } from "../mocks/advertising-fees";
@@ -140,6 +141,7 @@ export async function routeAdminApi(page: Page) {
       fulfillmentWaveResponse(path) ??
       fulfillmentReconciliationResponse(path) ??
       orderProfitResponse(path) ??
+      fxReportResponse(path) ??
       settlementResponse(path) ??
       warehouseFeeResponse(path) ??
       advertisingFeeResponse(path) ??

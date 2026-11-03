@@ -1010,8 +1010,12 @@ test.describe("@smoke Admin route smoke", () => {
 
     const lightButton = await readThemeStyles(sendTestButton);
     const lightAvatar = await readThemeStyles(avatar);
-    expect(lightAvatar.backgroundImage).not.toBe("none");
-    expect(lightAvatar.color).toBe("rgb(255, 255, 255)");
+    // The current avatar design uses tokenized primary text on a solid
+    // primary-tint surface, not the legacy white-on-gradient treatment.
+    // Verify meaningful color separation instead of the retired gradient.
+    expect(lightAvatar.backgroundImage).toBe("none");
+    expect(lightAvatar.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(lightAvatar.color).not.toBe(lightAvatar.backgroundColor);
 
     await page.getByRole("button", { name: "切换到深色模式" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -1019,8 +1023,11 @@ test.describe("@smoke Admin route smoke", () => {
       .poll(() => readThemeStyles(sendTestButton))
       .not.toEqual(lightButton);
     await expect(avatar).toHaveText("E");
-    expect((await readThemeStyles(avatar)).backgroundImage).not.toBe("none");
-    expect((await readThemeStyles(avatar)).color).toBe("rgb(255, 255, 255)");
+    await expect.poll(() => readThemeStyles(avatar)).not.toEqual(lightAvatar);
+    const darkAvatar = await readThemeStyles(avatar);
+    expect(darkAvatar.backgroundImage).toBe("none");
+    expect(darkAvatar.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(darkAvatar.color).not.toBe(darkAvatar.backgroundColor);
 
     await page.getByRole("button", { name: "切换到浅色模式" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");

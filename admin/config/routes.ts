@@ -449,6 +449,11 @@ export default [
         component: './Finance/OrderProfits',
       },
       {
+        path: '/finance/currency-report',
+        name: '跨币种利润报表',
+        component: './Finance/CurrencyReport',
+      },
+      {
         path: '/finance/settlement-reconciliation',
         name: '平台结算对账',
         component: './Finance/SettlementReconciliation',
