@@ -37,7 +37,7 @@ func TestFXSourceCostRequiresMatchingHistoricalSnapshot(t *testing.T) {
 		ReasonCode: "supplier_cost_currency_mismatch", CapturedAt: at,
 	}
 	facts := &fxSourceFacts{
-		items: map[uuid.UUID][]OrderItemFact{order.OrderID: {item}},
+		items:     map[uuid.UUID][]OrderItemFact{order.OrderID: {item}},
 		snapshots: map[uuid.UUID][]OrderItemCostSnapshotFact{itemID: {snapshot}},
 	}
 	got, proofs, missing, err := fxSourceCost(order, "CNY", facts, testFXRates(at))
@@ -72,7 +72,7 @@ func TestFXSourceCostRejectsLateOrAmbiguousSupplierCatalog(t *testing.T) {
 		Currency: "EUR", UpdatedAt: at.Add(-time.Hour),
 	}
 	facts := &fxSourceFacts{
-		items: map[uuid.UUID][]OrderItemFact{order.OrderID: {item}},
+		items:     map[uuid.UUID][]OrderItemFact{order.OrderID: {item}},
 		suppliers: map[uuid.UUID][]SupplierCostFact{skuID: {price}},
 	}
 	value, proofs, missing, err := fxSourceCost(order, "CNY", facts, testFXRates(at))
