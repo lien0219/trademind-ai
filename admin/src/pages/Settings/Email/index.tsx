@@ -1,4 +1,6 @@
 import { tr } from '@/i18n';
+import EmailTemplateCenter from './EmailTemplateCenter';
+import RegistrationPolicySettings from './RegistrationPolicySettings';
 import { useLanguage } from '@/i18n/useLanguage';
 import { Link } from '@umijs/renderer-react';
 import { MailOutlined, ReloadOutlined, SaveOutlined, SendOutlined } from '@ant-design/icons';
@@ -248,6 +250,8 @@ export default function EmailSettingsPage() {
             <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>{tr("保存配置")}</Button>
           </ProCard>
         </Form>
+        <RegistrationPolicySettings />
+        <EmailTemplateCenter />
       </div>
     </TmPageContainer>
   );
