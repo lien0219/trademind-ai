@@ -21,7 +21,7 @@ import (
 const templateGroup = "mail_templates"
 
 var (
-	mailTemplateVars = regexp.MustCompile(`\{\{([a-z_]+)\}\}`)
+	mailTemplateVars   = regexp.MustCompile(`\{\{([a-z_]+)\}\}`)
 	mailTemplateUnsafe = regexp.MustCompile(`(?i)<\s*(script|iframe|object|embed|form|base|svg|meta|link)\b|on[a-z]+\s*=|javascript:|data:text/html|<\s*/?\s*style\b`)
 )
 
@@ -79,9 +79,12 @@ func defaultMailTemplate(event, locale string) MailTemplate {
 	title, body := ev.Name, ev.Description
 	if locale == "en-US" {
 		switch event {
-		case "auth.verify_code": title, body = "Email verification code", "Use this code to verify your account."
-		case "auth.password_reset": title, body = "Reset your password", "You requested a password reset."
-		case "tenant.invitation": title, body = "Organization invitation", "You have been invited to join an organization."
+		case "auth.verify_code":
+			title, body = "Email verification code", "Use this code to verify your account."
+		case "auth.password_reset":
+			title, body = "Reset your password", "You requested a password reset."
+		case "tenant.invitation":
+			title, body = "Organization invitation", "You have been invited to join an organization."
 		default: title, body = "Notification", "This is an automated notification."
 		}
 	}
@@ -99,15 +102,24 @@ func defaultMailTemplate(event, locale string) MailTemplate {
 	}
 	primary := "{{event_name}}"
 	switch event {
-	case "auth.verify_code": primary = "{{verification_code}}"
-	case "auth.password_reset": primary = "{{verification_code}}"
-	case "tenant.invitation": primary = "{{invite_url}}"
-	case "auth.registration_welcome": primary = "{{login_url}}"
-	case "report.ready": primary = "{{report_url}}"
-	case "subscription.expiry": primary = "{{expires_at}}"
-	case "billing.payment": primary = "{{amount}}"
-	case "task.failed": primary = "{{task_name}}"
-	case "tenant.member_added": primary = "{{tenant_name}}"
+	case "auth.verify_code":
+		primary = "{{verification_code}}"
+	case "auth.password_reset":
+		primary = "{{verification_code}}"
+	case "tenant.invitation":
+		primary = "{{invite_url}}"
+	case "auth.registration_welcome":
+		primary = "{{login_url}}"
+	case "report.ready":
+		primary = "{{report_url}}"
+	case "subscription.expiry":
+		primary = "{{expires_at}}"
+	case "billing.payment":
+		primary = "{{amount}}"
+	case "task.failed":
+		primary = "{{task_name}}"
+	case "tenant.member_added":
+		primary = "{{tenant_name}}"
 	}
 	return MailTemplate{
 		Event: event, Locale: locale, Subject: "[{{site_name}}] " + title,
@@ -175,12 +187,16 @@ func (s *Service) GetMailTemplate(ctx context.Context, event, locale string) (Ma
 }
 
 func (h *Handler) MailTemplateOptions(c *gin.Context) {
-	if !h.requireSettingsManage(c) { return }
+	if !h.requireSettingsManage(c) {
+		return
+	}
 	response.OK(c, gin.H{"events": mailEvents, "locales": mailLocales})
 }
 
 func (h *Handler) MailTemplateGet(c *gin.Context) {
-	if !h.requireSettingsManage(c) { return }
+	if !h.requireSettingsManage(c) {
+		return
+	}
 	t, err := h.Svc.GetMailTemplate(c.Request.Context(), c.Query("event"), c.Query("locale"))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid email template selection")
@@ -190,7 +206,9 @@ func (h *Handler) MailTemplateGet(c *gin.Context) {
 }
 
 func (h *Handler) MailTemplatePreview(c *gin.Context) {
-	if !h.requireSettingsManage(c) { return }
+	if !h.requireSettingsManage(c) {
+		return
+	}
 	var t MailTemplate
 	if err := c.ShouldBindJSON(&t); err != nil || validateMailTemplate(t) != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid email template")
@@ -214,7 +232,9 @@ func (h *Handler) MailTemplatePreview(c *gin.Context) {
 }
 
 func (h *Handler) MailTemplateSave(c *gin.Context) {
-	if !h.requireSettingsManage(c) { return }
+	if !h.requireSettingsManage(c) {
+		return
+	}
 	var t MailTemplate
 	if err := c.ShouldBindJSON(&t); err != nil || validateMailTemplate(t) != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid email template")
@@ -225,7 +245,10 @@ func (h *Handler) MailTemplateSave(c *gin.Context) {
 		return
 	}
 	payload, err := json.Marshal(t)
-	if err != nil { response.HandleError(c, err); return }
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	err = h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := h.Svc.PutBulkTx(tx, []PutItem{{
 			TenantID: 0, GroupKey: templateGroup, ItemKey: t.Event+"."+t.Locale,
@@ -236,14 +259,25 @@ func (h *Handler) MailTemplateSave(c *gin.Context) {
 			ResourceID: t.Event+"."+t.Locale, Status: "success",
 		})
 	})
-	if err != nil { response.HandleError(c, err); return }
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	response.OK(c, gin.H{"ok": true})
 }
 
 func (h *Handler) MailTemplateRestore(c *gin.Context) {
-	if !h.requireSettingsManage(c) { return }
-	var input struct { Event string `json:"event"`; Locale string `json:"locale"` }
-	if err := c.ShouldBindJSON(&input); err != nil { response.Fail(c, 400, response.CodeBadRequest, "invalid input"); return }
+	if !h.requireSettingsManage(c) {
+		return
+	}
+	var input struct {
+		Event  string `json:"event"`
+		Locale string `json:"locale"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid input")
+		return
+	}
 	if _, ok := lookupMailEvent(input.Event); !ok || !validMailLocale(input.Locale) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid email template selection")
 		return
@@ -261,7 +295,10 @@ func (h *Handler) MailTemplateRestore(c *gin.Context) {
 			ResourceID: input.Event+"."+input.Locale, Status: "success",
 		})
 	})
-	if err != nil { response.HandleError(c, err); return }
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	response.OK(c, gin.H{"ok": true})
 }
 
