@@ -253,7 +253,9 @@ func (h *Handler) MailTemplateSave(c *gin.Context) {
 		if err := h.Svc.PutBulkTx(tx, []PutItem{{
 			TenantID: 0, GroupKey: templateGroup, ItemKey: t.Event+"."+t.Locale,
 			ItemValue: string(payload), ValueType: "json",
-		}}); err != nil { return err }
+		}}); err != nil {
+			return err
+		}
 		return h.OpLog.WriteTx(c, tx, operationlog.WriteOpts{
 			Action: "mail.template.save", Resource: "mail_template",
 			ResourceID: t.Event+"."+t.Locale, Status: "success",
