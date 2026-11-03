@@ -98,6 +98,10 @@ func (h *Handler) Put(c *gin.Context) {
 	pricingTouch := false
 	for _, it := range items {
 		gk := strings.TrimSpace(it.GroupKey)
+		if gk == "auth_registration" || gk == "mail_templates" {
+			response.Fail(c, 400, response.CodeBadRequest, "use dedicated registration/email template API")
+			return
+		}
 		if gk == "alert_notify" {
 			alertNotifyTouch = true
 		}
