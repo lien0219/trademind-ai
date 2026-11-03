@@ -1,10 +1,10 @@
 package auth
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"context"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
