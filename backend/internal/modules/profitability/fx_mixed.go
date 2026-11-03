@@ -98,9 +98,9 @@ func fxVerifiedComponent(c MoneyComponent, component string, converted *int64, r
 		return true
 	}
 	allowed := map[string]string{
-		"platformFee":   "platform_fee_currency_mismatch",
+		"platformFee":    "platform_fee_currency_mismatch",
 		"advertisingFee": "advertising_fee_currency_mismatch",
-		"warehouseFee":  "warehouse_fee_currency_mismatch",
+		"warehouseFee":   "warehouse_fee_currency_mismatch",
 	}
 	if c.Status != ComponentMismatch || c.ReasonCode != allowed[component] {
 		return false
