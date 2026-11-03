@@ -5,7 +5,7 @@ umask 077
 # Production is deployed from a single verified Release, never from local
 # source builds or movable main/latest tags.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ENV_FILE="${TRADEMIND_PRODUCTION_ENV_FILE:-$ROOT/.env}"
+ENV_FILE="$ROOT/.env"
 COMPOSE_FILE="$ROOT/deploy/production/compose.yml"
 DRY_RUN=false
 case "${1:-}" in
@@ -26,10 +26,10 @@ CONFIG="$("${COMPOSE[@]}" config --format json)"
 
 # Verify all images resolve to immutable digests and the three application
 # images are distinct. This validation occurs before any pull or mutation.
-python3 -c '
+printf '%s' "$CONFIG" | python3 -c '
 import json, re, sys
 try:
-    services = json.loads(sys.argv[1])["services"]
+    services = json.load(sys.stdin)["services"]
 except (ValueError, KeyError) as exc:
     sys.exit("invalid production compose config: " + str(exc))
 pattern = re.compile(r"^ghcr[.]io/lien0219/trademind@sha256:[0-9a-f]{64}$")
@@ -41,7 +41,7 @@ if len(set(images)) != 3:
 for name in ("postgres", "redis"):
     if name not in services:
         sys.exit("production dependency missing: " + name)
-' "$CONFIG"
+'
 
 echo "[deploy-production] compose and immutable image references validated"
 if $DRY_RUN; then
