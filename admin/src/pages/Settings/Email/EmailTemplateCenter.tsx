@@ -50,6 +50,7 @@ export default function EmailTemplateCenter() {
       if (!active || requestID !== seq.current) return;
       form.setFieldsValue(record);
       setTemplate(record);
+      void renderPreview(record);
     }).catch(() => { if (active) message.error(tr('邮件模板加载失败')); });
     return () => { active = false; };
   }, [eventKey, locale, form]);
