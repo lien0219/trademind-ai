@@ -108,7 +108,7 @@ func defaultMailTemplate(event, locale string) MailTemplate {
 	}
 	return MailTemplate{
 		Event: event, Locale: locale, Subject: "[{{site_name}}] " + title,
-		HTML: "<!doctype html><html><head><meta charset=\"utf-8\"></head><body style=\"font-family:Arial,sans-serif;background:#f3f5fa;padding:24px\"><div style=\"max-width:560px;margin:auto;background:white;padding:32px;border-radius:12px;border:1px solid #e4e7ee\"><h2 style=\"color:#22306b\">{{site_name}}</h2><h3>" + title + "</h3><p>" + body + "</p><p style=\"padding:16px;background:#eef2ff;overflow-wrap:anywhere;font-weight:bold\">" + primary + "</p><p style=\"color:#667085;font-size:12px\">{{recipient_email}}</p></div></body></html>",
+		HTML: "<!doctype html><html><head></head><body style=\"font-family:Arial,sans-serif;background:#f3f5fa;padding:24px\"><div style=\"max-width:560px;margin:auto;background:white;padding:32px;border-radius:12px;border:1px solid #e4e7ee\"><h2 style=\"color:#22306b\">{{site_name}}</h2><h3>" + title + "</h3><p>" + body + "</p><p style=\"padding:16px;background:#eef2ff;overflow-wrap:anywhere;font-weight:bold\">" + primary + "</p><p style=\"color:#667085;font-size:12px\">{{recipient_email}}</p></div></body></html>",
 	}
 }
 
