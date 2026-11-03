@@ -31,6 +31,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/profitability"
 	"github.com/trademind-ai/trademind/backend/internal/modules/salesreturn"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settlement"
@@ -247,6 +248,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&admin.TenantMembership{},
 		&admin.TenantInvitation{},
 		&tenantconfig.Setting{},
+		&profitability.FXRate{},
 		&tenantconfig.Revision{},
 		&tenantconfig.UserPreference{},
 		&tenantconfig.ShopInventoryOverride{},

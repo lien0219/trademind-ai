@@ -88,7 +88,7 @@ func TestProfitabilityHTTPAppliesStoreScopeAndRestrictsExport(t *testing.T) {
 	}
 }
 
-func TestProfitabilityRouterRegistersReadOnlyRoutes(t *testing.T) {
+func TestProfitabilityRouterRegistersScopedReadAndFXRateWriteRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	group := router.Group("/api/v1")
@@ -97,13 +97,13 @@ func TestProfitabilityRouterRegistersReadOnlyRoutes(t *testing.T) {
 	for _, route := range router.Routes() {
 		routes[route.Method+" "+route.Path] = true
 	}
-	for _, want := range []string{"GET /api/v1/order-profits", "GET /api/v1/order-profits/:orderId"} {
+	for _, want := range []string{"GET /api/v1/order-profits", "GET /api/v1/order-profits/:orderId", "GET /api/v1/finance/fx-rates", "GET /api/v1/finance/fx-report", "POST /api/v1/finance/fx-rates"} {
 		if !routes[want] {
 			t.Fatalf("route %q is not registered", want)
 		}
 	}
 	for route := range routes {
-		if strings.HasPrefix(route, "POST ") || strings.HasPrefix(route, "PUT ") || strings.HasPrefix(route, "PATCH ") || strings.HasPrefix(route, "DELETE ") {
+		if (strings.HasPrefix(route, "POST ") && route != "POST /api/v1/finance/fx-rates") || strings.HasPrefix(route, "PUT ") || strings.HasPrefix(route, "PATCH ") || strings.HasPrefix(route, "DELETE ") {
 			t.Fatalf("unexpected write route %q", route)
 		}
 	}

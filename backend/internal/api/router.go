@@ -562,7 +562,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	freightFeeSvc := &freightfee.Service{DB: dep.DB}
 	freightFeeH := &freightfee.Handler{Svc: freightFeeSvc, OpLog: opLogSvc}
 	profitabilitySvc := &profitability.Service{DB: dep.DB, PlatformFees: settlementProfitabilityAdapter{svc: settlementSvc}, AdvertisingFees: advertisingFeeProfitabilityAdapter{svc: advertisingFeeSvc}, WarehouseFees: warehouseFeeProfitabilityAdapter{svc: warehouseFeeSvc}, FreightFees: freightFeeProfitabilityAdapter{svc: freightFeeSvc}}
-	profitabilityH := &profitability.Handler{Svc: profitabilitySvc}
+	profitabilityH := &profitability.Handler{Svc: profitabilitySvc, Audit: opLogSvc}
 
 	orderSyncSvc := &ordersync.Service{
 		DB:          dep.DB,

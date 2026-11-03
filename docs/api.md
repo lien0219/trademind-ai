@@ -352,6 +352,14 @@ V6 按订单动态汇总现有只读事实，不落库利润，不生成会计�
 
 所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费、有效仓库操作费和明确未被结算覆盖的有效广告归属；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。CSV 同时单列展示平台费用、广告费用及仓库操作费的原始最小币种单位金额；缺失或不可用的费用保留空字段，不按零值导出，便于核对已知贡献额。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v6`。利润模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、广告平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
 
+## 跨币种预估利润（仅人工确认汇率）
+
+- `GET /api/v1/finance/fx-rates?baseCurrency=CNY`：`order_profit.view`，列出当前租户的最近 100 条已登记汇率，不跨租户读取。
+- `POST /api/v1/finance/fx-rates`：`settings.manage` 且须当前企业管理员；请求 `fromCurrency`、`toCurrency`、`rate`（十进制字符串）、`effectiveAt`（RFC3339）、`evidence`（来源依据）；按币种对及生效时间追加不可变记录，使用事务审计，不提供编辑/删除或自动抓取。
+- `GET /api/v1/finance/fx-report?baseCurrency=CNY`：`order_profit.view`；支持与原利润列表一致的筛选及 `format=csv`（需要 `order_profit.export`）。沿用 5000 订单上限、租户和店铺隔离，保留原始金额、换算金额、汇率 ID 和生效时间。
+
+采用订单下单日期之前最新已登记的有效汇率，精确有理数换算、最终最小单位四舍五入（中点远离零）。没有订单日期、缺少有效汇率或费用来源不完整时不计入合计，明确标示原因，不将空值改为零值。不反向推导汇率、不使用当前汇率静默回填历史记录。换算报表是动态预估（不是会计凭证），不会修改原始 V6 利润数据或触发平台写入。
+
 ## 图片 AI
 
 | 方法 | 路径 | 说明 |
