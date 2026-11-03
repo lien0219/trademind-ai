@@ -3,8 +3,15 @@ package smtp
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"io"
+	"mime"
+	"net"
+	"net/mail"
 	"net/smtp"
+	"strings"
+	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/providers/email"
 )
@@ -20,94 +27,121 @@ type Config struct {
 	UseSSL   bool
 }
 
-type Provider struct {
-	cfg Config
-}
+type Provider struct { cfg Config }
 
-func NewProvider(cfg Config) *Provider {
-	return &Provider{cfg: cfg}
-}
+func NewProvider(cfg Config) *Provider { return &Provider{cfg: cfg} }
+func (p *Provider) Name() string { return "smtp" }
 
-func (p *Provider) Name() string {
-	return "smtp"
-}
+const smtpTimeout = 15 * time.Second
 
 func (p *Provider) Send(ctx context.Context, req email.SendEmailRequest) error {
-	addr := fmt.Sprintf("%s:%d", p.cfg.Host, p.cfg.Port)
-
-	// Build the message
+	cfg := p.cfg
+	if ctx == nil {
+		return errors.New("smtp: missing context")
+	}
+	if cfg.UseSSL && cfg.UseTLS {
+		return errors.New("smtp: select SSL or STARTTLS, not both")
+	}
+	if !cfg.UseSSL && !cfg.UseTLS {
+		return errors.New("smtp: encrypted transport required")
+	}
+	if cfg.Port < 1 || cfg.Port > 65535 || strings.TrimSpace(cfg.Host) == "" ||
+		strings.ContainsAny(cfg.Host, "\r\n\t @/\\") {
+		return errors.New("smtp: invalid server configuration")
+	}
+	from, err := mail.ParseAddress(cfg.From)
+	if err != nil || from == nil || from.Address != cfg.From || strings.ContainsAny(cfg.From, "\r\n") {
+		return errors.New("smtp: invalid sender")
+	}
+	to, err := mail.ParseAddress(req.To)
+	if err != nil || to == nil || to.Address != req.To || strings.ContainsAny(req.To, "\r\n") {
+		return errors.New("smtp: invalid recipient")
+	}
+	if strings.ContainsAny(req.Subject, "\r\n") || strings.ContainsAny(cfg.FromName, "\r\n") {
+		return errors.New("smtp: invalid message header")
+	}
 	contentType := req.ContentType
 	if contentType == "" {
 		contentType = "text/plain"
 	}
-
-	header := make(map[string]string)
-	header["From"] = fmt.Sprintf("%s <%s>", p.cfg.FromName, p.cfg.From)
-	header["To"] = req.To
-	header["Subject"] = req.Subject
-	header["MIME-Version"] = "1.0"
-	header["Content-Type"] = fmt.Sprintf("%s; charset=\"utf-8\"", contentType)
-
-	message := ""
-	for k, v := range header {
-		message += fmt.Sprintf("%s: %s\r\n", k, v)
+	if contentType != "text/plain" && contentType != "text/html" {
+		return errors.New("smtp: invalid content type")
 	}
-	message += "\r\n" + req.Content
-
-	var auth smtp.Auth
-	if p.cfg.Username != "" && p.cfg.Password != "" {
-		auth = smtp.PlainAuth("", p.cfg.Username, p.cfg.Password, p.cfg.Host)
-	}
-
-	if p.cfg.UseSSL {
-		tlsconfig := &tls.Config{
-			InsecureSkipVerify: true, // We should perhaps not skip verify in prod, but for an MVP it's common
-			ServerName:         p.cfg.Host,
-		}
-		conn, err := tls.Dial("tcp", addr, tlsconfig)
-		if err != nil {
-			return fmt.Errorf("smtp connect: %w", err)
-		}
-		defer conn.Close()
-
-		c, err := smtp.NewClient(conn, p.cfg.Host)
-		if err != nil {
-			return fmt.Errorf("smtp new client: %w", err)
-		}
-		defer c.Close()
-
-		if auth != nil {
-			if err = c.Auth(auth); err != nil {
-				return fmt.Errorf("smtp auth: %w", err)
-			}
-		}
-
-		if err = c.Mail(p.cfg.From); err != nil {
-			return fmt.Errorf("smtp mail from: %w", err)
-		}
-		if err = c.Rcpt(req.To); err != nil {
-			return fmt.Errorf("smtp rcpt to: %w", err)
-		}
-
-		w, err := c.Data()
-		if err != nil {
-			return fmt.Errorf("smtp data: %w", err)
-		}
-		_, err = w.Write([]byte(message))
-		if err != nil {
-			return fmt.Errorf("smtp write data: %w", err)
-		}
-		err = w.Close()
-		if err != nil {
-			return fmt.Errorf("smtp close data: %w", err)
-		}
-		return c.Quit()
-	}
-
-	// Non-SSL (maybe TLS via STARTTLS inside SendMail)
-	err := smtp.SendMail(addr, auth, p.cfg.From, []string{req.To}, []byte(message))
+	host := strings.TrimSpace(cfg.Host)
+	address := net.JoinHostPort(host, fmt.Sprint(cfg.Port))
+	dialer := &net.Dialer{Timeout: smtpTimeout}
+	conn, err := dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
-		return fmt.Errorf("smtp send mail: %w", err)
+		return fmt.Errorf("smtp: connect: %w", err)
 	}
-	return nil
+	defer conn.Close()
+	deadline := time.Now().Add(smtpTimeout)
+	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
+		deadline = d
+	}
+	if err := conn.SetDeadline(deadline); err != nil {
+		return fmt.Errorf("smtp: set deadline: %w", err)
+	}
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: host}
+	if cfg.UseSSL {
+		tlsConn := tls.Client(conn, tlsConfig)
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			return fmt.Errorf("smtp: secure handshake: %w", err)
+		}
+		conn = tlsConn
+	}
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return fmt.Errorf("smtp: session: %w", err)
+	}
+	defer client.Close()
+	if cfg.UseTLS {
+		ok, _ := client.Extension("STARTTLS")
+		if !ok {
+			return errors.New("smtp: server does not support required STARTTLS")
+		}
+		if err := client.StartTLS(tlsConfig); err != nil {
+			return fmt.Errorf("smtp: STARTTLS: %w", err)
+		}
+	}
+	if cfg.Username != "" {
+		if cfg.Password == "" {
+			return errors.New("smtp: authentication password missing")
+		}
+		if err := client.Auth(smtp.PlainAuth("", cfg.Username, cfg.Password, host)); err != nil {
+			return fmt.Errorf("smtp: authentication failed: %w", err)
+		}
+	}
+	if err := client.Mail(from.Address); err != nil {
+		return fmt.Errorf("smtp: MAIL FROM: %w", err)
+	}
+	if err := client.Rcpt(to.Address); err != nil {
+		return fmt.Errorf("smtp: recipient rejected: %w", err)
+	}
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("smtp: DATA: %w", err)
+	}
+	name := strings.TrimSpace(cfg.FromName)
+	fromHeader := from.Address
+	if name != "" {
+		fromHeader = mime.QEncoding.Encode("utf-8", name) + " <" + from.Address + ">"
+	}
+	subject := mime.QEncoding.Encode("utf-8", req.Subject)
+	msg := "From: " + fromHeader + "\r\n" +
+		"To: " + to.Address + "\r\n" +
+		"Subject: " + subject + "\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: " + contentType + "; charset=utf-8\r\n" +
+		"Content-Transfer-Encoding: 8bit\r\n\r\n" +
+		strings.ReplaceAll(strings.ReplaceAll(req.Content, "\r\n", "\n"), "\n", "\r\n")
+	_, err = io.WriteString(w, msg)
+	if err != nil {
+		_ = w.Close()
+		return fmt.Errorf("smtp: write: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("smtp: finalize: %w", err)
+	}
+	return client.Quit()
 }
