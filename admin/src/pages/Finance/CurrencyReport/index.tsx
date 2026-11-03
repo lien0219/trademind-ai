@@ -7,7 +7,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PermissionGuard from '@/components/PermissionGuard';
 import { TmPageContainer } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
-import { createFXRate, downloadFXReport, FX_CURRENCIES, getFXReport, listFXRates } from '@/services/fxReport';
+import { PLATFORM_DISPLAY_LABEL, platformDisplayLabel } from '@/constants/platformLabels';
+import { getBusinessSettings } from '@/services/tenantBusinessSettings';
+import { queryShops, type ShopListRow } from '@/services/shops';
+import { createFXRate, downloadFXReport, FX_CURRENCIES, getFXReport, listFXRates, preferredFXCurrency } from '@/services/fxReport';
 import type { FXCurrency, FXRate, FXReport, FXReportFilters, FXReportRow } from '@/services/fxReport';
 import { formatProfitAmount } from '@/services/profitability';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
@@ -36,6 +39,11 @@ export default function CurrencyReportPage() {
   const canManage = can(PERMISSIONS.SETTINGS_MANAGE);
   const canExport = can(PERMISSIONS.ORDER_PROFIT_EXPORT);
   const [baseCurrency, setBaseCurrency] = useState<FXCurrency>('CNY');
+  const [currencyReady, setCurrencyReady] = useState(false);
+  const [platform, setPlatform] = useState<string>();
+  const [shopId, setShopId] = useState<string>();
+  const [shops, setShops] = useState<ShopListRow[]>([]);
+  const [configurationError, setConfigurationError] = useState('');
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [report, setReport] = useState<FXReport>();
   const [rates, setRates] = useState<FXRate[]>([]);
@@ -47,14 +55,60 @@ export default function CurrencyReportPage() {
   const [form] = Form.useForm<RateForm>();
   const readGuard = useMemo(createTenantReadGuard, []);
   const exportGuard = useMemo(createTenantReadGuard, []);
+  const settingsGuard = useMemo(createTenantReadGuard, []);
+  const shopsGuard = useMemo(createTenantReadGuard, []);
   const saveLocked = useRef(false);
   const exportLocked = useRef(false);
 
   const filters = useMemo<FXReportFilters>(() => ({
     baseCurrency,
+    platform,
+    shopId,
     start: dateRange?.[0]?.startOf('day').toISOString(),
     end: dateRange?.[1]?.endOf('day').toISOString(),
-  }), [baseCurrency, dateRange]);
+  }), [baseCurrency, platform, shopId, dateRange]);
+
+  useEffect(() => {
+    const isCurrent = settingsGuard.begin();
+    setCurrencyReady(false);
+    setConfigurationError('');
+    setBaseCurrency('CNY');
+    void getBusinessSettings('general')
+      .then(({ values }) => {
+        if (!isCurrent()) return;
+        const preferred = preferredFXCurrency(values?.currency);
+        if (preferred) setBaseCurrency(preferred);
+        else setConfigurationError(tr('企业币种配置无效，请核对设置'));
+      })
+      .catch(() => {
+        if (isCurrent()) setConfigurationError(tr('无法读取企业默认币种，暂用 CNY'));
+      })
+      .finally(() => {
+        if (isCurrent()) setCurrencyReady(true);
+      });
+    return () => settingsGuard.invalidate();
+  }, [settingsGuard]);
+
+  useEffect(() => {
+    const isCurrent = shopsGuard.begin();
+    setShops([]);
+    void queryShops({ page: 1, pageSize: 100 })
+      .then(({ list }) => { if (isCurrent()) setShops(list || []); })
+      .catch(() => {
+        if (isCurrent()) setConfigurationError((previous) => previous || tr('店铺筛选加载失败'));
+      });
+    return () => shopsGuard.invalidate();
+  }, [shopsGuard]);
+
+  const platformOptions = useMemo(
+    () => Object.entries(PLATFORM_DISPLAY_LABEL).map(([value, label]) => ({ value, label })),
+    [],
+  );
+  const shopOptions = useMemo(
+    () => shops.filter((shop) => !platform || shop.platform === platform)
+      .map((shop) => ({ value: shop.id, label: `${shop.shopName} · ${platformDisplayLabel(shop.platform)}` })),
+    [platform, shops],
+  );
 
   const load = useCallback(async () => {
     const isCurrent = readGuard.begin();
@@ -75,9 +129,9 @@ export default function CurrencyReportPage() {
   }, [filters, readGuard]);
 
   useEffect(() => {
-    void load();
+    if (currencyReady) void load();
     return () => readGuard.invalidate();
-  }, [load, readGuard]);
+  }, [currencyReady, load, readGuard]);
 
   useEffect(() => () => exportGuard.invalidate(), [exportGuard]);
 
@@ -110,7 +164,7 @@ export default function CurrencyReportPage() {
   };
 
   const exportReport = async () => {
-    if (!canExport || exportLocked.current) return;
+    if (!canExport || !currencyReady || loading || exportLocked.current) return;
     const isCurrent = exportGuard.begin();
     exportLocked.current = true;
     setExporting(true);
@@ -133,7 +187,7 @@ export default function CurrencyReportPage() {
         extra={
           <Space wrap>
             <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr('重新加载')}</Button>
-            <Button icon={<DownloadOutlined />} disabled={!canExport || !report} loading={exporting} onClick={() => void exportReport()}>
+            <Button icon={<DownloadOutlined />} disabled={!canExport || !report || !currencyReady || loading} loading={exporting} onClick={() => void exportReport()}>
               {tr('导出换汇报表')}
             </Button>
             {canManage ? (
@@ -148,9 +202,21 @@ export default function CurrencyReportPage() {
           message={tr('汇率由企业管理员登记，仅供预估报表使用')}
           description={tr('按照订单下单时间选取已登记的最新有效汇率；缺失汇率或原始费用不完整的订单不进入合计。此报表不是会计利润。')}
         />
+        {configurationError ? <Alert type="warning" showIcon message={configurationError} style={{ marginTop: 12 }} /> : null}
         <Space wrap style={{ marginBlock: 16 }}>
           <Typography.Text>{tr('报表基准币种')}</Typography.Text>
-          <Select aria-label={tr('报表基准币种')} value={baseCurrency} options={options} onChange={setBaseCurrency} style={{ width: 120 }} />
+          <Select aria-label={tr('报表基准币种')} value={baseCurrency} options={options} disabled={!currencyReady} onChange={setBaseCurrency} style={{ width: 120 }} />
+          <Select
+            aria-label={tr('筛选平台')} allowClear placeholder={tr('全部平台')}
+            value={platform} options={platformOptions}
+            onChange={(value) => { setPlatform(value); setShopId(undefined); }}
+            style={{ width: 165 }}
+          />
+          <Select
+            aria-label={tr('筛选店铺')} allowClear showSearch optionFilterProp="label"
+            placeholder={tr('全部店铺')} value={shopId} options={shopOptions}
+            onChange={setShopId} style={{ minWidth: 210, maxWidth: 330 }}
+          />
           <DatePicker.RangePicker aria-label={tr('下单日期范围')} value={dateRange} onChange={(values) => setDateRange(values)} />
         </Space>
         {error ? <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} /> : null}

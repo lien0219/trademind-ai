@@ -66,6 +66,14 @@ export type FXReportFilters = {
   shopId?: string;
 };
 
+// Prefer the current tenant's valid currency setting, without silently
+// rewriting unsupported codes or values from another tenant.
+export function preferredFXCurrency(value: unknown): FXCurrency | null {
+  return typeof value === 'string' && (FX_CURRENCIES as readonly string[]).includes(value)
+    ? value as FXCurrency
+    : null;
+}
+
 export function getFXReport(filters: FXReportFilters): Promise<FXReport> {
   return getWithParams<FXReport>('/api/v1/finance/fx-report', filters);
 }
