@@ -119,12 +119,14 @@ type FXConverted struct {
 
 type FXReportRow struct {
 	OrderProfit
-	BaseCurrency     string      `json:"baseCurrency"`
-	ConversionStatus string      `json:"conversionStatus"`
-	RateID           *uuid.UUID  `json:"rateId,omitempty"`
-	Rate             string      `json:"rate,omitempty"`
-	RateEffectiveAt  *time.Time  `json:"rateEffectiveAt,omitempty"`
-	Converted        FXConverted `json:"converted"`
+	BaseCurrency     string            `json:"baseCurrency"`
+	ConversionStatus string            `json:"conversionStatus"`
+	CalculationMethod string           `json:"calculationMethod,omitempty"`
+	ComponentRates   []FXComponentRate `json:"componentRates,omitempty"`
+	RateID           *uuid.UUID        `json:"rateId,omitempty"`
+	Rate             string            `json:"rate,omitempty"`
+	RateEffectiveAt  *time.Time        `json:"rateEffectiveAt,omitempty"`
+	Converted        FXConverted       `json:"converted"`
 }
 
 type FXReport struct {
@@ -182,6 +184,10 @@ func (s *Service) BuildFXReport(ctx context.Context, tenantID int64, scope Scope
 	for _, rate := range rates {
 		bySource[rate.FromCurrency] = append(bySource[rate.FromCurrency], rate)
 	}
+	mixedFees, err := s.loadFXMixedFees(ctx, tenantID, original.List)
+	if err != nil {
+		return nil, err
+	}
 	for _, originalRow := range original.List {
 		row := FXReportRow{OrderProfit: originalRow, BaseCurrency: baseCurrency}
 		quote := "1"
@@ -233,8 +239,17 @@ func (s *Service) BuildFXReport(ctx context.Context, tenantID int64, scope Scope
 		if conversionError != nil {
 			return nil, conversionError
 		}
-		if originalRow.Status != StatusComplete || c.EstimatedProfitMinor == nil || c.RevenueMinor == nil {
-			row.ConversionStatus = "source_incomplete"
+		missingComponentRate, err := resolveFXMixedFees(&row, originalRow, mixedFees, bySource)
+		if err != nil {
+			return nil, err
+		}
+		if (originalRow.Status != StatusComplete && row.CalculationMethod == "") ||
+			c.EstimatedProfitMinor == nil || c.RevenueMinor == nil {
+			if missingComponentRate {
+				row.ConversionStatus = "rate_missing"
+			} else {
+				row.ConversionStatus = "source_incomplete"
+			}
 			report.ExcludedOrders++
 		} else {
 			revenue, revenueOK := safeAdd(report.RevenueTotalMinor, *c.RevenueMinor)
@@ -245,6 +260,9 @@ func (s *Service) BuildFXReport(ctx context.Context, tenantID int64, scope Scope
 			report.RevenueTotalMinor = revenue
 			report.EstimatedProfitTotalMinor = profit
 			row.ConversionStatus = "complete"
+			if row.CalculationMethod == "" {
+				row.CalculationMethod = "whole_order_conversion"
+			}
 			report.IncludedOrders++
 		}
 		report.Rows = append(report.Rows, row)

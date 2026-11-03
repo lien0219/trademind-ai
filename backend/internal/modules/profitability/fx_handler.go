@@ -2,6 +2,7 @@ package profitability
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -154,7 +155,7 @@ func WriteFXCSV(writer interface{ Write([]byte) (int, error) }, report *FXReport
 		"convertedRefundMinor", "convertedPlatformFeeMinor", "convertedAdvertisingFeeMinor",
 		"convertedWarehouseFeeMinor", "convertedKnownContributionMinor",
 		"convertedEstimatedProfitMinor", "rate", "rateId", "rateEffectiveAt",
-		"orderDate", "calculatedAt", "formulaVersion",
+		"orderDate", "calculatedAt", "formulaVersion", "calculationMethod", "componentRates",
 	}); err != nil {
 		return err
 	}
@@ -171,6 +172,14 @@ func WriteFXCSV(writer interface{ Write([]byte) (int, error) }, report *FXReport
 			orderedAt = row.OrderedAt.Format(time.RFC3339Nano)
 		}
 		converted := row.Converted
+		componentRateEvidence := ""
+		if len(row.ComponentRates) > 0 {
+			encoded, err := json.Marshal(row.ComponentRates)
+			if err != nil {
+				return err
+			}
+			componentRateEvidence = string(encoded)
+		}
 		values := []string{
 			csvSafe(row.OrderNo), csvSafe(row.Platform), csvSafe(row.ShopName),
 			row.Currency, row.BaseCurrency, row.ConversionStatus,
@@ -181,7 +190,7 @@ func WriteFXCSV(writer interface{ Write([]byte) (int, error) }, report *FXReport
 			optionalInt(converted.WarehouseFeeMinor), optionalInt(converted.KnownContributionMinor),
 			optionalInt(converted.EstimatedProfitMinor), row.Rate,
 			rateID, effectiveAt, orderedAt, report.CalculatedAt.Format(time.RFC3339Nano),
-			report.FormulaVersion,
+			report.FormulaVersion, row.CalculationMethod, componentRateEvidence,
 		}
 		if err := csvWriter.Write(values); err != nil {
 			return err

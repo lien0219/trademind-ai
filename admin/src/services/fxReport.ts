@@ -28,6 +28,16 @@ export type FXConverted = {
   estimatedProfitMinor: number | null;
 };
 
+export type FXComponentRate = {
+  component: string;
+  sourceCurrency: string;
+  originalAmountMinor: number;
+  convertedAmountMinor: number;
+  rate: string;
+  rateId?: string;
+  rateEffectiveAt?: string;
+};
+
 export type FXReportRow = {
   orderId: string;
   orderNo: string;
@@ -36,6 +46,8 @@ export type FXReportRow = {
   currency: string;
   status: string;
   conversionStatus: 'complete' | 'source_incomplete' | 'rate_missing' | 'order_date_missing';
+  calculationMethod?: 'whole_order_conversion' | 'independently_converted_fees';
+  componentRates?: FXComponentRate[];
   baseCurrency: string;
   rate?: string;
   rateId?: string;

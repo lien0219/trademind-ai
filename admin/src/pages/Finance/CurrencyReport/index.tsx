@@ -1,7 +1,7 @@
 import { useLanguage } from '@/i18n/useLanguage';
 import { tr } from '@/i18n';
 import { DownloadOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { Alert, Button, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
 import type { Dayjs } from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PermissionGuard from '@/components/PermissionGuard';
@@ -305,6 +305,15 @@ export default function CurrencyReportPage() {
                 { title: tr('换算预估利润'), width: 150, render: (_, row) => formatProfitAmount(row.converted.estimatedProfitMinor, baseCurrency) },
                 { title: tr('汇率'), dataIndex: 'rate', width: 110, render: (value: string) => value || '—' },
                 { title: tr('汇率生效时间'), dataIndex: 'rateEffectiveAt', width: 190, render: (value: string) => value ? formatDateTime(value) : '—' },
+                { title: tr('换算依据'), key: 'calculationMethod', width: 180, render: (_, row) => (
+                  row.calculationMethod === 'independently_converted_fees' ? (
+                    <Tooltip title={(row.componentRates || []).map((evidence) =>
+                      `${evidence.component}: ${evidence.originalAmountMinor} ${evidence.sourceCurrency} × ${evidence.rate} → ${evidence.convertedAmountMinor} ${row.baseCurrency}; ${evidence.rateId || '1:1'}; ${evidence.rateEffectiveAt || '—'}`
+                    ).join(' | ')}>
+                      <Tag color="blue">{tr('已确认费用独立换算')}</Tag>
+                    </Tooltip>
+                  ) : row.calculationMethod === 'whole_order_conversion' ? tr('整单利润换算') : '—'
+                ) },
                 { title: tr('完整性'), dataIndex: 'conversionStatus', width: 160, render: (value: FXReportRow['conversionStatus']) => <Tag color={value === 'complete' ? 'green' : 'orange'}>{tr(conversionLabels[value] || value)}</Tag> },
               ]}
             />
