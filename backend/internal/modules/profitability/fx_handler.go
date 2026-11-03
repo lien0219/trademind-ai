@@ -60,8 +60,8 @@ func (h *Handler) CreateFXRate(c *gin.Context) {
 	row := FXRate{
 		ID: uuid.New(), TenantID: tenantID, CreatedBy: principal.UserID,
 		FromCurrency: strings.TrimSpace(input.FromCurrency),
-		ToCurrency: strings.TrimSpace(input.ToCurrency),
-		Rate: input.Rate, EffectiveAt: input.EffectiveAt.UTC(),
+		ToCurrency:   strings.TrimSpace(input.ToCurrency),
+		Rate:         input.Rate, EffectiveAt: input.EffectiveAt.UTC(),
 		Evidence: input.Evidence, CreatedAt: now,
 	}
 	if err := ValidateFXRate(&row, now); err != nil {
