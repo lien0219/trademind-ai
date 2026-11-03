@@ -503,7 +503,21 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 					res = notify.AlertNotificationResult{Channel: ch, Status: TaskAlertNotifStatusSkipped, ErrorMessage: "mail settings"}
 					break
 				}
-				res = notify.SendMail(ctx, md, payload)
+				if strings.TrimSpace(payload.FailureCategory) != "" && md.SMTPHost != "" && md.From != "" && s.Settings != nil {
+					locale, localeErr := taskAlertMailLocale(ctx, s.DB, alert.TenantID)
+					if localeErr != nil {
+						res = notify.AlertNotificationResult{
+							Channel: "mail", Status: TaskAlertNotifStatusFailed,
+							ErrorMessage: "tenant mail language unavailable",
+						}
+					} else {
+						res = deliverTaskFailureTemplate(ctx, md.MailTo, locale, payload, s.Settings.SendEventEmail)
+					}
+				} else {
+					// Retain the existing generic alert transport and its
+					// skip semantics for non-failure alerts or missing SMTP.
+					res = notify.SendMail(ctx, md, payload)
+				}
 				if res.Status == TaskAlertNotifStatusSuccess {
 					if res.RawSummary == nil {
 						res.RawSummary = map[string]any{}

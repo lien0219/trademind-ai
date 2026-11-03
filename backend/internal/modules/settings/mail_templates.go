@@ -94,7 +94,7 @@ func defaultMailTemplate(event, locale string) MailTemplate {
 	case "billing.payment":
 		primary = "{{amount}}"
 	case "task.failed":
-		primary = "{{task_name}}"
+		primary = "{{task_name}}<p style=\"font-weight:normal;white-space:pre-wrap;overflow-wrap:anywhere\">{{event_name}}</p>"
 	case "tenant.member_added":
 		primary = "{{tenant_name}}"
 	}
