@@ -996,6 +996,18 @@ test.describe("@smoke Admin route smoke", () => {
     page,
   }) => {
     await page.setViewportSize({ width: 535, height: 1301 });
+    // Preview is a read-only render exposed as POST. Explicitly mock only this
+    // endpoint so the E2E write guard still rejects any real settings changes
+    // or outbound test-email requests.
+    admin.writeGuard.allow({
+      operation: "mail-template-preview",
+      method: "POST",
+      path: /^\/api\/v1\/settings\/mail-templates\/preview$/,
+      response: ok({
+        subject: "测试邮件 - TradeMind",
+        html: "<!doctype html><html><body><h1>TradeMind</h1></body></html>",
+      }),
+    });
     await page.route("**/api/v1/auth/profile", (route) => route.fulfill({ json: ok({ ...e2eUser, tenantId: 101, isRoot: true, platformOperator: true }) }));
     await admin.goto("/settings/email");
 
@@ -1038,6 +1050,7 @@ test.describe("@smoke Admin route smoke", () => {
     await expect(avatar).toHaveText("E");
 
     await expectNoRootOverflow(page);
+    await admin.writeGuard.expectRequestCount("mail-template-preview", 1);
     await admin.writeGuard.expectRequestCount("unexpected", 0);
   });
 
