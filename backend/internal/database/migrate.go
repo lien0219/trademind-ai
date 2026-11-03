@@ -243,6 +243,8 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(
 		&admin.AdminUser{},
 		&admin.AdminMutationLock{},
+		&auth.AuthEmailChallenge{},
+		&auth.AuthEmailRate{},
 		&admin.RoleDefinition{},
 		&admin.Tenant{},
 		&admin.TenantMembership{},

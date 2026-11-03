@@ -731,8 +731,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	v1 := r.Group("/api/v1")
 	v1.POST("/auth/login", authH.Login)
 	v1.POST("/auth/change-required-password", authH.ChangeRequiredPassword)
+	v1.GET("/auth/registration-policy", authH.PublicRegistrationPolicy)
 	v1.POST("/auth/register", opLogSvc.AuditFailures("register", "auth", ""), authH.Register)
 	v1.POST("/auth/send-email-code", opLogSvc.AuditFailures("email_code.send", "auth", ""), authH.SendEmailCode)
+	v1.POST("/auth/reset-password", opLogSvc.AuditFailures("password_reset", "auth", ""), authH.ResetPasswordWithEmail)
 	v1.POST("/auth/refresh", sessionH.Refresh)
 
 	authed := v1.Group("")
