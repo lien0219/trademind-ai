@@ -119,14 +119,14 @@ type FXConverted struct {
 
 type FXReportRow struct {
 	OrderProfit
-	BaseCurrency     string            `json:"baseCurrency"`
-	ConversionStatus string            `json:"conversionStatus"`
-	CalculationMethod string           `json:"calculationMethod,omitempty"`
-	ComponentRates   []FXComponentRate `json:"componentRates,omitempty"`
-	RateID           *uuid.UUID        `json:"rateId,omitempty"`
-	Rate             string            `json:"rate,omitempty"`
-	RateEffectiveAt  *time.Time        `json:"rateEffectiveAt,omitempty"`
-	Converted        FXConverted       `json:"converted"`
+	BaseCurrency      string            `json:"baseCurrency"`
+	ConversionStatus  string            `json:"conversionStatus"`
+	CalculationMethod string            `json:"calculationMethod,omitempty"`
+	ComponentRates    []FXComponentRate `json:"componentRates,omitempty"`
+	RateID            *uuid.UUID        `json:"rateId,omitempty"`
+	Rate              string            `json:"rate,omitempty"`
+	RateEffectiveAt   *time.Time        `json:"rateEffectiveAt,omitempty"`
+	Converted         FXConverted       `json:"converted"`
 }
 
 type FXReport struct {
