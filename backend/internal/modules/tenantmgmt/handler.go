@@ -25,8 +25,8 @@ import (
 // Handler is a control-plane endpoint. It never binds tenant scope to an
 // arbitrary request header and does not bypass application RBAC.
 type Handler struct {
-	Service *Service
-	Mail    *settings.Service
+	Service        *Service
+	Mail           *settings.Service
 	AdminPublicURL string
 }
 

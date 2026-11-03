@@ -158,6 +158,7 @@ export default function LoginPage() {
         password: values.password,
         confirmPassword: values.confirmPassword,
         invitationToken: values.invitationToken,
+        locale: language,
       });
       sessionStorage.removeItem('trademind_invitation_pending');
       message.success(tr('注册成功，请登录'));

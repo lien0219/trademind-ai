@@ -76,3 +76,26 @@ func TestRegistrationPolicyDefaultsClosedAndRejectsMalformedValues(t *testing.T)
 		}
 	}
 }
+
+func TestLocalizedDefaultTemplatesHaveDistinctEventContent(t *testing.T) {
+	for _, locale := range []string{"en-US", "ja-JP", "zh-TW", "ko-KR", "th-TH"} {
+		for _, event := range mailEvents {
+			template := defaultMailTemplate(event.Key, locale)
+			if err := validateMailTemplate(template); err != nil {
+				t.Fatalf("%s / %s: %v", locale, event.Key, err)
+			}
+			title, body := localizedMailCopy(event.Key, locale, "", "")
+			if title == "" || body == "" || !strings.Contains(template.Subject, title) ||
+				!strings.Contains(template.HTML, body) {
+				t.Fatalf("event-specific localization missing: %s / %s", locale, event.Key)
+			}
+		}
+	}
+	for _, locale := range []string{"en-US", "ja-JP", "zh-TW", "ko-KR", "th-TH"} {
+		codeTitle, _ := localizedMailCopy("auth.verify_code", locale, "", "")
+		resetTitle, _ := localizedMailCopy("auth.password_reset", locale, "", "")
+		if codeTitle == resetTitle {
+			t.Fatalf("verification and reset must not share generic subject: %s", locale)
+		}
+	}
+}

@@ -941,8 +941,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
 	adminuser.Register(authed, adminUserH)
 	tenantmgmt.Register(authed, &tenantmgmt.Handler{
-		Service: &tenantmgmt.Service{DB: dep.DB, Audit: opLogSvc},
-		Mail: settingsSvc,
+		Service:        &tenantmgmt.Service{DB: dep.DB, Audit: opLogSvc},
+		Mail:           settingsSvc,
 		AdminPublicURL: dep.Config.AdminPublicURL,
 	})
 

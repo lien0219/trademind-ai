@@ -76,31 +76,7 @@ func validMailLocale(locale string) bool {
 
 func defaultMailTemplate(event, locale string) MailTemplate {
 	ev, _ := lookupMailEvent(event)
-	title, body := ev.Name, ev.Description
-	if locale == "en-US" {
-		switch event {
-		case "auth.verify_code":
-			title, body = "Email verification code", "Use this code to verify your account."
-		case "auth.password_reset":
-			title, body = "Reset your password", "You requested a password reset."
-		case "tenant.invitation":
-			title, body = "Organization invitation", "You have been invited to join an organization."
-		default:
-			title, body = "Notification", "This is an automated notification."
-		}
-	}
-	if locale == "ja-JP" {
-		title, body = "お知らせ", "アカウントへの通知です。"
-	}
-	if locale == "zh-TW" {
-		title, body = "系統通知", "這是一則系統通知。"
-	}
-	if locale == "ko-KR" {
-		title, body = "알림", "계정에 대한 알림입니다."
-	}
-	if locale == "th-TH" {
-		title, body = "การแจ้งเตือน", "นี่คือการแจ้งเตือนจากระบบ"
-	}
+	title, body := localizedMailCopy(event, locale, ev.Name, ev.Description)
 	primary := "{{event_name}}"
 	switch event {
 	case "auth.verify_code":
@@ -290,7 +266,7 @@ func (h *Handler) MailTemplateRestore(c *gin.Context) {
 		return
 	}
 	err := h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("tenant_id = 0 AND group_key = ? AND item_key = ?", templateGroup, input.Event + "." + input.Locale).Delete(&Setting{}).Error; err != nil {
+		if err := tx.Where("tenant_id = 0 AND group_key = ? AND item_key = ?", templateGroup, input.Event+"."+input.Locale).Delete(&Setting{}).Error; err != nil {
 			return err
 		}
 		return h.OpLog.WriteTx(c, tx, operationlog.WriteOpts{

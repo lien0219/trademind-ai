@@ -280,6 +280,7 @@ func (h *Handler) registerAccount(c *gin.Context) {
 		Password        string `json:"password"`
 		ConfirmPassword string `json:"confirmPassword"`
 		InvitationToken string `json:"invitationToken"`
+		Locale          string `json:"locale"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid registration request")
@@ -416,7 +417,7 @@ func (h *Handler) registerAccount(c *gin.Context) {
 		return
 	}
 	if h.Settings != nil && h.Cfg != nil && strings.TrimSpace(h.Cfg.AdminPublicURL) != "" {
-		_ = h.Settings.SendEventEmail(c.Request.Context(), "auth.registration_welcome", "zh-CN", email, map[string]string{
+		_ = h.Settings.SendEventEmail(c.Request.Context(), "auth.registration_welcome", input.Locale, email, map[string]string{
 			"login_url": strings.TrimRight(h.Cfg.AdminPublicURL, "/") + "/user/login",
 		})
 	}

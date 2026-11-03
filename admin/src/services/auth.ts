@@ -70,7 +70,7 @@ export async function sendEmailCode(email: string, scene: 'register' | 'password
 }
 
 /** POST /api/v1/auth/register */
-export async function register(params: { email: string; code: string; password: string; confirmPassword: string; invitationToken?: string }) {
+export async function register(params: { email: string; code: string; password: string; confirmPassword: string; invitationToken?: string; locale?: string }) {
   return postJSON<{ ok: boolean }>('/api/v1/auth/register', params);
 }
 
