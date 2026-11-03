@@ -755,6 +755,11 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.POST("/settings/test-storage", setH.TestStorage)
 	authed.POST("/settings/test-platform-tiktok", setH.TestPlatformTikTok)
 	authed.POST("/settings/test-email", setH.TestEmail)
+	authed.GET("/settings/mail-templates/options", setH.MailTemplateOptions)
+	authed.GET("/settings/mail-templates", setH.MailTemplateGet)
+	authed.POST("/settings/mail-templates/preview", setH.MailTemplatePreview)
+	authed.PUT("/settings/mail-templates", setH.MailTemplateSave)
+	authed.POST("/settings/mail-templates/restore", setH.MailTemplateRestore)
 
 	authed.GET("/operation-logs", opLogH.List)
 	authed.POST("/files/upload", fileH.Upload)
