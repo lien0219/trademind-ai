@@ -13,6 +13,8 @@ import (
 // A rate ID is omitted only for an identity conversion to the report currency.
 type FXComponentRate struct {
 	Component            string     `json:"component"`
+	SourceType           string     `json:"sourceType,omitempty"`
+	SourceFactID         string     `json:"sourceFactId,omitempty"`
 	SourceCurrency       string     `json:"sourceCurrency"`
 	OriginalAmountMinor  int64      `json:"originalAmountMinor"`
 	ConvertedAmountMinor int64      `json:"convertedAmountMinor"`

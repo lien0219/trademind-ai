@@ -188,6 +188,10 @@ func (s *Service) BuildFXReport(ctx context.Context, tenantID int64, scope Scope
 	if err != nil {
 		return nil, err
 	}
+	sourceFacts, err := s.loadFXSourceFacts(ctx, tenantID, original.List)
+	if err != nil {
+		return nil, err
+	}
 	for _, originalRow := range original.List {
 		row := FXReportRow{OrderProfit: originalRow, BaseCurrency: baseCurrency}
 		quote := "1"
@@ -239,10 +243,15 @@ func (s *Service) BuildFXReport(ctx context.Context, tenantID int64, scope Scope
 		if conversionError != nil {
 			return nil, conversionError
 		}
-		missingComponentRate, err := resolveFXMixedFees(&row, originalRow, mixedFees, bySource)
+		missingSourceRate, err := resolveFXSourceFacts(&row, originalRow, sourceFacts, bySource)
 		if err != nil {
 			return nil, err
 		}
+		missingFeeRate, err := resolveFXMixedFees(&row, originalRow, mixedFees, bySource)
+		if err != nil {
+			return nil, err
+		}
+		missingComponentRate := missingSourceRate || missingFeeRate
 		if (originalRow.Status != StatusComplete && row.CalculationMethod == "") ||
 			c.EstimatedProfitMinor == nil || c.RevenueMinor == nil {
 			if missingComponentRate {
