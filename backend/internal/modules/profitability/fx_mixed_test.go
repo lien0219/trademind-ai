@@ -15,22 +15,22 @@ func TestResolveFXMixedFeesWithIndependentVerifiedRates(t *testing.T) {
 	at := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
 	orderID := uuid.New()
 	raw := OrderProfit{
-		OrderID: orderID, Currency: "USD", OrderedAt: &at, Status: StatusMismatch,
+		OrderID:    orderID, Currency: "USD", OrderedAt: &at, Status: StatusMismatch,
 		Components: ProfitComponents{
-			Revenue: completeFXMoney("USD", 10000),
-			ProductCost: completeFXMoney("USD", 3000),
-			Freight: completeFXMoney("USD", 1000),
-			Refund: completeFXMoney("USD", 0),
-			PlatformFee: MoneyComponent{Status: ComponentMismatch, ReasonCode: "platform_fee_currency_mismatch"},
-			Advertising: completeFXMoney("USD", 100),
+			Revenue:      completeFXMoney("USD", 10000),
+			ProductCost:  completeFXMoney("USD", 3000),
+			Freight:      completeFXMoney("USD", 1000),
+			Refund:       completeFXMoney("USD", 0),
+			PlatformFee:  MoneyComponent{Status: ComponentMismatch, ReasonCode: "platform_fee_currency_mismatch"},
+			Advertising:  completeFXMoney("USD", 100),
 			WarehouseFee: completeFXMoney("USD", 100),
 		},
 	}
 	row := FXReportRow{
 		OrderProfit: raw, BaseCurrency: "CNY",
-		Converted: FXConverted{
-			RevenueMinor: int64Pointer(72500), ProductCostMinor: int64Pointer(21750),
-			FreightMinor: int64Pointer(7250), RefundMinor: int64Pointer(0),
+		Converted:   FXConverted{
+			RevenueMinor:        int64Pointer(72500), ProductCostMinor: int64Pointer(21750),
+			FreightMinor:        int64Pointer(7250), RefundMinor: int64Pointer(0),
 			AdvertisingFeeMinor: int64Pointer(725), WarehouseFeeMinor: int64Pointer(725),
 		},
 	}
@@ -62,19 +62,19 @@ func TestResolveFXMixedFeesRejectsUnverifiedSources(t *testing.T) {
 	at := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
 	id := uuid.New()
 	base := OrderProfit{
-		OrderID: id, Currency: "USD", OrderedAt: &at, Status: StatusMismatch,
+		OrderID:    id, Currency: "USD", OrderedAt: &at, Status: StatusMismatch,
 		Components: ProfitComponents{
-			Revenue: completeFXMoney("USD", 1000), ProductCost: completeFXMoney("USD", 100),
-			Freight: completeFXMoney("USD", 50), Refund: completeFXMoney("USD", 0),
+			Revenue:     completeFXMoney("USD", 1000), ProductCost: completeFXMoney("USD", 100),
+			Freight:     completeFXMoney("USD", 50), Refund: completeFXMoney("USD", 0),
 			PlatformFee: MoneyComponent{Status: ComponentMismatch, ReasonCode: "platform_fee_currency_mismatch"},
 			Advertising: completeFXMoney("USD", 20), WarehouseFee: completeFXMoney("USD", 30),
 		},
 	}
 	rates := map[string][]FXRate{"EUR": {{ID: uuid.New(), Rate: "8", EffectiveAt: at.Add(-time.Hour)}}}
 	cases := []struct {
-		name string
-		fact PlatformFeeFact
-		rates map[string][]FXRate
+		name       string
+		fact       PlatformFeeFact
+		rates      map[string][]FXRate
 		incomplete bool
 	}{
 		{name: "wrong order", fact: PlatformFeeFact{OrderID: uuid.New(), Currency: "EUR", Status: "matched", AmountMinor: 100}, rates: rates},
@@ -84,8 +84,8 @@ func TestResolveFXMixedFeesRejectsUnverifiedSources(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			row := FXReportRow{OrderProfit: base, BaseCurrency: "CNY", Converted: FXConverted{
-				RevenueMinor: int64Pointer(7250), ProductCostMinor: int64Pointer(725),
-				FreightMinor: int64Pointer(363), RefundMinor: int64Pointer(0),
+				RevenueMinor:        int64Pointer(7250), ProductCostMinor: int64Pointer(725),
+				FreightMinor:        int64Pointer(363), RefundMinor: int64Pointer(0),
 				AdvertisingFeeMinor: int64Pointer(145), WarehouseFeeMinor: int64Pointer(218),
 			}}
 			facts := &fxMixedFees{platform: map[uuid.UUID]PlatformFeeFact{id: tc.fact}}
@@ -104,17 +104,17 @@ func TestResolveFXMixedFeesDoesNotMaskOtherV6Issues(t *testing.T) {
 	at := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
 	id := uuid.New()
 	raw := OrderProfit{
-		OrderID: id, Currency: "USD", OrderedAt: &at, Status: StatusMismatch,
+		OrderID:    id, Currency: "USD", OrderedAt: &at, Status: StatusMismatch,
 		Components: ProfitComponents{
-			Revenue: completeFXMoney("USD", 1000), ProductCost: MoneyComponent{Status: ComponentMissing},
-			Freight: completeFXMoney("USD", 10), Refund: completeFXMoney("USD", 0),
+			Revenue:     completeFXMoney("USD", 1000), ProductCost: MoneyComponent{Status: ComponentMissing},
+			Freight:     completeFXMoney("USD", 10), Refund: completeFXMoney("USD", 0),
 			PlatformFee: MoneyComponent{Status: ComponentMismatch, ReasonCode: "platform_fee_currency_mismatch"},
 			Advertising: completeFXMoney("USD", 5), WarehouseFee: completeFXMoney("USD", 5),
 		},
 	}
 	row := FXReportRow{OrderProfit: raw, BaseCurrency: "CNY", Converted: FXConverted{
 		RevenueMinor: int64Pointer(7250), FreightMinor: int64Pointer(73),
-		RefundMinor: int64Pointer(0), AdvertisingFeeMinor: int64Pointer(36), WarehouseFeeMinor: int64Pointer(36),
+		RefundMinor:  int64Pointer(0), AdvertisingFeeMinor: int64Pointer(36), WarehouseFeeMinor: int64Pointer(36),
 	}}
 	facts := &fxMixedFees{platform: map[uuid.UUID]PlatformFeeFact{id: {
 		OrderID: id, Currency: "EUR", Status: "matched", AmountMinor: 100,
