@@ -996,16 +996,18 @@ test.describe("@smoke Admin route smoke", () => {
     page,
   }) => {
     await page.setViewportSize({ width: 535, height: 1301 });
-    // Preview is a read-only render exposed as POST. Explicitly mock only this
-    // endpoint so the E2E write guard still rejects any real settings changes
-    // or outbound test-email requests.
+    // Preview is a read-only render exposed as POST. This test only checks
+    // theme and avatar styles, so mock a subject-only preview to avoid mounting
+    // a sandboxed srcDoc frame. Playwright addInitScript cannot access
+    // localStorage inside that opaque-origin iframe and emits unrelated errors.
+    // All other API writes remain rejected by the E2E write guard.
     admin.writeGuard.allow({
       operation: "mail-template-preview",
       method: "POST",
       path: /^\/api\/v1\/settings\/mail-templates\/preview$/,
       response: ok({
         subject: "测试邮件 - TradeMind",
-        html: "<!doctype html><html><body><h1>TradeMind</h1></body></html>",
+        html: "",
       }),
     });
     await page.route("**/api/v1/auth/profile", (route) => route.fulfill({ json: ok({ ...e2eUser, tenantId: 101, isRoot: true, platformOperator: true }) }));
