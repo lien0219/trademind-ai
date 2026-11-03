@@ -352,6 +352,13 @@ V6 按订单动态汇总现有只读事实，不落库利润，不生成会计�
 
 所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费、有效仓库操作费和明确未被结算覆盖的有效广告归属；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。CSV 同时单列展示平台费用、广告费用及仓库操作费的原始最小币种单位金额；缺失或不可用的费用保留空字段，不按零值导出，便于核对已知贡献额。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v6`。利润模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、广告平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
 
+## 跨币种历史报表快照
+
+- `POST /api/v1/finance/fx-snapshots?baseCurrency=CNY&platform=...&shopId=...`：企业管理员且具有订单利润导出权限才能保存；以同一租户及店铺访问范围生成报表，保存完整 JSON、SHA-256 哈希和历史计算版本；8 MiB 上限。
+- `GET /api/v1/finance/fx-snapshots`：企业管理员拥有利润读取权限时获取最近 50 条当前租户快照元数据。
+- `GET /api/v1/finance/fx-snapshots/:snapshotId`：企业管理员拥有利润读取权限时按当前租户读取不可变历史报告，重新验证 SHA-256 与行数。
+- 快照记录与操作审计在同一事务内写入，不提供修改或删除 API；保存后新增汇率不会回写该历史报告。尚非会计凭证。
+
 ## 跨币种预估利润（仅人工确认汇率）
 
 - `GET /api/v1/finance/fx-rates?baseCurrency=CNY`：`order_profit.view`，列出当前租户的最近 100 条已登记汇率，不跨租户读取。

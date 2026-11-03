@@ -249,6 +249,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&admin.TenantInvitation{},
 		&tenantconfig.Setting{},
 		&profitability.FXRate{},
+		&profitability.FXReportSnapshot{},
 		&tenantconfig.Revision{},
 		&tenantconfig.UserPreference{},
 		&tenantconfig.ShopInventoryOverride{},
