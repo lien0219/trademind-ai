@@ -7,11 +7,14 @@ import (
 	"html"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"github.com/trademind-ai/trademind/backend/internal/providers/email"
+	"github.com/trademind-ai/trademind/backend/internal/providers/email/smtp"
 	"gorm.io/gorm"
 )
 
@@ -34,7 +37,7 @@ type MailEvent struct {
 
 var mailEvents = []MailEvent{
 	{"auth.verify_code", "authentication", "邮箱验证码", "账号注册与邮箱验证", []string{"site_name", "recipient_email", "verification_code", "expires_in_minutes"}},
-	{"auth.password_reset", "authentication", "密码重置", "自助重置密码链接", []string{"site_name", "recipient_email", "reset_url", "expires_in_minutes"}},
+	{"auth.password_reset", "authentication", "密码重置", "自助重置密码链接", []string{"site_name", "recipient_email", "reset_url", "verification_code", "expires_in_minutes"}},
 	{"auth.registration_welcome", "authentication", "注册欢迎", "邮箱注册完成通知", []string{"site_name", "recipient_email", "login_url"}},
 	{"tenant.invitation", "organization", "企业邀请", "成员加入企业的邀请邮件", []string{"site_name", "recipient_email", "tenant_name", "invite_url", "expires_in_minutes"}},
 	{"tenant.member_added", "organization", "成员加入通知", "企业成员创建后通知", []string{"site_name", "recipient_email", "tenant_name"}},
@@ -97,7 +100,7 @@ func defaultMailTemplate(event, locale string) MailTemplate {
 	primary := "{{event_name}}"
 	switch event {
 	case "auth.verify_code": primary = "{{verification_code}}"
-	case "auth.password_reset": primary = "{{reset_url}}"
+	case "auth.password_reset": primary = "{{verification_code}}"
 	case "tenant.invitation": primary = "{{invite_url}}"
 	case "auth.registration_welcome": primary = "{{login_url}}"
 	case "report.ready": primary = "{{report_url}}"
@@ -131,8 +134,7 @@ func validateMailTemplate(template MailTemplate) error {
 				return errors.New("unknown email placeholder")
 			}
 		}
-		if strings.Contains(strings.ReplaceAll(part, "{{", ""), "}}") ||
-			strings.Count(part, "{{") != len(mailTemplateVars.FindAllString(part, -1)) {
+		if left := mailTemplateVars.ReplaceAllString(part, ""); strings.Contains(left, "{{") || strings.Contains(left, "}}") {
 			return errors.New("invalid email placeholder")
 		}
 	}
@@ -263,3 +265,47 @@ func (h *Handler) MailTemplateRestore(c *gin.Context) {
 	response.OK(c, gin.H{"ok": true})
 }
 
+
+// SendEventEmail sends an event-specific HTML notification with the same
+// server-side templates used by the editor. SMTP credentials never leave the
+// backend and no delivery is attempted without verified TLS.
+func (s *Service) SendEventEmail(ctx context.Context, event, locale, recipient string, values map[string]string) error {
+	if !validMailLocale(locale) {
+		locale = "zh-CN"
+	}
+	t, err := s.GetMailTemplate(ctx, event, locale)
+	if err != nil {
+		return err
+	}
+	if values == nil {
+		values = make(map[string]string)
+	}
+	values["recipient_email"] = recipient
+	if values["site_name"] == "" {
+		values["site_name"] = "TradeMind"
+	}
+	subject, body, err := RenderMailTemplate(t, values)
+	if err != nil {
+		return err
+	}
+	m, err := s.PlainMailSettings(ctx)
+	if err != nil {
+		return err
+	}
+	if m["provider"] != "" && m["provider"] != "smtp" {
+		return errors.New("unsupported email provider")
+	}
+	port, err := strconv.Atoi(m["smtp_port"])
+	if err != nil {
+		return errors.New("invalid mail port")
+	}
+	cfg := smtp.Config{
+		Host: m["smtp_host"], Port: port, Username: m["smtp_username"],
+		Password: m["smtp_password"], From: m["smtp_from"],
+		FromName: m["smtp_from_name"],
+		UseTLS: m["smtp_use_tls"] == "true", UseSSL: m["smtp_use_ssl"] == "true",
+	}
+	return smtp.NewProvider(cfg).Send(ctx, email.SendEmailRequest{
+		To: recipient, Subject: subject, Content: body, ContentType: "text/html",
+	})
+}
