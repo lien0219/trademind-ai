@@ -119,24 +119,24 @@ type FXConverted struct {
 
 type FXReportRow struct {
 	OrderProfit
-	BaseCurrency     string       `json:"baseCurrency"`
-	ConversionStatus string       `json:"conversionStatus"`
-	RateID           *uuid.UUID   `json:"rateId,omitempty"`
-	Rate             string       `json:"rate,omitempty"`
-	RateEffectiveAt  *time.Time   `json:"rateEffectiveAt,omitempty"`
-	Converted        FXConverted  `json:"converted"`
+	BaseCurrency     string      `json:"baseCurrency"`
+	ConversionStatus string      `json:"conversionStatus"`
+	RateID           *uuid.UUID  `json:"rateId,omitempty"`
+	Rate             string      `json:"rate,omitempty"`
+	RateEffectiveAt  *time.Time  `json:"rateEffectiveAt,omitempty"`
+	Converted        FXConverted `json:"converted"`
 }
 
 type FXReport struct {
-	BaseCurrency             string        `json:"baseCurrency"`
-	CalculatedAt             time.Time     `json:"calculatedAt"`
-	FormulaVersion           string        `json:"formulaVersion"`
-	TotalOrders              int           `json:"totalOrders"`
-	IncludedOrders           int           `json:"includedOrders"`
-	ExcludedOrders           int           `json:"excludedOrders"`
-	RevenueTotalMinor        int64         `json:"revenueTotalMinor"`
-	EstimatedProfitTotalMinor int64        `json:"estimatedProfitTotalMinor"`
-	Rows                     []FXReportRow `json:"rows"`
+	BaseCurrency              string        `json:"baseCurrency"`
+	CalculatedAt              time.Time     `json:"calculatedAt"`
+	FormulaVersion            string        `json:"formulaVersion"`
+	TotalOrders               int           `json:"totalOrders"`
+	IncludedOrders            int           `json:"includedOrders"`
+	ExcludedOrders            int           `json:"excludedOrders"`
+	RevenueTotalMinor         int64         `json:"revenueTotalMinor"`
+	EstimatedProfitTotalMinor int64         `json:"estimatedProfitTotalMinor"`
+	Rows                      []FXReportRow `json:"rows"`
 }
 
 func (s *Service) ListFXRates(ctx context.Context, tenantID int64, base string) ([]FXRate, error) {
