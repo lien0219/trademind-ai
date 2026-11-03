@@ -38,7 +38,7 @@ type FXReportSnapshot struct {
 	CreatedAt      time.Time `gorm:"not null;index:idx_fx_snap_tenant_time,priority:2" json:"createdAt"`
 }
 
-func (FXReportSnapshot) TableName() string { return "tenant_fx_report_snapshots" }
+func (FXReportSnapshot) TableName() string            { return "tenant_fx_report_snapshots" }
 func (*FXReportSnapshot) BeforeUpdate(*gorm.DB) error { return ErrFXInvalid }
 func (*FXReportSnapshot) BeforeDelete(*gorm.DB) error { return ErrFXInvalid }
 
