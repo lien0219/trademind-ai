@@ -63,6 +63,20 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
+    if (activeTab !== 'register') return;
+    const raw = sessionStorage.getItem('trademind_invitation_pending');
+    if (!raw) return;
+    try {
+      const pending = JSON.parse(raw) as { token?: string; expiresAt?: number };
+      if ((pending.expiresAt || 0) > Date.now() && pending.token) {
+        registerForm.setFieldValue('invitationToken', pending.token);
+      }
+    } catch {
+      sessionStorage.removeItem('trademind_invitation_pending');
+    }
+  }, [activeTab, registerForm]);
+
+  useEffect(() => {
     if (activeTab === 'login' && !passwordChangeAccount) loginForm.setFieldValue('password', undefined);
   }, [activeTab, passwordChangeAccount, loginForm]);
 
@@ -145,6 +159,7 @@ export default function LoginPage() {
         confirmPassword: values.confirmPassword,
         invitationToken: values.invitationToken,
       });
+      sessionStorage.removeItem('trademind_invitation_pending');
       message.success(tr('注册成功，请登录'));
       changeAuthTab('login');
     } catch (e: unknown) {

@@ -104,6 +104,11 @@ export default function AcceptInvitationPage() {
               <Space direction="vertical" size={8}>
                 <Alert type="warning" showIcon message={tr("请先登录受邀邮箱对应的账号。")} />
                 <Button type="primary" icon={<LoginOutlined />} onClick={() => history.push('/user/login?redirect=%2Ftenant%2Finvitations%2Faccept')}>{tr("登录并继续")}</Button>
+                <Button onClick={() => {
+                  const token = form.getFieldValue('token');
+                  if (token) sessionStorage.setItem(INVITE_SESSION_KEY, JSON.stringify({ token, expiresAt: Date.now() + 60 * 60 * 1000 }));
+                  history.push('/user/register');
+                }}>{tr('注册并继续')}</Button>
               </Space>
             )}
           </Form>

@@ -890,4 +890,5 @@ export const settingsWorkspaceTranslations: Record<string, [string, string, stri
   "请输入至少12位密码": ["Enter at least 12 characters","12文字以上を入力してください","請輸入至少12字元密碼","12자 이상 입력하세요","ป้อนรหัสผ่านอย่างน้อย 12 ตัวอักษร"],
   "当前仅允许受邀用户注册，请填写管理员提供的邀请令牌": ["Registration is by invitation only. Enter the invitation token from your administrator.","現在は招待制です。管理者からの招待トークンを入力してください。","目前僅開放邀請註冊，請輸入管理員提供的邀請令牌","초대를 받은 사용자만 등록할 수 있습니다. 관리자에게 받은 초대 토큰을 입력하세요.","สมัครได้เฉพาะผู้รับคำเชิญ กรุณากรอกโทเค็นจากผู้ดูแล"],
   "企业邀请令牌": ["Organization invitation token","組織の招待トークン","企業邀請令牌","조직 초대 토큰","โทเค็นเชิญองค์กร"],
+  "注册并继续": ["Register and continue","登録して続行","註冊並繼續","가입 후 계속","สมัครและดำเนินการต่อ"],
 };
