@@ -22,11 +22,11 @@ type fxSourceFacts struct {
 
 func (s *Service) loadFXSourceFacts(ctx context.Context, tenantID int64, orders []OrderProfit) (*fxSourceFacts, error) {
 	facts := &fxSourceFacts{
-		items: make(map[uuid.UUID][]OrderItemFact),
+		items:     make(map[uuid.UUID][]OrderItemFact),
 		snapshots: make(map[uuid.UUID][]OrderItemCostSnapshotFact),
 		suppliers: make(map[uuid.UUID][]SupplierCostFact),
-		freight: make(map[uuid.UUID][]FreightFact),
-		refunds: make(map[uuid.UUID][]RefundFact),
+		freight:   make(map[uuid.UUID][]FreightFact),
+		refunds:   make(map[uuid.UUID][]RefundFact),
 	}
 	var costIDs, freightIDs, refundIDs []uuid.UUID
 	for _, row := range orders {
