@@ -100,6 +100,9 @@ func fxVerifiedComponent(c MoneyComponent, component string, converted *int64, r
 		return true
 	}
 	allowed := map[string]string{
+		"productCost":    "supplier_cost_currency_mismatch",
+		"freight":        "freight_currency_mismatch",
+		"refund":         "sales_return_currency_mismatch",
 		"platformFee":    "platform_fee_currency_mismatch",
 		"advertisingFee": "advertising_fee_currency_mismatch",
 		"warehouseFee":   "warehouse_fee_currency_mismatch",
