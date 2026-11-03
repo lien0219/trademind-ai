@@ -27,7 +27,7 @@ type Config struct {
 	UseSSL   bool
 }
 
-type Provider struct { cfg Config }
+type Provider struct{ cfg Config }
 
 func NewProvider(cfg Config) *Provider { return &Provider{cfg: cfg} }
 func (p *Provider) Name() string { return "smtp" }
