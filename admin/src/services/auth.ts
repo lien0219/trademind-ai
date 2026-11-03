@@ -52,8 +52,12 @@ export async function getProfile(): Promise<API.CurrentUser> {
 /** POST /api/v1/auth/send-email-code */
 export type RegistrationMode = 'closed' | 'invite_only' | 'open';
 
-export async function getPublicRegistrationPolicy() {
-  return getJSON<{ mode: RegistrationMode }>('/api/v1/auth/registration-policy');
+export async function getPublicRegistrationPolicy(): Promise<{ mode: RegistrationMode }> {
+  // The public registration endpoint must fail closed for malformed or
+  // incomplete responses, not accidentally enable self-registration.
+  const response = await getJSON<{ mode?: unknown }>('/api/v1/auth/registration-policy');
+  const mode = response?.mode;
+  return { mode: mode === 'open' || mode === 'invite_only' ? mode : 'closed' };
 }
 
 export async function resetPasswordByEmail(input: {

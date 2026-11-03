@@ -93,6 +93,19 @@ export async function routeAdminApi(page: Page) {
     const response =
       (path === "/api/v1/auth/profile" ? ok(e2eUser) : null) ??
       (path === "/api/v1/settings" ? ok({ items: [] }) : null) ??
+      (path === "/api/v1/auth/registration-policy" ? ok({ mode: "closed" }) : null) ??
+      (path === "/api/v1/settings/registration-policy" ? ok({ mode: "closed" }) : null) ??
+      (path === "/api/v1/settings/mail-templates/options"
+        ? ok({ events: [
+            { key: "auth.verify_code", category: "authentication", name: "邮箱验证码",
+              description: "账号注册与邮箱验证", placeholders: ["site_name", "recipient_email", "verification_code", "expires_in_minutes"] },
+            { key: "task.failed", category: "operations", name: "任务失败",
+              description: "异步任务执行失败时提醒", placeholders: ["site_name", "recipient_email", "task_name", "event_name"] },
+          ], locales: ["zh-CN", "en-US", "ja-JP", "zh-TW", "ko-KR", "th-TH"] }) : null) ??
+      (path === "/api/v1/settings/mail-templates"
+        ? ok({ event: url.searchParams.get("event") || "auth.verify_code", locale: url.searchParams.get("locale") || "zh-CN",
+            subject: "测试邮件 - {{site_name}}", html: "<!doctype html><html><body><h1>TradeMind</h1><p>{{verification_code}}</p></body></html>",
+            customized: false }) : null) ??
       (path === "/api/v1/tenant/current"
         ? ok({ tenant: e2eTenant, memberCount: 1, shopCount: 1 })
         : null) ??

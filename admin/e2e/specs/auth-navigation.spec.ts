@@ -96,6 +96,27 @@ for (const scene of ['login'] as const) {
   });
 }
 
+test('@smoke registration policy fails closed on malformed public response', async ({ page, admin }) => {
+  await page.addInitScript((key) => localStorage.removeItem(key), AUTH_TOKEN_KEY);
+  await page.route('**/api/v1/auth/registration-policy', (route) =>
+    route.fulfill({ json: ok({ mode: 'unexpected' }) }));
+  await page.goto('/user/register');
+  await expect(page.getByText('请联系管理员创建账号，当前不开放自助注册')).toBeVisible();
+  await expect(page.getByRole('button', { name: /^注\s*册/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '获取验证码' })).toBeDisabled();
+  await admin.writeGuard.expectRequestCount('unexpected', 0);
+});
+
+test('@smoke open registration policy enables email enrollment controls', async ({ page }) => {
+  await page.addInitScript((key) => localStorage.removeItem(key), AUTH_TOKEN_KEY);
+  await page.route('**/api/v1/auth/registration-policy', (route) =>
+    route.fulfill({ json: ok({ mode: 'open' }) }));
+  await page.goto('/user/register');
+  await expect(page.getByLabel('邮箱', { exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '获取验证码' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: /^注\s*册/ })).toBeEnabled();
+});
+
 for (const theme of ['light', 'dark'] as const) {
   test(`@smoke prevents public account provisioning in ${theme} mode`, async ({ admin, page }) => {
     await page.addInitScript(([authKey, themeKey, mode]) => {

@@ -150,6 +150,10 @@ export default function LoginPage() {
   };
 
   const onRegister = async (values: any) => {
+    if (registrationMode === 'closed' || (registrationMode === 'invite_only' && !values.invitationToken)) {
+      message.error(tr("请联系管理员创建账号，当前不开放自助注册"));
+      return;
+    }
     setLoading(true);
     try {
       await register({
@@ -171,6 +175,11 @@ export default function LoginPage() {
   };
 
   const handleSendCode = async () => {
+    if (registrationMode === 'closed' || countdown > 0) return;
+    if (registrationMode === 'invite_only' && !registerForm.getFieldValue('invitationToken')) {
+      message.warning(tr('请输入邀请令牌'));
+      return;
+    }
     try {
       await registerForm.validateFields(['email']);
     } catch {
@@ -428,7 +437,7 @@ export default function LoginPage() {
                       <Button
                         className="code-btn"
                         onClick={handleSendCode}
-                        disabled={registrationMode === 'closed' || countdown > 0}
+                        disabled={registrationMode === 'closed' || countdown > 0 || loading}
                       >
                         {countdown > 0 ? tr('{seconds} 秒后重发').replace('{seconds}', String(countdown)) : tr("获取验证码")}
                       </Button>
@@ -482,7 +491,7 @@ export default function LoginPage() {
                     htmlType="submit"
                     className="submit-btn"
                     loading={loading}
-                    disabled={registrationMode === 'closed'}
+                    disabled={registrationMode === 'closed' || loading}
                   >
                     {tr("注册")}<ArrowRightOutlined />
                   </Button>

@@ -32,9 +32,11 @@ export default function EmailTemplateCenter() {
     let active = true;
     getMailTemplateOptions().then((v) => {
       if (!active) return;
-      setEvents(v.events);
-      setLocales(v.locales);
-      setEventKey(v.events[0]?.key || '');
+      const availableEvents = Array.isArray(v?.events) ? v.events : [];
+      const availableLocales = Array.isArray(v?.locales) ? v.locales : [];
+      setEvents(availableEvents);
+      setLocales(availableLocales);
+      setEventKey(availableEvents[0]?.key || '');
     }).catch(() => { if (active) message.error(tr('邮件模板目录加载失败')); });
     return () => { active = false; seq.current++; };
   }, []);
@@ -60,7 +62,7 @@ export default function EmailTemplateCenter() {
     setPreviewLoading(true);
     try {
       const data = await previewMailTemplate(draft);
-      if (requestID === seq.current) setPreview(data);
+      if (requestID === seq.current) setPreview(data && typeof data.html === 'string' && typeof data.subject === 'string' ? data : undefined);
     } catch {
       if (requestID === seq.current) setPreview(undefined);
     } finally {
@@ -164,13 +166,19 @@ export default function EmailTemplateCenter() {
           <div style={{ marginTop: 8, padding: '8px 12px', background: 'var(--tm-surface-muted, #f7f8fa)', borderRadius: 8, overflowWrap: 'anywhere' }}>
             {actualPreview.subject || tr('点击预览查看邮件主题')}
           </div>
-          <iframe
-            title={tr('邮件实时预览')}
-            sandbox=""
-            referrerPolicy="no-referrer"
-            srcDoc={actualPreview.html}
-            style={{ display: 'block', marginTop: 10, width: '100%', minHeight: 430, border: '1px solid var(--tm-border, #e5e7eb)', borderRadius: 10 }}
-          />
+          {actualPreview.html ? (
+            <iframe
+              title={tr('邮件实时预览')}
+              sandbox=""
+              referrerPolicy="no-referrer"
+              srcDoc={actualPreview.html}
+              style={{ display: 'block', marginTop: 10, width: '100%', minHeight: 430, border: '1px solid var(--tm-border, #e5e7eb)', borderRadius: 10 }}
+            />
+          ) : (
+            <div style={{ marginTop: 10, minHeight: 140, border: '1px solid var(--tm-border, #e5e7eb)', borderRadius: 10, padding: 16 }}>
+              <Typography.Text type="secondary">{tr('点击预览查看邮件主题')}</Typography.Text>
+            </div>
+          )}
           <Typography.Paragraph type="secondary" style={{ marginTop: 10 }}>
             {tr('预览使用安全沙箱，不会发送邮件。模板修改需要单独保存。')}
           </Typography.Paragraph>
