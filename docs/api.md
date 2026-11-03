@@ -350,7 +350,7 @@ V6 按订单动态汇总现有只读事实，不落库利润，不生成会计�
 | `GET` | `/api/v1/order-profits` | `order_profit.view`；CSV 需 `order_profit.export` | 分页查询当前租户、授权店铺内的订单预估利润；支持 `page`、`pageSize`、`orderNo`、`platform`、`shopId`、`warehouseId`、`currency`、`status=complete\|pending\|mismatch\|blocked`、`start`、`end`。传 `format=csv` 导出当前筛选结果。派生状态筛选和导出必须先把候选范围收窄到最多 5000 单，超出返回 `413`。 |
 | `GET` | `/api/v1/order-profits/:orderId` | `order_profit.view` | 查询订单的费用组件、缺口、商品成本依据，以及履约成本快照、履约波次、供应商、退款执行、结算对账、广告费用导入/来源/归属/调整、仓库操作费快照与调整关联；成本行返回 `costBasis`、`snapshotId`、`resolutionStatus`、`capturedAt`、来源供应商字段和候选数量，跨租户或越权店铺返回 `404`。 |
 
-所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费、有效仓库操作费和明确未被结算覆盖的有效广告归属；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v6`。利润模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、广告平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
+所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费、有效仓库操作费和明确未被结算覆盖的有效广告归属；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。CSV 同时单列展示平台费用、广告费用及仓库操作费的原始最小币种单位金额；缺失或不可用的费用保留空字段，不按零值导出，便于核对已知贡献额。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v6`。利润模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、广告平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
 
 ## 图片 AI
 
