@@ -10,8 +10,8 @@ import { usePermission } from '@/hooks/usePermission';
 import { PLATFORM_DISPLAY_LABEL, platformDisplayLabel } from '@/constants/platformLabels';
 import { getBusinessSettings } from '@/services/tenantBusinessSettings';
 import { queryShops, type ShopListRow } from '@/services/shops';
-import { createFXRate, downloadFXReport, FX_CURRENCIES, getFXReport, listFXRates, preferredFXCurrency } from '@/services/fxReport';
-import type { FXCurrency, FXRate, FXReport, FXReportFilters, FXReportRow } from '@/services/fxReport';
+import { createFXRate, createFXSnapshot, downloadFXReport, FX_CURRENCIES, getFXReport, getFXSnapshot, listFXRates, listFXSnapshots, preferredFXCurrency } from '@/services/fxReport';
+import type { FXCurrency, FXRate, FXReport, FXReportFilters, FXReportRow, FXSnapshot } from '@/services/fxReport';
 import { formatProfitAmount } from '@/services/profitability';
 import { createTenantReadGuard } from '@/utils/tenantAsync';
 import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
@@ -44,6 +44,11 @@ export default function CurrencyReportPage() {
   const [shopId, setShopId] = useState<string>();
   const [shops, setShops] = useState<ShopListRow[]>([]);
   const [configurationError, setConfigurationError] = useState('');
+  const [snapshots, setSnapshots] = useState<FXSnapshot[]>([]);
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [snapshotSaving, setSnapshotSaving] = useState(false);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<FXSnapshot>();
+  const snapshotSaveLock = useRef(false);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [report, setReport] = useState<FXReport>();
   const [rates, setRates] = useState<FXRate[]>([]);
@@ -57,6 +62,7 @@ export default function CurrencyReportPage() {
   const exportGuard = useMemo(createTenantReadGuard, []);
   const settingsGuard = useMemo(createTenantReadGuard, []);
   const shopsGuard = useMemo(createTenantReadGuard, []);
+  const snapshotsGuard = useMemo(createTenantReadGuard, []);
   const saveLocked = useRef(false);
   const exportLocked = useRef(false);
 
@@ -115,6 +121,7 @@ export default function CurrencyReportPage() {
     setLoading(true);
     setError('');
     setReport(undefined);
+    setSelectedSnapshot(undefined);
     setRates([]);
     try {
       const [nextReport, nextRates] = await Promise.all([getFXReport(filters), listFXRates(filters.baseCurrency)]);
@@ -163,8 +170,50 @@ export default function CurrencyReportPage() {
     }
   };
 
+  const saveSnapshot = async () => {
+    if (!canManage || !canExport || !currencyReady || snapshotSaveLock.current || loading || !report || selectedSnapshot) return;
+    const context = captureTenantContext();
+    snapshotSaveLock.current = true;
+    setSnapshotSaving(true);
+    try {
+      await createFXSnapshot(filters);
+      if (!isTenantContextCurrent(context)) return;
+      message.success(tr('历史报表快照已保存'));
+    } catch (cause) {
+      if (isTenantContextCurrent(context)) message.error((cause as Error)?.message || tr('保存报表快照失败'));
+    } finally {
+      snapshotSaveLock.current = false;
+      if (isTenantContextCurrent(context)) setSnapshotSaving(false);
+    }
+  };
+
+  const openSnapshots = async () => {
+    const isCurrent = snapshotsGuard.begin();
+    setSnapshotsOpen(true);
+    setSnapshots([]);
+    try {
+      const result = await listFXSnapshots();
+      if (isCurrent()) setSnapshots(result.items || []);
+    } catch (cause) {
+      if (isCurrent()) message.error((cause as Error)?.message || tr('历史快照加载失败'));
+    }
+  };
+
+  const viewSnapshot = async (id: string) => {
+    const isCurrent = readGuard.begin();
+    try {
+      const result = await getFXSnapshot(id);
+      if (!isCurrent()) return;
+      setReport(result.report);
+      setSelectedSnapshot(result.snapshot);
+      setSnapshotsOpen(false);
+    } catch (cause) {
+      if (isCurrent()) message.error((cause as Error)?.message || tr('历史快照加载失败'));
+    }
+  };
+
   const exportReport = async () => {
-    if (!canExport || !currencyReady || loading || exportLocked.current) return;
+    if (!canExport || !currencyReady || loading || !!selectedSnapshot || exportLocked.current) return;
     const isCurrent = exportGuard.begin();
     exportLocked.current = true;
     setExporting(true);
@@ -187,9 +236,13 @@ export default function CurrencyReportPage() {
         extra={
           <Space wrap>
             <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr('重新加载')}</Button>
-            <Button icon={<DownloadOutlined />} disabled={!canExport || !report || !currencyReady || loading} loading={exporting} onClick={() => void exportReport()}>
+            <Button icon={<DownloadOutlined />} disabled={!canExport || !report || !currencyReady || loading || !!selectedSnapshot} loading={exporting} onClick={() => void exportReport()}>
               {tr('导出换汇报表')}
             </Button>
+            <Button disabled={!currencyReady} onClick={() => void openSnapshots()}>{tr('历史报表快照')}</Button>
+            {canManage && canExport ? (
+              <Button disabled={!report || loading || !!selectedSnapshot} loading={snapshotSaving} onClick={() => void saveSnapshot()}>{tr('保存报表快照')}</Button>
+            ) : null}
             {canManage ? (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>{tr('登记历史汇率')}</Button>
             ) : null}
@@ -219,6 +272,13 @@ export default function CurrencyReportPage() {
           />
           <DatePicker.RangePicker aria-label={tr('下单日期范围')} value={dateRange} onChange={(values) => setDateRange(values)} />
         </Space>
+        {selectedSnapshot ? (
+          <Alert type="info" showIcon style={{ marginBottom: 16 }}
+            message={tr('正在查看已固化的历史报表')}
+            description={selectedSnapshot.contentSha256}
+            action={<Button onClick={() => void load()}>{tr('返回实时报表')}</Button>}
+          />
+        ) : null}
         {error ? <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} /> : null}
         {report ? (
           <>
@@ -265,6 +325,26 @@ export default function CurrencyReportPage() {
             { title: tr('汇率来源依据'), dataIndex: 'evidence', ellipsis: true },
           ]}
         />
+        <Modal
+          title={tr('历史报表快照')}
+          open={snapshotsOpen}
+          footer={null}
+          onCancel={() => setSnapshotsOpen(false)}
+          destroyOnHidden
+          width={850}
+        >
+          <Table<FXSnapshot>
+            rowKey="id" dataSource={snapshots} size="small"
+            pagination={{ pageSize: 10 }} scroll={{ x: 650 }}
+            columns={[
+              { title: tr('快照创建时间'), dataIndex: 'createdAt', render: (value: string) => formatDateTime(value) },
+              { title: tr('报表基准币种'), dataIndex: 'baseCurrency' },
+              { title: tr('订单数量'), dataIndex: 'totalOrders' },
+              { title: tr('可汇总'), dataIndex: 'includedOrders' },
+              { title: tr('操作'), key: 'action', render: (_, row) => <Button type="link" onClick={() => void viewSnapshot(row.id)}>{tr('查看快照')}</Button> },
+            ]}
+          />
+        </Modal>
         <Modal
           title={tr('登记历史汇率')}
           open={modalOpen}

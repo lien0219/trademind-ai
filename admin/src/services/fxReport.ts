@@ -74,6 +74,37 @@ export function preferredFXCurrency(value: unknown): FXCurrency | null {
     : null;
 }
 
+export type FXSnapshot = {
+  id: string;
+  createdBy: string;
+  baseCurrency: FXCurrency;
+  totalOrders: number;
+  includedOrders: number;
+  excludedOrders: number;
+  formulaVersion: string;
+  contentSha256: string;
+  createdAt: string;
+};
+
+export function listFXSnapshots(): Promise<{items: FXSnapshot[]}> {
+  return getWithParams<{items: FXSnapshot[]}>('/api/v1/finance/fx-snapshots');
+}
+
+export function getFXSnapshot(id: string): Promise<{snapshot: FXSnapshot; report: FXReport}> {
+  return getWithParams<{snapshot: FXSnapshot; report: FXReport}>(
+    '/api/v1/finance/fx-snapshots/' + encodeURIComponent(id),
+  );
+}
+
+export function createFXSnapshot(filters: FXReportFilters): Promise<FXSnapshot> {
+  const params = new URLSearchParams({ baseCurrency: filters.baseCurrency });
+  if (filters.start) params.set('start', filters.start);
+  if (filters.end) params.set('end', filters.end);
+  if (filters.platform) params.set('platform', filters.platform);
+  if (filters.shopId) params.set('shopId', filters.shopId);
+  return postJSON<FXSnapshot>('/api/v1/finance/fx-snapshots?' + params.toString(), {});
+}
+
 export function getFXReport(filters: FXReportFilters): Promise<FXReport> {
   return getWithParams<FXReport>('/api/v1/finance/fx-report', filters);
 }
