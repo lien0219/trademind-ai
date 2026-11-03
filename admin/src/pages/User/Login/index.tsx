@@ -4,7 +4,7 @@ import {
   LockOutlined,
   MailOutlined,
 } from '@ant-design/icons';
-import { Alert, Form, Input, Checkbox, Button, Tabs, Row, Col } from 'antd';
+import { Alert, Form, Input, Checkbox, Button, Tabs, Row, Col, Modal } from 'antd';
 import { history, Link, useLocation } from '@umijs/max';
 import { useInitialStateModel } from '@/hooks/useInitialStateModel';
 import { message } from 'antd';
@@ -15,7 +15,7 @@ import { languageNames, supportedLanguages, type AppLanguage } from '@/i18n/dict
 import { AUTH_TOKEN_KEY, AUTH_SESSION_MODE_KEY } from '@/constants/auth';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
 import { PASSWORD_HINT, passwordError } from '@/utils/password';
-import { changeRequiredPassword, getProfile, isPasswordChangeRequired, login, register, sendEmailCode, type LoginResult } from '@/services/auth';
+import { changeRequiredPassword, getProfile, isPasswordChangeRequired, login, register, sendEmailCode, getPublicRegistrationPolicy, resetPasswordByEmail, type LoginResult, type RegistrationMode } from '@/services/auth';
 import './index.less';
 
 type AuthTabKey = 'login' | 'register';
@@ -46,6 +46,21 @@ export default function LoginPage() {
 
   const [loginForm] = Form.useForm();
   const [registerForm] = Form.useForm();
+  const [resetForm] = Form.useForm();
+  const [resetVisible, setResetVisible] = useState(false);
+  const [registrationMode, setRegistrationMode] = useState<RegistrationMode>('closed');
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [resetSending, setResetSending] = useState(false);
+
+  useEffect(() => {
+    let current = true;
+    void getPublicRegistrationPolicy().then((policy) => {
+      if (current) setRegistrationMode(policy.mode);
+    }).catch(() => {
+      if (current) setRegistrationMode('closed');
+    });
+    return () => { current = false; };
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'login' && !passwordChangeAccount) loginForm.setFieldValue('password', undefined);
@@ -123,14 +138,15 @@ export default function LoginPage() {
   const onRegister = async (values: any) => {
     setLoading(true);
     try {
-      const data = await register({
+      await register({
         email: values.email,
         code: values.code,
         password: values.password,
         confirmPassword: values.confirmPassword,
+        invitationToken: values.invitationToken,
       });
-      await completeLogin(data);
-      message.success(tr('注册并登录成功'));
+      message.success(tr('注册成功，请登录'));
+      changeAuthTab('login');
     } catch (e: unknown) {
       message.error(getAuthErrorMessage(e, tr("注册失败")));
     } finally {
@@ -146,7 +162,7 @@ export default function LoginPage() {
     }
     const email = registerForm.getFieldValue('email');
     try {
-      await sendEmailCode(email, 'register');
+      await sendEmailCode(email, 'register', language, registerForm.getFieldValue('invitationToken'));
       message.success(tr('验证码已发送'));
       setCountdown(60);
       countdownTimer.current = setInterval(() => {
@@ -161,6 +177,39 @@ export default function LoginPage() {
     } catch (e: unknown) {
       message.error(getAuthErrorMessage(e, tr("发送失败")));
     }
+  };
+
+  const sendPasswordResetCode = async () => {
+    const email = resetForm.getFieldValue('email');
+    if (!email) {
+      message.warning(tr('请输入邮箱'));
+      return;
+    }
+    setResetSending(true);
+    try {
+      await resetForm.validateFields(['email']);
+      await sendEmailCode(email, 'password_reset', language);
+      message.success(tr('如邮箱已注册，验证码将发送至该邮箱'));
+    } catch (error) {
+      if (!(error as { errorFields?: unknown })?.errorFields) {
+        message.error(getAuthErrorMessage(error, tr('发送失败')));
+      }
+    } finally { setResetSending(false); }
+  };
+
+  const performPasswordReset = async (values: any) => {
+    setResetSubmitting(true);
+    try {
+      await resetPasswordByEmail({
+        email: values.email, code: values.code,
+        newPassword: values.newPassword, confirmPassword: values.confirmPassword,
+      });
+      message.success(tr('密码重置成功，请重新登录'));
+      resetForm.resetFields();
+      setResetVisible(false);
+    } catch (error) {
+      message.error(getAuthErrorMessage(error, tr('密码重置失败')));
+    } finally { setResetSubmitting(false); }
   };
 
   return (
@@ -298,7 +347,7 @@ export default function LoginPage() {
                   <Form.Item name="remember" valuePropName="checked" noStyle initialValue={true}>
                     <Checkbox>{tr("记住我")}</Checkbox>
                   </Form.Item>
-                  <a href="#" className="forgot-link" onClick={(e) => e.preventDefault()}>
+                  <a href="#" className="forgot-link" onClick={(e) => { e.preventDefault(); setResetVisible(true); }}>
                     {tr("忘记密码？")}</a>
                 </div>
 
@@ -327,9 +376,15 @@ export default function LoginPage() {
                 layout="vertical"
                 onFinish={onRegister}
                 requiredMark={false}
-                disabled
+                disabled={registrationMode === 'closed'}
               >
-                <Alert type="info" showIcon message={tr("请联系管理员创建账号，当前不开放自助注册")} />
+                {registrationMode === 'closed' ? <Alert type="info" showIcon message={tr("请联系管理员创建账号，当前不开放自助注册")} /> : null}
+                {registrationMode === 'invite_only' ? <Alert type="info" showIcon message={tr('当前仅允许受邀用户注册，请填写管理员提供的邀请令牌')} /> : null}
+                {registrationMode === 'invite_only' ? (
+                  <Form.Item name="invitationToken" label={tr('企业邀请令牌')} rules={[{ required: true, message: tr('请输入邀请令牌') }]}>
+                    <Input.Password autoComplete="off" />
+                  </Form.Item>
+                ) : null}
                 <Form.Item
                   name="email"
                   label={tr("邮箱")}
@@ -357,7 +412,7 @@ export default function LoginPage() {
                       <Button
                         className="code-btn"
                         onClick={handleSendCode}
-                        disabled
+                        disabled={registrationMode === 'closed' || countdown > 0}
                       >
                         {countdown > 0 ? tr('{seconds} 秒后重发').replace('{seconds}', String(countdown)) : tr("获取验证码")}
                       </Button>
@@ -370,12 +425,12 @@ export default function LoginPage() {
                   label={tr("密码")}
                   rules={[
                     { required: true, message: tr("请输入密码") },
-                    { min: 6, message: tr("密码至少6位") },
+                    { min: 12, message: tr('密码至少12位') },
                   ]}
                   validateTrigger="onBlur"
                 >
                   <Input.Password
-                    placeholder={tr("请输入至少6位密码")}
+                    placeholder={tr('请输入至少12位密码')}
                     prefix={<LockOutlined />}
                     autoComplete="new-password"
                   />
@@ -411,7 +466,7 @@ export default function LoginPage() {
                     htmlType="submit"
                     className="submit-btn"
                     loading={loading}
-                    disabled
+                    disabled={registrationMode === 'closed'}
                   >
                     {tr("注册")}<ArrowRightOutlined />
                   </Button>
@@ -426,6 +481,38 @@ export default function LoginPage() {
               </Form>
             )}
 
+            <Modal
+              title={tr('邮箱找回密码')}
+              open={resetVisible}
+              onCancel={() => setResetVisible(false)}
+              onOk={() => void resetForm.submit()}
+              confirmLoading={resetSubmitting}
+              okText={tr('重置密码')}
+              destroyOnHidden
+            >
+              <Form form={resetForm} layout="vertical" onFinish={(values) => void performPasswordReset(values)}>
+                <Form.Item name="email" label={tr('邮箱')} rules={[{ required: true, type: 'email' }]}>
+                  <Input autoComplete="email" />
+                </Form.Item>
+                <Form.Item label={tr('邮箱验证码')} required>
+                  <Row gutter={8}>
+                    <Col span={15}><Form.Item noStyle name="code" rules={[{ required: true, len: 6 }]}><Input maxLength={6} /></Form.Item></Col>
+                    <Col span={9}><Button block loading={resetSending} onClick={() => void sendPasswordResetCode()}>{tr('获取验证码')}</Button></Col>
+                  </Row>
+                </Form.Item>
+                <Form.Item name="newPassword" label={tr('新密码')} rules={[{ required: true, min: 12, message: tr('密码至少12位') }]}>
+                  <Input.Password autoComplete="new-password" />
+                </Form.Item>
+                <Form.Item name="confirmPassword" dependencies={['newPassword']} label={tr('确认新密码')}
+                  rules={[{ required: true }, ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      return value && value === getFieldValue('newPassword') ? Promise.resolve() : Promise.reject(new Error(tr('两次输入的密码不一致!')));
+                    },
+                  })]}>
+                  <Input.Password autoComplete="new-password" />
+                </Form.Item>
+              </Form>
+            </Modal>
             <div className="agreement">
               {activeTab === 'login' ? tr("登录") : tr("注册")}{tr("即表示你已阅读并同意用户协议与隐私政策")}</div>
           </div>

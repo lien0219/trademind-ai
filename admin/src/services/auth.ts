@@ -50,16 +50,28 @@ export async function getProfile(): Promise<API.CurrentUser> {
 }
 
 /** POST /api/v1/auth/send-email-code */
-export async function sendEmailCode(email: string, scene: 'register' = 'register') {
+export type RegistrationMode = 'closed' | 'invite_only' | 'open';
+
+export async function getPublicRegistrationPolicy() {
+  return getJSON<{ mode: RegistrationMode }>('/api/v1/auth/registration-policy');
+}
+
+export async function resetPasswordByEmail(input: {
+  email: string; code: string; newPassword: string; confirmPassword: string;
+}) {
+  return postJSON<{ ok: boolean }>('/api/v1/auth/reset-password', input);
+}
+
+export async function sendEmailCode(email: string, scene: 'register' | 'password_reset' = 'register', locale = 'zh-CN', invitationToken?: string) {
   return postJSON<{ ok: boolean }>('/api/v1/auth/send-email-code', {
     email,
-    scene,
+    scene, locale, invitationToken,
   });
 }
 
 /** POST /api/v1/auth/register */
-export async function register(params: { email: string; code: string; password: string; confirmPassword: string }) {
-  return postJSON<LoginResult>('/api/v1/auth/register', params);
+export async function register(params: { email: string; code: string; password: string; confirmPassword: string; invitationToken?: string }) {
+  return postJSON<{ ok: boolean }>('/api/v1/auth/register', params);
 }
 
 export type ProfileUser = LoginUser & {
