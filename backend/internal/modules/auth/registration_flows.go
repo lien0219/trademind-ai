@@ -341,7 +341,7 @@ func (h *Handler) registerAccount(c *gin.Context) {
 		newUser := admin.AdminUser{
 			Username: admin.NewInternalUsername(), Email: email, PasswordHash: string(hash),
 			DisplayName: strings.SplitN(email, "@", 2)[0],
-			Role: "readonly", Status: admin.StatusActive, TokenVersion: 1,
+			Role:        "readonly", Status: admin.StatusActive, TokenVersion: 1,
 		}
 		if err := tx.Create(&newUser).Error; err != nil {
 			return err
@@ -454,10 +454,10 @@ func (h *Handler) ResetPasswordWithEmail(c *gin.Context) {
 			return errors.New("root account requires administrator recovery")
 		}
 		if err := tx.Model(&user).Updates(map[string]any{
-			"password_hash": string(hash),
-			"password_changed_at": time.Now().UTC(),
+			"password_hash":        string(hash),
+			"password_changed_at":  time.Now().UTC(),
 			"must_change_password": false,
-			"token_version": gorm.Expr("token_version + 1"),
+			"token_version":        gorm.Expr("token_version + 1"),
 		}).Error; err != nil {
 			return err
 		}

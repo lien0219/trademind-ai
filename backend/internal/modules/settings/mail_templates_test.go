@@ -18,10 +18,10 @@ func TestMailTemplatesAreValidForEveryConfiguredEventAndLocale(t *testing.T) {
 					t.Fatalf("default mail template rejected: %v", err)
 				}
 				subject, html, err := RenderMailTemplate(tmpl, map[string]string{
-					"site_name": "TradeMind",
-					"recipient_email": "test@example.com",
+					"site_name":         "TradeMind",
+					"recipient_email":   "test@example.com",
 					"verification_code": "<123456>",
-					"event_name": "Notice",
+					"event_name":        "Notice",
 				})
 				if err != nil || subject == "" || html == "" {
 					t.Fatalf("render failed: %v", err)

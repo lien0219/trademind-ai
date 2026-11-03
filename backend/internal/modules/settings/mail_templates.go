@@ -85,7 +85,8 @@ func defaultMailTemplate(event, locale string) MailTemplate {
 			title, body = "Reset your password", "You requested a password reset."
 		case "tenant.invitation":
 			title, body = "Organization invitation", "You have been invited to join an organization."
-		default: title, body = "Notification", "This is an automated notification."
+		default:
+			title, body = "Notification", "This is an automated notification."
 		}
 	}
 	if locale == "ja-JP" {
@@ -251,14 +252,14 @@ func (h *Handler) MailTemplateSave(c *gin.Context) {
 	}
 	err = h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := h.Svc.PutBulkTx(tx, []PutItem{{
-			TenantID: 0, GroupKey: templateGroup, ItemKey: t.Event+"."+t.Locale,
+			TenantID: 0, GroupKey: templateGroup, ItemKey: t.Event + "." + t.Locale,
 			ItemValue: string(payload), ValueType: "json",
 		}}); err != nil {
 			return err
 		}
 		return h.OpLog.WriteTx(c, tx, operationlog.WriteOpts{
 			Action: "mail.template.save", Resource: "mail_template",
-			ResourceID: t.Event+"."+t.Locale, Status: "success",
+			ResourceID: t.Event + "." + t.Locale, Status: "success",
 		})
 	})
 	if err != nil {
@@ -289,12 +290,12 @@ func (h *Handler) MailTemplateRestore(c *gin.Context) {
 		return
 	}
 	err := h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("tenant_id = 0 AND group_key = ? AND item_key = ?", templateGroup, input.Event+"."+input.Locale).Delete(&Setting{}).Error; err != nil {
+		if err := tx.Where("tenant_id = 0 AND group_key = ? AND item_key = ?", templateGroup, input.Event + "." + input.Locale).Delete(&Setting{}).Error; err != nil {
 			return err
 		}
 		return h.OpLog.WriteTx(c, tx, operationlog.WriteOpts{
 			Action: "mail.template.restore", Resource: "mail_template",
-			ResourceID: input.Event+"."+input.Locale, Status: "success",
+			ResourceID: input.Event + "." + input.Locale, Status: "success",
 		})
 	})
 	if err != nil {
@@ -303,7 +304,6 @@ func (h *Handler) MailTemplateRestore(c *gin.Context) {
 	}
 	response.OK(c, gin.H{"ok": true})
 }
-
 
 // SendEventEmail sends an event-specific HTML notification with the same
 // server-side templates used by the editor. SMTP credentials never leave the
@@ -342,7 +342,7 @@ func (s *Service) SendEventEmail(ctx context.Context, event, locale, recipient s
 		Host: m["smtp_host"], Port: port, Username: m["smtp_username"],
 		Password: m["smtp_password"], From: m["smtp_from"],
 		FromName: m["smtp_from_name"],
-		UseTLS: m["smtp_use_tls"] == "true", UseSSL: m["smtp_use_ssl"] == "true",
+		UseTLS:   m["smtp_use_tls"] == "true", UseSSL: m["smtp_use_ssl"] == "true",
 	}
 	return smtp.NewProvider(cfg).Send(ctx, email.SendEmailRequest{
 		To: recipient, Subject: subject, Content: body, ContentType: "text/html",
