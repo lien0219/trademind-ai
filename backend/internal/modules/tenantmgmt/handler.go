@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/passwordpolicy"
@@ -24,6 +26,8 @@ import (
 // arbitrary request header and does not bypass application RBAC.
 type Handler struct {
 	Service *Service
+	Mail    *settings.Service
+	AdminPublicURL string
 }
 
 func (h *Handler) actor(c *gin.Context) (uuid.UUID, bool) {
@@ -314,7 +318,23 @@ func (h *Handler) Invite(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "unable to create invitation")
 		return
 	}
-	response.OK(c, gin.H{"invitation": row, "token": token})
+	mailSent := false
+	if h.Mail != nil && h.AdminPublicURL != "" {
+		publicURL, urlErr := url.Parse(h.AdminPublicURL)
+		if urlErr == nil && publicURL.Host != "" && (publicURL.Scheme == "https" ||
+			(publicURL.Scheme == "http" && (publicURL.Hostname() == "localhost" || publicURL.Hostname() == "127.0.0.1"))) {
+			inviteURL := strings.TrimRight(h.AdminPublicURL, "/") + "/tenant/invitations/accept#token=" + url.QueryEscape(token)
+			var tenant admin.Tenant
+			if err := h.Service.DB.WithContext(c.Request.Context()).Where("id = ?", tid).Take(&tenant).Error; err == nil {
+				if err := h.Mail.SendEventEmail(c.Request.Context(), "tenant.invitation", "zh-CN", row.Email, map[string]string{
+					"tenant_name": tenant.Name, "invite_url": inviteURL, "expires_in_minutes": strconv.Itoa(in.ExpiresInHours * 60),
+				}); err == nil {
+					mailSent = true
+				}
+			}
+		}
+	}
+	response.OK(c, gin.H{"invitation": row, "token": token, "emailSent": mailSent})
 }
 
 func (h *Handler) CancelInvitation(c *gin.Context) {

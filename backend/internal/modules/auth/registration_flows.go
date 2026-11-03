@@ -415,6 +415,11 @@ func (h *Handler) registerAccount(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "registration failed or verification expired")
 		return
 	}
+	if h.Settings != nil && h.Cfg != nil && strings.TrimSpace(h.Cfg.AdminPublicURL) != "" {
+		_ = h.Settings.SendEventEmail(c.Request.Context(), "auth.registration_welcome", "zh-CN", email, map[string]string{
+			"login_url": strings.TrimRight(h.Cfg.AdminPublicURL, "/") + "/user/login",
+		})
+	}
 	response.OK(c, gin.H{"ok": true})
 }
 
