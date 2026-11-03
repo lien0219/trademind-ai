@@ -2,8 +2,8 @@ package profitability
 
 import (
 	"bytes"
-	"encoding/csv"
 	"context"
+	"encoding/csv"
 	"errors"
 	"math"
 	"strings"
@@ -479,14 +479,14 @@ func TestWriteCSVIncludesAdvertisingFeeWithoutTreatingUnknownAsZero(t *testing.T
 		{
 			OrderNo: "confirmed-fee", Currency: "USD", Status: StatusComplete,
 			Components: ProfitComponents{
-				Advertising: MoneyComponent{AmountMinor: &advertisingMinor},
+				Advertising:  MoneyComponent{AmountMinor: &advertisingMinor},
 				WarehouseFee: MoneyComponent{AmountMinor: &warehouseMinor},
 			},
 			CalculatedAt: now, FormulaVersion: FormulaVersion,
 		},
 		{
 			OrderNo: "missing-fee", Currency: "USD", Status: StatusPending,
-			Components: ProfitComponents{Advertising: MoneyComponent{Status: ComponentMissing}},
+			Components:   ProfitComponents{Advertising: MoneyComponent{Status: ComponentMissing}},
 			CalculatedAt: now, FormulaVersion: FormulaVersion,
 		},
 	}
