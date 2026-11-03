@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"context"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
@@ -58,7 +59,7 @@ func normalizedAuthEmail(raw string) (string, bool) {
 	email := strings.ToLower(strings.TrimSpace(raw))
 	parsed, err := mail.ParseAddress(email)
 	return email, err == nil && parsed != nil && parsed.Address == email &&
-		len(email) <= 128 && len(email) > 3 && strings.Contains(strings.SplitN(email, "@", 2)[1], ".")
+		len(email) <= 128 && len(email) > 3 && strings.Count(email, "@") == 1 && strings.Contains(strings.SplitN(email, "@", 2)[1], ".")
 }
 
 func (h *Handler) emailChallengeKey() []byte {
@@ -148,13 +149,13 @@ func (h *Handler) sendEmailChallenge(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid email request")
 		return
 	}
-	if h == nil || h.DB == nil || h.Settings == nil || len(h.emailChallengeKey()) < 16 {
-		response.Fail(c, 503, response.CodeInternalError, "email authentication not configured")
-		return
-	}
 	mode := settings.RegistrationPolicy(c.Request.Context(), h.DB)
 	if input.Scene == "register" && mode == settings.RegistrationClosed {
 		response.Fail(c, 403, response.CodeForbidden, "registration closed")
+		return
+	}
+	if h == nil || h.DB == nil || h.Settings == nil || len(h.emailChallengeKey()) < 16 {
+		response.Fail(c, 503, response.CodeInternalError, "email authentication not configured")
 		return
 	}
 	code, err := randomEmailCode()
@@ -238,27 +239,39 @@ func (h *Handler) sendEmailChallenge(c *gin.Context) {
 	response.OK(c, gin.H{"ok": true})
 }
 
-func verifyEmailCodeTx(tx *gorm.DB, key []byte, email, purpose, code, inviteHash string) error {
-	if len(code) != 6 {
+// consumeEmailCode records failed attempts even when a code is wrong.
+// A successful code is consumed atomically before provisioning; a failed
+// provisioning operation must request a new code (fail-closed behavior).
+func consumeEmailCode(ctx context.Context, db *gorm.DB, key []byte, email, purpose, code, inviteHash string) error {
+	if len(code) != 6 || len(key) < 16 {
 		return errors.New("verification failed")
 	}
-	var challenge AuthEmailChallenge
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("email = ? AND purpose = ?", email, purpose).Take(&challenge).Error; err != nil {
-		return errors.New("verification failed")
-	}
-	if time.Now().UTC().After(challenge.ExpiresAt) || challenge.FailedAttempts >= 5 ||
-		(purpose == "register" && challenge.InvitationHash != inviteHash) {
-		return errors.New("verification failed")
-	}
-	expected := hashEmailCode(key, email, purpose, code)
-	if subtle.ConstantTimeCompare([]byte(expected), []byte(challenge.CodeHash)) != 1 {
-		if err := tx.Model(&challenge).Update("failed_attempts", gorm.Expr("failed_attempts + 1")).Error; err != nil {
+	valid := false
+	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var challenge AuthEmailChallenge
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("email = ? AND purpose = ?", email, purpose).Take(&challenge).Error; err != nil {
 			return err
 		}
+		now := time.Now().UTC()
+		if now.After(challenge.ExpiresAt) || challenge.FailedAttempts >= 5 {
+			return nil
+		}
+		expected := hashEmailCode(key, email, purpose, code)
+		if subtle.ConstantTimeCompare([]byte(expected), []byte(challenge.CodeHash)) != 1 ||
+			(purpose == "register" && challenge.InvitationHash != inviteHash) {
+			return tx.Model(&challenge).Update("failed_attempts", gorm.Expr("failed_attempts + 1")).Error
+		}
+		if err := tx.Delete(&challenge).Error; err != nil {
+			return err
+		}
+		valid = true
+		return nil
+	})
+	if err != nil || !valid {
 		return errors.New("verification failed")
 	}
-	return tx.Delete(&challenge).Error
+	return nil
 }
 
 func (h *Handler) registerAccount(c *gin.Context) {
@@ -287,6 +300,14 @@ func (h *Handler) registerAccount(c *gin.Context) {
 		response.Fail(c, 503, response.CodeInternalError, "registration unavailable")
 		return
 	}
+	inviteHash := ""
+	if mode == settings.RegistrationInviteOnly {
+		inviteHash = authutil.HashToken(input.InvitationToken, "trademind-tenant-invitation")
+	}
+	if err := consumeEmailCode(c.Request.Context(), h.DB, h.emailChallengeKey(), email, "register", input.Code, inviteHash); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "verification failed or expired")
+		return
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		response.HandleError(c, err)
@@ -297,14 +318,12 @@ func (h *Handler) registerAccount(c *gin.Context) {
 			return errors.New("registration policy changed")
 		}
 		var inv *admin.TenantInvitation
-		inviteHash := ""
 		if mode == settings.RegistrationInviteOnly {
 			var err error
 			inv, err = invitationForEmail(tx, input.InvitationToken, email)
 			if err != nil {
 				return err
 			}
-			inviteHash = inv.TokenHash
 		}
 		keyHash := sha256.Sum256([]byte("identity:" + email))
 		lock := admin.AdminMutationLock{KeyHash: hex.EncodeToString(keyHash[:])}
@@ -318,9 +337,6 @@ func (h *Handler) registerAccount(c *gin.Context) {
 		if err := tx.Where("LOWER(TRIM(email)) = ?", email).Take(&existing).Error; err == nil {
 			return errors.New("account already exists")
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
-		if err := verifyEmailCodeTx(tx, h.emailChallengeKey(), email, "register", input.Code, inviteHash); err != nil {
 			return err
 		}
 		newUser := admin.AdminUser{
@@ -420,6 +436,10 @@ func (h *Handler) ResetPasswordWithEmail(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid reset details")
 		return
 	}
+	if err := consumeEmailCode(c.Request.Context(), h.DB, h.emailChallengeKey(), email, "password_reset", input.Code, ""); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "verification failed or expired")
+		return
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
 		response.HandleError(c, err)
@@ -430,8 +450,9 @@ func (h *Handler) ResetPasswordWithEmail(c *gin.Context) {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("LOWER(TRIM(email)) = ? AND status = ?", email, admin.StatusActive).Take(&user).Error; err != nil {
 			return errors.New("invalid reset details")
 		}
-		if err := verifyEmailCodeTx(tx, h.emailChallengeKey(), email, "password_reset", input.Code, ""); err != nil {
-			return err
+		isRoot, err := adminperm.IsRoot(c.Request.Context(), tx, user.ID)
+		if err != nil || isRoot {
+			return errors.New("root account requires administrator recovery")
 		}
 		if err := tx.Model(&user).Updates(map[string]any{
 			"password_hash": string(hash),
