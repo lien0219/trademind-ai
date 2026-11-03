@@ -43,7 +43,7 @@ function statusTag(status: string) {
 }
 
 export default function PurchaseOrderDetailPage() {
-  useLanguage();
+  const language = useLanguage();
   const { id = '' } = useParams<{ id: string }>();
   const { can, readonly } = usePermission();
   const canManage = !readonly && can(PERMISSIONS.PROCUREMENT_MANAGE);
@@ -355,7 +355,7 @@ export default function PurchaseOrderDetailPage() {
         ) : null}
       </Space>
     );
-  }, [canApprove, canManage, canReceive, order]);
+  }, [canApprove, canManage, canReceive, order, language]);
 
   return (
     <PermissionGuard require={PERMISSIONS.PROCUREMENT_VIEW} showForbiddenPage>

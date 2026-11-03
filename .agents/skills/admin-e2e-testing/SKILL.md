@@ -34,7 +34,7 @@ description: TradeMind 生产维护阶段的 Admin Playwright CI 回归、写请
 
 ## 4. Playwright Test 模式
 
-持久 E2E 使用 Playwright Test，首期浏览器为 Chromium。默认 `baseURL` 为 `http://127.0.0.1:8001`，本地复用已有 server；CI 由 `webServer` 执行 `pnpm build:admin` 后启动 Admin preview，端口 8001。测试不得依赖后端服务，所有 `/api/v1/**` 业务接口由 Mock 提供。
+持久 E2E 使用 Playwright Test，首期浏览器为 Chromium。默认 `baseURL` 为 `http://127.0.0.1:8001`，本地复用已有 server；CI 由 `webServer` 执行 `pnpm build:admin` 后启动 Admin preview，端口 8001。需要复用用户已启动的本机预览时，显式设置 `ADMIN_E2E_BASE_URL`（例如 `http://localhost:8000`）；该变量仅接受 `http` / `https` 回环 origin，设置后配置不会启动或管理 `webServer`。测试不得依赖后端服务，所有 `/api/v1/**` 业务接口和页面所需的旧 `/api/collector/**` 读取接口由 Mock 提供；共享写守卫覆盖 `/api/**`，未逐测试声明的写请求必须阻断。
 
 ## 5. 测试目录规范
 

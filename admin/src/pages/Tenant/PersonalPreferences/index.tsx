@@ -1,7 +1,8 @@
 import { useLanguage } from '@/i18n/useLanguage';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Card, Form, Modal, Select, Space, Spin, message } from 'antd';
-import { TmPageContainer } from '@/components/ui';
+import { Alert, Button, Col, Form, Modal, Row, Select, Spin, message } from 'antd';
+import { ActionBar, SectionCard, TmPageContainer } from '@/components/ui';
+import { layoutTokens } from '@/constants/layoutTokens';
 import { getJSON, putJSON } from '@/services/request';
 import { applyThemeMode, persistThemeMode } from '@/theme';
 import { readRegionalPreferences, setLanguage, setRegionalPreferences, tr } from '@/i18n';
@@ -68,16 +69,29 @@ export default function PersonalPreferencesPage(){
     if(e && typeof e==='object' && 'errorFields' in e)return;
     if(isTenantContextCurrent(context))message.error((e as Error)?.message||tr('保存失败，请刷新后重试'));
   }finally{mutationPending.current=false;setSaving(false)}};
-  return <TmPageContainer title={tr("个人偏好")} subTitle={tr("仅对当前企业的当前账号有效，不改变其他成员、店铺或企业的业务规则。")}>
-    <Card style={{maxWidth:720}}>
+  return <TmPageContainer
+    title={tr("个人偏好")}
+    subTitle={tr("仅对当前企业的当前账号有效，不改变其他成员、店铺或企业的业务规则。")}
+    contentMaxWidth={960}
+    fluid={false}
+  >
+    <SectionCard>
       {error?<Alert type="error" message={error} action={<Button disabled={saving} onClick={()=>void load()}>{tr('重试')}</Button>}/>:null}
-      {loading?<Spin/>:snapshot?<Form form={form} layout="vertical" disabled={saving}>
-        <Form.Item name="language" label={tr("首选语言")} rules={[{required:true}]}><Select options={supportedLanguages.map(value=>({value,label:languageNames[value]}))}/></Form.Item>
-        <Form.Item name="theme" label={tr("界面主题")} rules={[{required:true}]}><Select options={[{value:'light',label:tr('浅色模式')},{value:'dark',label:tr('深色模式')}]}/></Form.Item>
-        <Form.Item name="dateFormat" label={tr('首选日期格式')} rules={[{required:true}]}><Select options={[{value:'YYYY-MM-DD',label:'2026-10-27'},{value:'DD/MM/YYYY',label:'27/10/2026'},{value:'MM/DD/YYYY',label:'10/27/2026'}]}/></Form.Item>
-        <Alert type="info" showIcon message={tr("偏好生效范围")} description={tr("语言和主题立即生效；日期格式适用于已接入统一日期组件的页面。")}/>
-        <Space style={{marginTop:16}}><Button type="primary" loading={saving} onClick={()=>void save()}>{tr("保存个人偏好")}</Button><Button disabled={saving} onClick={restore}>{tr("还原")}</Button></Space>
+      {loading?<Spin/>:snapshot?<Form form={form} layout="vertical" disabled={saving} aria-label={tr('个人偏好')}>
+        <Row gutter={layoutTokens.formColumnGap}>
+          <Col xs={24} lg={8}>
+            <Form.Item name="language" label={tr("首选语言")} rules={[{required:true}]}><Select options={supportedLanguages.map(value=>({value,label:languageNames[value]}))}/></Form.Item>
+          </Col>
+          <Col xs={24} lg={8}>
+            <Form.Item name="theme" label={tr("界面主题")} rules={[{required:true}]}><Select options={[{value:'light',label:tr('浅色模式')},{value:'dark',label:tr('深色模式')}]}/></Form.Item>
+          </Col>
+          <Col xs={24} lg={8}>
+            <Form.Item name="dateFormat" label={tr('首选日期格式')} rules={[{required:true}]}><Select options={[{value:'YYYY-MM-DD',label:'2026-10-27'},{value:'DD/MM/YYYY',label:'27/10/2026'},{value:'MM/DD/YYYY',label:'10/27/2026'}]}/></Form.Item>
+          </Col>
+        </Row>
+        <Alert type="info" showIcon message={tr("语言和主题立即生效；日期格式适用于已接入统一日期组件的页面。")}/>
+        <ActionBar><Button type="primary" loading={saving} onClick={()=>void save()}>{tr("保存个人偏好")}</Button><Button disabled={saving} onClick={restore}>{tr("还原")}</Button></ActionBar>
       </Form>:null}
-    </Card>
+    </SectionCard>
   </TmPageContainer>;
 }

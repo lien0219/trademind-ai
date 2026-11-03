@@ -1,4 +1,5 @@
 import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { ReloadOutlined, SyncOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { Button, Card, Col, Form, Input, Modal, Row, Space, Typography, message } from 'antd';
@@ -34,6 +35,7 @@ const LIMIT = 20;
 type QueryState = Record<(typeof QUERY_KEYS)[number], string | undefined>;
 
 export default function InventorySyncCalibrationPage() {
+  const language = useLanguage();
   const { state, setState, clearState } = useUrlQueryState<QueryState>(QUERY_KEYS);
   const [form] = Form.useForm();
   const [reasonForm] = Form.useForm<{ reason: string }>();
@@ -141,7 +143,7 @@ export default function InventorySyncCalibrationPage() {
     { title: tr("状态"), dataIndex: 'status', width: 120 },
     { title: tr("原因码"), dataIndex: 'reasonCodes', width: 240, render: (v) => Array.isArray(v) ? v.join(', ') : '-' },
     { title: tr("创建时间"), dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(String(v || '')) },
-  ], []);
+  ], [language]);
 
   return (
     <TmPageContainer

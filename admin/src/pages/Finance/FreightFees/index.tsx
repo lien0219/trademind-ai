@@ -55,6 +55,7 @@ import {
 } from '@/services/freightFees';
 import { formatProfitAmount } from '@/services/profitability';
 import { queryShops, type ShopListRow } from '@/services/shops';
+import './index.less';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import { financialActionRequestKey, type FinancialActionRequestKey } from '@/utils/financialActionKey';
@@ -472,6 +473,7 @@ export default function FreightFeesPage() {
           title={tr("导入承运商运费账单")}
           open={importOpen}
           width={1000}
+          transitionName=""
           destroyOnHidden
           closable={!submitting}
           keyboard={!submitting}
@@ -488,6 +490,8 @@ export default function FreightFeesPage() {
           <Space direction="vertical" size="middle" className="freight-fee-full-width">
             {shopError ? <ErrorAlert title={shopError} actionHint={<Button icon={<ReloadOutlined />} onClick={() => void loadShops()}>{tr('重新加载店铺')} </Button>} /> : null}
             <Select
+              className="freight-fee-full-width"
+              aria-label={tr("选择账单所属店铺")}
               showSearch
               optionFilterProp="label"
               placeholder={tr("选择账单所属店铺")}

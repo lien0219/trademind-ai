@@ -1,4 +1,5 @@
 import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { commonStatusLabel } from '@/constants/copywriting';
@@ -67,6 +68,7 @@ function WorkerStatusMetrics({ summary }: { summary: WorkerMonitorSummary }) {
 }
 
 export default function WorkersMonitorPage() {
+  const language = useLanguage();
   const [data, setData] = useState<WorkerMonitorData | null>(null);
   const [failSum, setFailSum] = useState<FailuresSummary | null>(null);
 
@@ -159,7 +161,7 @@ export default function WorkersMonitorPage() {
         render: (_, row) => formatDateTime(row.startedAt),
       },
     ],
-    [],
+    [language],
   );
 
   const leaseCols = (): ProColumns<LeasedTaskRow>[] => [

@@ -76,11 +76,16 @@ export class CustomProfileSessionManager {
       userDataDir,
       persistentContextOptions(wantHeadless),
     );
-    await context.addInitScript(PAGE_EVALUATE_POLYFILL);
-    await installPublicNetworkGuard(context);
-    const timeout = getDefaultNavigationTimeoutMs();
-    context.setDefaultNavigationTimeout(timeout);
-    context.setDefaultTimeout(timeout);
+    try {
+      await context.addInitScript(PAGE_EVALUATE_POLYFILL);
+      await installPublicNetworkGuard(context);
+      const timeout = getDefaultNavigationTimeoutMs();
+      context.setDefaultNavigationTimeout(timeout);
+      context.setDefaultTimeout(timeout);
+    } catch (error) {
+      await context.close().catch(() => undefined);
+      throw error;
+    }
     this.contexts.set(key, context);
     this.contextHeadless.set(key, wantHeadless);
     return context;

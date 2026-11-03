@@ -18,7 +18,7 @@ describe("IndexPage", () => {
     render(<IndexPage />);
 
     expect(
-      screen.getByRole("heading", { name: "让商品运营，从采集到刊登更顺畅" }),
+      screen.getByRole("heading", { name: "AI 跨境电商运营平台" }),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "登录" })[0]).toHaveAttribute(
       "href",

@@ -9,6 +9,7 @@ import {
   Col,
   Descriptions,
   Empty,
+  Form,
   Input,
   List,
   message,
@@ -68,6 +69,21 @@ function riskTag(level: string) {
   if (l === 'high') return <Tag color="error">high</Tag>;
   if (l === 'medium') return <Tag color="warning">medium</Tag>;
   return <Tag color="success">low</Tag>;
+}
+
+function messageSourceLabel(item: CustomerMessageRow) {
+  switch (item.source) {
+    case 'manual':
+      return item.role === 'agent' ? tr("内部回复") : tr("手工录入");
+    case 'platform':
+      return tr("平台消息");
+    case 'imported':
+      return tr("导入记录");
+    case 'ai_suggestion':
+      return tr("AI 建议");
+    default:
+      return item.source;
+  }
 }
 
 export default function CustomerConversationDetailPage() {
@@ -368,7 +384,7 @@ export default function CustomerConversationDetailPage() {
                 {statusMap ? <Tag color={statusMap.color}>{statusMap.text}</Tag> : <Tag>{conv.status}</Tag>}
               </Descriptions.Item>
               <Descriptions.Item label={tr("店铺")}>{conv.shopSummary?.shopName ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label={tr("外部会话 ID")} span={2}>
+              <Descriptions.Item label={tr("外部会话 ID")} span="filled">
                 <Typography.Text copyable={conv.externalConversationId ? { text: conv.externalConversationId } : false}>
                   {conv.externalConversationId ?? '—'}
                 </Typography.Text>
@@ -404,7 +420,7 @@ export default function CustomerConversationDetailPage() {
                     </Descriptions.Item>
                   </Descriptions>
                 ) : (
-                  <Typography.Text type="secondary">{tr("未关联统一店铺（shops）；可选填便于后续按 shop_id 扩展。")} </Typography.Text>
+                  <Typography.Text type="secondary">{tr("未关联店铺")}</Typography.Text>
                 )}
               </Space>
             </Card>
@@ -441,7 +457,7 @@ export default function CustomerConversationDetailPage() {
                     <Descriptions.Item label={tr("库存扣减")}>
                       {mapBizStatus(conv.orderSummary.inventoryDeductStatus || 'none', ORDER_INVENTORY_DEDUCT_SUMMARY)}
                     </Descriptions.Item>
-                    <Descriptions.Item label={tr("操作")} span={2}>
+                    <Descriptions.Item label={tr("操作")} span="filled">
                       <Space wrap>
                         <Button size="small" onClick={() => history.push(`/orders/${conv.orderId}`)}>
                           {tr("查看订单详情")}
@@ -457,13 +473,13 @@ export default function CustomerConversationDetailPage() {
                     <Descriptions.Item label={tr("下单时间")}>
                       {conv.orderSummary.orderedAt ? formatDateTime(conv.orderSummary.orderedAt) : '—'}
                     </Descriptions.Item>
-                    <Descriptions.Item label={tr("最新物流状态")} span={2}>
+                    <Descriptions.Item label={tr("最新物流状态")} span="filled">
                       {conv.orderSummary.latestShipmentStatus
                         ? mapBizStatus(conv.orderSummary.latestShipmentStatus, ORDER_SHIPMENT_STATUS)
                         : '—'}
                     </Descriptions.Item>
                     {(conv.orderSummary.shipments?.length ?? 0) > 0 ? (
-                      <Descriptions.Item label={tr("物流明细")} span={2}>
+                      <Descriptions.Item label={tr("物流明细")} span="filled">
                         <Space direction="vertical" size={4} style={{ width: '100%' }}>
                           {(conv.orderSummary.shipments || []).map((s, i) => (
                             <div key={i}>
@@ -534,7 +550,7 @@ export default function CustomerConversationDetailPage() {
                   <Descriptions.Item label={tr("SKU 匹配")}>{conv.contextSummary.skuMatchStatus || '—'}</Descriptions.Item>
                   <Descriptions.Item label={tr("库存状态")}>{conv.contextSummary.inventoryStatus || '—'}</Descriptions.Item>
                   <Descriptions.Item label={tr("商品")}>{conv.contextSummary.productTitle || '—'}</Descriptions.Item>
-                  <Descriptions.Item label={tr("客户问题")} span={2}>
+                  <Descriptions.Item label={tr("客户问题")} span="filled">
                     {conv.contextSummary.customerQuestion || '—'}
                   </Descriptions.Item>
                 </Descriptions>
@@ -569,13 +585,13 @@ export default function CustomerConversationDetailPage() {
                               background: isCustomer ? 'var(--ant-color-fill-quaternary)' : 'var(--ant-color-primary-bg)',
                             }}
                             title={
-                              <Space size={8}>
+                              <Space size={8} wrap>
                                 <Typography.Text type="secondary">
                                   {formatDateTime(item.createdAt)}
                                 </Typography.Text>
-                                <Tag>{item.role}</Tag>
-                                <Tag>{item.source}</Tag>
-                                {item.messageType ? <Tag>{item.messageType}</Tag> : null}
+                                <Tag>{isCustomer ? tr("客户") : item.role === 'agent' ? tr("客服") : item.role === 'ai' ? 'AI' : item.role}</Tag>
+                                {item.source ? <Tag>{messageSourceLabel(item)}</Tag> : null}
+                                {item.messageType && item.messageType !== 'text' ? <Tag>{item.messageType}</Tag> : null}
                               </Space>
                             }
                           >
@@ -615,59 +631,65 @@ export default function CustomerConversationDetailPage() {
                   description={tr("AI 回复仅为建议；涉及退款、赔偿、投诉、履约承诺等事项请务必人工确认，勿直接对外生效。")}
                   style={{ width: '100%' }}
                 />
-                <div>
-                  <Typography.Text type="secondary">{tr("针对客户消息（可选，默认取最近一条 customer）")}</Typography.Text>
-                  <Select
-                    allowClear
-                    placeholder={tr("选择客户消息")}
-                    style={{ width: '100%', marginTop: 4 }}
-                    options={customerMessageOptions}
-                    value={focusMessageId}
-                    onChange={(v) => setFocusMessageId(v)}
-                  />
-                </div>
-                <Space wrap>
-                  <span>{tr("回复语言")}</span>
-                  <Select
-                    style={{ width: 140 }}
-                    options={[...AI_LANGUAGE_OPTIONS]}
-                    value={lang}
-                    onChange={setLang}
-                  />
-                  <span>{tr("回复语气")}</span>
-                  <Select
-                    style={{ width: 140 }}
-                    options={[...AI_TONE_OPTIONS]}
-                    value={tone}
-                    onChange={setTone}
-                  />
-                </Space>
-                <div>
-                  <Typography.Text>{tr("会话平台")}</Typography.Text>
-                  <Select
-                    style={{ marginTop: 4 }}
-                    options={AI_CONTEXT_PLATFORM_OPTIONS}
-                    value={platform}
-                    onChange={setPlatform}
-                    placeholder={tr("请选择会话平台")}
-                  />
-                </div>
-                <div>
-                  <Typography.Text>{tr("shopPolicy（可选）")}</Typography.Text>
-                  <Input.TextArea
-                    rows={3}
-                    value={shopPolicy}
-                    onChange={(e) => setShopPolicy(e.target.value)}
-                    style={{ marginTop: 4 }}
-                    placeholder={tr("店铺政策摘要，可为空")}
-                  />
-                </div>
+                <Form layout="vertical" component={false}>
+                  <Form.Item label={tr("客户消息")} htmlFor="customer-reply-message">
+                    <Select
+                      id="customer-reply-message"
+                      allowClear
+                      placeholder={tr("默认最近一条客户消息")}
+                      style={{ width: '100%' }}
+                      options={customerMessageOptions}
+                      value={focusMessageId}
+                      onChange={(v) => setFocusMessageId(v)}
+                    />
+                  </Form.Item>
+                  <Row gutter={16}>
+                    <Col xs={24} sm={12}>
+                      <Form.Item label={tr("回复语言")} htmlFor="customer-reply-language">
+                        <Select
+                          id="customer-reply-language"
+                          style={{ width: '100%' }}
+                          options={[...AI_LANGUAGE_OPTIONS]}
+                          value={lang}
+                          onChange={setLang}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={12}>
+                      <Form.Item label={tr("回复语气")} htmlFor="customer-reply-tone">
+                        <Select
+                          id="customer-reply-tone"
+                          style={{ width: '100%' }}
+                          options={[...AI_TONE_OPTIONS]}
+                          value={tone}
+                          onChange={setTone}
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Form.Item label={tr("会话平台")} htmlFor="customer-reply-platform">
+                    <Select
+                      id="customer-reply-platform"
+                      style={{ width: '100%' }}
+                      options={AI_CONTEXT_PLATFORM_OPTIONS}
+                      value={platform}
+                      onChange={setPlatform}
+                      placeholder={tr("请选择会话平台")}
+                    />
+                  </Form.Item>
+                  <Form.Item label={tr("店铺政策（可选）")} htmlFor="customer-reply-shop-policy" style={{ marginBottom: 0 }}>
+                    <Input.TextArea
+                      id="customer-reply-shop-policy"
+                      rows={3}
+                      value={shopPolicy}
+                      onChange={(e) => setShopPolicy(e.target.value)}
+                      placeholder={tr("店铺政策摘要")}
+                    />
+                  </Form.Item>
+                </Form>
                 <Button type="primary" loading={genLoading} disabled={readOnly} onClick={() => void onGenerate()}>
                   {tr("AI 生成建议回复")}
                 </Button>
-                <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
-                  {tr("说明：生成内容需人工确认；系统不会自动向任何外部平台发送消息。")}
-                </Typography.Paragraph>
 
                 {aiMeta && (
                   <Descriptions size="small" column={1} bordered>
@@ -679,9 +701,6 @@ export default function CustomerConversationDetailPage() {
                 )}
                 <div>
                   <Typography.Text strong>{tr("回复内容")}</Typography.Text>
-                  <Typography.Paragraph type="secondary" style={{ marginTop: 4, marginBottom: 8, fontSize: 12 }}>
-                    {tr("可先用 AI 生成并编辑，或直接手写后再「采纳为内部回复」或「发送到平台」（均须人工操作）。")}
-                  </Typography.Paragraph>
                   <Input.TextArea
                     rows={6}
                     value={editedReply}

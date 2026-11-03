@@ -1,4 +1,5 @@
 import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { Button, Drawer, Space, Tag, Typography, Alert, message } from 'antd';
@@ -49,6 +50,7 @@ function tagFromStatus(raw: string) {
 const BATCH_RETRY_LIMIT = 100;
 
 export default function InventorySyncTasksPage() {
+  const language = useLanguage();
   const emptyLocale = useListEmptyLocale('inventorySyncTasks', { permissionScoped: true });
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof SYNC_TASK_QUERY_KEYS)[number], string | undefined>>(
@@ -268,7 +270,7 @@ export default function InventorySyncTasksPage() {
         ),
       },
     ],
-    [],
+    [language],
   );
 
   return (

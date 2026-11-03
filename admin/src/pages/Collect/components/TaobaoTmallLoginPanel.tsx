@@ -111,8 +111,6 @@ export function TaobaoTmallLoginPanel({ loginUrl, compact, onAuthChange }: Props
           </Space>
         ) : (
           <Space direction="vertical" size="small" style={{ width: '100%' }}>
-            <Typography.Paragraph type="secondary" style={{ marginBottom: 4 }}>
-              {tr("部分淘宝/天猫商品需要登录后才能采集。如遇安全验证或滑块，请在采集浏览器中手动完成后再重试。")}</Typography.Paragraph>
             {authStatus?.message ? (
               <Typography.Text type="secondary">{authStatus.message}</Typography.Text>
             ) : null}

@@ -5,6 +5,7 @@ import { Tag } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { useMemo, useRef } from 'react';
+import { useLanguage } from '@/i18n/useLanguage';
 import { useLocation } from '@umijs/renderer-react';
 import type { InventoryChangeLogRow } from '@/services/inventory';
 import { queryGlobalInventoryLogs } from '@/services/inventory';
@@ -16,6 +17,7 @@ function renderDelta(delta: number) {
 }
 
 export default function InventoryLogsPage() {
+  const language = useLanguage();
   const actionRef = useRef<ActionType>();
   const { search } = useLocation();
 
@@ -114,7 +116,7 @@ export default function InventoryLogsPage() {
         render: (_, r) => r.refOrderItemId || '—',
       },
     ],
-    [],
+    [language],
   );
 
   return (

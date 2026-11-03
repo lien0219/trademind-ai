@@ -153,7 +153,9 @@ export function filterMenuByPermission(
   const walk = (items: MenuDataItem[]): MenuDataItem[] =>
     items
       .map((item) => {
-        if (item.hideInMenu) return item;
+        if (item.hideInMenu) {
+          return { ...item, name: typeof item.name === 'string' ? tr(item.name) : item.name };
+        }
         const path = item.path || item.redirect;
         if (path && !canAccessRoute(path, role, profilePerms, platformOperator, tenantId, isRoot)) {
           return null;

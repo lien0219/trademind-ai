@@ -7,7 +7,9 @@ TradeMind 由 Go backend、React Admin、Node collector、PostgreSQL 与 Redis �
 - Node.js 20+
 - pnpm 10.34+
 - Go 1.26+
-- Docker / Docker Compose，或与 `.env` 匹配的本机 PostgreSQL 和 Redis
+- Docker / Docker Compose，或与 `.env` 匹配的本机 PostgreSQL 和 Redis 7
+
+本机与隔离测试 Redis 均使用 Redis 7，与 Compose / CI 保持一致。OAuth 状态消费依赖 `GETDEL`；Redis 5 和 6.0 不支持该命令，会导致授权回调或相关回归失败。
 
 ## 安装与启动
 

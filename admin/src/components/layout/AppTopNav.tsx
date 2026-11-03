@@ -16,7 +16,6 @@ import {
 import { history } from "@umijs/max";
 import { Avatar, Button, Dropdown, Empty, Input, Popover, Select, Spin, message } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { themeTokens, tmSemanticTokens } from "@/constants/layoutTokens";
 import { canAccessPath } from "@/utils/menuAccess";
 import { queryAuthTenants, switchAuthTenant, type AuthTenant } from "@/services/tenants";
 import {
@@ -37,8 +36,9 @@ import "./AppTopNav.less";
 const TRADEMIND_GITHUB_URL = "https://github.com/lien0219/trademind-ai";
 
 const avatarStyle: CSSProperties = {
-  color: "#fff",
-  background: `linear-gradient(135deg, ${themeTokens.colorPrimary} 0%, ${tmSemanticTokens.dataAccent} 100%)`,
+  color: "var(--ant-color-primary)",
+  background: "var(--ant-color-primary-bg)",
+  fontWeight: 600,
 };
 
 export function resolveUserLabels(user?: API.CurrentUser) {
@@ -268,7 +268,6 @@ function TenantSwitcher({ user }: { user: API.CurrentUser }) {
           <ApartmentOutlined />
         </span>
         <span className="tm-app-top-nav__tenant-copy">
-          <span className="tm-app-top-nav__tenant-eyebrow">{tr("工作空间")}</span>
           <span className="tm-app-top-nav__tenant-name" title={currentLabel}>{currentLabel}</span>
         </span>
         <DownOutlined className="tm-app-top-nav__tenant-chevron" aria-hidden="true" />
@@ -355,17 +354,19 @@ export default function AppTopNav({
     <nav className="tm-app-top-nav" aria-label={tr("内容导航栏")}>
       <TenantSwitchOverlay />
       <TenantSwitcher user={user} />
-      <Select
-        className="tm-app-top-nav__language"
-        aria-label={tr("语言")}
-        loading={changingLanguage}
-        disabled={changingLanguage}
-        value={language}
-        onChange={(next: AppLanguage) => void changeLanguage(next)}
-        options={supportedLanguages.map(value=>({value,label:languageNames[value]}))}
-        suffixIcon={<GlobalOutlined />}
-        size="small"
-      />
+      <div className="tm-app-top-nav__language">
+        <GlobalOutlined className="tm-app-top-nav__language-icon" aria-hidden="true" />
+        <Select
+          className="tm-app-top-nav__language-select"
+          aria-label={tr("语言")}
+          loading={changingLanguage}
+          disabled={changingLanguage}
+          value={language}
+          onChange={(next: AppLanguage) => void changeLanguage(next)}
+          options={supportedLanguages.map(value=>({value,label:languageNames[value]}))}
+          variant="borderless"
+        />
+      </div>
       {showThemeToggle ? (
         <ThemeToggleButton className="tm-app-top-nav__theme-toggle" />
       ) : null}
@@ -485,6 +486,7 @@ export default function AppTopNav({
           type="button"
           className="tm-app-top-nav__user"
           aria-label={trFormat('当前用户 {name}', { name: primary })}
+          title={account}
           aria-haspopup="menu"
           aria-expanded={isMenuOpen}
         >
@@ -498,9 +500,6 @@ export default function AppTopNav({
           <span className="tm-app-top-nav__user-meta">
             <span className="tm-app-top-nav__user-name" title={primary}>
               {primary}
-            </span>
-            <span className="tm-app-top-nav__user-account" title={account}>
-              {account}
             </span>
           </span>
           <DownOutlined

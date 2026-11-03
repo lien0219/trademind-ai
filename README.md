@@ -135,7 +135,7 @@ pnpm seed:demo-data
 pnpm seed:demo-permissions
 ```
 
-开发环境默认连接隔离的 PostgreSQL 与 Redis；完整自动化回归由 GitHub Actions 持续执行。
+开发环境默认连接隔离的 PostgreSQL 与 Redis 7；本机服务版本要求见 [本地开发说明](docs/development.md)。完整自动化回归由 GitHub Actions 持续执行。
 
 ### Docker 部署
 

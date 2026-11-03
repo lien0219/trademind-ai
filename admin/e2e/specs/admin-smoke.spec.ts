@@ -11,6 +11,35 @@ import { ok } from "../mocks/envelope";
 import { e2eUser } from "../mocks/auth";
 import { e2eTenant, mockTenantReads } from "../mocks/tenants";
 
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 1280, height: 800 },
+  { width: 1024, height: 768 },
+  { width: 768, height: 900 },
+  { width: 375, height: 812 },
+]) {
+  test(`@smoke keeps the page title readable above its description at ${viewport.width}`, async ({ admin, page }) => {
+    await page.setViewportSize(viewport);
+    await admin.goto("/orders/sku-matches");
+    const title = page.locator(".tm-page-container .ant-page-header-heading-title");
+    const description = page.locator(".tm-page-container .ant-page-header-heading-sub-title");
+    await expect(title).toHaveText("规格绑定");
+    await expect(description).toBeVisible();
+    const metrics = await title.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }));
+    expect(metrics.scrollWidth, JSON.stringify(metrics)).toBeLessThanOrEqual(metrics.clientWidth + 1);
+    const titleBounds = await title.boundingBox();
+    const descriptionBounds = await description.boundingBox();
+    expect(titleBounds).not.toBeNull();
+    expect(descriptionBounds).not.toBeNull();
+    expect(descriptionBounds!.y).toBeGreaterThanOrEqual(titleBounds!.y + titleBounds!.height - 1);
+    await expectNoRootOverflow(page);
+    await admin.writeGuard.expectNoUnexpectedWrites();
+  });
+}
+
 const themeSurfaceColors = {
   light: {
     container: "rgb(255, 255, 255)",
@@ -662,9 +691,35 @@ test.describe("@smoke Admin route smoke", () => {
       ] as const) {
         await expectControlWithinViewport(control, label, path, label === "language");
       }
-      if (requireTheme || await theme.count()) {
+      const hasTheme = requireTheme || (await theme.count()) > 0;
+      if (hasTheme) {
         await expectControlWithinViewport(theme, "theme", path);
       }
+      const controls = await page.locator(".tm-app-header-content").evaluate((element) =>
+        Array.from(element.querySelectorAll(
+          ".tm-app-global-search__trigger, .tm-app-top-nav__tenant, .tm-app-top-nav__language, .tm-app-top-nav__theme-toggle, .tm-app-top-nav__user",
+        )).map((control) => {
+          const { x, y, width, height } = control.getBoundingClientRect();
+          return { left: x, right: x + width, centerY: y + height / 2, height };
+        }),
+      );
+      expect(controls, `${path}: all header controls are measured`).toHaveLength(hasTheme ? 5 : 4);
+      expect(Math.max(...controls.map(control => control.height)) - Math.min(...controls.map(control => control.height)),
+        `${path}: consistent control heights`).toBeLessThanOrEqual(1);
+      expect(controls.every(control => control.height >= 40), `${path}: usable control height`).toBe(true);
+      expect(Math.max(...controls.map(control => control.centerY)) - Math.min(...controls.map(control => control.centerY)),
+        `${path}: controls share a vertical center`).toBeLessThanOrEqual(1);
+      for (let index = 1; index < controls.length; index++) {
+        expect(controls[index].left - controls[index - 1].right, `${path}: controls have room between them`).toBeGreaterThanOrEqual(4);
+      }
+      const languageTextFits = await navigation.locator(".ant-select-selection-item").evaluate((element) => {
+        const text = document.createRange();
+        text.selectNodeContents(element);
+        const style = getComputedStyle(element);
+        const availableWidth = element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        return text.getBoundingClientRect().width <= availableWidth + 1;
+      });
+      expect(languageTextFits, `${path}: the selected language stays readable`).toBe(true);
       await expectNoRootOverflow(page);
     };
 
@@ -695,6 +750,8 @@ test.describe("@smoke Admin route smoke", () => {
     };
 
     for (const viewport of [
+      { width: 2560, height: 1307 },
+      { width: 1920, height: 1080 },
       { width: 1440, height: 900 },
       { width: 1280, height: 800 },
       { width: 1024, height: 768 },
@@ -812,12 +869,12 @@ test.describe("@smoke Admin route smoke", () => {
       await page.setViewportSize(viewport);
       await page.goto("/");
       await expect(
-        page.getByRole("heading", { name: /从采集到刊登更顺畅/ }),
+        page.getByRole("heading", { name: "AI 跨境电商运营平台" }),
       ).toBeVisible();
       await expectNoRootOverflow(page);
     }
 
-    await page.locator("#capabilities").scrollIntoViewIfNeeded();
+    await page.locator(".landing-capability-card").first().scrollIntoViewIfNeeded();
     await expect(page.locator(".landing-capability-card").first()).toHaveClass(
       /is-visible/,
     );
@@ -915,6 +972,21 @@ test.describe("@smoke Admin route smoke", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await expect(page.locator(".auth-brand")).toBeVisible();
     await expectCentered("登录");
+    await expectNoRootOverflow(page);
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/user/register");
+    await expect(page.getByLabel("邮箱", { exact: true })).toBeInViewport();
+    const brandTop = await page.locator(".auth-brand").boundingBox();
+    const language = await page.getByRole("combobox", { name: "语言" }).boundingBox();
+    if (!brandTop || !language) {
+      throw new Error("Auth brand or language selector is not visible");
+    }
+    expect(brandTop.y).toBeGreaterThanOrEqual(language.y + language.height);
+    const returnToLogin = page.getByRole("link", { name: "去登录", exact: true });
+    await returnToLogin.scrollIntoViewIfNeeded();
+    await expect(returnToLogin).toBeInViewport();
+    await expect(page.getByRole("button", { name: /注册/ })).toBeDisabled();
     await expectNoRootOverflow(page);
     await admin.writeGuard.expectRequestCount("unexpected", 0);
   });

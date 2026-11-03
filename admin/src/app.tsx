@@ -274,6 +274,8 @@ const TM_BRAND_MARK = <BrandLogo height={28} className="tm-app-brand-logo" />;
 
 const TM_APP_LAYOUT_STYLE = {
   "--tm-app-header-height": `${layoutTokens.appHeaderHeight}px`,
+  "--tm-header-control-height": `${layoutTokens.controlHeight}px`,
+  "--tm-header-control-radius": `${layoutTokens.borderRadius}px`,
 } as CSSProperties;
 
 async function logoutAndClear(
@@ -291,8 +293,9 @@ async function logoutAndClear(
 
 function AppTopNavBridge({ isMobile = false }: { isMobile?: boolean }) {
   const { setInitialState, initialState } = useInitialStateModel();
-  // Recompute runtime menu labels without recreating the routed page or auth.
-  useEffect(() => subscribeLanguage(() => setInitialState(state => ({ ...state }))), [setInitialState]);
+  // Umi suppresses deeply equal model updates; retain the active language so
+  // menus and breadcrumbs refresh without recreating the routed page or auth.
+  useEffect(() => subscribeLanguage(language => setInitialState(state => ({ ...state, interfaceLanguage: language }))), [setInitialState]);
   return (
     <AppTopNav
       user={initialState?.currentUser}

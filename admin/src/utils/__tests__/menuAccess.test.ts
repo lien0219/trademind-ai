@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { canAccessPath, filterMenuByPermission } from '../menuAccess';
+import { setLanguage } from '@/i18n';
 
 const opsMenu = [{
   path: '/ops',
@@ -12,6 +13,19 @@ const opsMenu = [{
 }];
 
 describe('permission filtered menus', () => {
+  it('translates hidden detail breadcrumbs while preserving their route metadata', () => {
+    const detail = { path: '/customer/conversations/:id', name: 'AI 客服工作台', hideInMenu: true };
+    try {
+      setLanguage('en-US');
+      expect(filterMenuByPermission([detail], 'admin', [])).toEqual([
+        { ...detail, name: 'AI Support Workbench' },
+      ]);
+      expect(detail.name).toBe('AI 客服工作台');
+    } finally {
+      setLanguage('zh-CN');
+    }
+  });
+
   it('keeps custom role links that its profile explicitly grants', () => {
     const role = 'r_0123456789abcdef01234567';
     expect(canAccessPath('/ops/observability', role, ['observability.read'])).toBe(true);

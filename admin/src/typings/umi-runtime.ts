@@ -3,6 +3,8 @@
  * 不直接从 @umijs/max 导入：未运行 max setup 时官方包可能缺少这些导出声明。
  */
 
+import type { AppLanguage } from '@/i18n/dictionaries';
+
 export type RequestConfig = {
   requestInterceptors?: Array<
     (
@@ -28,6 +30,8 @@ export type RunTimeLayoutConfig = (initData: {
 /** 与 app.tsx `getInitialState` 返回值一致 */
 export type InitialState = {
   currentUser?: API.CurrentUser;
+  /** Local render state; never part of the authentication or preferences payload. */
+  interfaceLanguage?: AppLanguage;
 };
 
 /** Umi `@@initialState` model 形状 */

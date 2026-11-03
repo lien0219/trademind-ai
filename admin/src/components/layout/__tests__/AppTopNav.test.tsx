@@ -50,7 +50,7 @@ describe("AppTopNav", () => {
     expect(
       screen.getByRole("button", { name: "当前用户 运营账号" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("operator@example.test")).toBeInTheDocument();
+    expect(within(navigation).queryByText("operator@example.test")).not.toBeInTheDocument();
   });
 
   it("keeps logout available from the account menu", async () => {
@@ -82,6 +82,7 @@ describe("AppTopNav", () => {
       screen.getByRole("button", { name: "当前用户 运营账号" }),
     );
 
+    expect(await screen.findByText("operator@example.test")).toBeInTheDocument();
     expect(await screen.findByText("用户与权限")).toBeInTheDocument();
     expect(
       screen.queryByRole("menuitem", { name: /API 密钥/ }),
@@ -183,8 +184,8 @@ describe("AppTopNav", () => {
 
     const trigger = screen.getByRole("button", { name: "当前工作空间 测试企业" });
     expect(trigger).toHaveClass("tm-app-top-nav__tenant");
-    expect(within(trigger).getByText("工作空间")).toBeInTheDocument();
     expect(within(trigger).getByText("测试企业")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("title", "测试企业");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
 
     await interaction.click(trigger);

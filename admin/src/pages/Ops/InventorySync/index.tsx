@@ -1,4 +1,5 @@
 import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { EyeOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
@@ -39,8 +40,6 @@ const providerModeOptions = [
   { value: 'local_draft_only', get label() { return tr("本地草稿夹具"); } },
 ];
 
-const runStatusOptions = Object.entries(RUN_STATUS_LABELS).map(([value, item]) => ({ value, label: item.text }));
-
 const fixtureScenarioOptions = [
   { value: 'success_single_page', get label() { return tr("单页成功夹具"); } },
   { value: 'success_multi_page', get label() { return tr("多页成功夹具"); } },
@@ -65,6 +64,11 @@ function shortText(value: string, max = 16) {
 }
 
 export default function InventorySyncDashboardPage() {
+  const language = useLanguage();
+  const runStatusOptions = useMemo(
+    () => Object.entries(RUN_STATUS_LABELS).map(([value, item]) => ({ value, label: item.text })),
+    [language],
+  );
   const { state: urlState, setState, clearState } = useUrlQueryState<QueryState>(QUERY_KEYS);
   const [form] = Form.useForm();
   const [createForm] = Form.useForm<CreateRunRequest>();
@@ -205,7 +209,7 @@ export default function InventorySyncDashboardPage() {
         </Button>,
       ],
     },
-  ], []);
+  ], [language]);
 
   return (
     <TmPageContainer

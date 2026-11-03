@@ -1,4 +1,5 @@
 import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
@@ -42,6 +43,7 @@ const bindingSourceOptions = [
 ];
 
 export default function InventorySyncBindingsPage() {
+  const language = useLanguage();
   const { state, setState, clearState } = useUrlQueryState<QueryState>(QUERY_KEYS);
   const [form] = Form.useForm();
   const [items, setItems] = useState<SKUBinding[]>([]);
@@ -119,7 +121,7 @@ export default function InventorySyncBindingsPage() {
         </Button>,
       ],
     },
-  ], []);
+  ], [language]);
 
   return (
     <TmPageContainer

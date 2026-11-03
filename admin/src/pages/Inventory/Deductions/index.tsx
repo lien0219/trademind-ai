@@ -1,4 +1,5 @@
 import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { PRODUCT_COPY } from '@/constants/copywriting';
@@ -20,6 +21,7 @@ function effectTypeLabel(raw: string) {
 }
 
 export default function InventoryDeductionsPage() {
+  const language = useLanguage();
   const emptyLocale = useListEmptyLocale('inventoryDeductions', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const location = useLocation();
@@ -138,7 +140,7 @@ export default function InventoryDeductionsPage() {
         ),
       },
     ],
-    [],
+    [language],
   );
 
   return (

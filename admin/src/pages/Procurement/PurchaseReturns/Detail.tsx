@@ -38,7 +38,7 @@ const RETURN_STATUS: Record<string, { source: string; color: string }> = {
 };
 
 export default function PurchaseReturnDetailPage() {
-  useLanguage();
+  const language = useLanguage();
   const { id = '' } = useParams<{ id: string }>();
   const { can, readonly } = usePermission();
   const canManage = !readonly && can(PERMISSIONS.PROCUREMENT_MANAGE);
@@ -175,7 +175,7 @@ export default function PurchaseReturnDetailPage() {
       {canTransitionPurchaseReturn('complete', row.status, { canManage, canApprove, canReturn }) ? <Button type="primary" danger onClick={() => openAction({ action: 'complete', label: tr("执行退货"), danger: true })}>{tr("执行退货")}</Button> : null}
       {canTransitionPurchaseReturn('cancel', row.status, { canManage, canApprove, canReturn }) ? <Button danger onClick={() => openAction({ action: 'cancel', label: tr("取消退货单"), danger: true })}>{tr("取消退货单")}</Button> : null}
     </Space>;
-  }, [canApprove, canManage, canReturn, row]);
+  }, [canApprove, canManage, canReturn, row, language]);
 
   const meta = row ? RETURN_STATUS[row.status] || { source: "未知状态", color: 'default' } : undefined;
   return (

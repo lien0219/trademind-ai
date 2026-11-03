@@ -277,7 +277,7 @@ export function TranslateImageTextModal({
               <FileImageOutlined />
               {tr("待翻译图片")}
             </Typography.Text>
-            {sourceImageId ? <Tag bordered={false}>{tr("源图 ID")} {sourceImageId}</Tag> : <Tag bordered={false}>{tr("未提供源图 ID")}</Tag>}
+            {sourceImageId ? <Tag bordered={false}>{tr("源图 ID")} {sourceImageId}</Tag> : null}
           </div>
           {sourceImageUrl ? (
             <div className="tm-translate-image-text-modal__image-panel">

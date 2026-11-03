@@ -8,7 +8,10 @@ import { readLanguage, setLanguage } from '@/i18n';
 import PersonalPreferencesPage from '.';
 
 vi.mock('@/services/request', () => ({ getJSON: vi.fn(), putJSON: vi.fn() }));
-vi.mock('@/components/ui', () => ({ TmPageContainer: ({ children }: { children: React.ReactNode }) => <main>{children}</main> }));
+vi.mock('@/components/ui', async () => ({
+  ...(await vi.importActual<typeof import('@/components/ui')>('@/components/ui')),
+  TmPageContainer: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
+}));
 
 const initial = { values: { language: 'zh-CN', theme: 'light', dateFormat: 'YYYY-MM-DD' }, version: 1, inherited: false };
 beforeEach(() => {

@@ -135,7 +135,7 @@ pnpm seed:demo-data
 pnpm seed:demo-permissions
 ```
 
-Development uses isolated PostgreSQL and Redis services, while the complete automated regression suite runs continuously in GitHub Actions.
+Development uses isolated PostgreSQL and Redis 7 services; see the [local development guide](docs/development.md) for native service requirements. The complete automated regression suite runs continuously in GitHub Actions.
 
 ### Docker Deployment
 

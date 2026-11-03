@@ -138,6 +138,8 @@ export default function AppGlobalSearch({
         className="tm-app-global-search__trigger"
         aria-label={tr("搜索功能或页面")}
         aria-keyshortcuts="Control+K Meta+K"
+        aria-haspopup="dialog"
+        aria-expanded={open}
         title={compact ? tr("搜索功能或页面") : undefined}
         onClick={() => setOpen(true)}
       >

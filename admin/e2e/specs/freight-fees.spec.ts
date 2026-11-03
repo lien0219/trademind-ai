@@ -11,6 +11,7 @@ import {
 import {
   expectDrawerWithinViewport,
   expectHeaderContentAligned,
+  expectModalWithinViewport,
   expectNoRootOverflow,
 } from '../utils/assertions';
 
@@ -29,7 +30,7 @@ const csv = [
 
 test.describe('@smoke carrier freight fee ledger', () => {
   for (const viewport of viewports) {
-    test(`renders freight facts and a bounded detail drawer at ${viewport.width}x${viewport.height}`, async ({ admin, page }) => {
+    test(`renders freight facts and bounded detail/import controls at ${viewport.width}x${viewport.height}`, async ({ admin, page }) => {
       await page.setViewportSize(viewport);
       await admin.goto(`/finance/freight-fees?drawer=freight-fee&id=${E2E_FREIGHT_FEE_CHARGE_ID}`);
       await expect(page.getByText('承运商运费账单', { exact: true }).first()).toBeVisible();
@@ -39,6 +40,19 @@ test.describe('@smoke carrier freight fee ledger', () => {
       await expectHeaderContentAligned(page);
       await expect(page.getByRole('dialog')).toContainText('TRACK-E2E-FREIGHT-1');
       await expectDrawerWithinViewport(page);
+
+      await admin.goto('/finance/freight-fees');
+      await page.getByRole('button', { name: '导入账单' }).click();
+      const dialog = page.getByRole('dialog');
+      await expectModalWithinViewport(page);
+      await dialog.getByRole('combobox', { name: '选择账单所属店铺' }).click();
+      const dropdown = page.locator('.ant-select-dropdown:visible');
+      await expect.poll(async () => (await dropdown.boundingBox())?.width ?? 0).toBeGreaterThan(200);
+      await dropdown.getByText('E2E 抖店测试店铺 · douyin_shop', { exact: true }).click();
+      await expect(dialog.getByTitle('E2E 抖店测试店铺 · douyin_shop', { exact: true })).toBeVisible();
+      await dialog.getByRole('button', { name: /取\s*消/ }).click();
+      expect(admin.writeGuard.allCalls()).toHaveLength(0);
+      await expectNoRootOverflow(page);
       await admin.writeGuard.expectRequestCount('unexpected', 0);
     });
   }
@@ -104,6 +118,7 @@ test.describe('@smoke carrier freight fee ledger', () => {
       const dialog = page.getByRole('dialog').first();
       const shopSelect = dialog.getByRole('combobox');
       await shopSelect.click();
+      await expect.poll(async () => (await page.locator('.ant-select-dropdown:visible').boundingBox())?.width ?? 0).toBeGreaterThan(200);
       await page.locator('.ant-select-dropdown:visible')
         .getByText('E2E 抖店测试店铺 · douyin_shop', { exact: true }).click();
       await dialog.locator('input[type="file"]').setInputFiles({

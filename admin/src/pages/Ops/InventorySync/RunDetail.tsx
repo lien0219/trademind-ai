@@ -1,4 +1,5 @@
 import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { ArrowLeftOutlined, HistoryOutlined, ReloadOutlined, RetweetOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history, useParams } from '@umijs/max';
@@ -36,6 +37,7 @@ const { Text } = Typography;
 const LIMIT = 20;
 
 export default function InventorySyncRunDetailPage() {
+  const language = useLanguage();
   const params = useParams<{ runId: string }>();
   const runId = params.runId || '';
   const [run, setRun] = useState<InventorySyncRun | null>(null);
@@ -134,7 +136,7 @@ export default function InventorySyncRunDetailPage() {
         ) : null,
       ].filter(Boolean),
     },
-  ], []);
+  ], [language]);
 
   const auditColumns: ColumnsType<AuditEvent> = [
     { title: tr("时间"), dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(String(v || '')) },

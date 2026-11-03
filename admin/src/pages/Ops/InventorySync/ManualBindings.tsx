@@ -1,4 +1,5 @@
 import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { Button, Card, Col, Descriptions, Form, Input, Modal, Row, Select, Space, Table, Typography, message } from 'antd';
@@ -37,7 +38,6 @@ const LIMIT = 20;
 type QueryState = Record<(typeof QUERY_KEYS)[number], string | undefined>;
 type ModalKind = 'confirm' | 'reject';
 
-const statusOptions = Object.entries(MANUAL_REQUEST_STATUS_LABELS).map(([value, item]) => ({ value, label: item.text }));
 const rejectReasonOptions = [
   { value: 'no_binding_candidate', get label() { return tr("无可用候选"); } },
   { value: 'calibration_threshold_not_met', get label() { return tr("置信度不足"); } },
@@ -54,6 +54,11 @@ function skuOption(hit: ProductSkuSearchHit) {
 }
 
 export default function InventorySyncManualBindingsPage() {
+  const language = useLanguage();
+  const statusOptions = useMemo(
+    () => Object.entries(MANUAL_REQUEST_STATUS_LABELS).map(([value, item]) => ({ value, label: item.text })),
+    [language],
+  );
   const { state, setState, clearState } = useUrlQueryState<QueryState>(QUERY_KEYS);
   const [form] = Form.useForm();
   const [decisionForm] = Form.useForm();
@@ -222,7 +227,7 @@ export default function InventorySyncManualBindingsPage() {
         <Button key="view" type="link" onClick={() => setState({ requestId: row.id }, { replace: true })}>{tr("处理")}</Button>,
       ],
     },
-  ], [setState]);
+  ], [setState, language]);
 
   const decisionColumns: ColumnsType<ManualBindingDecision> = [
     { title: tr("时间"), dataIndex: 'createdAt', width: 170, render: (v) => formatDateTime(String(v || '')) },

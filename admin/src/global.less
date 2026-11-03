@@ -200,7 +200,7 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
 .tm-app-header-content {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 24px;
   width: 100%;
   min-width: 0;
   height: var(--tm-app-header-height);
@@ -208,6 +208,12 @@ body:has(.tm-app-layout)::-webkit-scrollbar,
   &--mobile {
     justify-content: flex-end;
     gap: 8px;
+  }
+}
+
+@media (max-width: 420px) {
+  .tm-app-header-content--mobile {
+    gap: 4px;
   }
 }
 
@@ -395,21 +401,52 @@ html.tm-theme-switching body #root *::after {
     padding-inline: 0;
   }
 
+  .ant-page-header-heading-left {
+    flex: 1;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
   .ant-page-header-heading-title {
+    flex: 1;
+    min-width: 0;
+    max-width: 100%;
+    margin-inline-end: 0;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    white-space: normal;
     font-size: 20px !important;
     font-weight: 600 !important;
     line-height: 1.35 !important;
   }
 
   .ant-page-header-heading-sub-title {
+    flex-basis: 100%;
+    max-width: 100%;
+    margin-inline-start: 0;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    white-space: normal;
     font-size: 14px !important;
     margin-block-start: 6px !important;
     line-height: 1.5 !important;
   }
 }
 
+/* Keep the page title readable when a narrow desktop viewport cannot fit the
+   title and a dense action group on the same flex row. */
+@media (max-width: 768px) {
+  .tm-page-container .ant-page-header-heading-left {
+    flex-basis: 100%;
+  }
+}
+
 @media (max-width: 576px) {
   .tm-page-container {
+    .ant-page-header-heading-left {
+      flex-basis: 100%;
+    }
+
     .ant-page-header {
       padding-inline: var(--tm-page-inline-padding);
     }

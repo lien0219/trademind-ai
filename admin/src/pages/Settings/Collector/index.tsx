@@ -379,7 +379,6 @@ function CollectorCustomSection({ providerRow }: { providerRow?: CollectProvider
         <Space wrap className="tm-action-space">
           <Button type="primary" onClick={() => history.push('/collect/browser-profiles')}>{tr("管理登录状态")}</Button>
           <Button onClick={() => history.push('/collect/rules')}>{tr("采集规则")}</Button>
-          <Button onClick={() => history.push('/collect/rules')}>{tr("测试采集效果")}</Button>
         </Space>
         <Row gutter={16}>
           <Col xs={24} sm={12}>

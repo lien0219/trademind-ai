@@ -146,7 +146,7 @@ function resourceError(error: OperationTaskAPIError | undefined, hasPreviousData
 }
 
 export default function OperationTaskDetailPage() {
-  useLanguage();
+  const language = useLanguage();
   const params = useParams<{ taskId: string }>();
   const taskId = params.taskId || '';
   const { state: urlState, setState: setUrlState } = useUrlQueryState<DetailQueryState>(['tab', 'from']);
@@ -495,7 +495,7 @@ export default function OperationTaskDetailPage() {
     if (modal === 'retry') return tr('人工重试');
     if (modal === 'cancel') return tr('取消运营任务');
     return '';
-  }, [isProductionDraft, modal]);
+  }, [isProductionDraft, modal, language]);
 
   const modalOkText = useMemo(() => {
     if (modal === 'draft') return tr('创建草稿');
@@ -505,7 +505,7 @@ export default function OperationTaskDetailPage() {
     if (modal === 'retry') return tr('发起人工重试');
     if (modal === 'cancel') return tr('取消任务');
     return tr('提交');
-  }, [isProductionDraft, modal]);
+  }, [isProductionDraft, modal, language]);
 
   if (loading && !detail) {
     return <Spin fullscreen tip={tr("正在加载运营任务详情")} />;

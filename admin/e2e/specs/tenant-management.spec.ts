@@ -241,9 +241,9 @@ test('@smoke business preferences discard local edits and save once on mobile', 
     const chooseDollars = async () => {
       await currency.press('ArrowDown');
       await page.locator('.ant-select-dropdown:visible').getByText('美元 USD', { exact: true }).click();
-      await expect(form.getByText('美元 USD', { exact: true })).toBeVisible();
+      await expect(form.getByTitle('美元 USD', { exact: true })).toBeVisible();
     };
-    await expect(form.getByText('日元 JPY', { exact: true })).toBeVisible();
+    await expect(form.getByTitle('日元 JPY', { exact: true })).toBeVisible();
     await chooseDollars();
     await Promise.all([
       page.waitForResponse((response) =>
@@ -251,7 +251,7 @@ test('@smoke business preferences discard local edits and save once on mobile', 
       ),
       form.getByRole('button', { name: '放弃更改', exact: true }).click(),
     ]);
-    await expect(form.getByText('日元 JPY', { exact: true })).toBeVisible();
+    await expect(form.getByTitle('日元 JPY', { exact: true })).toBeVisible();
     expect(admin.writeGuard.allCalls(), 'discard must not mutate business settings').toHaveLength(0);
 
     await chooseDollars();
@@ -260,7 +260,7 @@ test('@smoke business preferences discard local edits and save once on mobile', 
     await expect(currency).toBeDisabled();
     finishSave();
     await expect(currency).toBeEnabled();
-    await expect(form.getByText('美元 USD', { exact: true })).toBeVisible();
+    await expect(form.getByTitle('美元 USD', { exact: true })).toBeVisible();
     await expect(page.getByText('版本 3', { exact: true })).toBeVisible();
     await admin.writeGuard.expectRequestCount('save-business-preferences', 1);
     expect(admin.writeGuard.allCalls()).toHaveLength(1);
@@ -416,8 +416,8 @@ test('@smoke submits per-store permissions and selected invitation expiry', asyn
   await dialog.getByLabel('成员邮箱').fill('new-member@example.test');
   const expiry = dialog.getByLabel('邀请有效期');
   await expiry.press('ArrowDown');
-  await expiry.press('ArrowUp');
-  await expiry.press('Enter');
+  await page.getByText('3 天', { exact: true }).click();
+  await expect(dialog.getByTitle('3 天', { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: '添加店铺权限' }).click();
   const shop = dialog.getByRole('combobox', { name: '店铺授权 1', exact: true });
   await shop.press('ArrowDown');

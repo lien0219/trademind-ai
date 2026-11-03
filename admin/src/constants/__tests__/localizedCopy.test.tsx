@@ -18,10 +18,25 @@ import { INVENTORY_STOCK_STATUS } from '../inventoryLabels';
 import { formatUserErrorMessage, mapErrorCodeToUserMessage, sanitizeErrorForDisplay } from '../errorMessages';
 import { ROLE_OPTIONS } from '../permissionLabels';
 import { findCollectSettingsOption } from '@/utils/collectSettingsProvider';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 
 afterEach(() => { cleanup(); setLanguage('zh-CN'); });
 
 describe('shared display labels', () => {
+  it('updates a mounted list empty state after an English bootstrap', () => {
+    function EmptyList() {
+      return useListEmptyLocale('aiOperationWorkbench').emptyText;
+    }
+    setLanguage('en-US');
+    render(<EmptyList />);
+    expect(screen.getByText(translateMessage('en-US', '暂无待办商品'), { exact: true })).toBeInTheDocument();
+    for (const language of supportedLanguages) {
+      act(() => setLanguage(language));
+      expect(screen.getByText(translateMessage(language, '暂无待办商品'), { exact: true })).toBeInTheDocument();
+      expect(screen.getByText(translateMessage(language, '当商品有待优化标题、描述、图片或刊登检查时，会出现在此工作台。'), { exact: true })).toBeInTheDocument();
+    }
+  });
+
   it('localizes known error guidance while preserving unknown diagnostic values', () => {
     for (const language of supportedLanguages.slice(1)) {
       setLanguage(language);

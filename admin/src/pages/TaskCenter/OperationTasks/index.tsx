@@ -80,7 +80,7 @@ function optionsFromLabels(labels: Record<string, string | { source: string }>) 
 }
 
 export default function OperationTasksPage() {
-  useLanguage();
+  const language = useLanguage();
   const { can } = usePermission();
   const { state: urlState, setState: setUrlState, clearState, search } = useUrlQueryState<QueryState>(QUERY_KEYS);
   const [form] = Form.useForm();
@@ -343,7 +343,7 @@ export default function OperationTasksPage() {
         </Button>,
       ],
     },
-  ], [openTask]);
+  ], [openTask, language]);
 
   const filterActive = !!(urlState.status || urlState.platform || urlState.taskType);
   const emptyLocale = useListEmptyLocale('operationTasks', filterActive

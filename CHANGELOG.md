@@ -10,6 +10,12 @@ All notable changes to TradeMind are documented here.
 - Reused shared spacing and form components, bounded short configuration forms, and corrected nested card padding, narrow-screen header clipping and product metadata wrapping.
 - Stopped the business settings loading indicator after a failed read and preserved retry, readonly and submission behavior. Extended existing regression coverage for responsive layouts and guarded configuration writes.
 - Audited repository entry points beyond Admin and corrected stale Collector paths, environment-variable names, command descriptions, queue and E2E guidance, and misleading provider metadata without changing runtime contracts.
+- Fixed homepage overflow at 1024px, balanced authentication screen spacing, and restored freight-page styles and full-width store selection. Removed the freight import dialog's scale transition to prevent incorrectly sized dropdowns during fast interactions; retained import validation and confirmation safeguards.
+- Let shared page titles and necessary subtitles wrap across supported viewports, with a full title row at 768px and below. Improved the customer conversation form's labels and mobile layout while preserving internal, platform and AI message distinctions and existing reply safeguards.
+- Refreshed menus, breadcrumbs and inventory run/request status options when the interface language changes without reloading authentication or discarding unsaved form values. Added route-derived locale and viewport regression coverage with initial API-read failure checks.
+- Extended the shared E2E write guard to all `/api/**` namespaces, including legacy Collector endpoints, with synthetic regressions for blocked writes, explicit mocks, request counts and read fallback.
+- Clarified Redis 7 requirements for native development and isolated tests to match Compose / CI and the existing OAuth `GETDEL` usage.
+- Centralized unprofiled Collector pages with public HTTP/WebSocket guards and blocked Service Workers. Release provider and custom-profile contexts when setup fails while preserving the original error and successful profile behavior, with 16 added browser lifecycle regression cases.
 
 ### Six-language Admin localization and tenant branding (2026-10-28)
 

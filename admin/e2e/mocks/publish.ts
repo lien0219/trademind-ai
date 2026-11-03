@@ -1,7 +1,16 @@
 import { ok } from './envelope';
+import type { PlatformAppSettingsResp } from '../../src/services/platformOpen';
 import { E2E_PRODUCT_ID, E2E_PUBLICATION_OLD, E2E_PUBLICATION_NEW, E2E_SHOP_ID, publication } from './product.fixture';
 
 export const E2E_SHOPEE_SHOP_ID = 'e2e-shop-shopee';
+export const E2E_PUBLISH_BATCH_ID = 'e2e-batch';
+
+export const e2eShopifySettings: PlatformAppSettingsResp = {
+  platform: 'shopify',
+  groupKey: 'shopify',
+  schema: { groupKey: 'shopify', title: 'Shopify', fields: [] },
+  values: {},
+};
 
 export const e2ePlatformProviders = [
   {
@@ -15,6 +24,17 @@ export const e2ePlatformProviders = [
     label: 'Shopee',
     status: 'available',
     capabilityStatus: { product_publish: 'available', inventory_sync: 'available' },
+  },
+  {
+    platform: 'shopify',
+    name: 'Shopify',
+    label: 'Shopify',
+    status: 'planned',
+    authType: 'oauth',
+    capabilities: [],
+    authSchema: [],
+    appConfigSchema: e2eShopifySettings.schema,
+    settingsGroupKey: e2eShopifySettings.groupKey,
   },
 ];
 
@@ -91,12 +111,61 @@ export const e2eDouyinMapping = {
 
 export function publishResponse(path: string) {
   if (path === '/api/v1/platform/providers') return ok({ list: e2ePlatformProviders });
+  if (path === '/api/v1/platform/settings/shopify') return ok(e2eShopifySettings);
   if (path === '/api/v1/shops') return ok({ list: e2eShops, pagination: { page: 1, pageSize: 500, total: e2eShops.length, totalPages: 1 } });
   if (path === `/api/v1/products/${E2E_PRODUCT_ID}/publish-targets`) return ok(e2ePublishTargets);
   if (path === `/api/v1/products/${E2E_PRODUCT_ID}/publications`) return ok({ list: [publication(E2E_PUBLICATION_OLD)] });
   if (path === `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/douyin_shop`) return ok(e2eDouyinConfig);
   if (path === `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/douyin_shop/mapping`) return ok(e2eDouyinMapping);
   if (path === `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/douyin_shop/publish-tasks`) return ok({ list: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 1 } });
+  if (path === `/api/v1/product-publish/batches/${E2E_PUBLISH_BATCH_ID}`) {
+    return ok({
+      id: E2E_PUBLISH_BATCH_ID,
+      batchType: 'multi_product',
+      name: 'E2E 刊登批次',
+      status: 'partial_success',
+      statusLabel: '部分成功',
+      productCount: 1,
+      targetCount: 2,
+      taskCount: 2,
+      successCount: 1,
+      failedCount: 1,
+      skippedCount: 0,
+      createdAt: '2026-01-03T00:00:00Z',
+      finishedAt: '2026-01-03T00:05:00Z',
+      items: [
+        {
+          productId: E2E_PRODUCT_ID,
+          productTitle: 'E2E 商品草稿长标题用于回归测试响应式和换行能力',
+          targetKey: `douyin_shop:${E2E_SHOP_ID}`,
+          platform: 'douyin_shop',
+          platformLabel: '抖店',
+          shopId: E2E_SHOP_ID,
+          shopName: 'E2E 抖店测试店铺',
+          taskId: 'e2e-publish-task-1',
+          status: 'success',
+          statusLabel: '成功',
+          capability: 'real_draft_create',
+          localDraftOnly: true,
+        },
+        {
+          productId: E2E_PRODUCT_ID,
+          productTitle: 'E2E 商品草稿长标题用于回归测试响应式和换行能力',
+          targetKey: `shopee:${E2E_SHOPEE_SHOP_ID}`,
+          platform: 'shopee',
+          platformLabel: 'Shopee',
+          shopId: E2E_SHOPEE_SHOP_ID,
+          shopName: 'E2E Shopee 测试店铺',
+          taskId: 'e2e-publish-task-2',
+          status: 'failed',
+          statusLabel: '失败',
+          capability: 'local_draft_only',
+          errorCode: 'e2e_failed',
+          errorMessage: 'E2E synthetic publish failure',
+        },
+      ],
+    });
+  }
   return null;
 }
 

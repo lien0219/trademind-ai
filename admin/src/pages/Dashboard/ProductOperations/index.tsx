@@ -827,9 +827,9 @@ export default function ProductOperationsDashboardPage() {
   }, [loadBoard]);
 
   const summary = board?.summary ?? EMPTY_SUMMARY;
-  const todos = useMemo(() => mergeTodos(board?.todos), [board?.todos]);
-  const funnelSteps = useMemo(() => mergeFunnel(board?.funnel), [board?.funnel]);
-  const exceptions = useMemo(() => mergeExceptions(board?.exceptions), [board?.exceptions]);
+  const todos = useMemo(() => mergeTodos(board?.todos), [board?.todos, language]);
+  const funnelSteps = useMemo(() => mergeFunnel(board?.funnel), [board?.funnel, language]);
+  const exceptions = useMemo(() => mergeExceptions(board?.exceptions), [board?.exceptions, language]);
   const quickLinks = DEFAULT_QUICK_LINKS;
   const recentFlat = useMemo(() => mergeRecentItems(board?.recent), [board?.recent, language]);
   const kpiCards = useMemo(() => buildKpiCards(summary), [summary, language]);

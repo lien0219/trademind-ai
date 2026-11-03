@@ -169,10 +169,15 @@ export class BrowserSessionManager {
       userDataDir,
       persistentContextOptions(wantHeadless, provider),
     );
-    await context.addInitScript(PAGE_EVALUATE_POLYFILL);
-    await installPublicNetworkGuard(context);
-    context.setDefaultNavigationTimeout(getDefaultNavigationTimeoutMs());
-    context.setDefaultTimeout(getDefaultNavigationTimeoutMs());
+    try {
+      await context.addInitScript(PAGE_EVALUATE_POLYFILL);
+      await installPublicNetworkGuard(context);
+      context.setDefaultNavigationTimeout(getDefaultNavigationTimeoutMs());
+      context.setDefaultTimeout(getDefaultNavigationTimeoutMs());
+    } catch (error) {
+      await context.close().catch(() => undefined);
+      throw error;
+    }
     this.contexts.set(provider, context);
     this.contextHeadless.set(provider, wantHeadless);
     return context;

@@ -31,7 +31,7 @@ export class NetworkWriteGuard {
   constructor(private readonly page: Page) {}
 
   async install() {
-    await this.page.route('**/api/v1/**', async (route) => this.handle(route));
+    await this.page.route('**/api/**', async (route) => this.handle(route));
   }
 
   allow(rule: AllowRule) {

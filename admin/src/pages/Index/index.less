@@ -104,7 +104,8 @@ html[data-theme="dark"] .landing-page {
 }
 
 .landing-section {
-  width: min(1180px, calc(100% - 48px));
+  width: calc(100% - 48px);
+  max-width: 1180px;
   margin-inline: auto;
 }
 
@@ -120,7 +121,8 @@ html[data-theme="dark"] .landing-page {
 .landing-header__inner {
   display: flex;
   align-items: center;
-  width: min(1180px, calc(100% - 48px));
+  width: calc(100% - 48px);
+  max-width: 1180px;
   min-height: 72px;
   margin-inline: auto;
 }
@@ -1042,7 +1044,8 @@ html[data-theme="dark"] .landing-page {
 @media (max-width: 920px) {
   .landing-header__inner,
   .landing-section {
-    width: min(100% - 40px, 720px);
+    width: calc(100% - 40px);
+    max-width: 720px;
   }
 
   .landing-nav {
