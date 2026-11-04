@@ -395,6 +395,24 @@ test('@smoke refuses tenant member reads without user.manage', async ({ admin, p
   expect(sensitiveReads).toBe(0);
 });
 
+test('@smoke maps built-in role codes to localized labels in member list and invitation form', async ({ admin, page }) => {
+  await mockTenantReads(page);
+  await page.route('**/api/v1/admin/roles', (route) => route.fulfill({ json: ok({ list: [
+    { code: 'admin', name: 'admin', enabled: true, system: true, memberCount: 1 },
+    { code: 'operator', name: 'operator', enabled: true, system: true, memberCount: 1 },
+    { code: 'reviewer', name: 'reviewer', enabled: true, system: true, memberCount: 0 },
+    { code: 'readonly', name: 'readonly', enabled: true, system: true, memberCount: 0 },
+  ] }) }));
+  await admin.goto('/tenant/members');
+  await expect(page.getByRole('cell', { name: '管理员' })).toBeVisible();
+  await page.getByRole('button', { name: '邀请成员' }).first().click();
+  const dialog = page.getByRole('dialog', { name: '邀请成员' });
+  await dialog.getByLabel('企业角色').click();
+  for (const label of ['管理员', '运营', '审核', '只读']) {
+    await expect(page.getByRole('option', { name: label })).toBeVisible();
+  }
+});
+
 test('@smoke submits per-store permissions and selected invitation expiry', async ({ admin, page }) => {
   await mockTenantReads(page);
   let invitePayload: Record<string, unknown> | undefined;

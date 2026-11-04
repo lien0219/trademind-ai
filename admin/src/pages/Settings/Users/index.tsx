@@ -58,7 +58,7 @@ function roleTag(role: string) {
   if (r === 'operator') return <Tag color="cyan">{tr("运营")}</Tag>;
   if (r === 'readonly') return <Tag>{tr("只读")}</Tag>;
   if (r === 'reviewer') return <Tag color="purple">{tr("审核")}</Tag>;
-  return <Tag>{role}</Tag>;
+  return <Tag>{roleLabel(role)}</Tag>;
 }
 
 function adminUserLabel(row: Pick<AdminUserRow, 'displayName' | 'email' | 'username'>): string {

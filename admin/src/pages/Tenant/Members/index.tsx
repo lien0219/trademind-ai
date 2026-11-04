@@ -42,21 +42,16 @@ import { queryShops, type ShopListRow } from '@/services/shops';
 import { confirmSensitiveAction } from '@/utils/sensitiveConfirm';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
+import { roleLabel as localizedRoleLabel } from '@/constants/permissionLabels';
 import { useTenantLeaveEligibility } from '@/hooks/useTenantLeaveEligibility';
 import { tr } from '@/i18n';
 import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
+import './index.less';
 
 const MEMBER_STATUS_OPTIONS = [
   { get label() { return tr("正常"); }, value: 'active' },
   { get label() { return tr("禁用"); }, value: 'disabled' },
   { get label() { return tr("移除"); }, value: 'removed' },
-];
-
-const STANDARD_ROLE_OPTIONS = [
-  { get label() { return tr("管理员"); }, value: 'admin' },
-  { get label() { return tr("运营"); }, value: 'operator' },
-  { get label() { return tr("只读"); }, value: 'readonly' },
-  { get label() { return tr("审核"); }, value: 'reviewer' },
 ];
 
 const INVITATION_EXPIRY_OPTIONS = [
@@ -73,11 +68,9 @@ const SCOPE_OPTIONS = [
   { get label() { return tr("管理"); }, value: 'manage' },
 ];
 
-function roleLabel(role: string, roles: AdminRoleRow[]) {
-  const configuredRole = roles.find((item) => item.code === role);
-  if (configuredRole) return configuredRole.system ? tr(configuredRole.name) : configuredRole.name;
-  const standard = STANDARD_ROLE_OPTIONS.find((item) => item.value === role);
-  return standard ? tr(standard.label) : role;
+function memberRoleLabel(role: string, roles: AdminRoleRow[]) {
+  // Built-in role names supplied by the API are codes, not user-facing copy.
+  return localizedRoleLabel(role, roles.find((item) => item.code === role)?.name);
 }
 
 function memberName(member: TenantMember) {
@@ -124,13 +117,14 @@ function StorePermissionList({ shops }: { shops: ShopListRow[] }) {
       {(fields, { add, remove }, { errors }) => (
         <>
           {fields.map((field) => (
-            <Space key={field.key} wrap align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+            <div key={field.key} className="tm-tenant-member__store-row">
               <Form.Item
                 name={[field.name, 'storeId']}
+                style={{ marginBottom: 0, minWidth: 0 }}
                 rules={[{ required: true, message: tr('请选择店铺') }]}
               >
                 <Select
-                  style={{ width: 260, maxWidth: '100%' }}
+                  style={{ width: '100%' }}
                   placeholder={tr("选择店铺")}
                   aria-label={`${tr('店铺授权')} ${Number(field.name) + 1}`}
                   options={shops.map((shop) => ({
@@ -141,12 +135,13 @@ function StorePermissionList({ shops }: { shops: ShopListRow[] }) {
               </Form.Item>
               <Form.Item
                 name={[field.name, 'permissionScope']}
+                style={{ marginBottom: 0, minWidth: 0 }}
                 rules={[{ required: true, message: tr('请选择权限级别') }]}
               >
-                <Select style={{ width: 120 }} options={SCOPE_OPTIONS.map(item => ({...item,label:tr(item.label)}))} aria-label={`${tr('店铺权限级别')} ${Number(field.name) + 1}`} />
+                <Select style={{ width: '100%' }} options={SCOPE_OPTIONS.map(item => ({...item,label:tr(item.label)}))} aria-label={`${tr('店铺权限级别')} ${Number(field.name) + 1}`} />
               </Form.Item>
-              <Button type="link" danger icon={<DeleteOutlined />} aria-label={tr("移除店铺权限")} onClick={() => remove(field.name)} />
-            </Space>
+              <Button type="text" danger icon={<DeleteOutlined />} aria-label={tr("移除店铺权限")} title={tr("移除店铺权限")} onClick={() => remove(field.name)} />
+            </div>
           ))}
           <Form.ErrorList errors={errors} />
           <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ permissionScope: 'operate' })} block>
@@ -243,7 +238,7 @@ export default function TenantMembersPage() {
   }, [canManage, load, loadDirectories]);
 
   const roleOptions = useMemo(() => {
-    return roles.filter((role) => role.enabled).map((role) => ({ label: role.system ? tr(role.name) : role.name, value: role.code }));
+    return roles.filter((role) => role.enabled).map((role) => ({ label: memberRoleLabel(role.code, roles), value: role.code }));
   }, [roles, language]);
   const directoryReady = !rolesLoading && !shopsLoading && !rolesError && !shopsError && roleOptions.length > 0;
 
@@ -374,7 +369,7 @@ export default function TenantMembersPage() {
 
   const memberColumns = useMemo<TableColumnsType<TenantMember>>(() => [
     { title: tr('成员'), key: 'member', width: 220, render: (_value, row) => <Space direction="vertical" size={0}><strong>{memberName(row)}</strong><span style={{ color: 'var(--ant-color-text-tertiary)', fontSize: 12 }}>{row.email || row.userId}</span></Space> },
-    { title: tr('角色'), dataIndex: 'role', width: 110, render: (value: string) => <Tag>{roleLabel(value, roles)}</Tag> },
+    { title: tr('角色'), dataIndex: 'role', width: 110, render: (value: string) => <Tag>{memberRoleLabel(value, roles)}</Tag> },
     { title: tr('状态'), dataIndex: 'status', width: 100, render: (value: string) => <StatusTag status={value} text={tr(({ active: tr('正常'), disabled: tr('禁用'), removed: tr('已移除'), invited: tr('待接受') } as Record<string,string>)[value] || value)} /> },
     { title: tr('店铺权限'), key: 'stores', ellipsis: true, render: (_value, row) => row.role === 'admin' ? tr('全部店铺') : row.storePermissions?.map((item) => shops.find((shop) => shop.id === item.storeId)?.shopName || item.storeId).join('、') || tr('未分配') },
     { title: tr('操作'), key: 'actions', width: 250, render: (_value, row) => <Space wrap size={4}><Button type="link" size="small" icon={<EditOutlined />} disabled={!canManage || !directoryReady || submitting || row.status === 'removed'} onClick={() => openMember(row)}>{tr("编辑")}</Button>{row.status === 'active' ? <Button type="link" size="small" danger disabled={!canManage || submitting || row.userId === user?.id} onClick={() => confirmMemberStatus(row, 'disabled')}>{tr("禁用")}</Button> : null}{row.status !== 'removed' ? <Button type="link" size="small" danger disabled={!canManage || submitting || row.userId === user?.id} onClick={() => confirmMemberStatus(row, 'removed')}>{tr("移除")}</Button> : null}</Space> },
@@ -382,7 +377,7 @@ export default function TenantMembersPage() {
 
   const invitationColumns = useMemo<TableColumnsType<TenantInvitation>>(() => [
     { title: tr('受邀邮箱'), dataIndex: 'email', width: 260, ellipsis: true },
-    { title: tr('角色'), dataIndex: 'role', width: 120, render: (value: string) => <Tag>{roleLabel(value, roles)}</Tag> },
+    { title: tr('角色'), dataIndex: 'role', width: 120, render: (value: string) => <Tag>{memberRoleLabel(value, roles)}</Tag> },
     { title: tr('状态'), dataIndex: 'status', width: 110, render: (value: string) => <StatusTag status={value} text={tr(({ pending: tr('待接受'), accepted: tr('已接受'), cancelled: tr('已取消'), expired: tr('已过期') } as Record<string,string>)[value] || value)} /> },
     { title: tr('有效期至'), dataIndex: 'expiresAt', width: 180, render: (value: string) => formatDateTime(value) },
     { title: tr('创建时间'), dataIndex: 'createdAt', width: 180, render: (value: string) => formatDateTime(value) },
@@ -405,7 +400,7 @@ export default function TenantMembersPage() {
   return (
     <TmPageContainer
       title={tr("企业成员与邀请")}
-      subTitle={tr("管理当前企业成员、角色和店铺授权；平台角色不会由此页面创建。")}
+      
       extra={[
         <Button key="refresh" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>,
         <Button key="invite" type="primary" icon={<UserAddOutlined />} disabled={!directoryReady} onClick={openInvite}>{tr("邀请成员")}</Button>,
@@ -415,7 +410,7 @@ export default function TenantMembersPage() {
       {rolesError || shopsError ? <Alert type="error" showIcon message={tr("角色或店铺授权数据加载失败")} description={[rolesError, shopsError].filter(Boolean).join('；')} action={<Button type="link" onClick={() => void loadDirectories()}>{tr("重试")}</Button>} style={{ marginBottom: 16 }} /> : null}
       {!rolesError && !shopsError && !rolesLoading && !shopsLoading && roleOptions.length === 0 ? <Alert type="error" showIcon message={tr("当前企业没有可分配角色")} description={tr("请在现有角色管理中启用至少一个角色后再邀请或编辑成员。")} style={{ marginBottom: 16 }} /> : null}
       <SectionCard>
-        <Tabs activeKey={activeTab} onChange={setActiveTab} items={[{ key: 'members', label: `${tr('成员（')}${members.length}${tr('）')}`, children: !loading && !error && members.length === 0 ? <EmptyState title={tr("暂无企业成员")} description={tr("企业管理员可以邀请成员加入。")} actionLabel={tr("邀请成员")} onAction={openInvite} /> : <Table rowKey="id" loading={loading} columns={memberColumns} dataSource={members} pagination={false} scroll={{ x: 960 }} /> }, { key: 'invitations', label: `${tr('邀请（')}${invitations.length}${tr('）')}`, children: !loading && !error && invitations.length === 0 ? <EmptyState title={tr("暂无邀请记录")} description={tr("创建邀请后，一次性 Token 只会在创建成功时显示。")} actionLabel={tr("邀请成员")} onAction={openInvite} /> : <Table rowKey="id" loading={loading} columns={invitationColumns} dataSource={invitations} pagination={false} scroll={{ x: 900 }} /> }]} />
+        <Tabs activeKey={activeTab} onChange={setActiveTab} items={[{ key: 'members', label: `${tr('成员（')}${members.length}${tr('）')}`, children: !loading && !error && members.length === 0 ? <EmptyState title={tr("暂无企业成员")} actionLabel={tr("邀请成员")} onAction={openInvite} /> : <Table rowKey="id" loading={loading} columns={memberColumns} dataSource={members} pagination={false} scroll={{ x: 960 }} /> }, { key: 'invitations', label: `${tr('邀请（')}${invitations.length}${tr('）')}`, children: !loading && !error && invitations.length === 0 ? <EmptyState title={tr("暂无邀请记录")} actionLabel={tr("邀请成员")} onAction={openInvite} /> : <Table rowKey="id" loading={loading} columns={invitationColumns} dataSource={invitations} pagination={false} scroll={{ x: 900 }} /> }]} />
       </SectionCard>
 
       {canLeave ? (

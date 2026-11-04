@@ -1,0 +1,16 @@
+.tm-tenant-member__store-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(100px, 132px) 32px;
+  gap: 8px;
+  align-items: start;
+  margin-bottom: 12px;
+
+  > .ant-btn { width: 32px; padding-inline: 0; }
+}
+
+@media (max-width: 480px) {
+  .tm-tenant-member__store-row {
+    grid-template-columns: minmax(0, 1fr) 104px 32px;
+    gap: 6px;
+  }
+}

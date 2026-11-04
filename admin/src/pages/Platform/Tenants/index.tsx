@@ -366,20 +366,14 @@ export default function PlatformTenantsPage() {
     <TmPageContainer
       title={tr("租户管理")}
       extra={[
+        <Button key="refresh" icon={<ReloadOutlined />} onClick={() => { void load(); void loadAuthorized(); }} loading={loading || accessLoading}>{tr("刷新")}</Button>,
         <Button key="create" type="primary" icon={<PlusOutlined />} onClick={openCreate}>{tr("创建企业")}</Button>,
       ]}
     >
-      <Alert
-        type="info"
-        showIcon
-        message={tr("平台控制台与企业工作台权限独立")}
-        description={tr("平台管理员可管理全部企业资料；只有当前账号具备有效企业成员资格时才能进入业务工作台。创建企业可指定企业管理员，切换企业将核验授权并记录审计。")}
-        style={{ marginBottom: 16 }}
-      />
       <SectionCard
         title={tr("企业列表")}
-        description={tr("平台管理员可查看跨企业的管理元数据；业务数据仍需通过显式企业上下文访问。")}
-        headerExtra={<Button type="text" icon={<ReloadOutlined />} aria-label={tr("刷新")} onClick={() => { void load(); void loadAuthorized(); }} loading={loading || accessLoading}>{tr("刷新")}</Button>}
+        
+        
       >
         <Space wrap size={[8, 8]} style={{ marginBottom: 16 }}>
           <Input.Search
