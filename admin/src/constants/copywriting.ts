@@ -394,6 +394,18 @@ export const AI_FIELD_COPY = {
 
 /** 将内部英文状态码转为用户可见文案（兜底） */
 export const COMMON_STATUS_LABEL: Record<string, string> = {
+  get active() { return tr('正常'); },
+  get invited() { return tr('待接受'); },
+  get accepted() { return tr('已接受'); },
+  get removed() { return tr('已移除'); },
+  get suspended() { return tr('已暂停'); },
+  get archived() { return tr('已归档'); },
+  get closed() { return tr('已关闭'); },
+  get deleted() { return tr('已删除'); },
+  get paused() { return tr('已暂停'); },
+  get processing() { return tr('处理中'); },
+  get in_progress() { return tr('处理中'); },
+  get pending_approval() { return tr('待审批'); },
   get pending() { return tr('等待处理'); },
   get running() { return tr('处理中'); },
   get success() { return tr('成功'); },
