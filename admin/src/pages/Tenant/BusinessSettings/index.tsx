@@ -1,8 +1,8 @@
 import { useLanguage } from '@/i18n/useLanguage';
 import { useEffect, useState, useRef } from 'react';
-import { Alert, Button, Card, Form, Grid, Input, InputNumber, Modal, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
-import { HistoryOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
-import { ActionBar, TmPageContainer } from '@/components/ui';
+import { Alert, Button, Form, Input, InputNumber, Modal, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
+import { BellOutlined, CloudDownloadOutlined, GlobalOutlined, HistoryOutlined, InboxOutlined, ReloadOutlined, RobotOutlined, SaveOutlined, ShoppingCartOutlined, TagsOutlined } from '@ant-design/icons';
+import { ActionBar, SectionCard, TmPageContainer } from '@/components/ui';
 import { layoutTokens } from '@/constants/layoutTokens';
 import { tr, formatLocalizedDate } from '@/i18n';
 import { languageNames, supportedLanguages } from '@/i18n/dictionaries';
@@ -23,6 +23,15 @@ const labels: Record<BusinessModule, string> = {
   branding: '企业品牌与标签',
 };
 const modules: BusinessModule[] = ['general', 'ai', 'collect', 'inventory', 'notifications', 'orders', 'branding'];
+const moduleIcons = {
+  general: GlobalOutlined,
+  ai: RobotOutlined,
+  collect: CloudDownloadOutlined,
+  inventory: InboxOutlined,
+  notifications: BellOutlined,
+  orders: ShoppingCartOutlined,
+  branding: TagsOutlined,
+} satisfies Record<BusinessModule, typeof GlobalOutlined>;
 const templates: Partial<Record<BusinessModule, {name:string;values:Record<string,unknown>}[]>> = {
   ai: [
     {get name() { return tr("中文内容创作"); },values:{defaultLanguage:'zh-CN'}},
@@ -84,7 +93,6 @@ function formatBusinessValue(key: string, value: unknown): string {
 export default function TenantBusinessSettingsPage() {
   useLanguage();
   const { can } = usePermission();
-  const screens = Grid.useBreakpoint();
   const writable = can(PERMISSIONS.SETTINGS_MANAGE);
   const [module, setModule] = useState<BusinessModule>('general');
   const [snapshot, setSnapshot] = useState<BusinessSnapshot | null>(null);
@@ -253,7 +261,9 @@ export default function TenantBusinessSettingsPage() {
       message.info(tr('已载入配置预览，检查后点击保存才会生效'));
     } catch (e) { message.error((e as Error)?.message || tr('导入失败')); }
   };
-  return <TmPageContainer title={tr("企业业务配置")} 
+  return <TmPageContainer title={tr("企业业务配置")}
+    contentMaxWidth={layoutTokens.settingsMaxWidth}
+    fluid={false}
     extra={<Space wrap>
       <Button onClick={exportCurrent} disabled={!snapshot}>{tr("导出配置")}</Button>
       <Button loading={exporting} disabled={exporting} onClick={() => void exportAll()}>{tr("导出全部模块")}</Button>
@@ -261,21 +271,31 @@ export default function TenantBusinessSettingsPage() {
         <Button disabled={!snapshot || saving} onClick={()=>fileInput.current?.click()}>{tr("导入预览")}</Button></>:null}
       <Button icon={<ReloadOutlined />} disabled={saving} onClick={() => void load(module)} loading={loading}>{tr("刷新")}</Button>
     </Space>}>
-    <div className="tm-tenant-business-settings__layout" style={{gridTemplateColumns:screens.lg ? 'minmax(150px, 200px) minmax(0, 1fr)' : 'minmax(0,1fr)'}}>
-      <Card size="small" styles={{body:{padding:8}}}>
-        <nav aria-label={tr("企业业务配置")}>
-          <Space direction={screens.lg ? 'vertical' : 'horizontal'} wrap={!screens.lg} style={{width:'100%'}}>
-            {modules.map(item=><Button key={item} block={screens.lg} disabled={saving} type={module===item?'primary':'text'} style={{textAlign:'left'}} onClick={()=>chooseModule(item)}>{tr(labels[item])}</Button>)}
-          </Space>
+    <div className="tm-tenant-business-settings__layout" style={{gap:layoutTokens.cardGap}}>
+      <SectionCard className="tm-tenant-business-settings__navigation" bodyStyle={{padding:8}}>
+        <nav className="tm-tenant-business-settings__nav" aria-label={tr("企业业务配置")}>
+          {modules.map(item=>{
+            const Icon = moduleIcons[item];
+            return <Button key={item} disabled={saving} type="text"
+              className={`tm-tenant-business-settings__nav-item${module===item?' tm-tenant-business-settings__nav-item--active':''}`}
+              icon={<Icon aria-hidden />}
+              aria-pressed={module===item}
+              onClick={()=>chooseModule(item)}>{tr(labels[item])}</Button>;
+          })}
         </nav>
-      </Card>
-      <Card title={<div style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center',justifyContent:'space-between',whiteSpace:'normal'}}>
-        <span>{tr(labels[module])}</span>
-        <Space wrap><Tag>{snapshot?.inherited?tr('继承默认值'):`${tr('版本')} ${snapshot?.version || 0}`}</Tag>{writable?<Button icon={<HistoryOutlined />} onClick={()=>void openHistory()}>{tr("版本历史")}</Button>:null}</Space>
-      </div>}>
+      </SectionCard>
+      <SectionCard className="tm-tenant-business-settings__editor" title={tr(labels[module])}
+        headerExtra={
+          <div className="tm-tenant-business-settings__header-actions">
+            <Tag>{snapshot?.inherited ? tr('继承默认值') : `${tr('版本')} ${snapshot?.version || 0}`}</Tag>
+            {writable ? (
+              <Button icon={<HistoryOutlined />} onClick={() => void openHistory()}>{tr('版本历史')}</Button>
+            ) : null}
+          </div>
+        }>
         {error?<Alert type="error" showIcon message={error} action={<Button onClick={()=>void load(module)}>{tr("重试")}</Button>}/>:null}
         {loading || !snapshot?(error ? null : <div style={{padding:30,textAlign:'center'}}><Spin /></div>):
-          <Form className="tm-tenant-business-settings__form" form={form} layout="vertical" disabled={!writable || saving} onValuesChange={() => { formDirty.current = true; }}>
+          <Form className={`tm-tenant-business-settings__form${module==='general'?' tm-tenant-business-settings__form--general':''}`} style={{columnGap:layoutTokens.formColumnGap}} form={form} layout="vertical" disabled={!writable || saving} onValuesChange={() => { formDirty.current = true; }}>
             {module==='general'?<>
               <Form.Item name="language" label={tr("默认界面语言")} rules={[{required:true}]}><Select options={languageOptions}/></Form.Item>
               <Form.Item name="timezone" label={tr("默认时区")} rules={[{required:true}]}><Select options={[
@@ -337,7 +357,7 @@ export default function TenantBusinessSettingsPage() {
             </Popconfirm>
           </div>)}</Space>
         </div>:null}
-      </Card>
+      </SectionCard>
     </div>
     <Modal title={preview?`${tr('模板预览：')}${tr(preview.name)}`:tr('配置预览')} open={Boolean(preview)} onCancel={()=>setPreview(null)}
       okText={tr('应用到表单')} okButtonProps={{disabled:saving || !writable}} onOk={()=>{if(preview && !saving && writable && snapshot?.module === module){form.setFieldsValue(preview.values);formDirty.current=true;}setPreview(null);}}>

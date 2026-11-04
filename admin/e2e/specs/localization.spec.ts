@@ -68,14 +68,16 @@ for (const viewport of [...viewports, { width: 1920, height: 1080 }, { width: 25
     expect(Math.abs(dimensions.unusedInnerWidth), 'no unused column beside the card').toBeLessThanOrEqual(2);
     expect(dimensions.controls).toHaveLength(3);
     expect(dimensions.controls.every(control => control.width >= 180), 'readable select widths').toBe(true);
-    if (viewport.width >= 992) {
-      expect(Math.max(...dimensions.controls.map(control => control.y)) - Math.min(...dimensions.controls.map(control => control.y))).toBeLessThanOrEqual(2);
-      expect(dimensions.controls[1].x).toBeGreaterThan(dimensions.controls[0].x);
-      expect(dimensions.controls[2].x).toBeGreaterThan(dimensions.controls[1].x);
-    } else {
-      expect(dimensions.controls[1].y).toBeGreaterThan(dimensions.controls[0].y);
-      expect(dimensions.controls[2].y).toBeGreaterThan(dimensions.controls[1].y);
-    }
+    expect(Math.max(...dimensions.controls.map(control => control.x)) - Math.min(...dimensions.controls.map(control => control.x)), 'preference controls share one aligned column').toBeLessThanOrEqual(2);
+    expect(dimensions.controls[1].y).toBeGreaterThan(dimensions.controls[0].y);
+    expect(dimensions.controls[2].y).toBeGreaterThan(dimensions.controls[1].y);
+    const [hint, actions] = await Promise.all([
+      form.getByRole('alert').boundingBox(),
+      form.locator('.tm-action-bar').boundingBox(),
+    ]);
+    expect(hint).not.toBeNull();
+    expect(actions).not.toBeNull();
+    expect(actions!.y - hint!.y - hint!.height, 'hint and save actions keep a clear separation').toBeGreaterThanOrEqual(16);
     await expectHeaderContentAligned(page);
     await expectNoRootOverflow(page);
     expect(admin.writeGuard.allCalls()).toHaveLength(0);
