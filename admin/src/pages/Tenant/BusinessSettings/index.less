@@ -1,6 +1,32 @@
+.tm-tenant-business-settings__layout {
+  display: grid;
+  align-items: start;
+  gap: 16px;
+  max-width: 1180px;
+  margin-inline: auto;
+
+  > .ant-card { min-width: 0; }
+}
+
 .tm-tenant-business-settings__form,
 .tm-tenant-business-settings__shop-override {
   width: 100%;
-  max-width: 720px;
   min-width: 0;
+}
+
+.tm-tenant-business-settings__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+
+  > .ant-form-item { min-width: 0; }
+  > div:not(.ant-form-item) { grid-column: 1 / -1; }
+  > .ant-form-item:has(.ant-select-mode-multiple),
+  > .ant-form-item:has(.ant-select-mode-tags) { grid-column: 1 / -1; }
+}
+
+@media (max-width: 760px) {
+  .tm-tenant-business-settings__form {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
