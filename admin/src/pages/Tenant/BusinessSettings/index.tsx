@@ -39,11 +39,47 @@ const templates: Partial<Record<BusinessModule, {name:string;values:Record<strin
   ],
 };
 const languageOptions = supportedLanguages.map(value => ({value, label: languageNames[value]}));
+const BUSINESS_FIELD_LABELS: Record<string, string> = {
+  language: '默认界面语言', timezone: '默认时区', currency: '报表显示货币',
+  defaultLanguage: 'AI 文案默认语言', allowedSources: '允许的采集来源',
+  maxBatchURLs: '企业采集批次链接上限', lowStockThreshold: '企业默认低库存阈值',
+  businessAlertsEnabled: '开启企业业务通知', mailRecipients: '企业告警邮件接收人',
+  defaultCurrency: '手工订单默认币种', displayName: '企业展示名称',
+  logoUrl: '企业 Logo HTTPS 地址', labels: '企业标签',
+};
 const sourceOptions = [
   {value:'1688',label:'1688'}, {value:'pinduoduo',get label() { return tr("拼多多"); }},
   {value:'taobao_tmall',get label() { return tr("淘宝/天猫"); }}, {value:'aliexpress',get label() { return tr("速卖通"); }},
   {value:'custom',get label() { return tr("自定义采集"); }},
 ];
+
+function formatBusinessValue(key: string, value: unknown): string {
+  if (value === null || value === undefined || value === '') return tr('未设置');
+  if (typeof value === 'boolean') return tr(value ? '已开启' : '已关闭');
+  if (Array.isArray(value)) {
+    if (value.length === 0) return key === 'allowedSources' || key === 'mailRecipients' ? tr('继承默认值') : tr('未设置');
+    return value.map(item => key === 'allowedSources'
+      ? sourceOptions.find(option => option.value === item)?.label || String(item)
+      : String(item)).join('、');
+  }
+  if (key === 'language' || key === 'defaultLanguage') {
+    return languageNames[String(value) as keyof typeof languageNames] || String(value);
+  }
+  if (key === 'timezone') {
+    const timezones: Record<string, string> = {
+      'Asia/Shanghai': '上海 / UTC+08:00', 'Asia/Tokyo': '东京 / UTC+09:00', UTC: 'UTC',
+    };
+    return tr(timezones[String(value)] || String(value));
+  }
+  if (key === 'currency' || key === 'defaultCurrency') {
+    const currencies: Record<string, string> = {
+      CNY: '人民币 CNY', USD: '美元 USD', JPY: '日元 JPY', EUR: '欧元 EUR', GBP: '英镑 GBP',
+    };
+    return tr(currencies[String(value)] || String(value));
+  }
+  if (key === 'maxBatchURLs' && value === 0) return tr('继承默认值');
+  return typeof value === 'object' ? JSON.stringify(value) : String(value);
+}
 
 export default function TenantBusinessSettingsPage() {
   useLanguage();
@@ -217,7 +253,7 @@ export default function TenantBusinessSettingsPage() {
       message.info(tr('已载入配置预览，检查后点击保存才会生效'));
     } catch (e) { message.error((e as Error)?.message || tr('导入失败')); }
   };
-  return <TmPageContainer title={tr("企业业务配置")} subTitle={tr("当前企业专属默认规则；平台安全限制与其他企业均不受影响。")}
+  return <TmPageContainer title={tr("企业业务配置")} 
     extra={<Space wrap>
       <Button onClick={exportCurrent} disabled={!snapshot}>{tr("导出配置")}</Button>
       <Button loading={exporting} disabled={exporting} onClick={() => void exportAll()}>{tr("导出全部模块")}</Button>
@@ -225,7 +261,7 @@ export default function TenantBusinessSettingsPage() {
         <Button disabled={!snapshot || saving} onClick={()=>fileInput.current?.click()}>{tr("导入预览")}</Button></>:null}
       <Button icon={<ReloadOutlined />} disabled={saving} onClick={() => void load(module)} loading={loading}>{tr("刷新")}</Button>
     </Space>}>
-    <div style={{display:'grid',gridTemplateColumns:screens.lg ? 'minmax(150px, 210px) minmax(0, 1fr)' : 'minmax(0,1fr)',gap:16}}>
+    <div className="tm-tenant-business-settings__layout" style={{gridTemplateColumns:screens.lg ? 'minmax(150px, 200px) minmax(0, 1fr)' : 'minmax(0,1fr)'}}>
       <Card size="small" styles={{body:{padding:8}}}>
         <nav aria-label={tr("企业业务配置")}>
           <Space direction={screens.lg ? 'vertical' : 'horizontal'} wrap={!screens.lg} style={{width:'100%'}}>
@@ -248,33 +284,33 @@ export default function TenantBusinessSettingsPage() {
               <Form.Item name="currency" label={tr("报表显示货币")} rules={[{required:true}]}><Select options={[
                 {value:'CNY',label:tr("人民币 CNY")}, {value:'USD',label:tr("美元 USD")}, {value:'JPY',label:tr("日元 JPY")},
               ]}/></Form.Item>
-              <Alert type="info" showIcon message={tr("个人语言优先于企业默认语言；货币偏好不执行换汇，也不改写订单金额。")}/>
+
             </>:null}
             {module==='ai'?<>
               <Form.Item name="defaultLanguage" label={tr("AI 文案默认语言")} rules={[{required:true}]}><Select options={languageOptions}/></Form.Item>
-              <Alert type="info" showIcon message={tr("新建 AI 文案批次未显式指定语言时使用此默认值；已有任务保留创建时输入。")}/>
+
             </>:null}
             {module==='collect'?<>
               <Form.Item name="allowedSources" label={tr("允许的采集来源")} extra={tr("留空表示继承平台所有已开放来源；设置后，未选来源会被后端拒绝。")}><Select mode="multiple" allowClear options={sourceOptions.map(item => ({...item, label:tr(item.label)}))} placeholder={tr("继承全部来源")}/></Form.Item>
               <Form.Item name="maxBatchURLs" label={tr("企业采集批次链接上限")} extra={tr("0 表示继承平台上限；企业值只能收紧，不能提高平台上限。")} rules={[{required:true}]}><InputNumber min={0} max={100} style={{width:'100%'}}/></Form.Item>
-              <Alert type="info" showIcon message={tr("单条与批量新任务执行服务端校验，不能仅通过绕开 UI 来突破企业限制。")}/>
+
             </>:null}
             {module==='inventory'?<>
               <Form.Item name="lowStockThreshold" label={tr("企业默认低库存阈值")} rules={[{required:true}]}><InputNumber min={0} max={1000000} style={{width:'100%'}}/></Form.Item>
-              <Alert type="info" showIcon message={tr("新采集商品使用企业默认阈值；已有规格保留显式阈值，按店铺筛选预警时使用店铺覆盖。")} />
+
             </>:null}
             {module==='notifications'?<>
               <Form.Item name="businessAlertsEnabled" label={tr("开启企业业务通知")} valuePropName="checked"><Switch/></Form.Item>
               <Form.Item name="mailRecipients" label={tr("企业告警邮件接收人")} extra={tr("最多 10 个地址；留空继承平台通知收件人。SMTP 配置由平台统一管理。")}>
                 <Select mode="tags" tokenSeparators={[',']} maxCount={10} placeholder="ops@example.com"/>
               </Form.Item>
-              <Alert type="info" showIcon message={tr("关闭后停止当前企业任务告警的自动投递；不影响人工通知或平台渠道安全限制。")} />
+
             </>:null}
             {module==='orders'?<>
               <Form.Item name="defaultCurrency" label={tr("手工订单默认币种")} rules={[{required:true}]}>
                 <Select options={[{value:'USD',label:tr("美元 USD")},{value:'CNY',label:tr("人民币 CNY")},{value:'JPY',label:tr("日元 JPY")},{value:'EUR',label:tr("欧元 EUR")},{value:'GBP',label:tr("英镑 GBP")}]}/>
               </Form.Item>
-              <Alert type="info" showIcon message={tr("创建手工订单且未指定币种时应用当前企业默认值；平台订单同步不会被改写，已存在订单的币种和金额保持不变。")}/>
+
             </>:null}
             {module==='branding'?<>
               <Form.Item name="displayName" label={tr("企业展示名称")}><Input maxLength={120}/></Form.Item>
@@ -305,11 +341,11 @@ export default function TenantBusinessSettingsPage() {
     </div>
     <Modal title={preview?`${tr('模板预览：')}${tr(preview.name)}`:tr('配置预览')} open={Boolean(preview)} onCancel={()=>setPreview(null)}
       okText={tr('应用到表单')} okButtonProps={{disabled:saving || !writable}} onOk={()=>{if(preview && !saving && writable && snapshot?.module === module){form.setFieldsValue(preview.values);formDirty.current=true;}setPreview(null);}}>
-      <Typography.Paragraph type="secondary">{tr("仅列出模板将修改的字段，未列出的字段不变。")}</Typography.Paragraph>
+
       {preview?Object.entries(preview.values).map(([key,value])=><div key={key} style={{marginBottom:10}}>
-        <Typography.Text strong>{key}</Typography.Text>
-        <Typography.Paragraph style={{marginBottom:0}}>{tr('当前：')}{JSON.stringify(form.getFieldValue(key))}</Typography.Paragraph>
-        <Typography.Paragraph style={{marginBottom:0}}>{tr('模板：')}{JSON.stringify(value)}</Typography.Paragraph>
+        <Typography.Text strong>{tr(BUSINESS_FIELD_LABELS[key] || key)}</Typography.Text>
+        <Typography.Paragraph style={{marginBottom:0}}>{tr('当前：')}{formatBusinessValue(key, form.getFieldValue(key))}</Typography.Paragraph>
+        <Typography.Paragraph style={{marginBottom:0}}>{tr('模板：')}{formatBusinessValue(key, value)}</Typography.Paragraph>
       </div>):null}
     </Modal>
   </TmPageContainer>;
