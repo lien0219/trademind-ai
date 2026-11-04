@@ -142,7 +142,9 @@ for (const viewport of tenantViewports) {
       await expectNoRootOverflow(page);
     });
   }
+}
 
+for (const viewport of [...tenantViewports, { width: 1920, height: 1080 }, { width: 2560, height: 1307 }]) {
   test(`@smoke @responsive enterprise business settings keep readable form spacing at ${viewport.width}`, async ({ admin, page }) => {
     await page.setViewportSize(viewport);
     await mockGeneralBusinessSettings(page);
@@ -151,8 +153,42 @@ for (const viewport of tenantViewports) {
     const form = page.locator('.tm-tenant-business-settings__form');
     await expect(form.getByLabel('默认界面语言', { exact: true })).toBeVisible();
     await expect(form.getByText('日元 JPY', { exact: true })).toBeVisible();
-    // The responsive form fills its card and switches to one column on
-    // narrow screens. Avoid locking this test to an obsolete 720px maximum.
+    const layout = await page.locator('.tm-tenant-business-settings__layout').evaluate((element) => {
+      const content = element.closest('.tm-page-container__content')!;
+      const style = getComputedStyle(content);
+      const bounds = element.getBoundingClientRect();
+      const contentBounds = content.getBoundingClientRect();
+      return {
+        width: bounds.width,
+        availableWidth: content.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+        leftDelta: bounds.left - contentBounds.left - parseFloat(style.paddingLeft),
+        controls: Array.from(element.querySelectorAll('.ant-select')).map(control => control.getBoundingClientRect().width),
+      };
+    });
+    expect(Math.abs(layout.width - layout.availableWidth), 'settings must fill the shared header and content rail').toBeLessThanOrEqual(2);
+    expect(Math.abs(layout.leftDelta), 'settings left edge must align with the page title').toBeLessThanOrEqual(2);
+    expect(layout.controls.every(width => width >= 180), 'settings controls must remain readable').toBe(true);
+    const headerSpacing = await page.locator('.tm-tenant-business-settings__editor .ant-pro-card-header').evaluate((header) => {
+      const bounds = header.getBoundingClientRect();
+      const content = header.querySelector('.tm-section-card__head')!.getBoundingClientRect();
+      const tag = header.querySelector('.ant-tag')!.getBoundingClientRect();
+      const history = header.querySelector('button')!.getBoundingClientRect();
+      return {
+        topGap: content.top - bounds.top,
+        bottomGap: bounds.bottom - content.bottom,
+        actionCenterDelta: Math.abs(tag.top + tag.height / 2 - history.top - history.height / 2),
+      };
+    });
+    expect(headerSpacing.topGap, 'card title and actions must have top clearance').toBeGreaterThanOrEqual(layoutTokens.fieldGroupGap);
+    expect(headerSpacing.bottomGap, 'history action must clear the card divider').toBeGreaterThanOrEqual(layoutTokens.fieldGroupGap);
+    expect(headerSpacing.actionCenterDelta, 'version status and history action must be vertically centered').toBeLessThanOrEqual(1);
+    if (viewport.width <= 575) {
+      const navigation = page.getByRole('navigation', { name: '企业业务配置', exact: true });
+      await expect(navigation).toHaveCSS('overflow-x', 'auto');
+      const navigationHeight = await navigation.evaluate(element => element.getBoundingClientRect().height);
+      expect(navigationHeight, 'mobile categories must stay in one compact row').toBeLessThanOrEqual(layoutTokens.controlHeight + layoutTokens.labelControlGap);
+    }
+    // Keep short preferences in one desktop row and stack them as space narrows.
     await expect(form).toHaveCSS('display', 'grid');
     const dimensions = await form.evaluate((element) => {
       const bounds = element.getBoundingClientRect();
@@ -170,7 +206,7 @@ for (const viewport of tenantViewports) {
       Math.abs(dimensions.width - dimensions.availableWidth),
       `form should fill its card without overflow at ${viewport.width}: ${JSON.stringify(dimensions)}`,
     ).toBeLessThanOrEqual(1);
-    expect(dimensions.columns, `form columns at ${viewport.width}`).toBe(viewport.width <= 760 ? 1 : 2);
+    expect(dimensions.columns, `form columns at ${viewport.width}`).toBe(viewport.width <= 760 ? 1 : viewport.width >= 1200 ? 3 : 2);
 
     const actions = form.locator('.tm-action-bar');
     await expect(actions.getByRole('button', { name: /保存企业配置$/ })).toBeVisible();

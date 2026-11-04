@@ -1,8 +1,8 @@
 import { useLanguage } from '@/i18n/useLanguage';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Col, Form, Modal, Row, Select, Spin, message } from 'antd';
+import { Alert, Button, Form, Modal, Select, Spin, message } from 'antd';
+import { BgColorsOutlined, CalendarOutlined, GlobalOutlined, SaveOutlined, UndoOutlined } from '@ant-design/icons';
 import { ActionBar, SectionCard, TmPageContainer } from '@/components/ui';
-import { layoutTokens } from '@/constants/layoutTokens';
 import { getJSON, putJSON } from '@/services/request';
 import { applyThemeMode, persistThemeMode } from '@/theme';
 import { readRegionalPreferences, setLanguage, setRegionalPreferences, tr } from '@/i18n';
@@ -10,6 +10,7 @@ import { isAppLanguage, languageNames, supportedLanguages } from '@/i18n/diction
 import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
 import { useAntdConfigSetter } from '@umijs/max';
 import { createAdminThemeConfig } from '@/theme';
+import './index.less';
 
 type Preferences={language:string;theme:'light'|'dark';dateFormat:string};
 type PreferenceState={values:Preferences;version:number;inherited:boolean};
@@ -75,22 +76,14 @@ export default function PersonalPreferencesPage(){
     contentMaxWidth={960}
     fluid={false}
   >
-    <SectionCard>
-      {error?<Alert type="error" message={error} action={<Button disabled={saving} onClick={()=>void load()}>{tr('重试')}</Button>}/>:null}
-      {loading?<Spin/>:snapshot?<Form form={form} layout="vertical" disabled={saving} aria-label={tr('个人偏好')}>
-        <Row gutter={layoutTokens.formColumnGap}>
-          <Col xs={24} lg={8}>
-            <Form.Item name="language" label={tr("首选语言")} rules={[{required:true}]}><Select options={supportedLanguages.map(value=>({value,label:languageNames[value]}))}/></Form.Item>
-          </Col>
-          <Col xs={24} lg={8}>
-            <Form.Item name="theme" label={tr("界面主题")} rules={[{required:true}]}><Select options={[{value:'light',label:tr('浅色模式')},{value:'dark',label:tr('深色模式')}]}/></Form.Item>
-          </Col>
-          <Col xs={24} lg={8}>
-            <Form.Item name="dateFormat" label={tr('首选日期格式')} rules={[{required:true}]}><Select options={[{value:'YYYY-MM-DD',label:'2026-10-27'},{value:'DD/MM/YYYY',label:'27/10/2026'},{value:'MM/DD/YYYY',label:'10/27/2026'}]}/></Form.Item>
-          </Col>
-        </Row>
-        <Alert type="info" showIcon message={tr("语言和主题立即生效；日期格式适用于已接入统一日期组件的页面。")}/>
-        <ActionBar><Button type="primary" loading={saving} onClick={()=>void save()}>{tr("保存个人偏好")}</Button><Button disabled={saving} onClick={restore}>{tr("还原")}</Button></ActionBar>
+    <SectionCard className="tm-personal-preferences" bodyStyle={{paddingBlockStart:0}}>
+      {error?<Alert className="tm-personal-preferences__error" type="error" message={error} action={<Button disabled={saving} onClick={()=>void load()}>{tr('重试')}</Button>}/>:null}
+      {loading?<div className="tm-personal-preferences__loading"><Spin/></div>:snapshot?<Form form={form} layout="vertical" disabled={saving} aria-label={tr('个人偏好')}>
+        <Form.Item className="tm-personal-preferences__row" name="language" label={<span className="tm-personal-preferences__label"><GlobalOutlined aria-hidden/>{tr("首选语言")}</span>} rules={[{required:true}]}><Select options={supportedLanguages.map(value=>({value,label:languageNames[value]}))}/></Form.Item>
+        <Form.Item className="tm-personal-preferences__row" name="theme" label={<span className="tm-personal-preferences__label"><BgColorsOutlined aria-hidden/>{tr("界面主题")}</span>} rules={[{required:true}]}><Select options={[{value:'light',label:tr('浅色模式')},{value:'dark',label:tr('深色模式')}]}/></Form.Item>
+        <Form.Item className="tm-personal-preferences__row" name="dateFormat" label={<span className="tm-personal-preferences__label"><CalendarOutlined aria-hidden/>{tr('首选日期格式')}</span>} rules={[{required:true}]}><Select options={[{value:'YYYY-MM-DD',label:'2026-10-27'},{value:'DD/MM/YYYY',label:'27/10/2026'},{value:'MM/DD/YYYY',label:'10/27/2026'}]}/></Form.Item>
+        <Alert className="tm-personal-preferences__hint" type="info" showIcon message={tr("语言和主题立即生效；日期格式适用于已接入统一日期组件的页面。")}/>
+        <ActionBar align="right"><Button type="primary" icon={<SaveOutlined aria-hidden/>} loading={saving} onClick={()=>void save()}>{tr("保存个人偏好")}</Button><Button icon={<UndoOutlined aria-hidden/>} disabled={saving} onClick={restore}>{tr("还原")}</Button></ActionBar>
       </Form>:null}
     </SectionCard>
   </TmPageContainer>;

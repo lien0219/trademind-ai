@@ -1,0 +1,63 @@
+.tm-personal-preferences {
+  &__row.ant-form-item {
+    margin-bottom: 0;
+    padding-block: var(--ant-padding-lg);
+    border-bottom: 1px solid var(--ant-color-border-secondary);
+
+    > .ant-form-item-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+      align-items: center;
+      gap: var(--ant-margin-lg);
+    }
+
+    .ant-form-item-label {
+      padding-bottom: 0;
+      text-align: start;
+
+      > label { height: auto; }
+    }
+
+    .ant-form-item-control { min-width: 0; }
+  }
+
+  &__label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ant-margin-sm);
+    font-weight: 500;
+
+    > .anticon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+      color: var(--ant-color-primary);
+      font-size: 18px;
+      background: var(--ant-color-primary-bg);
+      border-radius: var(--ant-border-radius);
+    }
+  }
+
+  &__hint.ant-alert {
+    margin-top: var(--ant-margin-lg);
+    background: var(--ant-color-fill-quaternary);
+    border-color: transparent;
+  }
+
+  &__error.ant-alert { margin-top: var(--ant-margin-lg); }
+
+  &__loading {
+    padding-block: var(--ant-padding-lg);
+    text-align: center;
+  }
+}
+
+@media (max-width: 575px) {
+  .tm-personal-preferences__row.ant-form-item > .ant-form-item-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ant-margin-sm);
+  }
+}
