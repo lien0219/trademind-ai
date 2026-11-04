@@ -84,6 +84,9 @@ The screenshots below show TradeMind's core workflow: **collection → draft →
 
 - Store authorization with Douyin Shop OAuth, encrypted secrets, and connection tests.
 - Business tenants with controlled provisioning, member invitations, per-tenant roles and store grants, server-validated session switching, and suspension revocation. See the [multi-tenant architecture](docs/MULTI_TENANT_ARCHITECTURE.md) for migration and acceptance boundaries.
+- Tenant business settings for language, timezone, reporting currency, collection rules, inventory thresholds, notifications, and branding, with configuration templates, history, import preview, and export.
+- Registration and email administration with open, invitation-only, and closed registration modes, email verification, password reset, SMTP settings, and categorized, previewable multilingual email templates.
+- Six admin UI languages: Simplified Chinese, English, Japanese, Traditional Chinese, Korean, and Thai, with tenant and personal language preferences.
 - Order collaboration with sync, SKU matching, and exception handling.
 - Inventory collaboration with stock mirrors, alerts, and sync tasks.
 - ERP procurement and returns with warehouse and supplier master data, manually confirmed replenishment-to-draft creation, purchase-order approval, partial receipts, receipt-bound supplier returns, warehouse movements, idempotent processing, and an Admin workspace with separated approval/execution duties and revision conflict protection.
