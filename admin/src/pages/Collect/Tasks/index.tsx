@@ -21,7 +21,7 @@ import {
 } from 'antd';
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
-import { COLLECT_SUCCESS_SHOP_HINT } from '@/constants/copywriting';
+import { COLLECT_SUCCESS_SHOP_HINT, commonStatusLabel } from '@/constants/copywriting';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { useUrlQueryState } from '@/hooks/useUrlState';
 import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
@@ -282,7 +282,7 @@ export default function CollectTasksPage() {
       },
       render: (_, row) => {
         const m = COLLECT_TASK_STATUS[row.status as keyof typeof COLLECT_TASK_STATUS];
-        return <Tag color={m?.color}>{m?.text ?? row.status}</Tag>;
+        return <Tag color={m?.color}>{m?.text ?? commonStatusLabel(row.status)}</Tag>;
       },
     },
     {

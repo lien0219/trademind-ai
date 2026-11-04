@@ -39,6 +39,8 @@ import {
   createFulfillmentWaveIdempotencyKey,
 } from "@/services/fulfillmentWaves";
 import { PERMISSIONS } from "@/utils/permission";
+import { ORDER_STATUS, ORDER_PAYMENT_STATUS } from "@/constants/status";
+import { commonStatusLabel } from "@/constants/copywriting";
 
 const STATUS_META = {
   allocated: { source: "已分仓", color: "success" },
@@ -275,9 +277,11 @@ export default function WarehouseAllocationsPage() {
       width: 125,
       render: (_, row) => (
         <Space direction="vertical" size={2}>
-          <Tag>{row.status}</Tag>
+          <Tag color={ORDER_STATUS[row.status as keyof typeof ORDER_STATUS]?.color}>
+            {ORDER_STATUS[row.status as keyof typeof ORDER_STATUS]?.text || commonStatusLabel(row.status)}
+          </Tag>
           <Typography.Text type="secondary">
-            {row.paymentStatus}
+            {ORDER_PAYMENT_STATUS[row.paymentStatus as keyof typeof ORDER_PAYMENT_STATUS]?.text || commonStatusLabel(row.paymentStatus)}
           </Typography.Text>
         </Space>
       ),

@@ -38,6 +38,7 @@ import { listInventoryWarehouses, type InventoryWarehouse } from '@/services/inv
 import { formatDateTime } from '@/utils/formatTime';
 import { parsePositiveInt } from '@/utils/urlState';
 import { PERMISSIONS } from '@/utils/permission';
+import { commonStatusLabel } from '@/constants/copywriting';
 
 const QUERY_KEYS = [
   'page',
@@ -69,7 +70,7 @@ function statusTag(
   map: Record<string, { text: string; color: string }>,
 ) {
   const meta = value ? map[value] : undefined;
-  return <Tag color={meta?.color}>{meta?.text || value || '—'}</Tag>;
+  return <Tag color={meta?.color}>{meta?.text || commonStatusLabel(value)}</Tag>;
 }
 
 function actionSummary(summary: FulfillmentActionSummary) {
@@ -270,12 +271,12 @@ export default function FulfillmentReconciliationPage() {
       width: 110,
       render: (_, row) => timelineType(row.type),
     },
-    { title: tr("动作"), dataIndex: 'action', width: 150, ellipsis: true },
+    { title: tr("动作"), dataIndex: 'action', width: 150, ellipsis: true, render: (_, row) => tr(ACTION_LABELS[row.action as keyof typeof ACTION_LABELS] || row.action || '—') },
     {
       title: tr("状态"),
       dataIndex: 'status',
       width: 96,
-      render: (_, row) => row.status || '—',
+      render: (_, row) => commonStatusLabel(row.status),
     },
     {
       title: tr("数量"),

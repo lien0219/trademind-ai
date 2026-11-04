@@ -9,6 +9,7 @@ import { Link } from '@umijs/renderer-react';
 import { Button, Drawer, Form, Input, message, Space, Tag, Alert, Select, Typography } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_BATCH_STATUS, COLLECT_TASK_STATUS } from '@/constants/status';
+import { commonStatusLabel } from '@/constants/copywriting';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
 import {
   createCollectBatch,
@@ -226,7 +227,7 @@ export default function CollectBatchesPage() {
       ),
       render: (_, row) => {
         const m = COLLECT_BATCH_STATUS[row.status as keyof typeof COLLECT_BATCH_STATUS];
-        return <Tag color={m?.color}>{m?.text ?? row.status}</Tag>;
+        return <Tag color={m?.color}>{m?.text ?? commonStatusLabel(row.status)}</Tag>;
       },
     },
     {
@@ -325,7 +326,7 @@ export default function CollectBatchesPage() {
       },
       render: (_, row) => {
         const m = COLLECT_TASK_STATUS[row.status as keyof typeof COLLECT_TASK_STATUS];
-        return <Tag color={m?.color}>{m?.text ?? row.status}</Tag>;
+        return <Tag color={m?.color}>{m?.text ?? commonStatusLabel(row.status)}</Tag>;
       },
     },
     {
