@@ -14,6 +14,10 @@ export type StatusTagProps = {
 };
 
 const STATUS_COLOR_MAP: Record<string, StatusColor> = {
+  active: 'success', accepted: 'success',
+  invited: 'processing', suspended: 'warning', paused: 'warning',
+  archived: 'default', closed: 'default', deleted: 'default', removed: 'default',
+  processing: 'processing', in_progress: 'processing', pending_approval: 'warning',
   pending: 'processing',
   running: 'processing',
   success: 'success',
