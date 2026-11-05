@@ -445,7 +445,11 @@ test('@smoke maps built-in role codes to localized labels in member list and inv
   await expect(page.getByRole('cell', { name: '管理员', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '邀请成员' }).first().click();
   const dialog = page.getByRole('dialog', { name: '邀请成员' });
-  await dialog.getByLabel('企业角色').click();
+  // Ant Design's selected item overlays the readonly combobox input.
+  // Click the labeled selector container (the real user target), not the input.
+  await dialog.getByLabel('企业角色')
+    .locator('xpath=ancestor::div[contains(@class, "ant-select-selector")]')
+    .click();
   for (const label of ['管理员', '运营', '审核', '只读']) {
     await expect(page.getByRole('option', { name: label })).toBeVisible();
   }
