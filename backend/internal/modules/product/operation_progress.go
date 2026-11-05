@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/gorm"
 )
 
@@ -84,8 +85,13 @@ func (s *Service) GetOperationProgress(ctx context.Context, productID uuid.UUID)
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	tenant, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	productQuery := s.DB.WithContext(ctx).Where("tenant_id = ?", tenant.TenantID)
 	var p Product
-	if err := s.DB.WithContext(ctx).
+	if err := productQuery.
 		Preload("Images", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).
 		Preload("SKUs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
 		First(&p, "id = ?", productID).Error; err != nil {

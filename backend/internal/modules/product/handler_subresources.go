@@ -149,6 +149,9 @@ func (h *Handler) PostImage(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -175,6 +178,9 @@ func (h *Handler) PostImage(c *gin.Context) {
 func (h *Handler) PutImage(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -210,6 +216,9 @@ func (h *Handler) DeleteImage(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -235,6 +244,9 @@ func (h *Handler) DeleteImage(c *gin.Context) {
 func (h *Handler) PostImagesReorder(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

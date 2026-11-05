@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import {
   TmPageContainer,
   TechnicalDetails,
@@ -75,9 +77,9 @@ function fulfillmentBlockReason(
   order: OrderDetailDTO,
   writable: boolean,
 ): string | undefined {
-  if (!writable) return "当前账号没有订单操作权限";
-  if (!order.warehouseId) return "请先绑定履约仓库";
-  if (order.paymentStatus !== "paid") return "订单必须先标记为已支付";
+  if (!writable) return tr("当前账号没有订单操作权限");
+  if (!order.warehouseId) return tr("请先绑定履约仓库");
+  if (order.paymentStatus !== "paid") return tr("订单必须先标记为已支付");
   if (
     order.status === "cancelled" ||
     order.status === "refunded" ||
@@ -85,19 +87,20 @@ function fulfillmentBlockReason(
     order.status === "shipped" ||
     order.status === "delivered"
   ) {
-    return "订单已取消、退款、关闭或发货，不能重复履约";
+    return tr("订单已取消、退款、关闭或发货，不能重复履约");
   }
-  if (order.fulfillmentStatus === "fulfilled") return "订单已完成履约";
+  if (order.fulfillmentStatus === "fulfilled") return tr("订单已完成履约");
   if (
     order.items.length === 0 ||
     order.items.some((item) => !item.productSkuId || item.quantity <= 0)
   ) {
-    return "请先为所有订单明细绑定本地 SKU";
+    return tr("请先为所有订单明细绑定本地 SKU");
   }
   return undefined;
 }
 
 export default function OrderDetailPage() {
+  useLanguage();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const itemIdFocus = searchParams.get("itemId")?.trim();
@@ -138,7 +141,7 @@ export default function OrderDetailPage() {
 
   const fulfillmentDisabledReason = detail
     ? fulfillmentBlockReason(detail, writable)
-    : "订单详情不可用";
+    : tr("订单详情不可用");
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -153,7 +156,7 @@ export default function OrderDetailPage() {
       setSkuRows(sku.items ?? []);
       setInvRows(inv.list ?? []);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || "加载订单失败");
+      message.error(tr((e as Error)?.message || tr("加载订单失败")));
     } finally {
       setLoading(false);
     }
@@ -168,7 +171,7 @@ export default function OrderDetailPage() {
     } catch (e: unknown) {
       const errorMessage = (e as Error)?.message || "加载履约对账失败";
       setReconciliationError(errorMessage);
-      message.error(errorMessage);
+      message.error(tr(errorMessage));
       setReconciliation(null);
     } finally {
       setReconciliationLoading(false);
@@ -234,15 +237,15 @@ export default function OrderDetailPage() {
 
   if (!id) {
     return (
-      <TmPageContainer title="订单详情">
-        <Alert type="error" message="缺少订单 ID" />
+      <TmPageContainer title={tr("订单详情")}>
+        <Alert type="error" message={tr("缺少订单 ID")} />
       </TmPageContainer>
     );
   }
 
   return (
     <TmPageContainer
-      title={detail ? `订单 ${detail.orderNo}` : "订单详情"}
+      title={detail ? trFormat("订单 {value0}", { value0: detail.orderNo }) : tr("订单详情")}
       loading={loading}
       onBack={() => {
         if (window.history.length > 1) {
@@ -256,7 +259,7 @@ export default function OrderDetailPage() {
           <Button
             type="primary"
             disabled={Boolean(fulfillmentDisabledReason) || fulfillLoading}
-            title={fulfillmentDisabledReason}
+            title={fulfillmentDisabledReason ? tr(fulfillmentDisabledReason) : undefined}
             onClick={() => {
               if (!detail) return;
               fulfillForm.resetFields();
@@ -266,7 +269,7 @@ export default function OrderDetailPage() {
               setFulfillModalOpen(true);
             }}
           >
-            确认发货
+            {tr("确认发货")}
           </Button>
           {canViewSalesReturns ? (
             <Button
@@ -276,12 +279,12 @@ export default function OrderDetailPage() {
                 )
               }
             >
-              售后记录
+              {tr("售后记录")}
             </Button>
           ) : null}
           {canManageSalesReturns ? (
             <Button type="primary" onClick={() => setSalesReturnOpen(true)}>
-              发起售后
+              {tr("发起售后")}
             </Button>
           ) : null}
           <Button
@@ -294,14 +297,14 @@ export default function OrderDetailPage() {
               )
             }
           >
-            异常工作台
+            {tr("异常工作台")}
           </Button>
           <Button
             onClick={() =>
               history.push("/ops/task-center/failures?taskType=inventory_sync")
             }
           >
-            失败任务中心
+            {tr("失败任务中心")}
           </Button>
           <Button
             onClick={() =>
@@ -313,10 +316,10 @@ export default function OrderDetailPage() {
               )
             }
           >
-            扣减记录
+            {tr("扣减记录")}
           </Button>
           <Button type="link" onClick={() => history.goBack()}>
-            返回列表
+            {tr("返回列表")}
           </Button>
         </Space>
       }
@@ -327,8 +330,8 @@ export default function OrderDetailPage() {
           showIcon
           type="warning"
           style={{ marginBottom: 16 }}
-          message="抖店/平台凭证待真实授权"
-          description="未配置真实店铺凭证时，平台订单不会同步成功；请先完成店铺授权并通过连接检查。"
+          message={tr("抖店/平台凭证待真实授权")}
+          description={tr("未配置真实店铺凭证时，平台订单不会同步成功；请先完成店铺授权并通过连接检查。")}
         />
       ) : null}
 
@@ -337,7 +340,7 @@ export default function OrderDetailPage() {
           showIcon
           type="info"
           style={{ marginBottom: 16 }}
-          message={fulfillmentDisabledReason}
+          message={tr(fulfillmentDisabledReason)}
         />
       ) : null}
 
@@ -349,12 +352,12 @@ export default function OrderDetailPage() {
           showIcon
           type="info"
           style={{ marginBottom: 16 }}
-          message="存在未完全匹配的 SKU"
+          message={tr("存在未完全匹配的 SKU")}
           description={
             <span>
-              请先在「规格匹配」Tab 人工确认候选或绑定本地 SKU，再执行库存扣减。{" "}
+              {tr("请先在「规格匹配」Tab 人工确认候选或绑定本地 SKU，再执行库存扣减。")}{" "}
               <Typography.Link onClick={() => setActiveTab("sku")}>
-                前往规格匹配
+                {tr("前往规格匹配")}
               </Typography.Link>
             </span>
           }
@@ -368,68 +371,68 @@ export default function OrderDetailPage() {
           items={[
             {
               key: "overview",
-              label: "订单概览",
+              label: tr("订单概览"),
               children: (
                 <Row gutter={[16, 16]}>
                   <Col span={24}>
-                    <Card size="small" title="基本信息">
+                    <Card size="small" title={tr("基本信息")}>
                       <Descriptions
                         column={{ xs: 1, sm: 2, md: 3 }}
                         size="small"
                         bordered
                       >
-                        <Descriptions.Item label="订单号">
+                        <Descriptions.Item label={tr("订单号")}>
                           {detail.orderNo}
                         </Descriptions.Item>
-                        <Descriptions.Item label="平台订单号">
+                        <Descriptions.Item label={tr("平台订单号")}>
                           {detail.externalOrderId || "—"}
                         </Descriptions.Item>
-                        <Descriptions.Item label="平台">
+                        <Descriptions.Item label={tr("平台")}>
                           {detail.platform}
                         </Descriptions.Item>
-                        <Descriptions.Item label="店铺">
+                        <Descriptions.Item label={tr("店铺")}>
                           {detail.shopSummary?.shopName || "—"}
                           {detail.shopSummary?.platform
                             ? ` (${detail.shopSummary.platform})`
                             : ""}
                         </Descriptions.Item>
-                        <Descriptions.Item label="履约仓库">
+                        <Descriptions.Item label={tr("履约仓库")}>
                           {detail.warehouseId || "—"}
                         </Descriptions.Item>
-                        <Descriptions.Item label="订单状态">
+                        <Descriptions.Item label={tr("订单状态")}>
                           {tagFromMap(detail.status, ORDER_STATUS)}
                         </Descriptions.Item>
-                        <Descriptions.Item label="付款状态">
+                        <Descriptions.Item label={tr("付款状态")}>
                           {tagFromMap(
                             detail.paymentStatus,
                             ORDER_PAYMENT_STATUS,
                           )}
                         </Descriptions.Item>
-                        <Descriptions.Item label="履约状态">
+                        <Descriptions.Item label={tr("履约状态")}>
                           {tagFromMap(
                             detail.fulfillmentStatus,
                             ORDER_FULFILLMENT_STATUS,
                           )}
                         </Descriptions.Item>
-                        <Descriptions.Item label="金额">
+                        <Descriptions.Item label={tr("金额")}>
                           {detail.currency} {detail.totalAmount}
                         </Descriptions.Item>
-                        <Descriptions.Item label="下单时间">
+                        <Descriptions.Item label={tr("下单时间")}>
                           {detail.orderedAt
                             ? formatDateTime(detail.orderedAt)
                             : "—"}
                         </Descriptions.Item>
-                        <Descriptions.Item label="创建时间">
+                        <Descriptions.Item label={tr("创建时间")}>
                           {formatDateTime(detail.createdAt)}
                         </Descriptions.Item>
-                        <Descriptions.Item label="更新时间">
+                        <Descriptions.Item label={tr("更新时间")}>
                           {formatDateTime(detail.updatedAt)}
                         </Descriptions.Item>
                       </Descriptions>
                     </Card>
                   </Col>
                   <Col xs={24} md={8}>
-                    <Card size="small" title="规格匹配">
+                    <Card size="small" title={tr("规格匹配")}>
                       {listSummary
                         ? tagFromMap(
                             listSummary.skuStatus,
@@ -438,13 +441,13 @@ export default function OrderDetailPage() {
                         : "—"}
                       <div style={{ marginTop: 8 }}>
                         {listSummary
-                          ? `${listSummary.matched}/${listSummary.total} 行已匹配`
+                          ? trFormat("{value0}/{value1} 行已匹配", { value0: String(listSummary.matched), value1: String(listSummary.total) })
                           : ""}
                       </div>
                     </Card>
                   </Col>
                   <Col xs={24} md={8}>
-                    <Card size="small" title="库存影响">
+                    <Card size="small" title={tr("库存影响")}>
                       {listSummary
                         ? tagFromMap(
                             listSummary.invStatus,
@@ -454,7 +457,7 @@ export default function OrderDetailPage() {
                     </Card>
                   </Col>
                   <Col xs={24} md={8}>
-                    <Card size="small" title="同步状态">
+                    <Card size="small" title={tr("同步状态")}>
                       {listSummary
                         ? tagFromMap(listSummary.syncSt, ORDER_SYNC_SUMMARY)
                         : "—"}
@@ -465,19 +468,19 @@ export default function OrderDetailPage() {
             },
             {
               key: "buyer",
-              label: "买家信息",
+              label: tr("买家信息"),
               children: (
                 <Descriptions column={1} bordered size="small">
-                  <Descriptions.Item label="买家">
+                  <Descriptions.Item label={tr("买家")}>
                     {detail.customerName}
                   </Descriptions.Item>
-                  <Descriptions.Item label="邮箱">
+                  <Descriptions.Item label={tr("邮箱")}>
                     {detail.customerEmail || "—"}
                   </Descriptions.Item>
-                  <Descriptions.Item label="电话">
+                  <Descriptions.Item label={tr("电话")}>
                     {detail.customerPhone || "—"}
                   </Descriptions.Item>
-                  <Descriptions.Item label="物流目的地">
+                  <Descriptions.Item label={tr("物流目的地")}>
                     {[
                       detail.destinationCountryCode,
                       detail.destinationRegion,
@@ -486,9 +489,9 @@ export default function OrderDetailPage() {
                       .filter(Boolean)
                       .join(" · ") || "—"}
                   </Descriptions.Item>
-                  <Descriptions.Item label="说明">
+                  <Descriptions.Item label={tr("说明")}>
                     <Typography.Text type="secondary">
-                      联系方式已脱敏展示；完整信息需相应权限。
+                      {tr("联系方式已脱敏展示；完整信息需相应权限。")}
                     </Typography.Text>
                   </Descriptions.Item>
                 </Descriptions>
@@ -496,7 +499,7 @@ export default function OrderDetailPage() {
             },
             {
               key: "items",
-              label: "商品明细",
+              label: tr("商品明细"),
               children: (
                 <Table
                   rowKey="id"
@@ -510,32 +513,32 @@ export default function OrderDetailPage() {
                   }
                   columns={[
                     {
-                      title: "平台商品 ID",
+                      title: tr("平台商品 ID"),
                       dataIndex: "externalItemId",
                       width: 120,
                       render: (v) => v || "—",
                     },
                     {
-                      title: "平台规格编号",
+                      title: tr("平台规格编号"),
                       dataIndex: "externalSkuId",
                       width: 120,
                       render: (v) => v || "—",
                     },
                     {
-                      title: "标题",
+                      title: tr("标题"),
                       dataIndex: "productTitle",
                       ellipsis: true,
                     },
                     {
-                      title: "规格",
+                      title: tr("规格"),
                       dataIndex: "skuName",
                       width: 120,
                       render: (v) => v || "—",
                     },
-                    { title: "数量", dataIndex: "quantity", width: 64 },
-                    { title: "单价", dataIndex: "unitPrice", width: 88 },
+                    { title: tr("数量"), dataIndex: "quantity", width: 64 },
+                    { title: tr("单价"), dataIndex: "unitPrice", width: 88 },
                     {
-                      title: "匹配状态",
+                      title: tr("匹配状态"),
                       width: 108,
                       render: (_, row) => {
                         const m = skuRows.find((s) => s.orderItemId === row.id);
@@ -546,7 +549,7 @@ export default function OrderDetailPage() {
                       },
                     },
                     {
-                      title: "本地规格编号",
+                      title: tr("本地规格编号"),
                       width: 120,
                       render: (_, row) => {
                         const m = skuRows.find((s) => s.orderItemId === row.id);
@@ -554,7 +557,7 @@ export default function OrderDetailPage() {
                       },
                     },
                     {
-                      title: "置信度",
+                      title: tr("置信度"),
                       width: 72,
                       render: (_, row) => {
                         const m = skuRows.find((s) => s.orderItemId === row.id);
@@ -567,7 +570,7 @@ export default function OrderDetailPage() {
             },
             {
               key: "sku",
-              label: "规格匹配",
+              label: tr("规格匹配"),
               children: (
                 <OrderSkuMatchTab
                   orderId={detail.id}
@@ -579,7 +582,7 @@ export default function OrderDetailPage() {
             },
             {
               key: "inv",
-              label: "库存影响",
+              label: tr("库存影响"),
               children: (
                 <>
                   {listSummary?.invStatus === "blocked" ? (
@@ -587,13 +590,13 @@ export default function OrderDetailPage() {
                       showIcon
                       type="warning"
                       style={{ marginBottom: 12 }}
-                      message="SKU 未就绪，暂不能扣减库存"
+                      message={tr("SKU 未就绪，暂不能扣减库存")}
                       description={
                         <>
                           {INVENTORY_SKU_NOT_BOUND_MESSAGE}{" "}
                           {INVENTORY_SKU_AMBIGUOUS_MESSAGE}{" "}
                           <Typography.Link onClick={() => setActiveTab("sku")}>
-                            前往规格匹配
+                            {tr("前往规格匹配")}
                           </Typography.Link>
                         </>
                       }
@@ -609,10 +612,10 @@ export default function OrderDetailPage() {
                               : "default"
                           }
                         >
-                          预占
+                          {tr("预占")}
                           {detail.inventorySummary.hasReservationSuccess
-                            ? "：已有成功"
-                            : "：尚未成功"}
+                            ? tr("：已有成功")
+                            : tr("：尚未成功")}
                         </Tag>
                         <Tag
                           color={
@@ -621,10 +624,10 @@ export default function OrderDetailPage() {
                               : "default"
                           }
                         >
-                          出库
+                          {tr("出库")}
                           {detail.inventorySummary.hasDeductionSuccess
-                            ? "：已有成功"
-                            : "：尚未成功"}
+                            ? tr("：已有成功")
+                            : tr("：尚未成功")}
                         </Tag>
                         <Tag
                           color={
@@ -633,10 +636,10 @@ export default function OrderDetailPage() {
                               : "default"
                           }
                         >
-                          释放
+                          {tr("释放")}
                           {detail.inventorySummary.hasReleaseSuccess
-                            ? "：已有成功"
-                            : "：未记录"}
+                            ? tr("：已有成功")
+                            : tr("：未记录")}
                         </Tag>
                         <Tag
                           color={
@@ -645,27 +648,27 @@ export default function OrderDetailPage() {
                               : "default"
                           }
                         >
-                          回补
+                          {tr("回补")}
                           {detail.inventorySummary.hasRestoreSuccess
-                            ? "：有过成功"
-                            : "：未记录"}
+                            ? tr("：有过成功")
+                            : tr("：未记录")}
                         </Tag>
                       </>
                     ) : null}
                     <Typography.Link
                       href={`/inventory/deductions?orderId=${encodeURIComponent(detail.id)}`}
                     >
-                      扣减记录
+                      {tr("扣减记录")}
                     </Typography.Link>
                     <Typography.Link
                       href={`/inventory/sync-tasks?orderId=${encodeURIComponent(detail.id)}`}
                     >
-                      同步任务
+                      {tr("同步任务")}
                     </Typography.Link>
                     <Typography.Link
                       href={`/orders/exceptions?orderId=${encodeURIComponent(detail.id)}`}
                     >
-                      库存异常
+                      {tr("库存异常")}
                     </Typography.Link>
                   </Space>
                   <Table
@@ -675,18 +678,18 @@ export default function OrderDetailPage() {
                     pagination={{ pageSize: 10 }}
                     columns={[
                       {
-                        title: "类型",
+                        title: tr("类型"),
                         dataIndex: "effectType",
                         width: 100,
                         render: (v) =>
                           v === "deduct"
-                            ? "扣减"
+                            ? tr("扣减")
                             : v === "restore"
-                              ? "回滚"
+                              ? tr("回滚")
                               : v,
                       },
                       {
-                        title: "状态",
+                        title: tr("状态"),
                         dataIndex: "status",
                         width: 88,
                         render: (v) => {
@@ -703,26 +706,26 @@ export default function OrderDetailPage() {
                         width: 120,
                         render: (v) => v || "—",
                       },
-                      { title: "数量", dataIndex: "quantity", width: 64 },
+                      { title: tr("数量"), dataIndex: "quantity", width: 64 },
                       {
-                        title: "扣减前",
+                        title: tr("扣减前"),
                         dataIndex: "beforeStock",
                         width: 72,
                         render: (v) => v ?? "—",
                       },
                       {
-                        title: "扣减后",
+                        title: tr("扣减后"),
                         dataIndex: "afterStock",
                         width: 72,
                         render: (v) => v ?? "—",
                       },
                       {
-                        title: "原因 / 错误",
+                        title: tr("原因 / 错误"),
                         render: (_, r) => r.errorMessage || r.reason || "—",
                         ellipsis: true,
                       },
                       {
-                        title: "时间",
+                        title: tr("时间"),
                         dataIndex: "createdAt",
                         width: 156,
                         render: (v) => formatDateTime(v),
@@ -734,21 +737,21 @@ export default function OrderDetailPage() {
             },
             {
               key: "tracking",
-              label: "物流轨迹",
+              label: tr("物流轨迹"),
               children: (
                 <OrderTrackingTab orderId={detail.id} readOnly={!writable} />
               ),
             },
             {
               key: "reconciliation",
-              label: "履约对账",
+              label: tr("履约对账"),
               children: reconciliationLoading ? (
-                <Alert type="info" message="正在加载履约对账" />
+                <Alert type="info" message={tr("正在加载履约对账")} />
               ) : reconciliationError ? (
                 <Alert
                   type="error"
-                  message="履约对账加载失败"
-                  description={reconciliationError}
+                  message={tr("履约对账加载失败")}
+                  description={tr(reconciliationError)}
                 />
               ) : reconciliation ? (
                 <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -757,31 +760,31 @@ export default function OrderDetailPage() {
                     size="small"
                     column={{ xs: 1, sm: 2, md: 3 }}
                   >
-                    <Descriptions.Item label="对账状态">
+                    <Descriptions.Item label={tr("对账状态")}>
                       {tagFromMap(
                         reconciliation.reconciliationStatus,
                         ORDER_FULFILLMENT_RECONCILIATION_STATUS,
                       )}
                     </Descriptions.Item>
-                    <Descriptions.Item label="订单状态">
+                    <Descriptions.Item label={tr("订单状态")}>
                       {tagFromMap(reconciliation.status, ORDER_STATUS)}
                     </Descriptions.Item>
-                    <Descriptions.Item label="履约状态">
+                    <Descriptions.Item label={tr("履约状态")}>
                       {tagFromMap(
                         reconciliation.fulfillmentStatus,
                         ORDER_FULFILLMENT_STATUS,
                       )}
                     </Descriptions.Item>
-                    <Descriptions.Item label="履约仓库">
+                    <Descriptions.Item label={tr("履约仓库")}>
                       {reconciliation.warehouseId || "—"}
                     </Descriptions.Item>
-                    <Descriptions.Item label="发货单数量">
+                    <Descriptions.Item label={tr("发货单数量")}>
                       {reconciliation.shipmentCount}
                     </Descriptions.Item>
-                    <Descriptions.Item label="库存 effect 数量">
+                    <Descriptions.Item label={tr("库存 effect 数量")}>
                       {reconciliation.effectCount}
                     </Descriptions.Item>
-                    <Descriptions.Item label="最后库存动作">
+                    <Descriptions.Item label={tr("最后库存动作")}>
                       {reconciliation.lastInventoryActionAt
                         ? formatDateTime(reconciliation.lastInventoryActionAt)
                         : "—"}
@@ -791,25 +794,25 @@ export default function OrderDetailPage() {
                     rowKey="id"
                     size="small"
                     pagination={false}
-                    locale={{ emptyText: "暂无库存或发货事实" }}
+                    locale={{ emptyText: tr("暂无库存或发货事实") }}
                     dataSource={reconciliation.timeline ?? []}
                     columns={[
-                      { title: "事实", dataIndex: "type", width: 96 },
-                      { title: "动作", dataIndex: "action", width: 150 },
+                      { title: tr("事实"), dataIndex: "type", width: 96 },
+                      { title: tr("动作"), dataIndex: "action", width: 150 },
                       {
-                        title: "状态",
+                        title: tr("状态"),
                         dataIndex: "status",
                         width: 96,
                         render: (v) => v || "—",
                       },
                       {
-                        title: "数量",
+                        title: tr("数量"),
                         dataIndex: "quantity",
                         width: 72,
                         render: (v) => v ?? "—",
                       },
                       {
-                        title: "时间",
+                        title: tr("时间"),
                         dataIndex: "createdAt",
                         width: 180,
                         render: (v) => formatDateTime(v),
@@ -836,7 +839,7 @@ export default function OrderDetailPage() {
                     )}
                     {reconciliation.issues?.length ? (
                       <Typography.Text type="danger">
-                        异常：
+                        {tr("异常：")}
                         {reconciliation.issues
                           .map(
                             (issue) =>
@@ -854,22 +857,22 @@ export default function OrderDetailPage() {
                           "order_detail",
                         )}
                       >
-                        打开订单异常工作台
+                        {tr("打开订单异常工作台")}
                       </Typography.Link>
                     ) : null}
                   </Space>
                 </Space>
               ) : (
-                <Alert type="warning" message="履约对账暂不可用" />
+                <Alert type="warning" message={tr("履约对账暂不可用")} />
               ),
             },
             {
               key: "exceptions",
-              label: "异常记录",
+              label: tr("异常记录"),
               children: (
                 <Space direction="vertical">
                   <Typography.Paragraph type="secondary">
-                    订单相关异常统一在异常工作台处理；此处提供快捷入口。
+                    {tr("订单相关异常统一在异常工作台处理；此处提供快捷入口。")}
                   </Typography.Paragraph>
                   <Button
                     type="primary"
@@ -882,22 +885,22 @@ export default function OrderDetailPage() {
                       )
                     }
                   >
-                    打开该订单的异常工作台
+                    {tr("打开该订单的异常工作台")}
                   </Button>
                 </Space>
               ),
             },
             {
               key: "tech",
-              label: "技术详情",
+              label: tr("技术详情"),
               children: (
                 <TechnicalDetails>
                   <TaskJsonBlock
-                    title="订单 ID"
+                    title={tr("订单 ID")}
                     value={{ id: detail.id, tenantId: detail.tenantId }}
                   />
                   <TaskJsonBlock
-                    title="原始 items 数量"
+                    title={tr("原始 items 数量")}
                     value={{ count: detail.items.length }}
                     last
                   />
@@ -910,13 +913,13 @@ export default function OrderDetailPage() {
         !loading && (
           <Alert
             type="info"
-            message="未找到订单"
-            description="请从订单列表重新进入，或检查是否有访问权限。"
+            message={tr("未找到订单")}
+            description={tr("请从订单列表重新进入，或检查是否有访问权限。")}
           />
         )
       )}
       <Modal
-        title="确认发货"
+        title={tr("确认发货")}
         open={fulfillModalOpen}
         confirmLoading={fulfillLoading}
         onCancel={() => {
@@ -940,10 +943,10 @@ export default function OrderDetailPage() {
               trackingUrl: String(values.trackingUrl || "").trim() || undefined,
             });
             setFulfillModalOpen(false);
-            message.success("已完成发货并扣减库存");
+            message.success(tr("已完成发货并扣减库存"));
             await load();
           } catch (e: unknown) {
-            message.error((e as Error)?.message || "发货失败");
+            message.error(tr((e as Error)?.message || tr("发货失败")));
           } finally {
             setFulfillLoading(false);
           }
@@ -953,27 +956,27 @@ export default function OrderDetailPage() {
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
-          message="确认后会在履约仓库实际扣减库存，并将订单标记为已发货 / 已履约。"
+          message={tr("确认后会在履约仓库实际扣减库存，并将订单标记为已发货 / 已履约。")}
         />
         <Typography.Paragraph type="secondary">
-          履约仓库：{detail?.warehouseId || "未绑定"}
+          {tr("履约仓库：")}{detail?.warehouseId || tr("未绑定")}
         </Typography.Paragraph>
         <Form form={fulfillForm} layout="vertical">
           <Form.Item
             name="carrier"
-            label="承运商"
-            rules={[{ required: true, message: "请填写承运商" }]}
+            label={tr("承运商")}
+            rules={[{ required: true, message: tr("请填写承运商") }]}
           >
-            <Input maxLength={128} placeholder="例如：顺丰" />
+            <Input maxLength={128} placeholder={tr("例如：顺丰")} />
           </Form.Item>
           <Form.Item
             name="trackingNo"
-            label="运单号"
-            rules={[{ required: true, message: "请填写运单号" }]}
+            label={tr("运单号")}
+            rules={[{ required: true, message: tr("请填写运单号") }]}
           >
             <Input maxLength={255} />
           </Form.Item>
-          <Form.Item name="trackingUrl" label="追踪 URL">
+          <Form.Item name="trackingUrl" label={tr("追踪 URL")}>
             <Input maxLength={2048} type="url" />
           </Form.Item>
         </Form>

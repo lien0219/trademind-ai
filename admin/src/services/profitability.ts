@@ -1,5 +1,6 @@
 import { request } from '@umijs/max';
 import { getJSON, getWithParams } from '@/services/request';
+import { captureTenantContext, isTenantContextCurrent, isTenantSwitching } from '@/utils/tenantContext';
 
 export type ProfitabilityStatus = 'complete' | 'pending' | 'mismatch' | 'blocked';
 export type ProfitComponentStatus = 'available' | 'missing' | 'pending' | 'mismatch' | 'blocked';
@@ -145,7 +146,16 @@ export async function getOrderProfit(orderId: string) {
   return getJSON<OrderProfitDetail>(`/api/v1/order-profits/${encodeURIComponent(orderId)}`);
 }
 
-export async function downloadOrderProfits(params: Omit<OrderProfitListParams, 'page' | 'pageSize'>) {
+export async function downloadOrderProfits(
+  params: Omit<OrderProfitListParams, 'page' | 'pageSize'>,
+  isCurrent: () => boolean,
+): Promise<boolean> {
+  // A caller-supplied callback guards its component, while the service itself
+  // independently rejects exports after tenant switch, logout or token rotation.
+  // Do not rely on callers always passing a correctly fenced callback.
+  const context = captureTenantContext();
+  const mayDownload = () => isCurrent() && !isTenantSwitching() && isTenantContextCurrent(context);
+  if (!mayDownload()) return false;
   const query = new URLSearchParams({ format: 'csv' });
   const entries: Array<[string, string | undefined]> = [
     ['orderNo', params.orderNo?.trim() || undefined],
@@ -164,15 +174,20 @@ export async function downloadOrderProfits(params: Omit<OrderProfitListParams, '
     method: 'GET',
     responseType: 'blob',
   });
+  if (!mayDownload()) return false;
   const objectURL = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
-  anchor.href = objectURL;
-  anchor.download = 'order-profit-estimates.csv';
-  anchor.rel = 'noopener';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(objectURL);
+  try {
+    anchor.href = objectURL;
+    anchor.download = 'order-profit-estimates.csv';
+    anchor.rel = 'noopener';
+    document.body.appendChild(anchor);
+    anchor.click();
+    return true;
+  } finally {
+    anchor.remove();
+    URL.revokeObjectURL(objectURL);
+  }
 }
 
 export function currencyMinorExponent(currency: string) {

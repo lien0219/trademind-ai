@@ -64,6 +64,18 @@ func (s *Service) tryClaimImageTask(ctx context.Context, taskID uuid.UUID, worke
 	if s == nil || s.DB == nil {
 		return nil, nil, false, fmt.Errorf("imagetask: no db")
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if scoped {
+		var probe ImageTask
+		query := s.DB.WithContext(ctx).Where("id = ?", taskID)
+		query = scopeImageTaskQuery(query, tenantID, scoped)
+		if err := query.First(&probe).Error; err != nil {
+			return nil, nil, false, err
+		}
+	}
 	claim, ok, err := tasklease.TryClaimPendingOrRetrying(ctx, s.DB, ImageTask{}.TableName(), StatusPending, StatusRetrying, StatusRunning, taskID, workerID, lease)
 	if err != nil {
 		return nil, nil, false, err
@@ -72,7 +84,9 @@ func (s *Service) tryClaimImageTask(ctx context.Context, taskID uuid.UUID, worke
 		return nil, nil, false, nil
 	}
 	var task ImageTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
+	query := s.DB.WithContext(ctx).Where("id = ?", taskID)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	if err := query.First(&task).Error; err != nil {
 		return nil, nil, false, err
 	}
 	return &task, &claim, true, nil
@@ -101,9 +115,15 @@ func (s *Service) finishImageTask(ctx context.Context, taskID uuid.UUID, workerI
 	updates["locked_by"] = nil
 	updates["locked_until"] = nil
 	updates["updated_at"] = now
-	res := s.DB.WithContext(ctx).Model(&ImageTask{}).
+	tenantID, scoped, scopeErr := imageTaskTenantScope(ctx)
+	if scopeErr != nil {
+		return scopeErr
+	}
+	query := s.DB.WithContext(ctx).Model(&ImageTask{}).
 		Where("id = ? AND locked_by = ? AND execution_id = ? AND lock_version = ?",
-			taskID, workerID, claim.ExecutionID.String(), claim.LeaseVersion).
+			taskID, workerID, claim.ExecutionID.String(), claim.LeaseVersion)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	res := query.
 		Updates(updates)
 	if res.Error != nil {
 		return res.Error
@@ -122,8 +142,14 @@ func (s *Service) handleImagePanic(parent context.Context, httpCtx *gin.Context,
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return
+	}
 	var cur ImageTask
-	if err := s.DB.WithContext(ctx).First(&cur, "id = ?", taskID).Error; err != nil {
+	query := s.DB.WithContext(ctx).Where("id = ?", taskID)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	if err := query.First(&cur).Error; err != nil {
 		return
 	}
 	if cur.Status != StatusRunning || cur.LockedBy == nil || *cur.LockedBy != workerID {
@@ -140,13 +166,21 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 	}
 	now := time.Now().UTC()
 	var task ImageTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return err
+	}
+	query := s.DB.WithContext(ctx).Where("id = ?", taskID)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	if err := query.First(&task).Error; err != nil {
 		return err
 	}
 	if task.Status != StatusRunning || task.LockedUntil == nil || !task.LockedUntil.Before(now) {
 		return nil
 	}
-	_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", taskID).
+	update := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", taskID)
+	update = scopeImageTaskQuery(update, tenantID, scoped)
+	_ = update.
 		Updates(map[string]any{
 			"locked_by":    nil,
 			"locked_until": nil,
@@ -154,7 +188,9 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 			"heartbeat_at": nil,
 			"updated_at":   now,
 		}).Error
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
+	query = s.DB.WithContext(ctx).Where("id = ?", taskID)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	if err := query.First(&task).Error; err != nil {
 		return err
 	}
 	if s.OpLog != nil {
@@ -176,7 +212,13 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 		return fmt.Errorf("imagetask: no db")
 	}
 	var task ImageTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return err
+	}
+	query := s.DB.WithContext(ctx).Where("id = ?", taskID)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	if err := query.First(&task).Error; err != nil {
 		return err
 	}
 	if task.Status != StatusRunning {
@@ -189,7 +231,9 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 		return nil
 	}
 	now := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", taskID).
+	update := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", taskID)
+	update = scopeImageTaskQuery(update, tenantID, scoped)
+	_ = update.
 		Updates(map[string]any{
 			"locked_by":    nil,
 			"locked_until": nil,
@@ -197,7 +241,9 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 			"heartbeat_at": nil,
 			"updated_at":   now,
 		}).Error
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
+	query = s.DB.WithContext(ctx).Where("id = ?", taskID)
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	if err := query.First(&task).Error; err != nil {
 		return err
 	}
 	if s.OpLog != nil {

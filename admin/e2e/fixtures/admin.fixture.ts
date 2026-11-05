@@ -1,18 +1,20 @@
-import { test as base } from '@playwright/test';
-import { AdminPage } from '../pages/admin.page';
+import { test as base } from "@playwright/test";
+import { AdminPage } from "../pages/admin.page";
 
 type AdminFixtures = {
   admin: AdminPage;
   autoAdminGuards: void;
+  anonymousRoutePaths: string[];
 };
 
 export const test = base.extend<AdminFixtures>({
+  anonymousRoutePaths: [[], { option: true }],
   admin: async ({ page }, use) => {
     await use(new AdminPage(page));
   },
   autoAdminGuards: [
-    async ({ admin }, use) => {
-      await admin.setup();
+    async ({ admin, anonymousRoutePaths }, use) => {
+      await admin.setup(anonymousRoutePaths);
       await use();
       await admin.writeGuard.expectNoUnexpectedWrites();
       await admin.consoleGuard.expectNoFatalErrors();
@@ -21,4 +23,4 @@ export const test = base.extend<AdminFixtures>({
   ],
 });
 
-export { expect } from '@playwright/test';
+export { expect } from "@playwright/test";

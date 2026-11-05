@@ -22,11 +22,13 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage"
 	"golang.org/x/image/webp"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -108,6 +110,14 @@ func (s *Service) uploadDouyinImages(c *gin.Context, productID uuid.UUID, body D
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 120*time.Second)
 	defer cancel()
+	tenantID, err := s.ensureProductTenantVisible(c, productID)
+	if err != nil {
+		return nil, err
+	}
+	var prod Product
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", productID, tenantID).Take(&prod).Error; err != nil {
+		return nil, err
+	}
 	m, err := s.GetDouyinDraftMapping(ctx, productID)
 	if err != nil {
 		return nil, err
@@ -115,6 +125,16 @@ func (s *Service) uploadDouyinImages(c *gin.Context, productID uuid.UUID, body D
 	shopID, err := uuid.Parse(strings.TrimSpace(m.ShopID))
 	if err != nil || shopID == uuid.Nil {
 		return nil, fmt.Errorf("douyin shopId required")
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, &shopID); err != nil {
+		return nil, err
+	}
+	principal, err := adminperm.LoadPrincipal(c, s.DB)
+	if err != nil {
+		return nil, err
+	}
+	if !principal.CanOperateStore(shopID) {
+		return nil, gorm.ErrRecordNotFound
 	}
 	uploader, err := s.douyinUploaderForShop(c, ctx, shopID, adminID)
 	if err != nil {
@@ -137,7 +157,7 @@ func (s *Service) uploadDouyinImages(c *gin.Context, productID uuid.UUID, body D
 			items[i].UploadStatus = DouyinImageStatusProcessing
 			items[i].ErrorCode = ""
 			items[i].ErrorMessage = ""
-			src, srcErr := s.resolveDouyinImageSource(ctx, productID, &items[i], adminID, filesSvc)
+			src, srcErr := s.resolveDouyinImageSource(ctx, productID, prod.TenantID, &items[i], adminID, filesSvc)
 			if srcErr != nil {
 				markDouyinImageFailed(&items[i], imageErrCode(srcErr), safeImageErr(srcErr))
 				continue
@@ -258,10 +278,14 @@ func (s *Service) douyinUploaderForShop(c *gin.Context, ctx context.Context, sho
 	return client, nil
 }
 
-func (s *Service) resolveDouyinImageSource(ctx context.Context, productID uuid.UUID, img *DouyinDraftImage, adminID *uuid.UUID, filesSvc *files.Service) (*imageUploadSource, error) {
+func (s *Service) resolveDouyinImageSource(ctx context.Context, productID uuid.UUID, tenantID int64, img *DouyinDraftImage, adminID *uuid.UUID, filesSvc *files.Service) (*imageUploadSource, error) {
 	key := firstNonEmpty(img.StorageKey, img.ObjectKey)
 	if key != "" {
-		return s.readStorageDouyinImage(ctx, key, img)
+		var record files.FileRecord
+		if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND object_key = ?", tenantID, key).First(&record).Error; err != nil {
+			return nil, imageCodeErr{code: ImageReadFailed, msg: "image storage record is not owned by the current tenant"}
+		}
+		return s.readStorageDouyinImage(ctx, record.ObjectKey, img)
 	}
 	rawURL := firstNonEmpty(img.SourceURL, img.OriginURL, img.URL, img.PublicURL)
 	if rawURL == "" || strings.HasPrefix(strings.ToLower(strings.TrimSpace(rawURL)), "data:") {
@@ -281,6 +305,7 @@ func (s *Service) resolveDouyinImageSource(ctx context.Context, productID uuid.U
 		ObjectKey:    objKey,
 		Data:         data,
 		ContentType:  mimeType,
+		TenantID:     tenantID,
 		CreatedBy:    adminID,
 	})
 	if err != nil {

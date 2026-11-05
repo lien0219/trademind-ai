@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformamazon "github.com/trademind-ai/trademind/backend/internal/providers/platform/amazon"
 )
 
@@ -20,10 +21,13 @@ type amazonBridge struct {
 }
 
 func (b amazonBridge) PersistOAuthTokenRefresh(ctx context.Context, shopID uuid.UUID, access, refresh string, accessExp, refreshExp *time.Time) error {
-	return b.svc.persistOAuthTokenRefresh(ctx, shopID, access, refresh, accessExp, refreshExp)
+	return b.svc.persistOAuthTokenRefreshForPlatform(ctx, shopID, access, refresh, accessExp, refreshExp, "shop.oauth.amazon.refresh")
 }
 
 func (b amazonBridge) SetShopAuthStatus(ctx context.Context, shopID uuid.UUID, status string) error {
+	if _, ok := platformp.OAuthExpectedTokenVersion(ctx); ok {
+		return b.svc.setAuthStatusVersionedForPlatform(ctx, shopID, status, "shop.oauth.amazon.status")
+	}
 	return b.svc.setAuthStatusCtx(ctx, shopID, status)
 }
 

@@ -1,6 +1,8 @@
 /** 采集字段英文名 → 用户可见中文 */
+const COLLECT_FIELD_TITLE_LABEL = '商品标题';
+
 export const COLLECT_FIELD_LABELS: Record<string, string> = {
-  title: '商品标题',
+  title: COLLECT_FIELD_TITLE_LABEL,
   price: '商品价格',
   mainImage: '商品主图',
   mainImages: '商品主图',

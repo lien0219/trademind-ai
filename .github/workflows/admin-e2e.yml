@@ -1,5 +1,9 @@
 name: Admin E2E
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ (github.event_name == 'push' || github.event_name == 'pull_request') && github.ref != 'refs/heads/main' }}
+
 on:
   workflow_dispatch:
     inputs:

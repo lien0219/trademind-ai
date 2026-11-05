@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
 )
 
@@ -19,10 +20,13 @@ type lazadaBridge struct {
 }
 
 func (b lazadaBridge) PersistOAuthTokenRefresh(ctx context.Context, shopID uuid.UUID, access, refresh string, accessExp, refreshExp *time.Time) error {
-	return b.svc.persistOAuthTokenRefresh(ctx, shopID, access, refresh, accessExp, refreshExp)
+	return b.svc.persistOAuthTokenRefreshForPlatform(ctx, shopID, access, refresh, accessExp, refreshExp, "shop.oauth.lazada.refresh")
 }
 
 func (b lazadaBridge) SetShopAuthStatus(ctx context.Context, shopID uuid.UUID, status string) error {
+	if _, ok := platformp.OAuthExpectedTokenVersion(ctx); ok {
+		return b.svc.setAuthStatusVersionedForPlatform(ctx, shopID, status, "shop.oauth.lazada.status")
+	}
 	return b.svc.setAuthStatusCtx(ctx, shopID, status)
 }
 

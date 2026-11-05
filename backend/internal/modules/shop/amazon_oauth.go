@@ -40,8 +40,16 @@ func (s *Service) AmazonOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redi
 	if s.Redis == nil || s.Redis.Client == nil {
 		return nil, fmt.Errorf("redis required for OAuth state")
 	}
+	tenantID, err := requireShopOperateContext(c, s.DB, shopID)
+	if err != nil {
+		return nil, err
+	}
+	binding, err := s.newOAuthStateBinding(c, shopID)
+	if err != nil {
+		return nil, err
+	}
 	var row Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", shopID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ?", shopID, tenantID).First(&row).Error; err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(row.Platform) != "amazon" {
@@ -63,8 +71,7 @@ func (s *Service) AmazonOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redi
 	if err != nil {
 		return nil, err
 	}
-	key := amazonOAuthRedisPrefix + st
-	if err := s.Redis.Set(c.Request.Context(), key, shopID.String(), 10*time.Minute).Err(); err != nil {
+	if err := s.saveOAuthState(c.Request.Context(), amazonOAuthRedisPrefix, st, binding); err != nil {
 		return nil, err
 	}
 	return &AmazonAuthorizeURLResult{AuthorizeURL: u, State: st}, nil
@@ -79,21 +86,23 @@ func (s *Service) AmazonOAuthCallback(c *gin.Context, shopID uuid.UUID, body Ama
 	if s.Redis == nil || s.Redis.Client == nil {
 		return nil, fmt.Errorf("redis required")
 	}
-	key := amazonOAuthRedisPrefix + st
-	saved, err := s.Redis.Get(c.Request.Context(), key).Result()
-	if err != nil || strings.TrimSpace(saved) == "" {
-		return nil, fmt.Errorf("invalid or expired oauth state")
+	tenantID, err := requireShopOperateContext(c, s.DB, shopID)
+	if err != nil {
+		return nil, err
 	}
-	_ = s.Redis.Del(c.Request.Context(), key)
-	if strings.TrimSpace(saved) != shopID.String() {
-		return nil, fmt.Errorf("state does not match shop")
+	binding, err := s.consumeOAuthState(c.Request.Context(), amazonOAuthRedisPrefix, st)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateOAuthStateBinding(c, binding, shopID); err != nil {
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
 	defer cancel()
 
 	var row Shop
-	if err := s.DB.WithContext(ctx).First(&row, "id = ?", shopID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", shopID, tenantID).First(&row).Error; err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(row.Platform) != "amazon" {
@@ -115,7 +124,9 @@ func (s *Service) AmazonOAuthCallback(c *gin.Context, shopID uuid.UUID, body Ama
 	tok, err := platformamazon.ExchangeAuthCode(ctx, cfg, code, rd)
 	if err != nil {
 		s.oauthAmazonLog(c, adminID, shopID, "failed", err.Error())
-		_ = s.setAuthStatusCtx(ctx, shopID, AuthError)
+		if statusErr := s.setAuthStatusCtx(ctx, shopID, AuthError); statusErr != nil {
+			return nil, fmt.Errorf("OAuth exchange failed: %w (persist auth status: %v)", err, statusErr)
+		}
 		return nil, err
 	}
 
@@ -148,16 +159,10 @@ func (s *Service) AmazonOAuthCallback(c *gin.Context, shopID uuid.UUID, body Ama
 		ub.RefreshExpiresAt = tok.RefreshExpiresAt
 	}
 
-	if _, err := s.UpdateAuth(c, shopID, ub, adminID); err != nil {
-		s.oauthAmazonLog(c, adminID, shopID, "failed", err.Error())
-		return nil, err
-	}
-
+	shopFields := map[string]any{}
 	if spid != "" {
-		_ = s.DB.WithContext(ctx).Model(&Shop{}).Where("id = ?", shopID).Updates(map[string]any{
-			"external_shop_id": spid,
-			"shop_code":        spid,
-		}).Error
+		shopFields["external_shop_id"] = spid
+		shopFields["shop_code"] = spid
 	}
 
 	req2 := platformp.TestConnectionRequest{
@@ -171,14 +176,13 @@ func (s *Service) AmazonOAuthCallback(c *gin.Context, shopID uuid.UUID, body Ama
 	cfg2, errC := platformamazon.ResolveRuntime(req2)
 	if errC == nil {
 		if pr, perr := platformamazon.MarketplaceParticipationsProbe(ctx, cfg2, tok.AccessToken); perr == nil && pr != nil && pr.OK {
-			updates := map[string]any{"auth_status": AuthAuthorized}
+			shopFields["auth_status"] = AuthAuthorized
 			if pr.Currency != "" {
-				updates["currency"] = pr.Currency
+				shopFields["currency"] = pr.Currency
 			}
 			if pr.Region != "" {
-				updates["region"] = pr.Region
+				shopFields["region"] = pr.Region
 			}
-			_ = s.DB.WithContext(ctx).Model(&Shop{}).Where("id = ?", shopID).Updates(updates).Error
 		}
 	}
 
@@ -188,12 +192,11 @@ func (s *Service) AmazonOAuthCallback(c *gin.Context, shopID uuid.UUID, body Ama
 		"marketplace_ref": marketplaceID,
 		"seller_ref":      spid,
 	}
-	rawB, _ := json.Marshal(raw)
-	_ = s.DB.WithContext(ctx).Model(&ShopAuthToken{}).Where("shop_id = ?", shopID).
-		Updates(map[string]any{"raw_data": datatypes.JSON(rawB)}).Error
-
-	s.oauthAmazonLog(c, adminID, shopID, "success", "amazon oauth tokens saved")
-	return s.GetDetail(c, shopID)
+	rawB, err := json.Marshal(raw)
+	if err != nil {
+		return nil, err
+	}
+	return s.persistOAuthAuthorization(c, ctx, shopID, ub, adminID, shopFields, map[string]any{"raw_data": datatypes.JSON(rawB)}, "shop.oauth.amazon.success")
 }
 
 func (s *Service) oauthAmazonLog(c *gin.Context, adminID *uuid.UUID, shopID uuid.UUID, st, msg string) {

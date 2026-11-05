@@ -123,7 +123,7 @@ Collector 以现有 `collector/src/providers/**`、`browser/**`、`normalizer/**
 
 ## 11. Go 后端边界
 
-当前后端以 `backend/internal/modules/**`、`backend/internal/providers/**`、`backend/internal/api/**`、`backend/internal/rdb/**`、`backend/internal/queue/**` 组织。
+当前后端以 `backend/internal/modules/**`、`backend/internal/providers/**`、`backend/internal/api/**`、`backend/internal/rdb/**`、`backend/internal/pkg/taskqueue/**` 组织。
 
 目标方向：handler/controller 负责 HTTP 输入输出、参数解析和边界校验，调用 service/usecase，不直接写复杂 SQL、不承载完整业务状态机、不操作第三方 SDK 细节。
 

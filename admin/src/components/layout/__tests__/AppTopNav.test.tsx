@@ -1,15 +1,22 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { history, useAntdConfigSetter } from "@umijs/max";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { THEME_MODE_STORAGE_KEY } from "@/theme";
+import { queryAuthTenants } from "@/services/tenants";
 import AppTopNav, { resolveUserLabels } from "../AppTopNav";
+
+vi.mock("@/services/tenants", () => ({
+  queryAuthTenants: vi.fn(),
+  switchAuthTenant: vi.fn(),
+}));
 
 const user: API.CurrentUser = {
   id: "test-user",
   username: "operator@example.test",
   email: "operator@example.test",
   displayName: "运营账号",
+  role: "admin",
 };
 
 beforeEach(() => {
@@ -43,7 +50,7 @@ describe("AppTopNav", () => {
     expect(
       screen.getByRole("button", { name: "当前用户 运营账号" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("operator@example.test")).toBeInTheDocument();
+    expect(within(navigation).queryByText("operator@example.test")).not.toBeInTheDocument();
   });
 
   it("keeps logout available from the account menu", async () => {
@@ -75,6 +82,7 @@ describe("AppTopNav", () => {
       screen.getByRole("button", { name: "当前用户 运营账号" }),
     );
 
+    expect(await screen.findByText("operator@example.test")).toBeInTheDocument();
     expect(await screen.findByText("用户与权限")).toBeInTheDocument();
     expect(
       screen.queryByRole("menuitem", { name: /API 密钥/ }),
@@ -95,6 +103,14 @@ describe("AppTopNav", () => {
       "_blank",
       "noopener,noreferrer",
     );
+  });
+
+  it("does not expose user administration to accounts without role grants", async () => {
+    const interaction = userEvent.setup();
+    render(<AppTopNav user={{ ...user, role: "unexpected" }} onLogout={vi.fn()} />);
+    await interaction.click(screen.getByRole("button", { name: "当前用户 运营账号" }));
+    expect(screen.queryByRole("menuitem", { name: "用户与权限" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "GitHub" })).toBeInTheDocument();
   });
 
   it("shows the theme action as an icon with an accessible tooltip", async () => {
@@ -153,6 +169,27 @@ describe("AppTopNav", () => {
         }),
       }),
     );
+  });
+
+  it("shows a labelled and expandable workspace control with current tenant context", async () => {
+    vi.mocked(queryAuthTenants).mockResolvedValue({
+      currentTenantId: 2,
+      items: [
+        { id: 1, code: "root-workspace", name: "系统工作台", role: "admin", status: "active" },
+        { id: 2, code: "acme-cn", name: "测试企业", role: "readonly", status: "active" },
+      ],
+    });
+    const interaction = userEvent.setup();
+    render(<AppTopNav user={{ ...user, tenantId: 2, tenantName: "测试企业", isRoot: true }} onLogout={vi.fn()} />);
+
+    const trigger = screen.getByRole("button", { name: "当前工作空间 测试企业" });
+    expect(trigger).toHaveClass("tm-app-top-nav__tenant");
+    expect(within(trigger).getByText("测试企业")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("title", "测试企业");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    await interaction.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
   });
 
   it("shortens an email display name while retaining the full account", () => {

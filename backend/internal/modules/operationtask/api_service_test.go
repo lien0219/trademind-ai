@@ -114,17 +114,32 @@ func TestAPIServiceListTasksUsesFixedQueryBudget(t *testing.T) {
 	ctx := context.Background()
 	tenantID := int64(101)
 	actorID := createAdminUser(t, db, tenantID, admin.RoleAdmin, admin.StatusActive)
+	var latestDataTaskID uuid.UUID
 	for i := 0; i < 5; i++ {
 		task := sampleTask(tenantID, uuid.NewString())
 		task.SourceReference = uuid.NewString()
 		require.NoError(t, operationtask.NewOperationTaskRepository(db).Create(ctx, &task))
+		if i == 0 {
+			latestDataTaskID = task.ID
+		}
 		draft := sampleDraft(task, 1, hash1)
 		require.NoError(t, operationtask.NewPlatformDraftRepository(db).CreateVersion(ctx, &draft))
 		approval := sampleApproval(task, draft, uuid.NewString())
 		require.NoError(t, operationtask.NewApprovalRecordRepository(db).CreateDecision(ctx, &approval))
 		attempt := sampleAttempt(task, draft, approval, 1, uuid.NewString())
 		require.NoError(t, operationtask.NewExecutionAttemptRepository(db).CreateAttempt(ctx, &attempt))
+		if i == 0 {
+			latestDraft := sampleDraft(task, 2, hash2)
+			require.NoError(t, operationtask.NewPlatformDraftRepository(db).CreateVersion(ctx, &latestDraft))
+			latestApproval := sampleApproval(task, latestDraft, uuid.NewString())
+			require.NoError(t, operationtask.NewApprovalRecordRepository(db).CreateDecision(ctx, &latestApproval))
+			latestAttempt := sampleAttempt(task, latestDraft, latestApproval, 2, uuid.NewString())
+			latestAttempt.Status = operationtask.ExecutionAttemptStatusFailed
+			require.NoError(t, operationtask.NewExecutionAttemptRepository(db).CreateAttempt(ctx, &latestAttempt))
+		}
 	}
+	foreignTask := sampleTask(202, uuid.NewString())
+	require.NoError(t, operationtask.NewOperationTaskRepository(db).Create(ctx, &foreignTask))
 	counter := &operationTaskQueryCounter{Interface: logger.Default.LogMode(logger.Silent)}
 	countedDB := db.Session(&gorm.Session{Logger: counter})
 	svc := operationtask.NewAPIService(countedDB)
@@ -133,6 +148,11 @@ func TestAPIServiceListTasksUsesFixedQueryBudget(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Items, 5)
 	for _, item := range result.Items {
+		if item.ID == latestDataTaskID {
+			require.Equal(t, 2, item.LatestDraftVersion)
+			require.Equal(t, operationtask.ExecutionAttemptStatusFailed, item.LatestExecutionStatus)
+			continue
+		}
 		require.Equal(t, 1, item.LatestDraftVersion)
 		require.Equal(t, operationtask.ExecutionAttemptStatusQueued, item.LatestExecutionStatus)
 	}

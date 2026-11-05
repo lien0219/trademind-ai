@@ -1,3 +1,5 @@
+import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { AuditOutlined, EyeOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
@@ -20,18 +22,19 @@ import { PERMISSIONS } from '@/utils/permission';
 import '../SalesReturns/index.less';
 
 const RECONCILIATION_STATUS: Record<string, { text: string; color: string }> = {
-  matched: { text: '已匹配', color: 'success' },
-  pending: { text: '待对账', color: 'gold' },
-  mismatch: { text: '不一致', color: 'error' },
-  blocked: { text: '已阻断', color: 'volcano' },
+  matched: { get text() { return tr('已匹配'); }, color: 'success' },
+  pending: { get text() { return tr('待对账'); }, color: 'gold' },
+  mismatch: { get text() { return tr('不一致'); }, color: 'error' },
+  blocked: { get text() { return tr('已阻断'); }, color: 'volcano' },
 };
 
 function statusTag(status: string) {
-  const meta = RECONCILIATION_STATUS[status] || { text: status || '未知', color: 'default' };
+  const meta = RECONCILIATION_STATUS[status] || { text: tr(status || '未知'), color: 'default' };
   return <Tag color={meta.color}>{meta.text}</Tag>;
 }
 
 export default function PlatformAfterSaleReconciliationPage() {
+  useLanguage();
   const { readonly } = usePermission();
   const actionRef = useRef<ActionType>();
   const [platform, setPlatform] = useState<string>();
@@ -45,7 +48,7 @@ export default function PlatformAfterSaleReconciliationPage() {
 
   const columns: ProColumns<PlatformAfterSale>[] = [
     {
-      title: '平台售后单号',
+      title: tr("平台售后单号"),
       dataIndex: 'externalAfterSaleId',
       width: 190,
       copyable: true,
@@ -60,10 +63,10 @@ export default function PlatformAfterSaleReconciliationPage() {
         </Button>
       ),
     },
-    { title: '平台', dataIndex: 'platform', width: 120 },
-    { title: '平台订单号', dataIndex: 'externalOrderId', width: 190, ellipsis: true },
+    { title: tr("平台"), dataIndex: 'platform', width: 120 },
+    { title: tr("平台订单号"), dataIndex: 'externalOrderId', width: 190, ellipsis: true },
     {
-      title: '本地订单',
+      title: tr("本地订单"),
       dataIndex: 'orderNo',
       width: 190,
       ellipsis: true,
@@ -73,36 +76,36 @@ export default function PlatformAfterSaleReconciliationPage() {
             {row.orderNo || row.orderId}
           </Button>
         ) : (
-          '未匹配'
+          tr("未匹配")
         ),
     },
     {
-      title: '平台状态',
+      title: tr("平台状态"),
       dataIndex: 'platformStatus',
       width: 120,
       render: (_, row) => row.platformStatus || '—',
     },
     {
-      title: '退款金额',
+      title: tr("退款金额"),
       dataIndex: 'refundAmountMinor',
       width: 140,
       align: 'right',
       render: (_, row) => formatSalesReturnAmount(row.refundAmountMinor, row.currency),
     },
     {
-      title: '对账状态',
+      title: tr("对账状态"),
       dataIndex: 'reconciliationStatus',
       width: 110,
       render: (_, row) => statusTag(row.reconciliationStatus),
     },
     {
-      title: '对账说明',
+      title: tr("对账说明"),
       dataIndex: 'reconciliationReason',
       minWidth: 220,
       ellipsis: true,
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 88,
       render: (_, row) => (
@@ -112,7 +115,7 @@ export default function PlatformAfterSaleReconciliationPage() {
           icon={<EyeOutlined />}
           onClick={() => history.push(`/orders/sales-return-reconciliation/${row.id}`)}
         >
-          查看
+          {tr("查看")}
         </Button>
       ),
     },
@@ -122,21 +125,21 @@ export default function PlatformAfterSaleReconciliationPage() {
     <PermissionGuard require={PERMISSIONS.SALES_RETURN_VIEW} showForbiddenPage>
       <TmPageContainer
         className="tm-sales-return-page"
-        title="平台售后对账"
-        subTitle="平台退款事实与本地售后记录的只读核对"
+        title={tr("平台售后对账")}
+        subTitle={tr("平台退款事实与本地售后记录的只读核对")}
         extra={
           <TmPageHeaderExtra>
             <Button icon={<AuditOutlined />} onClick={() => history.push('/orders/sales-returns')}>
-              本地售后记录
+              {tr("本地售后记录")}
             </Button>
           </TmPageHeaderExtra>
         }
       >
         {readonly ? (
-          <Alert type="info" showIcon message="当前账号为只读模式，对账页面仅可查看平台事实。" />
+          <Alert type="info" showIcon message={tr("当前账号为只读模式，对账页面仅可查看平台事实。")} />
         ) : null}
         {error ? (
-          <ErrorAlert title={error} actionHint={<Button onClick={() => actionRef.current?.reload()}>重新加载</Button>} />
+          <ErrorAlert title={tr(error)} actionHint={<Button onClick={() => actionRef.current?.reload()}>{tr("重新加载")}</Button>} />
         ) : null}
         <TmProTable<PlatformAfterSale>
           className="tm-sales-return-table"
@@ -146,31 +149,31 @@ export default function PlatformAfterSaleReconciliationPage() {
           search={false}
           cardBordered
           scroll={{ x: 1420 }}
-          locale={{ emptyText: error ? '对账数据暂不可用' : '暂无平台售后事实。' }}
+          locale={{ emptyText: error ? tr('对账数据暂不可用') : tr('暂无平台售后事实。') }}
           filterBar={
             <Space wrap>
               <Select
-                aria-label="售后平台"
+                aria-label={tr("售后平台")}
                 allowClear
-                placeholder="全部平台"
+                placeholder={tr("全部平台")}
                 value={platform}
                 style={{ width: 150 }}
-                options={[{ value: 'douyin_shop', label: '抖店' }]}
+                options={[{ value: 'douyin_shop', label: tr("抖店") }]}
                 onChange={setPlatform}
               />
               <Select
-                aria-label="售后对账状态"
+                aria-label={tr("售后对账状态")}
                 allowClear
-                placeholder="全部对账状态"
+                placeholder={tr("全部对账状态")}
                 value={reconciliationStatus}
                 style={{ width: 150 }}
                 options={Object.entries(RECONCILIATION_STATUS).map(([value, meta]) => ({ value, label: meta.text }))}
                 onChange={setReconciliationStatus}
               />
               <Input
-                aria-label="售后订单号"
+                aria-label={tr("售后订单号")}
                 allowClear
-                placeholder="搜索订单号"
+                placeholder={tr("搜索订单号")}
                 value={orderNo}
                 style={{ width: 190 }}
                 onChange={(event) => setOrderNo(event.target.value)}

@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import PublishBoundaryBanner from '@/components/platform/PublishBoundaryBanner';
 import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
 import { TmPageContainer, TechnicalDetails } from '@/components/ui';
@@ -21,15 +23,6 @@ import { normalizeSource } from '@/utils/urlState';
 import { Alert, Button, Card, Descriptions, Popconfirm, Space, Table, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-const TASK_STATUS_FILTER = [
-  { text: '成功', value: 'success' },
-  { text: '失败', value: 'failed' },
-  { text: '等待处理', value: 'pending' },
-  { text: '处理中', value: 'running' },
-  { text: '已取消', value: 'cancelled' },
-  { text: '已跳过', value: 'skipped' },
-];
-
 function batchStatusTag(status: string, label?: string) {
   const meta = publishBatchStatusTag(status, label);
   return <Tag color={meta.color}>{meta.text}</Tag>;
@@ -45,6 +38,7 @@ function taskStatusTag(status: string, label?: string) {
 }
 
 export default function PublishBatchDetailPage() {
+  const language = useLanguage();
   const { id } = useParams<{ id: string }>();
   const { can } = usePermission();
   const canRetry = can(PERMISSIONS.TASK_RETRY);
@@ -55,6 +49,14 @@ export default function PublishBatchDetailPage() {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const taskStatusFilter = useMemo(() => [
+    { text: tr("成功"), value: 'success' },
+    { text: tr("失败"), value: 'failed' },
+    { text: tr("等待处理"), value: 'pending' },
+    { text: tr("处理中"), value: 'running' },
+    { text: tr("已取消"), value: 'cancelled' },
+    { text: tr("已跳过"), value: 'skipped' },
+  ], [language]);
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -63,7 +65,7 @@ export default function PublishBatchDetailPage() {
       const res = await getPublishBatch(id);
       setDetail(res);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载批次失败');
+      message.error((e as Error)?.message || tr("加载批次失败"));
     } finally {
       setLoading(false);
     }
@@ -81,17 +83,17 @@ export default function PublishBatchDetailPage() {
 
   const onRetryFailed = async () => {
     if (!canRetry) {
-      message.error('当前账号无任务重试权限');
+      message.error(tr("当前账号无任务重试权限"));
       return;
     }
     if (!id) return;
     setActing(true);
     try {
       await retryFailedPublishBatch(id);
-      message.success('已重试失败项');
+      message.success(tr("已重试失败项"));
       await reload();
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '重试失败');
+      message.error((e as Error)?.message || tr("重试失败"));
     } finally {
       setActing(false);
     }
@@ -99,7 +101,7 @@ export default function PublishBatchDetailPage() {
 
   const onCancelPending = async () => {
     if (!canCancel) {
-      message.error('当前账号无刊登草稿写权限');
+      message.error(tr("当前账号无刊登草稿写权限"));
       return;
     }
     if (!id) return;
@@ -107,9 +109,9 @@ export default function PublishBatchDetailPage() {
     try {
       const res = await cancelPendingPublishBatch(id);
       setDetail(res);
-      message.success('已取消等待中的任务');
+      message.success(tr("已取消等待中的任务"));
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '取消失败');
+      message.error((e as Error)?.message || tr("取消失败"));
     } finally {
       setActing(false);
     }
@@ -117,8 +119,8 @@ export default function PublishBatchDetailPage() {
 
   return (
     <TmPageContainer
-      title="刊登批次详情"
-      subTitle={detail?.name || `批次编号 ${id?.slice(0, 8)}…`}
+      title={tr("刊登批次详情")}
+      subTitle={detail?.name || trFormat("批次编号 {value0}…", { value0: String(id?.slice(0, 8)) })}
       loading={loading}
       onBack={() => {
         const qs = new URLSearchParams();
@@ -136,55 +138,55 @@ export default function PublishBatchDetailPage() {
               type="warning"
               showIcon
               style={{ marginBottom: 16 }}
-              message="部分子任务失败"
-              description="本批次部分商品或目标未能创建草稿，可点击下方「重试失败项」再次尝试。"
+              message={tr("部分子任务失败")}
+              description={tr("本批次部分商品或目标未能创建草稿，可点击下方「重试失败项」再次尝试。")}
             />
           )}
           <Card style={{ marginBottom: 16 }}>
             <Descriptions bordered size="small" column={{ xs: 1, sm: 2, md: 3 }}>
-              <Descriptions.Item label="批次状态">
+              <Descriptions.Item label={tr("批次状态")}>
                 {batchStatusTag(detail.status, detail.statusLabel || publishBatchStatusLabel(detail.status))}
               </Descriptions.Item>
-              <Descriptions.Item label="商品数量">{detail.productCount}</Descriptions.Item>
-              <Descriptions.Item label="目标数量">{detail.targetCount}</Descriptions.Item>
-              <Descriptions.Item label="任务总数">{detail.taskCount}</Descriptions.Item>
-              <Descriptions.Item label="成功">{detail.successCount}</Descriptions.Item>
-              <Descriptions.Item label="失败">{detail.failedCount}</Descriptions.Item>
-              <Descriptions.Item label="跳过">{detail.skippedCount}</Descriptions.Item>
-              <Descriptions.Item label="创建时间">{formatDateTime(detail.createdAt)}</Descriptions.Item>
-              <Descriptions.Item label="完成时间">
+              <Descriptions.Item label={tr("商品数量")}>{detail.productCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("目标数量")}>{detail.targetCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("任务总数")}>{detail.taskCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("成功")}>{detail.successCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("失败")}>{detail.failedCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("跳过")}>{detail.skippedCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("创建时间")}>{formatDateTime(detail.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label={tr("完成时间")}>
                 {detail.finishedAt ? formatDateTime(detail.finishedAt) : '—'}
               </Descriptions.Item>
             </Descriptions>
             <Space style={{ marginTop: 16 }} wrap>
               {detail.failedCount > 0 && (canRetry ? (
-                <Popconfirm title="只重试本批次中的失败子任务？" onConfirm={() => void onRetryFailed()}>
-                  <Button type="primary" loading={acting}>重试失败项</Button>
+                <Popconfirm title={tr("只重试本批次中的失败子任务？")} onConfirm={() => void onRetryFailed()}>
+                  <Button type="primary" loading={acting}>{tr("重试失败项")}</Button>
                 </Popconfirm>
               ) : (
-                <Button type="primary" disabled>重试失败项</Button>
+                <Button type="primary" disabled>{tr("重试失败项")}</Button>
               ))}
               {canCancel ? (
-                <Popconfirm title="只取消等待中的子任务，进行中的任务不会强杀。" onConfirm={() => void onCancelPending()}>
-                  <Button loading={acting}>取消等待项</Button>
+                <Popconfirm title={tr("只取消等待中的子任务，进行中的任务不会强杀。")} onConfirm={() => void onCancelPending()}>
+                  <Button loading={acting}>{tr("取消等待项")}</Button>
                 </Popconfirm>
               ) : (
-                <Button disabled>取消等待项</Button>
+                <Button disabled>{tr("取消等待项")}</Button>
               )}
-              <Link to="/ops/task-center/failures">失败任务中心</Link>
+              <Link to="/ops/task-center/failures">{tr("失败任务中心")}</Link>
             </Space>
           </Card>
 
-          <Card title="子任务列表">
+          <Card title={tr("子任务列表")}>
             <Table
               rowKey={(r) => `${r.productId}:${r.targetKey}:${r.taskId || 'skip'}`}
               size="small"
-              pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
+              pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => trFormat("共 {value0} 条", { value0: t }) }}
               dataSource={filteredItems}
               scroll={{ x: 1100 }}
               columns={[
                 {
-                  title: '商品',
+                  title: tr("商品"),
                   dataIndex: 'productTitle',
                   ellipsis: true,
                   width: 160,
@@ -193,7 +195,7 @@ export default function PublishBatchDetailPage() {
                   ),
                 },
                 {
-                  title: '平台 / 店铺',
+                  title: tr("平台 / 店铺"),
                   key: 'target',
                   width: 160,
                   render: (_: unknown, r) => (
@@ -204,35 +206,35 @@ export default function PublishBatchDetailPage() {
                   ),
                 },
                 {
-                  title: '能力',
+                  title: tr("能力"),
                   dataIndex: 'capability',
                   width: 120,
                   render: (v: string) => publishCapabilityLabel(v),
                 },
                 {
-                  title: '状态',
+                  title: tr("状态"),
                   dataIndex: 'status',
                   width: 100,
-                  filters: TASK_STATUS_FILTER,
+                  filters: taskStatusFilter,
                   filteredValue: statusFilter.length ? statusFilter : null,
                   onFilter: (value, r) => (r.status || '').toLowerCase() === String(value),
                   render: (_: unknown, r) => taskStatusTag(r.status, r.statusLabel),
                 },
                 {
-                  title: '失败原因',
+                  title: tr("失败原因"),
                   dataIndex: 'errorMessage',
                   ellipsis: true,
                   render: (v: string) => v || '—',
                 },
                 {
-                  title: '操作',
+                  title: tr("操作"),
                   key: 'ops',
                   width: 200,
                   render: (_: unknown, r) => (
                     <Space wrap>
-                      <Link to={`/product/drafts/${r.productId}?tab=publish`}>平台配置</Link>
+                      <Link to={`/product/drafts/${r.productId}?tab=publish`}>{tr("平台配置")}</Link>
                       {r.taskId ? (
-                        <Link to={`/product/publish-tasks?id=${r.taskId}`}>查看任务</Link>
+                        <Link to={`/product/publish-tasks?id=${r.taskId}`}>{tr("查看任务")}</Link>
                       ) : (
                         <Typography.Text type="secondary">—</Typography.Text>
                       )}
@@ -252,7 +254,7 @@ export default function PublishBatchDetailPage() {
           </Card>
 
           {detail.input && (
-            <TechnicalDetails label="技术详情（批次配置快照）" style={{ marginTop: 16 }}>
+            <TechnicalDetails label={tr("技术详情（批次配置快照）")} style={{ marginTop: 16 }}>
               <pre style={{ fontSize: 12, margin: 0, maxHeight: 240, overflow: 'auto' }}>
                 {JSON.stringify(detail.input, null, 2)}
               </pre>

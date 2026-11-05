@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import {
   DownloadOutlined,
   EyeOutlined,
@@ -65,31 +67,35 @@ import { formatProfitAmount } from '@/services/profitability';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
+import { financialActionRequestKey, type FinancialActionRequestKey } from '@/utils/financialActionKey';
 import { parsePositiveInt } from '@/utils/urlState';
+import { createTenantReadGuard } from '@/utils/tenantAsync';
+import { canConfirmFinanceImport, type FinanceImportPreviewScope } from '@/utils/financeImportPreview';
+import { canSubmitFinanceAdjustment, type FinanceAdjustmentScope } from '@/utils/financeAdjustmentScope';
 import './index.less';
 
 const QUERY_KEYS = ['page', 'pageSize', 'orderNo', 'shopId', 'currency', 'settlementCoverage', 'drawer', 'id'] as const;
 
 const COVERAGE_META: Record<AdvertisingSettlementCoverage, { text: string; color: string }> = {
-  excluded: { text: '结算未包含', color: 'success' },
-  included: { text: '结算已包含', color: 'warning' },
-  unknown: { text: '覆盖未知', color: 'error' },
+  excluded: { get text() { return tr('结算未包含'); }, color: 'success' },
+  included: { get text() { return tr('结算已包含'); }, color: 'warning' },
+  unknown: { get text() { return tr('覆盖未知'); }, color: 'error' },
 };
 
 const PROFIT_META = {
-  confirmed: { text: '可计入利润', color: 'success' },
-  mismatch: { text: '口径不一致', color: 'warning' },
-  blocked: { text: '暂不可计入', color: 'error' },
+  confirmed: { get text() { return tr('可计入利润'); }, color: 'success' },
+  mismatch: { get text() { return tr('口径不一致'); }, color: 'warning' },
+  blocked: { get text() { return tr('暂不可计入'); }, color: 'error' },
 } as const;
 
 function coverageTag(value: AdvertisingSettlementCoverage) {
   const meta = COVERAGE_META[value];
-  return <Tag color={meta.color}>{meta.text}</Tag>;
+  return <Tag color={meta.color}>{tr(meta.text)}</Tag>;
 }
 
 function profitTag(value: AdvertisingAllocation['profitStatus']) {
   const meta = PROFIT_META[value];
-  return <Tag color={meta.color}>{meta.text}</Tag>;
+  return <Tag color={meta.color}>{tr(meta.text)}</Tag>;
 }
 
 function nativeFile(fileList: UploadFile[]) {
@@ -98,15 +104,23 @@ function nativeFile(fileList: UploadFile[]) {
 }
 
 export default function AdvertisingFeesPage() {
+  useLanguage();
   const { can } = usePermission();
   const canImport = can(PERMISSIONS.ADVERTISING_FEE_IMPORT);
   const canManage = can(PERMISSIONS.ADVERTISING_FEE_MANAGE);
   const actionRef = useRef<ActionType>();
   const initializedRef = useRef(false);
+  const filterReadGuard = useMemo(createTenantReadGuard, []);
+  const detailReadGuard = useMemo(createTenantReadGuard, []);
+  const listReadGuard = useMemo(createTenantReadGuard, []);
+  const previewReadGuard = useMemo(createTenantReadGuard, []);
   const previewRequestRef = useRef(0);
+  const currentImportScope = useRef<FinanceImportPreviewScope>();
   const submittingRef = useRef(false);
   const adjustmentSubmittingRef = useRef(false);
-  const adjustmentKeyRef = useRef<string>();
+  const adjustmentKeyRef = useRef<FinancialActionRequestKey>();
+  const adjustmentRead = useMemo(createTenantReadGuard, []);
+  const adjustmentScopeRef = useRef<FinanceAdjustmentScope>();
   const { state: urlState, setState: setUrlState, clearState } = useUrlQueryState<
     Record<(typeof QUERY_KEYS)[number], string | undefined>
   >(QUERY_KEYS);
@@ -140,17 +154,19 @@ export default function AdvertisingFeesPage() {
   useEffect(() => setOrderNoInput(urlState.orderNo || ''), [urlState.orderNo]);
   useEffect(() => {
     let active = true;
+    const isCurrent = filterReadGuard.begin();
+    setShops([]);
     void queryShops({ page: 1, pageSize: 100 })
       .then((result) => {
-        if (!active) return;
+        if (!active || !isCurrent()) return;
         setShops(result.list || []);
         setShopError('');
       })
       .catch((error) => {
-        if (active) setShopError((error as Error)?.message || '店铺筛选项加载失败');
+        if (active && isCurrent()) setShopError((error as Error)?.message || tr('店铺筛选项加载失败'));
       });
-    return () => { active = false; };
-  }, []);
+    return () => { active = false; filterReadGuard.invalidate(); };
+  }, [filterReadGuard]);
 
   useEffect(() => {
     if (!initializedRef.current) {
@@ -160,18 +176,32 @@ export default function AdvertisingFeesPage() {
     void actionRef.current?.reload();
   }, [urlState.currency, urlState.orderNo, urlState.settlementCoverage, urlState.shopId]);
 
+  useEffect(() => () => listReadGuard.invalidate(), [listReadGuard]);
+  useEffect(() => () => adjustmentRead.invalidate(), [adjustmentRead]);
+  useEffect(() => {
+    adjustmentRead.invalidate();
+    adjustmentScopeRef.current = undefined;
+    adjustmentKeyRef.current = undefined;
+    if (!adjustmentSubmittingRef.current) setAdjustmentOpen(false);
+  }, [adjustmentRead, drawer.id]);
+
   const loadDetail = useCallback(async (id: string) => {
+    const isCurrent = detailReadGuard.begin();
+    setDetail(undefined);
     setDetailLoading(true);
     setDetailError('');
     try {
-      setDetail(await getAdvertisingFee(id));
+      const result = await getAdvertisingFee(id);
+      if (isCurrent()) setDetail(result);
     } catch (error) {
-      setDetail(undefined);
-      setDetailError((error as Error)?.message || '广告费用详情加载失败');
+      if (isCurrent()) {
+        setDetail(undefined);
+        setDetailError((error as Error)?.message || tr('广告费用详情加载失败'));
+      }
     } finally {
-      setDetailLoading(false);
+      if (isCurrent()) setDetailLoading(false);
     }
-  }, []);
+  }, [detailReadGuard]);
 
   useEffect(() => {
     if (drawer.id) void loadDetail(drawer.id);
@@ -179,14 +209,17 @@ export default function AdvertisingFeesPage() {
       setDetail(undefined);
       setDetailError('');
     }
-  }, [drawer.id, loadDetail]);
+    return () => { detailReadGuard.invalidate(); };
+  }, [drawer.id, loadDetail, detailReadGuard]);
 
   const invalidatePreview = useCallback(() => {
     previewRequestRef.current += 1;
+    previewReadGuard.invalidate();
+    currentImportScope.current = undefined;
     setPreview(undefined);
     setIdempotencyKey('');
     setPreviewing(false);
-  }, []);
+  }, [previewReadGuard]);
 
   const resetImport = useCallback(() => {
     setImportShopID(undefined);
@@ -199,22 +232,43 @@ export default function AdvertisingFeesPage() {
     const file = nativeFile(fileList);
     if (!file || !importShopID || previewing) return;
     const requestID = ++previewRequestRef.current;
+    const isCurrent = previewReadGuard.begin();
+    currentImportScope.current = undefined;
     setPreviewing(true);
     try {
       const result = await previewAdvertisingFeeImport(file, importShopID);
-      if (requestID !== previewRequestRef.current) return;
+      if (requestID !== previewRequestRef.current || !isCurrent()) return;
+      if (result.shopId !== importShopID || !result.fileHash || (result.valid && !result.calculationHash)) {
+        currentImportScope.current = undefined;
+        message.error(tr('广告费用校验失败'));
+        return;
+      }
+      const key = advertisingFeeIdempotencyKey('import');
+      currentImportScope.current = {
+        file, shopId: importShopID, fileHash: result.fileHash, calculationHash: result.calculationHash, idempotencyKey: key, isCurrent,
+      };
       setPreview(result);
-      setIdempotencyKey(advertisingFeeIdempotencyKey('import'));
+      setIdempotencyKey(key);
     } catch (error) {
-      if (requestID === previewRequestRef.current) message.error((error as Error)?.message || '广告费用校验失败');
+      if (requestID === previewRequestRef.current && isCurrent()) message.error((error as Error)?.message || tr('广告费用校验失败'));
     } finally {
-      if (requestID === previewRequestRef.current) setPreviewing(false);
+      if (requestID === previewRequestRef.current && isCurrent()) setPreviewing(false);
     }
-  }, [fileList, importShopID, previewing]);
+  }, [fileList, importShopID, previewReadGuard, previewing]);
+
+  useEffect(() => () => previewReadGuard.invalidate(), [previewReadGuard]);
 
   const confirmImport = useCallback(async () => {
     const file = nativeFile(fileList);
-    if (!file || !importShopID || !preview?.valid || !idempotencyKey || submittingRef.current) return;
+    if (!canImport || !file || !importShopID || !preview?.valid || !idempotencyKey || submittingRef.current) return;
+    const scope = currentImportScope.current;
+    if (!canConfirmFinanceImport(scope, scope, {
+      file, shopId: importShopID, fileHash: preview.fileHash, calculationHash: preview.calculationHash, idempotencyKey,
+    }) || preview.shopId !== importShopID) {
+      invalidatePreview();
+      return;
+    }
+    const isCurrent = scope!.isCurrent;
     submittingRef.current = true;
     setSubmitting(true);
     try {
@@ -225,51 +279,70 @@ export default function AdvertisingFeesPage() {
         preview.calculationHash,
         idempotencyKey,
       );
-      message.success(result.replayed ? '该广告费用文件已确认，无需重复处理' : `已生成 ${result.import.allocationCount} 条订单归属`);
+      if (!isCurrent()) return;
+      message.success(result.replayed ? tr('该广告费用文件已确认，无需重复处理') : trFormat('已生成 {count} 条订单归属', { count: result.import.allocationCount }));
       setImportOpen(false);
       resetImport();
       void actionRef.current?.reload();
     } catch (error) {
-      message.error((error as Error)?.message || '广告费用确认失败');
+      if (isCurrent()) message.error((error as Error)?.message || tr('广告费用确认失败'));
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [fileList, idempotencyKey, importShopID, preview, resetImport]);
+  }, [fileList, idempotencyKey, importShopID, invalidatePreview, preview, resetImport]);
 
   const openAdjustment = useCallback((target?: AdvertisingAdjustment) => {
+    if (!detail || !canManage || adjustmentSubmittingRef.current) return;
+    adjustmentScopeRef.current = { recordId: detail.id, action: target ? 'reverse' : 'adjust', targetId: target?.id, isCurrent: adjustmentRead.begin() };
     adjustmentKeyRef.current = undefined;
     setReversingAdjustment(target);
     setAdjustmentOpen(true);
-  }, []);
+  }, [adjustmentRead, canManage, detail]);
+
+  useEffect(() => {
+    if (adjustmentOpen) adjustmentForm.resetFields();
+  }, [adjustmentForm, adjustmentOpen]);
 
   const saveAdjustment = useCallback(async () => {
-    if (!detail || adjustmentSubmittingRef.current || !canManage) return;
+    const scope = adjustmentScopeRef.current;
+    const isAllowed = () => canSubmitFinanceAdjustment(scope, { recordId: detail?.id, action: reversingAdjustment ? 'reverse' : 'adjust', targetId: reversingAdjustment?.id, canManage });
+    if (!isAllowed() || adjustmentSubmittingRef.current) return;
     adjustmentSubmittingRef.current = true;
     try {
       const values = await adjustmentForm.validateFields();
-      const key = adjustmentKeyRef.current || advertisingFeeIdempotencyKey(reversingAdjustment ? 'reverse' : 'adjust');
-      adjustmentKeyRef.current = key;
+      if (!isAllowed()) return;
+      const reason = values.reason.trim();
+      const amountMinor = reversingAdjustment ? null : values.amountMinor;
+      const command = financialActionRequestKey(
+        adjustmentKeyRef.current,
+        reversingAdjustment ? 'reverse' : 'adjust',
+        [scope!.recordId, reversingAdjustment?.id || '', amountMinor ?? null, reason],
+        advertisingFeeIdempotencyKey,
+      );
+      adjustmentKeyRef.current = command;
       setAdjusting(true);
       if (reversingAdjustment) {
-        await reverseAdvertisingFeeAdjustment(detail.id, reversingAdjustment.id, { reason: values.reason.trim(), idempotencyKey: key });
-        message.success('广告费用调整已冲正');
+        await reverseAdvertisingFeeAdjustment(scope!.recordId, reversingAdjustment.id, { reason, idempotencyKey: command.key });
       } else {
-        await createAdvertisingFeeAdjustment(detail.id, { amountMinor: values.amountMinor!, reason: values.reason.trim(), idempotencyKey: key });
-        message.success('广告费用调整已追加');
+        await createAdvertisingFeeAdjustment(scope!.recordId, { amountMinor: values.amountMinor!, reason, idempotencyKey: command.key });
       }
+      if (!isAllowed()) return;
+      message.success(reversingAdjustment ? tr('广告费用调整已冲正') : tr('广告费用调整已追加'));
+      adjustmentRead.invalidate();
+      adjustmentScopeRef.current = undefined;
       setAdjustmentOpen(false);
       setReversingAdjustment(undefined);
       adjustmentKeyRef.current = undefined;
-      await loadDetail(detail.id);
+      await loadDetail(scope!.recordId);
       void actionRef.current?.reload();
     } catch (error) {
-      message.error((error as Error)?.message || '广告费用调整失败');
+      if (isAllowed()) message.error((error as Error)?.message || tr('广告费用调整失败'));
     } finally {
       adjustmentSubmittingRef.current = false;
       setAdjusting(false);
     }
-  }, [adjustmentForm, canManage, detail, loadDetail, reversingAdjustment]);
+  }, [adjustmentForm, adjustmentRead, canManage, detail, loadDetail, reversingAdjustment]);
 
   const queryParams = useCallback((nextPage?: number, nextPageSize?: number) => ({
     page: nextPage || page,
@@ -282,44 +355,44 @@ export default function AdvertisingFeesPage() {
 
   const columns: ProColumns<AdvertisingAllocation>[] = [
     {
-      title: '订单', dataIndex: 'orderNo', width: 190, fixed: 'left', ellipsis: true, copyable: true,
+      title: tr('订单'), dataIndex: 'orderNo', width: 190, fixed: 'left', ellipsis: true, copyable: true,
       render: (_, row) => <Button type="link" size="small" onClick={() => drawer.openDrawer(row.id)}>{row.orderNo}</Button>,
     },
-    { title: '费用日期', dataIndex: 'spendDate', width: 112 },
-    { title: '平台 / 店铺', width: 210, ellipsis: true, render: (_, row) => `${platformDisplayLabel(row.platform)} · ${row.shopName}` },
-    { title: '支付时间', dataIndex: 'paidAt', width: 175, render: (value) => formatDateTime(value as string) },
-    { title: '初始归属', width: 125, align: 'right', render: (_, row) => formatProfitAmount(row.amountMinor, row.currency) },
-    { title: '调整合计', width: 125, align: 'right', render: (_, row) => formatProfitAmount(row.adjustmentMinor, row.currency) },
-    { title: '当前归属', width: 125, align: 'right', render: (_, row) => <Typography.Text strong>{formatProfitAmount(row.netAmountMinor, row.currency)}</Typography.Text> },
-    { title: '结算覆盖', dataIndex: 'settlementCoverage', width: 125, render: (value) => coverageTag(value as AdvertisingSettlementCoverage) },
-    { title: '利润口径', dataIndex: 'profitStatus', width: 125, render: (value, row) => <Tooltip title={row.reason}>{profitTag(value as AdvertisingAllocation['profitStatus'])}</Tooltip> },
-    { title: '归属时间', dataIndex: 'attributedAt', width: 175, render: (value) => formatDateTime(value as string) },
-    { title: '操作', valueType: 'option', width: 88, fixed: 'right', render: (_, row) => <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => drawer.openDrawer(row.id)}>查看</Button> },
+    { title: tr('费用日期'), dataIndex: 'spendDate', width: 112 },
+    { title: tr('平台 / 店铺'), width: 210, ellipsis: true, render: (_, row) => `${platformDisplayLabel(row.platform)} · ${row.shopName}` },
+    { title: tr('支付时间'), dataIndex: 'paidAt', width: 175, render: (value) => formatDateTime(value as string) },
+    { title: tr('初始归属'), width: 125, align: 'right', render: (_, row) => formatProfitAmount(row.amountMinor, row.currency) },
+    { title: tr('调整合计'), width: 125, align: 'right', render: (_, row) => formatProfitAmount(row.adjustmentMinor, row.currency) },
+    { title: tr('当前归属'), width: 125, align: 'right', render: (_, row) => <Typography.Text strong>{formatProfitAmount(row.netAmountMinor, row.currency)}</Typography.Text> },
+    { title: tr('结算覆盖'), dataIndex: 'settlementCoverage', width: 125, render: (value) => coverageTag(value as AdvertisingSettlementCoverage) },
+    { title: tr('利润口径'), dataIndex: 'profitStatus', width: 125, render: (value, row) => <Tooltip title={row.reason}>{profitTag(value as AdvertisingAllocation['profitStatus'])}</Tooltip> },
+    { title: tr('归属时间'), dataIndex: 'attributedAt', width: 175, render: (value) => formatDateTime(value as string) },
+    { title: tr('操作'), valueType: 'option', width: 88, fixed: 'right', render: (_, row) => <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => drawer.openDrawer(row.id)}>{tr('查看')} </Button> },
   ];
 
   const spendColumns: TableColumnsType<AdvertisingSpendPreview> = [
-    { title: '行', dataIndex: 'line', width: 56 },
-    { title: '费用日期', dataIndex: 'spendDate', width: 112 },
-    { title: '费用金额', width: 130, align: 'right', render: (_, row) => formatProfitAmount(row.spendMinor, row.currency) },
-    { title: '结算覆盖', dataIndex: 'settlementCoverage', width: 125, render: (value) => coverageTag(value) },
-    { title: '纳入订单', dataIndex: 'eligibleOrderCount', width: 96, align: 'right' },
-    { title: '排除订单', dataIndex: 'excludedOrderCount', width: 96, align: 'right' },
-    { title: '处理', dataIndex: 'disposition', width: 100, render: (value) => value === 'duplicate' ? <Tag>跳过重复</Tag> : <Tag color="processing">新增</Tag> },
+    { title: tr('行'), dataIndex: 'line', width: 56 },
+    { title: tr('费用日期'), dataIndex: 'spendDate', width: 112 },
+    { title: tr('费用金额'), width: 130, align: 'right', render: (_, row) => formatProfitAmount(row.spendMinor, row.currency) },
+    { title: tr('结算覆盖'), dataIndex: 'settlementCoverage', width: 125, render: (value) => coverageTag(value) },
+    { title: tr('纳入订单'), dataIndex: 'eligibleOrderCount', width: 96, align: 'right' },
+    { title: tr('排除订单'), dataIndex: 'excludedOrderCount', width: 96, align: 'right' },
+    { title: tr('处理'), dataIndex: 'disposition', width: 100, render: (value) => value === 'duplicate' ? <Tag>{tr('跳过重复')} </Tag> : <Tag color="processing">{tr('新增')} </Tag> },
   ];
 
   const orderColumns: TableColumnsType<AdvertisingPreviewOrder> = [
-    { title: '费用日期', dataIndex: 'spendDate', width: 112 },
-    { title: '订单号', dataIndex: 'orderNo', width: 180, ellipsis: true },
-    { title: '支付时间', dataIndex: 'paidAt', width: 175, render: (value) => value ? formatDateTime(value) : '—' },
-    { title: '结果', dataIndex: 'included', width: 90, render: (value) => value ? <Tag color="success">纳入</Tag> : <Tag>排除</Tag> },
-    { title: '归属金额', width: 125, align: 'right', render: (_, row) => formatProfitAmount(row.amountMinor, row.currency) },
-    { title: '原因', dataIndex: 'reason', width: 220, ellipsis: true, render: (value) => value || '符合归属条件' },
+    { title: tr('费用日期'), dataIndex: 'spendDate', width: 112 },
+    { title: tr('订单号'), dataIndex: 'orderNo', width: 180, ellipsis: true },
+    { title: tr('支付时间'), dataIndex: 'paidAt', width: 175, render: (value) => value ? formatDateTime(value) : '—' },
+    { title: tr('结果'), dataIndex: 'included', width: 90, render: (value) => value ? <Tag color="success">{tr('纳入')} </Tag> : <Tag>{tr('排除')} </Tag> },
+    { title: tr('归属金额'), width: 125, align: 'right', render: (_, row) => formatProfitAmount(row.amountMinor, row.currency) },
+    { title: tr('原因'), dataIndex: 'reason', width: 220, ellipsis: true, render: (value) => value || tr('符合归属条件') },
   ];
 
   const issueColumns: TableColumnsType<AdvertisingValidationIssue> = [
-    { title: '行', dataIndex: 'line', width: 56 },
-    { title: '字段', dataIndex: 'field', width: 180, render: (value) => value || '文件' },
-    { title: '问题', dataIndex: 'message' },
+    { title: tr('行'), dataIndex: 'line', width: 56 },
+    { title: tr('字段'), dataIndex: 'field', width: 180, render: (value) => value || tr('文件') },
+    { title: tr('问题'), dataIndex: 'message' },
   ];
 
   const reversedIDs = useMemo(
@@ -327,13 +400,13 @@ export default function AdvertisingFeesPage() {
     [detail?.adjustments],
   );
   const adjustmentColumns: TableColumnsType<AdvertisingAdjustment> = [
-    { title: '类型', dataIndex: 'factType', width: 96, render: (value) => value === 'reversal' ? <Tag>冲正</Tag> : <Tag color="processing">调整</Tag> },
-    { title: '金额', width: 125, align: 'right', render: (_, row) => formatProfitAmount(row.amountMinor, row.currency) },
-    { title: '原因', dataIndex: 'reason', width: 240, ellipsis: true },
-    { title: '记录时间', dataIndex: 'createdAt', width: 175, render: (value) => formatDateTime(value) },
+    { title: tr('类型'), dataIndex: 'factType', width: 96, render: (value) => value === 'reversal' ? <Tag>{tr('冲正')} </Tag> : <Tag color="processing">{tr('调整')} </Tag> },
+    { title: tr('金额'), width: 125, align: 'right', render: (_, row) => formatProfitAmount(row.amountMinor, row.currency) },
+    { title: tr('原因'), dataIndex: 'reason', width: 240, ellipsis: true },
+    { title: tr('记录时间'), dataIndex: 'createdAt', width: 175, render: (value) => formatDateTime(value) },
     {
-      title: '操作', width: 90, render: (_, row) => row.factType === 'adjustment' && !reversedIDs.has(row.id)
-        ? <Button type="link" size="small" icon={<RollbackOutlined />} disabled={!canManage} onClick={() => openAdjustment(row)}>冲正</Button>
+      title: tr('操作'), width: 90, render: (_, row) => row.factType === 'adjustment' && !reversedIDs.has(row.id)
+        ? <Button type="link" size="small" icon={<RollbackOutlined />} disabled={!canManage} onClick={() => openAdjustment(row)}>{tr('冲正')} </Button>
         : '—',
     },
   ];
@@ -342,18 +415,18 @@ export default function AdvertisingFeesPage() {
     <PermissionGuard require={PERMISSIONS.ADVERTISING_FEE_VIEW} showForbiddenPage>
       <TmPageContainer
         className="tm-advertising-fee-page"
-        title="广告费用归属"
-        subTitle="按店铺当地日将广告费用确定性归属到已支付且未取消的订单"
+        title={tr("广告费用归属")}
+        subTitle={tr("按店铺当地日将广告费用确定性归属到已支付且未取消的订单")}
         extra={<TmPageHeaderExtra>
-          <Button icon={<DownloadOutlined />} onClick={downloadAdvertisingFeeCSVTemplate}>下载模板</Button>
-          <Tooltip title={canImport ? '导入广告费用 CSV' : '当前账号无导入权限'}>
-            <Button icon={<ImportOutlined />} disabled={!canImport} onClick={() => setImportOpen(true)}>导入费用</Button>
+          <Button icon={<DownloadOutlined />} onClick={downloadAdvertisingFeeCSVTemplate}>{tr('下载模板')} </Button>
+          <Tooltip title={canImport ? tr('导入广告费用 CSV') : tr('当前账号无导入权限')}>
+            <Button icon={<ImportOutlined />} disabled={!canImport} onClick={() => setImportOpen(true)}>{tr('导入费用')} </Button>
           </Tooltip>
         </TmPageHeaderExtra>}
       >
-        <Alert type="info" showIcon message="订单归属是运营估算事实" description="仅明确声明结算未包含的广告费用进入预估利润；结算已包含或覆盖未知时失败关闭。" />
+        <Alert type="info" showIcon message={tr("订单归属是运营估算事实")} description={tr("仅明确声明结算未包含的广告费用进入预估利润；结算已包含或覆盖未知时失败关闭。")} />
         {shopError ? <Alert type="warning" showIcon message={shopError} /> : null}
-        {listError ? <ErrorAlert title={listError} actionHint={<Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>重新加载</Button>} /> : null}
+        {listError ? <ErrorAlert title={listError} actionHint={<Button icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>{tr('重新加载')} </Button>} /> : null}
         <TmProTable<AdvertisingAllocation>
           rowKey="id"
           actionRef={actionRef}
@@ -361,13 +434,13 @@ export default function AdvertisingFeesPage() {
           search={false}
           cardBordered
           scroll={{ x: 1560 }}
-          locale={{ emptyText: listError ? '广告费用归属数据暂不可用' : <EmptyState compact title="暂无广告费用归属" /> }}
+          locale={{ emptyText: listError ? tr('广告费用归属数据暂不可用') : <EmptyState compact title={tr("暂无广告费用归属")} /> }}
           filterBar={<Space className="tm-advertising-fee-toolbar" wrap>
-            <Input.Search allowClear aria-label="订单号" placeholder="搜索订单号" value={orderNoInput} className="tm-advertising-fee-filter tm-advertising-fee-filter--search" onChange={(event) => setOrderNoInput(event.target.value)} onSearch={(value) => setUrlState({ orderNo: value.trim() || undefined, page: undefined }, { replace: true })} />
-            <Select allowClear showSearch optionFilterProp="label" aria-label="店铺" placeholder="全部店铺" value={urlState.shopId} className="tm-advertising-fee-filter" options={shopOptions} onChange={(value) => setUrlState({ shopId: value || undefined, page: undefined }, { replace: true })} />
-            <Select allowClear showSearch aria-label="币种" placeholder="全部币种" value={urlState.currency} className="tm-advertising-fee-filter" options={['CNY', 'USD', 'EUR', 'JPY', 'GBP'].map((value) => ({ value, label: value }))} onChange={(value) => setUrlState({ currency: value || undefined, page: undefined }, { replace: true })} />
-            <Select allowClear aria-label="结算覆盖" placeholder="全部结算口径" value={urlState.settlementCoverage} className="tm-advertising-fee-filter" options={Object.entries(COVERAGE_META).map(([value, meta]) => ({ value, label: meta.text }))} onChange={(value) => setUrlState({ settlementCoverage: value || undefined, page: undefined }, { replace: true })} />
-            <Button onClick={() => { clearState(['page', 'pageSize', 'orderNo', 'shopId', 'currency', 'settlementCoverage'], { replace: true }); setOrderNoInput(''); }}>重置</Button>
+            <Input.Search allowClear aria-label={tr("订单号")} placeholder={tr("搜索订单号")} value={orderNoInput} className="tm-advertising-fee-filter tm-advertising-fee-filter--search" onChange={(event) => setOrderNoInput(event.target.value)} onSearch={(value) => setUrlState({ orderNo: value.trim() || undefined, page: undefined }, { replace: true })} />
+            <Select allowClear showSearch optionFilterProp="label" aria-label={tr("店铺")} placeholder={tr("全部店铺")} value={urlState.shopId} className="tm-advertising-fee-filter" options={shopOptions} onChange={(value) => setUrlState({ shopId: value || undefined, page: undefined }, { replace: true })} />
+            <Select allowClear showSearch aria-label={tr("币种")} placeholder={tr("全部币种")} value={urlState.currency} className="tm-advertising-fee-filter" options={['CNY', 'USD', 'EUR', 'JPY', 'GBP'].map((value) => ({ value, label: value }))} onChange={(value) => setUrlState({ currency: value || undefined, page: undefined }, { replace: true })} />
+            <Select allowClear aria-label={tr("结算覆盖")} placeholder={tr("全部结算口径")} value={urlState.settlementCoverage} className="tm-advertising-fee-filter" options={Object.entries(COVERAGE_META).map(([value, meta]) => ({ value, label: meta.text }))} onChange={(value) => setUrlState({ settlementCoverage: value || undefined, page: undefined }, { replace: true })} />
+            <Button onClick={() => { clearState(['page', 'pageSize', 'orderNo', 'shopId', 'currency', 'settlementCoverage'], { replace: true }); setOrderNoInput(''); }}>{tr('重置')} </Button>
           </Space>}
           toolBarRender={() => []}
           pagination={{
@@ -377,12 +450,14 @@ export default function AdvertisingFeesPage() {
             onChange: (nextPage, nextPageSize) => setUrlState({ page: nextPage > 1 ? String(nextPage) : undefined, pageSize: nextPageSize !== 20 ? String(nextPageSize) : undefined }, { replace: true }),
           }}
           request={async (params) => {
+            const isCurrent = listReadGuard.begin();
             try {
               const result = await queryAdvertisingFees(queryParams(params.current, params.pageSize));
+              if (!isCurrent()) return { data: [], success: false, total: 0 };
               setListError('');
               return { data: result.list || [], success: true, total: result.total };
             } catch (error) {
-              setListError((error as Error)?.message || '广告费用归属列表加载失败');
+              if (isCurrent()) setListError((error as Error)?.message || tr('广告费用归属列表加载失败'));
               return { data: [], success: false, total: 0 };
             }
           }}
@@ -390,7 +465,7 @@ export default function AdvertisingFeesPage() {
       </TmPageContainer>
 
       <Modal
-        title="导入广告费用"
+        title={tr("导入广告费用")}
         open={importOpen}
         width={1040}
         destroyOnHidden
@@ -398,27 +473,27 @@ export default function AdvertisingFeesPage() {
         closable={!submitting}
         onCancel={() => { if (!submitting) { setImportOpen(false); resetImport(); } }}
         footer={<OperationToolbar className="tm-advertising-fee-actions">
-          <Button disabled={submitting} onClick={() => { setImportOpen(false); resetImport(); }}>取消</Button>
-          {preview ? <Button disabled={submitting} onClick={invalidatePreview}>重新选择</Button> : null}
-          {!preview ? <Button type="primary" disabled={!importShopID || !nativeFile(fileList)} loading={previewing} onClick={() => void runPreview()}>校验预览</Button> : null}
-          {preview?.valid ? <Button type="primary" icon={<ImportOutlined />} disabled={submitting} loading={submitting} onClick={() => void confirmImport()}>确认归属</Button> : null}
+          <Button disabled={submitting} onClick={() => { setImportOpen(false); resetImport(); }}>{tr('取消')} </Button>
+          {preview ? <Button disabled={submitting} onClick={invalidatePreview}>{tr('重新选择')} </Button> : null}
+          {!preview ? <Button type="primary" disabled={!importShopID || !nativeFile(fileList)} loading={previewing} onClick={() => void runPreview()}>{tr('校验预览')} </Button> : null}
+          {preview?.valid ? <Button type="primary" icon={<ImportOutlined />} disabled={submitting} loading={submitting} onClick={() => void confirmImport()}>{tr('确认归属')} </Button> : null}
         </OperationToolbar>}
       >
         {!preview ? <div className="tm-advertising-fee-import-source">
-          <Select showSearch optionFilterProp="label" aria-label="费用店铺" placeholder="选择费用所属店铺" value={importShopID} options={shopOptions} onChange={(value) => { setImportShopID(value); invalidatePreview(); }} />
+          <Select showSearch optionFilterProp="label" aria-label={tr("费用店铺")} placeholder={tr("选择费用所属店铺")} value={importShopID} options={shopOptions} onChange={(value) => { setImportShopID(value); invalidatePreview(); }} />
           <Upload accept=".csv,text/csv" maxCount={1} fileList={fileList} beforeUpload={(file) => { setFileList([file]); invalidatePreview(); return false; }} onRemove={() => { setFileList([]); invalidatePreview(); }}>
-            <Button icon={<UploadOutlined />}>选择 CSV</Button>
+            <Button icon={<UploadOutlined />}>{tr('选择 CSV')} </Button>
           </Upload>
-          <Button type="link" icon={<DownloadOutlined />} onClick={downloadAdvertisingFeeCSVTemplate}>下载 CSV 模板</Button>
+          <Button type="link" icon={<DownloadOutlined />} onClick={downloadAdvertisingFeeCSVTemplate}>{tr('下载 CSV 模板')} </Button>
         </div> : <Space direction="vertical" size="middle" className="tm-advertising-fee-preview">
           <div className="tm-advertising-fee-summary">
-            <Statistic title="费用行" value={preview.sourceRows} />
-            <Statistic title="新增费用" value={preview.newSpends} />
-            <Statistic title="订单归属" value={preview.allocationCount} />
-            <Statistic title="排除订单" value={preview.rows.reduce((sum, row) => sum + row.excludedOrderCount, 0)} />
+            <Statistic title={tr("费用行")} value={preview.sourceRows} />
+            <Statistic title={tr("新增费用")} value={preview.newSpends} />
+            <Statistic title={tr("订单归属")} value={preview.allocationCount} />
+            <Statistic title={tr("排除订单")} value={preview.rows.reduce((sum, row) => sum + row.excludedOrderCount, 0)} />
           </div>
-          {preview.valid ? <Alert type="success" showIcon message="广告费用校验通过" description={`${preview.shopName} · ${preview.shopTimezone} · ${preview.policyVersion}`} /> : <Alert type="error" showIcon message="广告费用未通过校验" />}
-          {preview.warnings.map((warning) => <Alert key={`${warning.line}-${warning.code}`} type="warning" showIcon message={`第 ${warning.line} 行`} description={warning.message} />)}
+          {preview.valid ? <Alert type="success" showIcon message={tr("广告费用校验通过")} description={`${preview.shopName} · ${preview.shopTimezone} · ${preview.policyVersion}`} /> : <Alert type="error" showIcon message={tr("广告费用未通过校验")} />}
+          {preview.warnings.map((warning) => <Alert key={`${warning.line}-${warning.code}`} type="warning" showIcon message={trFormat('第 {line} 行', { line: warning.line })} description={warning.message} />)}
           {preview.issues.length ? <Table rowKey={(row) => `${row.line}-${row.field || ''}-${row.code}`} size="small" columns={issueColumns} dataSource={preview.issues} pagination={{ pageSize: 5 }} scroll={{ x: 640 }} /> : <>
             <Table rowKey={(row) => `${row.line}-${row.spendDate}-${row.currency}`} size="small" columns={spendColumns} dataSource={preview.rows} pagination={false} scroll={{ x: 780 }} />
             <Table rowKey={(row) => `${row.line}-${row.orderId}`} size="small" columns={orderColumns} dataSource={preview.orders} pagination={{ pageSize: 6 }} scroll={{ x: 920 }} />
@@ -426,48 +501,47 @@ export default function AdvertisingFeesPage() {
         </Space>}
       </Modal>
 
-      <AppDrawer title="广告费用归属详情" open={drawer.open} onClose={drawer.closeDrawer} loading={detailLoading} width={940}>
-        {detailError ? <ErrorAlert title={detailError} actionHint={drawer.id ? <Button icon={<ReloadOutlined />} onClick={() => void loadDetail(drawer.id!)}>重新加载</Button> : undefined} /> : null}
+      <AppDrawer title={tr("广告费用归属详情")} open={drawer.open} onClose={drawer.closeDrawer} loading={detailLoading} width={940}>
+        {detailError ? <ErrorAlert title={detailError} actionHint={drawer.id ? <Button icon={<ReloadOutlined />} onClick={() => void loadDetail(drawer.id!)}>{tr('重新加载')} </Button> : undefined} /> : null}
         {detail ? <Space direction="vertical" size="large" className="tm-advertising-fee-detail">
           <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
-            <Descriptions.Item label="订单号">{detail.orderNo}</Descriptions.Item>
-            <Descriptions.Item label="当前归属"><Typography.Text strong>{formatProfitAmount(detail.netAmountMinor, detail.currency)}</Typography.Text></Descriptions.Item>
-            <Descriptions.Item label="平台 / 店铺">{platformDisplayLabel(detail.platform)} · {detail.shopName}</Descriptions.Item>
-            <Descriptions.Item label="费用日期">{detail.spendDate}（{detail.shopTimezone}）</Descriptions.Item>
-            <Descriptions.Item label="结算覆盖">{coverageTag(detail.settlementCoverage)}</Descriptions.Item>
-            <Descriptions.Item label="利润口径">{profitTag(detail.profitStatus)}</Descriptions.Item>
-            <Descriptions.Item label="初始归属">{formatProfitAmount(detail.amountMinor, detail.currency)}</Descriptions.Item>
-            <Descriptions.Item label="调整合计">{formatProfitAmount(detail.adjustmentMinor, detail.currency)}</Descriptions.Item>
-            <Descriptions.Item label="分配策略">{detail.policyVersion}</Descriptions.Item>
-            <Descriptions.Item label="确认时间">{formatDateTime(detail.attributedAt)}</Descriptions.Item>
+            <Descriptions.Item label={tr("订单号")}>{detail.orderNo}</Descriptions.Item>
+            <Descriptions.Item label={tr("当前归属")}><Typography.Text strong>{formatProfitAmount(detail.netAmountMinor, detail.currency)}</Typography.Text></Descriptions.Item>
+            <Descriptions.Item label={tr("平台 / 店铺")}>{platformDisplayLabel(detail.platform)} · {detail.shopName}</Descriptions.Item>
+            <Descriptions.Item label={tr("费用日期")}>{detail.spendDate}（{detail.shopTimezone}）</Descriptions.Item>
+            <Descriptions.Item label={tr("结算覆盖")}>{coverageTag(detail.settlementCoverage)}</Descriptions.Item>
+            <Descriptions.Item label={tr("利润口径")}>{profitTag(detail.profitStatus)}</Descriptions.Item>
+            <Descriptions.Item label={tr("初始归属")}>{formatProfitAmount(detail.amountMinor, detail.currency)}</Descriptions.Item>
+            <Descriptions.Item label={tr("调整合计")}>{formatProfitAmount(detail.adjustmentMinor, detail.currency)}</Descriptions.Item>
+            <Descriptions.Item label={tr("分配策略")}>{detail.policyVersion}</Descriptions.Item>
+            <Descriptions.Item label={tr("确认时间")}>{formatDateTime(detail.attributedAt)}</Descriptions.Item>
           </Descriptions>
           {detail.reason ? <Alert type={detail.profitStatus === 'blocked' ? 'error' : 'warning'} showIcon message={detail.reason} /> : null}
           <OperationToolbar>
-            <Button icon={<PlusOutlined />} disabled={!canManage} onClick={() => openAdjustment()}>追加调整</Button>
-            <Button icon={<EyeOutlined />} onClick={() => history.push(`/orders/${encodeURIComponent(detail.orderId)}`)}>查看订单</Button>
-            <Button icon={<EyeOutlined />} onClick={() => history.push(`/finance/order-profits?drawer=order-profit&id=${encodeURIComponent(detail.orderId)}`)}>查看预估利润</Button>
+            <Button icon={<PlusOutlined />} disabled={!canManage} onClick={() => openAdjustment()}>{tr('追加调整')} </Button>
+            <Button icon={<EyeOutlined />} onClick={() => history.push(`/orders/${encodeURIComponent(detail.orderId)}`)}>{tr('查看订单')} </Button>
+            <Button icon={<EyeOutlined />} onClick={() => history.push(`/finance/order-profits?drawer=order-profit&id=${encodeURIComponent(detail.orderId)}`)}>{tr('查看预估利润')} </Button>
           </OperationToolbar>
-          <Table rowKey="id" columns={adjustmentColumns} dataSource={detail.adjustments || []} locale={{ emptyText: '暂无费用调整' }} pagination={false} scroll={{ x: 760 }} />
-        </Space> : !detailLoading && !detailError ? <EmptyState compact title="暂无广告费用详情" /> : null}
+          <Table rowKey="id" columns={adjustmentColumns} dataSource={detail.adjustments || []} locale={{ emptyText: tr('暂无费用调整') }} pagination={false} scroll={{ x: 760 }} />
+        </Space> : !detailLoading && !detailError ? <EmptyState compact title={tr("暂无广告费用详情")} /> : null}
       </AppDrawer>
 
       <Modal
-        title={reversingAdjustment ? '冲正广告费用调整' : '追加广告费用调整'}
+        title={reversingAdjustment ? tr('冲正广告费用调整') : tr('追加广告费用调整')}
         open={adjustmentOpen}
         destroyOnHidden
-        afterOpenChange={(open) => { if (open) adjustmentForm.resetFields(); }}
         maskClosable={!adjusting}
         closable={!adjusting}
-        onCancel={() => { if (!adjusting) { adjustmentKeyRef.current = undefined; setAdjustmentOpen(false); setReversingAdjustment(undefined); } }}
+        onCancel={() => { if (!adjustmentSubmittingRef.current) { adjustmentRead.invalidate(); adjustmentScopeRef.current = undefined; adjustmentKeyRef.current = undefined; setAdjustmentOpen(false); setReversingAdjustment(undefined); } }}
         onOk={() => void saveAdjustment()}
-        okText={reversingAdjustment ? '确认冲正' : '确认追加'}
+        okText={reversingAdjustment ? tr('确认冲正') : tr('确认追加')}
         okButtonProps={{ disabled: !canManage }}
         confirmLoading={adjusting}
       >
-        {reversingAdjustment ? <Alert type="warning" showIcon message={`将追加 ${formatProfitAmount(-reversingAdjustment.amountMinor, reversingAdjustment.currency)} 的冲正事实`} /> : null}
+        {reversingAdjustment ? <Alert type="warning" showIcon message={trFormat('将追加 {amount} 的冲正事实', { amount: formatProfitAmount(-reversingAdjustment.amountMinor, reversingAdjustment.currency) })} /> : null}
         <Form form={adjustmentForm} layout="vertical" preserve={false} className="tm-advertising-fee-adjustment-form">
-          {!reversingAdjustment ? <Form.Item name="amountMinor" label="调整金额（最小货币单位，可为负数）" rules={[{ required: true, type: 'integer' }, { validator: (_, value) => value === 0 ? Promise.reject(new Error('调整金额不能为 0')) : Promise.resolve() }]}><InputNumber min={-Number.MAX_SAFE_INTEGER} max={Number.MAX_SAFE_INTEGER} precision={0} /></Form.Item> : null}
-          <Form.Item name="reason" label="原因" rules={[{ required: true, whitespace: true, min: 2, message: '请输入至少 2 个字符的原因' }]}><Input.TextArea maxLength={500} showCount rows={3} /></Form.Item>
+          {!reversingAdjustment ? <Form.Item name="amountMinor" label={tr("调整金额（最小货币单位，可为负数）")} rules={[{ required: true, type: 'integer' }, { validator: (_, value) => value === 0 ? Promise.reject(new Error(tr('调整金额不能为 0'))) : Promise.resolve() }]}><InputNumber min={-Number.MAX_SAFE_INTEGER} max={Number.MAX_SAFE_INTEGER} precision={0} /></Form.Item> : null}
+          <Form.Item name="reason" label={tr("原因")} rules={[{ required: true, whitespace: true, min: 2, message: tr('请输入至少 2 个字符的原因') }]}><Input.TextArea maxLength={500} showCount rows={3} /></Form.Item>
         </Form>
       </Modal>
     </PermissionGuard>

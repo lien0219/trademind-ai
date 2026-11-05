@@ -1,0 +1,114 @@
+.tm-tenant-business-settings__layout {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+
+  > .tm-section-card { min-width: 0; margin-block-end: 0; }
+}
+
+.tm-tenant-business-settings__nav {
+  display: grid;
+  min-width: 0;
+  gap: var(--ant-margin-xxs);
+}
+
+.tm-tenant-business-settings__nav-item.ant-btn {
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 44px;
+  padding: 10px 12px;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+
+  &.tm-tenant-business-settings__nav-item--active {
+    color: var(--ant-color-primary);
+    font-weight: 600;
+    background: var(--ant-color-primary-bg);
+  }
+}
+
+.tm-tenant-business-settings__editor {
+  .ant-pro-card-title {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ant-pro-card-header {
+    padding-block: var(--ant-padding);
+    border-bottom: 1px solid var(--ant-color-border-secondary);
+  }
+
+  .tm-section-card__head-extra { max-width: 100%; }
+
+  .tm-action-bar {
+    border-top: 1px solid var(--ant-color-border-secondary);
+    padding-top: var(--ant-padding-lg);
+  }
+}
+
+.tm-tenant-business-settings__header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ant-margin-xs);
+
+  > .ant-tag { margin-inline-end: 0; }
+}
+
+.tm-tenant-business-settings__form,
+.tm-tenant-business-settings__shop-override {
+  width: 100%;
+  min-width: 0;
+}
+
+.tm-tenant-business-settings__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  row-gap: 0;
+
+  > .ant-form-item { min-width: 0; }
+  > div:not(.ant-form-item) { grid-column: 1 / -1; }
+  > .ant-form-item:has(.ant-select-mode-multiple),
+  > .ant-form-item:has(.ant-select-mode-tags) { grid-column: 1 / -1; }
+}
+
+@media (min-width: 1200px) {
+  .tm-tenant-business-settings__form--general {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 991px) {
+  .tm-tenant-business-settings__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-tenant-business-settings__nav {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .tm-tenant-business-settings__form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 575px) {
+  .tm-tenant-business-settings__nav {
+    display: flex;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .tm-tenant-business-settings__nav-item.ant-btn {
+    flex: 0 0 auto;
+    width: auto;
+    white-space: nowrap;
+  }
+}

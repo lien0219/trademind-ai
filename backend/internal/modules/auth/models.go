@@ -30,6 +30,7 @@ type AuthSession struct {
 	ID               uuid.UUID  `gorm:"type:char(36);primaryKey" json:"id"`
 	TenantID         int64      `gorm:"not null;default:0;index" json:"tenantId"`
 	UserID           uuid.UUID  `gorm:"type:char(36);not null;index" json:"userId"`
+	TokenVersion     int        `gorm:"not null;default:0" json:"-"`
 	Status           string     `gorm:"size:32;not null;default:'active';index" json:"status"`
 	DeviceSummary    string     `gorm:"size:128" json:"deviceSummary,omitempty"`
 	BrowserSummary   string     `gorm:"size:128" json:"browserSummary,omitempty"`

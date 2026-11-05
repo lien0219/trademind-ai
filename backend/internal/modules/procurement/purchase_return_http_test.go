@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
@@ -26,7 +27,7 @@ type purchaseReturnHTTPEnvelope struct {
 func purchaseReturnHTTPRouter(t *testing.T, fx *procurementFixture, tenantID int64, role string, actorID uuid.UUID) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	if err := fx.DB.AutoMigrate(&admin.AdminUser{}, &admin.UserStorePermission{}); err != nil {
+	if err := fx.DB.AutoMigrate(&admin.AdminUser{}, &admin.UserStorePermission{}, &shop.Shop{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := fx.DB.Create(&admin.AdminUser{

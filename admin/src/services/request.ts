@@ -1,4 +1,5 @@
 import { request } from '@umijs/max';
+import { localizeApiError } from '@/i18n/apiErrors';
 
 /** 后端统一返回结构（与 Gin Envelope 对齐） */
 export type ApiResponse<T> = {
@@ -20,14 +21,23 @@ export class ApiRequestError extends Error {
   code: number;
   traceId?: string;
   data: unknown;
+  rawMessage: string;
 
   constructor(res: ApiResponse<unknown>) {
-    super(res.message || 'request_failed');
+    super(localizeApiError(res.code, res.message));
     this.name = 'ApiRequestError';
     this.code = res.code;
     this.traceId = res.traceId;
     this.data = res.data;
+    this.rawMessage = res.message;
   }
+}
+
+/** Machine decisions must use the server reason, never translated UI text. */
+export function apiErrorReason(error: unknown): string {
+  if (error instanceof ApiRequestError) return error.rawMessage;
+  if (error instanceof Error) return error.message;
+  return '';
 }
 
 function responseEnvelopeFromError(error: unknown): ApiResponse<unknown> | null {
@@ -73,7 +83,7 @@ export async function getJSON<T>(path: string): Promise<T> {
 }
 
 /** 通用 PUT */
-export async function putJSON<T, B extends object>(path: string, body: B, options?: RequestOptions): Promise<T> {
+export async function putJSON<T, B extends object = object>(path: string, body: B, options?: RequestOptions): Promise<T> {
   const res = await requestEnvelope<T>(path, {
     method: 'PUT',
     data: body,
@@ -93,7 +103,7 @@ export async function patchJSON<T, B extends object>(path: string, body: B, opti
 }
 
 /** 通用 POST */
-export async function postJSON<T>(path: string, body?: object, options?: RequestOptions): Promise<T> {
+export async function postJSON<T, B extends object = object>(path: string, body?: B, options?: RequestOptions): Promise<T> {
   const res = await requestEnvelope<T>(path, {
     method: 'POST',
     data: body,
@@ -112,8 +122,8 @@ export async function getWithParams<T>(path: string, params?: Record<string, str
 }
 
 /** DELETE */
-export async function deleteJSON<T>(path: string): Promise<T> {
-  const res = await requestEnvelope<T>(path, { method: 'DELETE' });
+export async function deleteJSON<T, B extends object = object>(path: string, body?: B): Promise<T> {
+  const res = await requestEnvelope<T>(path, body === undefined ? { method: 'DELETE' } : { method: 'DELETE', data: body });
   return unwrap(res);
 }
 

@@ -15,15 +15,18 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// hashChainVersion is the audit integrity schema version.
-const hashChainVersion = 1
+// hashChainVersion is the audit integrity schema version. Version 2 binds
+// actor/session attribution and request metadata into the evidence hash.
+const hashChainVersion = 2
 
 var chainPartitionLocks sync.Map
 
-// appendHashChain computes prev_hash / entry_hash for a new log row.
-func (s *Service) appendHashChain(tx *gorm.DB, row *OperationLog) error {
+// appendHashChain computes prev_hash / entry_hash for a new log row. It
+// returns a release function so in-process partition locks remain held until
+// the caller has inserted the row and committed its transaction.
+func (s *Service) appendHashChain(tx *gorm.DB, row *OperationLog) (func(), error) {
 	if row == nil {
-		return nil
+		return func() {}, nil
 	}
 	if row.ID == uuid.Nil {
 		row.ID = uuid.New()
@@ -32,35 +35,71 @@ func (s *Service) appendHashChain(tx *gorm.DB, row *OperationLog) error {
 		row.CreatedAt = time.Now().UTC()
 	}
 	row.CreatedAt = row.CreatedAt.UTC().Truncate(time.Microsecond)
-	partition := chainPartition(row.TenantID, row.CreatedAt)
-	row.ChainPartition = partition
 	row.HashVersion = hashChainVersion
-
-	if err := lockHashChainScope(tx, partition); err != nil {
-		return err
-	}
-
-	var prev OperationLog
-	query := tx.Where("chain_partition = ?", partition).Order("created_at DESC, id DESC")
-	if isPostgres(tx) {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
-	}
-	err := query.First(&prev).Error
-	prevHash := ""
-	if err == nil {
-		if !row.CreatedAt.After(prev.CreatedAt) {
-			row.CreatedAt = prev.CreatedAt.Add(time.Microsecond).UTC()
-			row.ChainPartition = chainPartition(row.TenantID, row.CreatedAt)
+	lockedPartitions := make(map[string]struct{})
+	unlockers := make([]func(), 0, 2)
+	release := func() {
+		for i := len(unlockers) - 1; i >= 0; i-- {
+			unlockers[i]()
 		}
-		prevHash = strings.TrimSpace(prev.EntryHash)
-	} else if errors.Is(err, gorm.ErrRecordNotFound) {
-		// first entry in partition
-	} else {
-		return err
+		unlockers = nil
 	}
-	row.PrevHash = prevHash
-	row.EntryHash = computeEntryHash(prevHash, row)
-	return nil
+	completed := false
+	defer func() {
+		if !completed {
+			release()
+		}
+	}()
+
+	for {
+		partition := chainPartition(row.TenantID, row.CreatedAt)
+		row.ChainPartition = partition
+		if _, ok := lockedPartitions[partition]; !ok {
+			// PostgreSQL holds its advisory lock until transaction completion.
+			// Taking a process mutex here would let a waiting transaction hold
+			// that mutex while the lock owner tries to append its next audit row.
+			if !isPostgres(tx) {
+				unlockers = append(unlockers, lockLocalHashChainScope(partition))
+			}
+			lockedPartitions[partition] = struct{}{}
+		}
+		if err := lockHashChainScope(tx, partition); err != nil {
+			return nil, err
+		}
+
+		var prev OperationLog
+		query := tx.Where("chain_partition = ?", partition).Order("created_at DESC, id DESC")
+		if isPostgres(tx) {
+			query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+		}
+		err := query.First(&prev).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			row.PrevHash = ""
+			row.EntryHash = computeEntryHashV2(row.PrevHash, row)
+			completed = true
+			return release, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if row.CreatedAt.After(prev.CreatedAt) {
+			row.PrevHash = strings.TrimSpace(prev.EntryHash)
+			row.EntryHash = computeEntryHashV2(row.PrevHash, row)
+			completed = true
+			return release, nil
+		}
+
+		row.CreatedAt = prev.CreatedAt.Add(time.Microsecond).UTC()
+		if chainPartition(row.TenantID, row.CreatedAt) == partition {
+			row.PrevHash = strings.TrimSpace(prev.EntryHash)
+			row.EntryHash = computeEntryHashV2(row.PrevHash, row)
+			completed = true
+			return release, nil
+		}
+		// The monotonic timestamp crossed UTC midnight. Continue under the new
+		// partition's lock and derive its own predecessor instead of linking
+		// independent daily chains together.
+	}
 }
 
 func lockHashChainScope(tx *gorm.DB, partition string) error {
@@ -89,8 +128,16 @@ func chainPartition(tenantID int64, at time.Time) string {
 }
 
 func computeEntryHash(prevHash string, row *OperationLog) string {
+	return computeEntryHashVersion(1, prevHash, row)
+}
+
+func computeEntryHashV2(prevHash string, row *OperationLog) string {
+	return computeEntryHashVersion(2, prevHash, row)
+}
+
+func computeEntryHashVersion(version int, prevHash string, row *OperationLog) string {
 	summary := sha256.Sum256([]byte(strings.TrimSpace(row.Message)))
-	payload := strings.Join([]string{
+	fields := []string{
 		prevHash,
 		fmt.Sprintf("%d", row.TenantID),
 		row.Action,
@@ -100,9 +147,33 @@ func computeEntryHash(prevHash string, row *OperationLog) string {
 		row.RequestID,
 		row.CreatedAt.UTC().Format(time.RFC3339Nano),
 		hex.EncodeToString(summary[:]),
-	}, "|")
+	}
+	if version >= 2 {
+		fields = append(fields,
+			fmt.Sprintf("%d", version),
+			uuidValue(row.AdminUserID),
+			uuidValue(row.SessionID),
+			row.AdminRole,
+			row.Username,
+			uuidValue(row.ShopID),
+			row.Platform,
+			row.Permission,
+			row.Method,
+			row.Path,
+			row.IPHash,
+			row.UserAgentSummary,
+		)
+	}
+	payload := strings.Join(fields, "|")
 	sum := sha256.Sum256([]byte(payload))
 	return hex.EncodeToString(sum[:])
+}
+
+func uuidValue(v *uuid.UUID) string {
+	if v == nil {
+		return ""
+	}
+	return v.String()
 }
 
 // VerifyChain checks hash chain integrity for a partition/date range.
@@ -118,12 +189,51 @@ func (s *Service) VerifyChain(ctx context.Context, tenantID int64, from, to time
 		return 0, nil, err
 	}
 	prev := ""
+	prevPartition := ""
 	for i, row := range rows {
-		expected := computeEntryHash(prev, &row)
-		if strings.TrimSpace(row.EntryHash) == "" {
-			continue
+		partition := strings.TrimSpace(row.ChainPartition)
+		if partition == "" {
+			partition = chainPartition(row.TenantID, row.CreatedAt)
 		}
-		if row.EntryHash != expected || (i > 0 && row.PrevHash != prev) {
+		if partition != prevPartition {
+			// Each tenant/day partition starts from its own genesis. A date
+			// range may contain multiple independent chains.
+			prev = ""
+			prevPartition = partition
+			if i == 0 {
+				// A rolling window may begin halfway through its first day.
+				// Anchor it to the actual predecessor instead of treating the
+				// first selected row as a new genesis or trusting its PrevHash.
+				var predecessor OperationLog
+				err := s.DB.WithContext(ctx).
+					Where("tenant_id = ? AND chain_partition = ?", tenantID, partition).
+					Where("created_at < ? OR (created_at = ? AND id < ?)", row.CreatedAt, row.CreatedAt, row.ID).
+					Order("created_at DESC, id DESC").Take(&predecessor).Error
+				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+					return i, nil, fmt.Errorf("load audit chain predecessor: %w", err)
+				}
+				if err == nil {
+					expected := computeEntryHash(predecessor.PrevHash, &predecessor)
+					if predecessor.HashVersion >= 2 {
+						expected = computeEntryHashV2(predecessor.PrevHash, &predecessor)
+					}
+					if predecessor.EntryHash == "" || predecessor.EntryHash != expected {
+						at := predecessor.CreatedAt
+						return i, &at, fmt.Errorf("audit chain predecessor mismatch")
+					}
+					prev = predecessor.EntryHash
+				}
+			}
+		}
+		if strings.TrimSpace(row.EntryHash) == "" {
+			t := row.CreatedAt
+			return i, &t, fmt.Errorf("audit chain entry hash missing at index %d", i)
+		}
+		expected := computeEntryHash(prev, &row)
+		if row.HashVersion >= 2 {
+			expected = computeEntryHashV2(prev, &row)
+		}
+		if row.EntryHash != expected || row.PrevHash != prev {
 			t := row.CreatedAt
 			return i, &t, fmt.Errorf("audit chain mismatch at index %d", i)
 		}

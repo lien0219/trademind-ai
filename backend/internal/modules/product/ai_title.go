@@ -120,6 +120,10 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	tenantID, err := s.ensureProductTenantVisible(c, productID)
+	if err != nil {
+		return nil, err
+	}
 	if s.Prompts == nil || s.AITasks == nil || s.AIGateway == nil {
 		return nil, fmt.Errorf("product: ai not configured")
 	}
@@ -146,7 +150,7 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 	var p Product
 	if err := s.DB.WithContext(c.Request.Context()).
 		Preload("SKUs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
-		First(&p, "id = ?", productID).Error; err != nil {
+		First(&p, "id = ? AND tenant_id = ?", productID, tenantID).Error; err != nil {
 		return nil, err
 	}
 
@@ -287,7 +291,7 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 	_ = s.AITasks.MarkSuccess(c.Request.Context(), taskID, outJSON, raw, resp.InputTokens, resp.OutputTokens, usedModel)
 
 	if extra != nil && extra.SaveAIField && strings.TrimSpace(parsed.OptimizedTitle) != "" {
-		_ = s.DB.WithContext(c.Request.Context()).Model(&Product{}).Where("id = ?", p.ID).Update("ai_title", strings.TrimSpace(parsed.OptimizedTitle)).Error
+		_ = s.DB.WithContext(c.Request.Context()).Model(&Product{}).Where("id = ? AND tenant_id = ?", p.ID, tenantID).Update("ai_title", strings.TrimSpace(parsed.OptimizedTitle)).Error
 	}
 
 	if s.OpLog != nil && (extra == nil || !extra.SkipSingleOpLog) {
@@ -313,6 +317,10 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 func (s *Service) ApplyAITitle(c *gin.Context, productID uuid.UUID, body ApplyAITitleBody, adminID *uuid.UUID) (*DetailDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
+	}
+	tenantID, err := s.ensureProductTenantVisible(c, productID)
+	if err != nil {
+		return nil, err
 	}
 	title := strings.TrimSpace(body.AITitle)
 	if title == "" {
@@ -340,7 +348,7 @@ func (s *Service) ApplyAITitle(c *gin.Context, productID uuid.UUID, body ApplyAI
 	}
 
 	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).First(&p, "id = ?", productID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&p, "id = ? AND tenant_id = ?", productID, tenantID).Error; err != nil {
 		return nil, err
 	}
 	if err := s.applyAIContent(c, &p, AIContentFieldTitle, title, taskUUID, body.ExpectedUpdatedAt, body.SourceSnapshotHash, adminID); err != nil {
@@ -364,8 +372,7 @@ func (s *Service) ListRecentAITasks(c *gin.Context, productID uuid.UUID, limit i
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
-	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).Select("id").First(&p, "id = ?", productID).Error; err != nil {
+	if _, err := s.ensureProductTenantVisible(c, productID); err != nil {
 		return nil, err
 	}
 	if s.AITasks == nil {

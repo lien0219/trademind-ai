@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { TmPageContainer, TechnicalDetails } from '@/components/ui';
 import ReviewItemModal from '@/pages/Product/AITextBatch/components/ReviewItemModal';
 import {
@@ -37,6 +39,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export default function AITextBatchDetailPage() {
+  useLanguage();
   const { id } = useParams<{ id: string }>();
   const { state: urlState, setState: setUrlState } = useUrlQueryState<{
     itemId?: string;
@@ -61,7 +64,7 @@ export default function AITextBatchDetailPage() {
       const res = await fetchAiProductTextBatchDetail(id, useFilter);
       setDetail(res);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载失败');
+      message.error((e as Error)?.message || tr("加载失败"));
     } finally {
       setLoading(false);
     }
@@ -96,18 +99,18 @@ export default function AITextBatchDetailPage() {
 
   const onApplySelected = () => {
     if (!id || !selectedKeys.length) {
-      message.warning('请选择待复核结果');
+      message.warning(tr("请选择待复核结果"));
       return;
     }
-    confirmApplyAiText('选中文案', async () => {
+    confirmApplyAiText(tr("选中文案"), async () => {
       setActing(true);
       try {
         const res = await applyAiProductTextSelected(id, selectedKeys);
-        message.success(`成功 ${res.successCount}，冲突 ${res.conflictCount}，失败 ${res.failedCount}`);
+        message.success(trFormat("成功 {value0}，冲突 {value1}，失败 {value2}", { value0: res.successCount, value1: res.conflictCount, value2: res.failedCount }));
         setSelectedKeys([]);
         await reload();
       } catch (e: unknown) {
-        message.error((e as Error)?.message || '批量应用失败');
+        message.error((e as Error)?.message || tr("批量应用失败"));
       } finally {
         setActing(false);
       }
@@ -134,23 +137,23 @@ export default function AITextBatchDetailPage() {
 
   return (
     <TmPageContainer
-      title="AI 商品文案批量复核"
-      subTitle={detail ? `批次 ${detail.batchNo}` : undefined}
+      title={tr("AI 商品文案批量复核")}
+      subTitle={detail ? trFormat("批次 {value0}", { value0: String(detail.batchNo) }) : undefined}
       loading={loading && !detail}
     >
       {detail && (
         <>
           <Card size="small" style={{ marginBottom: 16 }}>
             <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small">
-              <Descriptions.Item label="状态">
+              <Descriptions.Item label={tr("状态")}>
                 {batchTag ? <Tag color={batchTag.color}>{batchTag.text}</Tag> : detail.status}
               </Descriptions.Item>
-              <Descriptions.Item label="商品数">{detail.productCount}</Descriptions.Item>
-              <Descriptions.Item label="子项数">{detail.itemCount}</Descriptions.Item>
-              <Descriptions.Item label="待复核/成功">
-                {detail.successCount} / 失败 {detail.failedCount} / 已应用 {detail.appliedCount}
+              <Descriptions.Item label={tr("商品数")}>{detail.productCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("子项数")}>{detail.itemCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("待复核/成功")}>
+                {detail.successCount} {tr("/ 失败")} {detail.failedCount} {tr("/ 已应用")} {detail.appliedCount}
               </Descriptions.Item>
-              <Descriptions.Item label="创建时间">{formatDateTime(detail.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label={tr("创建时间")}>{formatDateTime(detail.createdAt)}</Descriptions.Item>
             </Descriptions>
             <Space wrap style={{ marginTop: 12 }}>
               <Button
@@ -162,7 +165,7 @@ export default function AITextBatchDetailPage() {
                   history.push(back);
                 }}
               >
-                {navSource === 'ai_workbench' ? '返回 AI 工作台' : '返回批次列表'}
+                {navSource === 'ai_workbench' ? tr("返回 AI 工作台") : tr("返回批次列表")}
               </Button>
               <Button
                 loading={acting}
@@ -172,16 +175,16 @@ export default function AITextBatchDetailPage() {
                   setActing(true);
                   try {
                     await retryAiProductTextBatchFailed(id);
-                    message.success('已重试失败项');
+                    message.success(tr("已重试失败项"));
                     await reload();
                   } catch (e: unknown) {
-                    message.error((e as Error)?.message || '重试失败');
+                    message.error((e as Error)?.message || tr("重试失败"));
                   } finally {
                     setActing(false);
                   }
                 }}
               >
-                重试失败项
+                {tr("重试失败项")}
               </Button>
               <Button
                 loading={acting}
@@ -189,27 +192,27 @@ export default function AITextBatchDetailPage() {
                 disabled={!selectedKeys.length}
                 onClick={onApplySelected}
               >
-                批量应用已选结果
+                {tr("批量应用已选结果")}
               </Button>
               <Button
                 disabled={!detail.appliedCount}
                 onClick={() => {
                   if (!id) return;
-                  confirmUndoAiText('本批次文案', async () => {
+                  confirmUndoAiText(tr("本批次文案"), async () => {
                     setActing(true);
                     try {
                       const res = await undoAiProductTextBatchApplied(id);
-                      message.success(`撤销成功 ${res.successCount}，冲突 ${res.conflictCount}`);
+                      message.success(trFormat("撤销成功 {value0}，冲突 {value1}", { value0: res.successCount, value1: res.conflictCount }));
                       await reload();
                     } catch (e: unknown) {
-                      message.error((e as Error)?.message || '撤销失败');
+                      message.error((e as Error)?.message || tr("撤销失败"));
                     } finally {
                       setActing(false);
                     }
                   });
                 }}
               >
-                批量撤销本批次应用
+                {tr("批量撤销本批次应用")}
               </Button>
             </Space>
           </Card>
@@ -219,7 +222,7 @@ export default function AITextBatchDetailPage() {
               type="warning"
               showIcon
               style={{ marginBottom: 12 }}
-              message="部分子项生成失败，可重试失败项或单独重新生成。"
+              message={tr("部分子项生成失败，可重试失败项或单独重新生成。")}
             />
           )}
 
@@ -251,16 +254,16 @@ export default function AITextBatchDetailPage() {
             }}
             columns={[
               {
-                title: '商品',
+                title: tr("商品"),
                 dataIndex: 'productTitle',
                 ellipsis: true,
                 render: (t, row) => (
                   <Link to={`/product/drafts/${row.productId}`}>{t || row.productId}</Link>
                 ),
               },
-              { title: '类型', dataIndex: 'operationLabel', width: 100 },
+              { title: tr("类型"), dataIndex: 'operationLabel', width: 100 },
               {
-                title: '状态',
+                title: tr("状态"),
                 dataIndex: 'statusLabel',
                 width: 110,
                 render: (_, row) => {
@@ -269,19 +272,19 @@ export default function AITextBatchDetailPage() {
                 },
               },
               {
-                title: '当前内容',
+                title: tr("当前内容"),
                 dataIndex: 'currentContent',
                 ellipsis: true,
                 width: 160,
               },
               {
-                title: 'AI 建议',
+                title: tr("AI 建议"),
                 dataIndex: 'generatedText',
                 ellipsis: true,
                 width: 180,
               },
               {
-                title: '质量提醒',
+                title: tr("质量提醒"),
                 dataIndex: 'qualityWarnings',
                 width: 140,
                 render: (w: AIProductTextItemRow['qualityWarnings']) =>
@@ -292,16 +295,16 @@ export default function AITextBatchDetailPage() {
                   ),
               },
               {
-                title: '操作',
+                title: tr("操作"),
                 width: 200,
                 render: (_, row) => (
                   <Space wrap size="small">
                     <Button type="link" size="small" onClick={() => openReview(row)}>
-                      查看对比
+                      {tr("查看对比")}
                     </Button>
                     {(row.status === 'pending_review' || row.status === 'success') && (
                       <Button type="link" size="small" onClick={() => openReview(row)}>
-                        应用
+                        {tr("应用")}
                       </Button>
                     )}
                   </Space>
@@ -311,7 +314,7 @@ export default function AITextBatchDetailPage() {
           />
 
           {detail.output ? (
-            <TechnicalDetails label="技术详情">
+            <TechnicalDetails label={tr("技术详情")}>
               <pre style={{ fontSize: 12, margin: 0, maxHeight: 240, overflow: 'auto' }}>
                 {JSON.stringify(detail.output, null, 2)}
               </pre>
@@ -327,7 +330,7 @@ export default function AITextBatchDetailPage() {
         onClose={closeReview}
         onApply={async (text) => {
           if (!reviewItem) return;
-          const label = reviewItem.operationLabel || 'AI 文案';
+          const label = reviewItem.operationLabel || tr("AI 文案");
           confirmApplyAiText(label, async () => {
             setActing(true);
             try {
@@ -335,11 +338,11 @@ export default function AITextBatchDetailPage() {
                 await updateAiProductTextEditedText(reviewItem.id, text);
               }
               await applyAiProductTextItem(reviewItem.id, text);
-              message.success('已应用');
+              message.success(tr("已应用"));
               closeReview();
               await reload();
             } catch (e: unknown) {
-              message.error((e as Error)?.message || '应用失败');
+              message.error((e as Error)?.message || tr("应用失败"));
             } finally {
               setActing(false);
             }
@@ -351,10 +354,10 @@ export default function AITextBatchDetailPage() {
           try {
             const updated = await regenerateAiProductTextItem(reviewItem.id);
             setReviewItem(updated);
-            message.success('已重新生成');
+            message.success(tr("已重新生成"));
             await reload();
           } catch (e: unknown) {
-            message.error((e as Error)?.message || '重新生成失败');
+                message.error((e as Error)?.message || tr("重新生成失败"));
           } finally {
             setActing(false);
           }
@@ -364,11 +367,11 @@ export default function AITextBatchDetailPage() {
           setActing(true);
           try {
             await rejectAiProductTextItem(reviewItem.id);
-            message.success('已放弃该建议');
+            message.success(tr("已放弃该建议"));
             setReviewOpen(false);
             await reload();
           } catch (e: unknown) {
-            message.error((e as Error)?.message || '操作失败');
+              message.error((e as Error)?.message || tr("操作失败"));
           } finally {
             setActing(false);
           }

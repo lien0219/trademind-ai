@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 export type AlertSource = 'business' | 'system';
 
 type SourceAccess = {
@@ -12,17 +13,17 @@ export function resolveAlertSource(raw: string | null | undefined, access: Sourc
 }
 
 export const SYSTEM_ALERT_SEVERITY_META: Record<string, { color: string; text: string }> = {
-  info: { color: 'blue', text: '提示' },
-  warning: { color: 'orange', text: '警告' },
-  critical: { color: 'red', text: '严重' },
+  info: { color: 'blue', get text() { return tr("提示"); } },
+  warning: { color: 'orange', get text() { return tr("警告"); } },
+  critical: { color: 'red', get text() { return tr("严重"); } },
 };
 
 export const SYSTEM_ALERT_STATUS_META: Record<string, { color: string; text: string }> = {
-  firing: { color: 'red', text: '告警中' },
-  acknowledged: { color: 'blue', text: '已确认' },
-  silenced: { color: 'default', text: '已静默' },
-  resolved: { color: 'green', text: '已恢复' },
-  expired: { color: 'default', text: '已过期' },
+  firing: { color: 'red', get text() { return tr("告警中"); } },
+  acknowledged: { color: 'blue', get text() { return tr("已确认"); } },
+  silenced: { color: 'default', get text() { return tr("已静默"); } },
+  resolved: { color: 'green', get text() { return tr("已恢复"); } },
+  expired: { color: 'default', get text() { return tr("已过期"); } },
 };
 
 export function systemAlertSeverityMeta(value?: string) {

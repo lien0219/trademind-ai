@@ -12,6 +12,29 @@ import (
 
 const monitorLeasedLimit = 100
 
+// MonitorScope constrains task leases to the caller's tenant and grants.
+// Infrastructure process details are visible only to the root administrator.
+type MonitorScope struct {
+	TenantID int64
+	UserID   uuid.UUID
+	Admin    bool
+	StoreIDs []uuid.UUID
+}
+
+func (s MonitorScope) taskQuery(db *gorm.DB, storeScoped bool) *gorm.DB {
+	db = db.Where("tenant_id = ?", s.TenantID)
+	if s.Admin {
+		return db
+	}
+	if storeScoped {
+		if len(s.StoreIDs) == 0 {
+			return db.Where("1 = 0")
+		}
+		return db.Where("shop_id IN ?", s.StoreIDs)
+	}
+	return db.Where("created_by = ?", s.UserID)
+}
+
 // MonitorSummary for API envelope.
 type MonitorSummary struct {
 	Running int `json:"running"`
@@ -120,7 +143,7 @@ type leasedInventorySyncTask struct {
 func (leasedInventorySyncTask) TableName() string { return "inventory_sync_tasks" }
 
 // BuildMonitorResponse loads instances and leased tasks (capped).
-func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) (*MonitorResponse, error) {
+func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config, scope MonitorScope) (*MonitorResponse, error) {
 	if db == nil {
 		return nil, gorm.ErrInvalidDB
 	}
@@ -131,11 +154,13 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 	cut := time.Now().UTC().Add(-staleAfter)
 
 	var rows []Instance
-	if err := db.WithContext(ctx).Model(&Instance{}).
-		Order("started_at DESC").
-		Limit(100).
-		Find(&rows).Error; err != nil {
-		return nil, err
+	if scope.TenantID == 0 && scope.Admin {
+		if err := db.WithContext(ctx).Model(&Instance{}).
+			Order("started_at DESC").
+			Limit(100).
+			Find(&rows).Error; err != nil {
+			return nil, err
+		}
 	}
 
 	effective := func(r Instance) string {
@@ -214,11 +239,13 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 	out.ByType = byEff
 
 	var ctasks []leasedCollectTask
-	_ = db.WithContext(ctx).Model(&leasedCollectTask{}).
+	if err := scope.taskQuery(db.WithContext(ctx).Model(&leasedCollectTask{}), false).
 		Where("status = ? AND locked_by IS NOT NULL", "running").
 		Order("updated_at DESC").
 		Limit(monitorLeasedLimit).
-		Find(&ctasks).Error
+		Find(&ctasks).Error; err != nil {
+		return nil, err
+	}
 	for i := range ctasks {
 		t := ctasks[i]
 		out.LeasedTasks["collect"] = append(out.LeasedTasks["collect"], LeasedTaskDTO{
@@ -232,11 +259,13 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 	}
 
 	var itasks []leasedImageTask
-	_ = db.WithContext(ctx).Model(&leasedImageTask{}).
+	if err := scope.taskQuery(db.WithContext(ctx).Model(&leasedImageTask{}), false).
 		Where("status = ? AND locked_by IS NOT NULL", "running").
 		Order("updated_at DESC").
 		Limit(monitorLeasedLimit).
-		Find(&itasks).Error
+		Find(&itasks).Error; err != nil {
+		return nil, err
+	}
 	for i := range itasks {
 		t := itasks[i]
 		out.LeasedTasks["image"] = append(out.LeasedTasks["image"], LeasedTaskDTO{
@@ -250,11 +279,13 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 	}
 
 	var otasks []leasedOrderSyncTask
-	_ = db.WithContext(ctx).Model(&leasedOrderSyncTask{}).
+	if err := scope.taskQuery(db.WithContext(ctx).Model(&leasedOrderSyncTask{}), true).
 		Where("status = ? AND locked_by IS NOT NULL", "running").
 		Order("updated_at DESC").
 		Limit(monitorLeasedLimit).
-		Find(&otasks).Error
+		Find(&otasks).Error; err != nil {
+		return nil, err
+	}
 	for i := range otasks {
 		t := otasks[i]
 		out.LeasedTasks["orderSync"] = append(out.LeasedTasks["orderSync"], LeasedTaskDTO{
@@ -268,11 +299,13 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 	}
 
 	var cmtasks []leasedCustomerMessageSyncTask
-	_ = db.WithContext(ctx).Model(&leasedCustomerMessageSyncTask{}).
+	if err := scope.taskQuery(db.WithContext(ctx).Model(&leasedCustomerMessageSyncTask{}), true).
 		Where("status = ? AND locked_by IS NOT NULL", "running").
 		Order("updated_at DESC").
 		Limit(monitorLeasedLimit).
-		Find(&cmtasks).Error
+		Find(&cmtasks).Error; err != nil {
+		return nil, err
+	}
 	for i := range cmtasks {
 		t := cmtasks[i]
 		out.LeasedTasks["customerMessageSync"] = append(out.LeasedTasks["customerMessageSync"], LeasedTaskDTO{
@@ -286,11 +319,13 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 	}
 
 	var pptasks []leasedProductPublishTask
-	_ = db.WithContext(ctx).Model(&leasedProductPublishTask{}).
+	if err := scope.taskQuery(db.WithContext(ctx).Model(&leasedProductPublishTask{}), true).
 		Where("status = ? AND locked_by IS NOT NULL", "running").
 		Order("updated_at DESC").
 		Limit(monitorLeasedLimit).
-		Find(&pptasks).Error
+		Find(&pptasks).Error; err != nil {
+		return nil, err
+	}
 	for i := range pptasks {
 		t := pptasks[i]
 		out.LeasedTasks["productPublish"] = append(out.LeasedTasks["productPublish"], LeasedTaskDTO{
@@ -304,11 +339,13 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 	}
 
 	var invtasks []leasedInventorySyncTask
-	_ = db.WithContext(ctx).Model(&leasedInventorySyncTask{}).
+	if err := scope.taskQuery(db.WithContext(ctx).Model(&leasedInventorySyncTask{}), true).
 		Where("status = ? AND locked_by IS NOT NULL", "running").
 		Order("updated_at DESC").
 		Limit(monitorLeasedLimit).
-		Find(&invtasks).Error
+		Find(&invtasks).Error; err != nil {
+		return nil, err
+	}
 	for i := range invtasks {
 		t := invtasks[i]
 		out.LeasedTasks["inventorySync"] = append(out.LeasedTasks["inventorySync"], LeasedTaskDTO{

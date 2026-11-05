@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 )
 
@@ -20,10 +21,13 @@ type douyinBridge struct {
 }
 
 func (b douyinBridge) PersistOAuthTokenRefresh(ctx context.Context, shopID uuid.UUID, access, refresh string, accessExp, refreshExp *time.Time) error {
-	return b.svc.persistOAuthTokenRefresh(ctx, shopID, access, refresh, accessExp, refreshExp)
+	return b.svc.persistOAuthTokenRefreshForPlatform(ctx, shopID, access, refresh, accessExp, refreshExp, "shop.oauth.douyin.refresh")
 }
 
 func (b douyinBridge) SetShopAuthStatus(ctx context.Context, shopID uuid.UUID, status string) error {
+	if _, ok := platformp.OAuthExpectedTokenVersion(ctx); ok {
+		return b.svc.setAuthStatusVersionedForPlatform(ctx, shopID, status, "shop.oauth.douyin.status")
+	}
 	return b.svc.setAuthStatusCtx(ctx, shopID, status)
 }
 

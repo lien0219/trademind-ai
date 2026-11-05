@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
@@ -100,6 +101,24 @@ func (s *Service) unifiedOne(ctx context.Context, tenantID int64, taskType strin
 		dto := mapAIProductTextItem(&row, titles, ms, now)
 		dto.TenantID = tenantID
 		return dto, nil
+	case TaskTypeAIImage:
+		var row aiproductimage.AIProductImageItem
+		if err := s.DB.WithContext(ctx).Where("id = ? AND product_id IN (SELECT id FROM products WHERE tenant_id = ? AND deleted_at IS NULL)", id, tenantID).First(&row).Error; err != nil {
+			return zero, err
+		}
+		prodIDs := []uuid.UUID{row.ProductID}
+		titles := s.batchProductTitles(ctx, prodIDs)
+		dto := mapAIProductImageItem(&row, titles, ms, now)
+		dto.TenantID = tenantID
+		return dto, nil
+	case TaskTypeCustomerFailure:
+		var row customerchat.CustomerFailureEvent
+		if err := s.DB.WithContext(ctx).Where("id = ? AND conversation_id IN (SELECT id FROM customer_conversations WHERE tenant_id = ?)", id, tenantID).First(&row).Error; err != nil {
+			return zero, err
+		}
+		dto := mapCustomerFailureEvent(&row, ms, now)
+		dto.TenantID = tenantID
+		return dto, nil
 	default:
 		return zero, fmt.Errorf("unknown task type")
 	}
@@ -128,6 +147,9 @@ func (s *Service) GetFailureDetail(c *gin.Context, taskTypeRaw string, id uuid.U
 	now := time.Now().UTC()
 	base, err := s.unifiedOne(c.Request.Context(), tenantID, taskType, id, now)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureTaskStoreScope(c, base, false); err != nil {
 		return nil, err
 	}
 	if err := s.ClassifyOne(c.Request.Context(), &base); err != nil {
@@ -246,10 +268,19 @@ func (s *Service) upsertFailureMark(ctx context.Context, tenantID int64, taskTyp
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("taskcenter: no db")
 	}
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return upsertFailureMarkTx(tx, tenantID, taskType, sourceID, sourceTable, markType, remark, admin)
+	})
+}
+
+func upsertFailureMarkTx(tx *gorm.DB, tenantID int64, taskType, sourceID, sourceTable, markType, remark string, admin *uuid.UUID) error {
+	if tx == nil {
+		return fmt.Errorf("taskcenter: no db transaction")
+	}
 	remark = truncateRunes(strings.TrimSpace(remark), 2000)
 	now := time.Now().UTC()
 	var cur TaskFailureMark
-	err := s.DB.WithContext(ctx).
+	err := tx.
 		Where("tenant_id = ? AND task_type = ? AND source_id = ? AND mark_type = ?", tenantID, taskType, sourceID, markType).
 		First(&cur).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -264,18 +295,18 @@ func (s *Service) upsertFailureMark(ctx context.Context, tenantID int64, taskTyp
 		}
 		m.CreatedAt = now
 		m.UpdatedAt = now
-		return s.DB.WithContext(ctx).Create(&m).Error
+		return tx.Create(&m).Error
 	}
 	if err != nil {
 		return err
 	}
-	return s.DB.WithContext(ctx).Model(&TaskFailureMark{}).
+	return tx.Model(&TaskFailureMark{}).
 		Where("id = ?", cur.ID).
 		Updates(map[string]any{"remark": remark, "updated_at": now, "created_by": admin}).Error
 }
 
 // RetryFailure dispatches retry to owning module then clears marks and writes audit.
-func (s *Service) RetryFailure(c *gin.Context, taskTypeRaw string, id uuid.UUID) error {
+func (s *Service) RetryFailure(c *gin.Context, taskTypeRaw string, id uuid.UUID) (err error) {
 	if s == nil {
 		return fmt.Errorf("taskcenter: unavailable")
 	}
@@ -292,9 +323,32 @@ func (s *Service) RetryFailure(c *gin.Context, taskTypeRaw string, id uuid.UUID)
 	if err != nil {
 		return err
 	}
-	if !base.Retryable {
-		return fmt.Errorf("task not retryable in current status")
+	if err := s.ensureTaskStoreScope(c, base, true); err != nil {
+		return err
 	}
+	if !base.Retryable {
+		return fmt.Errorf("%w: task not retryable in current status", errTaskConflict)
+	}
+	auditOpts := operationlog.WriteOpts{
+		TenantID: tenantID, Action: "task_center.retry.requested", Resource: "task_center",
+		ResourceID: taskType + "/" + id.String(), Status: "requested",
+		Message: truncateRunes(fmt.Sprintf("taskType=%s id=%s", taskType, id.String()), 480),
+	}
+	if err := s.writeRequiredAudit(c, auditOpts); err != nil {
+		return err
+	}
+	defer func() {
+		if err == nil {
+			return
+		}
+		failedAudit := auditOpts
+		failedAudit.Action = "task_center.retry.completed"
+		failedAudit.Status = "failed"
+		failedAudit.Message = truncateRunes(fmt.Sprintf("taskType=%s id=%s error=%s", taskType, id.String(), err.Error()), 1000)
+		if auditErr := s.writeRequiredAudit(c, failedAudit); auditErr != nil {
+			err = errors.Join(err, auditErr)
+		}
+	}()
 	var execErr error
 	switch taskType {
 	case TaskTypeCollect:
@@ -302,7 +356,7 @@ func (s *Service) RetryFailure(c *gin.Context, taskTypeRaw string, id uuid.UUID)
 			return fmt.Errorf("collect service unavailable")
 		}
 		if !s.Collect.QueueEnabled {
-			return fmt.Errorf("collect queue disabled; use original retry on collect page")
+			return fmt.Errorf("%w: collect queue disabled; use original retry on collect page", errTaskConflict)
 		}
 		_, execErr = s.Collect.RetryAsync(c, id, admin)
 	case TaskTypeImage:
@@ -347,16 +401,10 @@ func (s *Service) RetryFailure(c *gin.Context, taskTypeRaw string, id uuid.UUID)
 	if err := s.deleteFailureMarks(c.Request.Context(), tenantID, taskType, id.String()); err != nil {
 		return err
 	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "task_center.retry",
-			Resource:   "task_center",
-			ResourceID: taskType + "/" + id.String(),
-			Status:     "success",
-			Message:    truncateRunes(fmt.Sprintf("taskType=%s id=%s", taskType, id.String()), 2000),
-		})
-	}
-	return nil
+	completedAudit := auditOpts
+	completedAudit.Action = "task_center.retry.completed"
+	completedAudit.Status = "success"
+	return s.writeRequiredAudit(c, completedAudit)
 }
 
 // BatchRetryFailure retries multiple tasks; isolated errors per row.
@@ -389,16 +437,6 @@ func (s *Service) BatchRetryFailure(c *gin.Context, req BatchRetryRequest) Batch
 		}
 		out.Results = append(out.Results, BatchRetryOneResult{TaskType: tt, ID: id.String(), OK: true})
 		out.SuccessCount++
-	}
-	if s.OpLog != nil {
-		sum := truncateRunes("success="+strconv.Itoa(out.SuccessCount)+" failed="+strconv.Itoa(out.FailedCount), 2000)
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "task_center.batch_retry",
-			Resource:   "task_center",
-			ResourceID: "batch",
-			Status:     "success",
-			Message:    sum,
-		})
 	}
 	return out
 }
@@ -435,23 +473,24 @@ func (s *Service) IgnoreFailure(c *gin.Context, taskType string, id uuid.UUID, r
 	if err != nil {
 		return err
 	}
-	if _, err := s.unifiedOne(c.Request.Context(), tenantID, tt, id, time.Now().UTC()); err != nil {
+	base, err := s.unifiedOne(c.Request.Context(), tenantID, tt, id, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	if err := s.ensureTaskStoreScope(c, base, true); err != nil {
 		return err
 	}
 	src := sourceTableForType(tt)
-	if err := s.upsertFailureMark(c.Request.Context(), tenantID, tt, id.String(), src, MarkIgnored, remark, adminFromGin(c)); err != nil {
-		return err
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "task_center.ignore",
-			Resource:   "task_center",
-			ResourceID: tt + "/" + id.String(),
-			Status:     "success",
-			Message:    truncateRunes("markType="+MarkIgnored, 2000),
+	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := upsertFailureMarkTx(tx, tenantID, tt, id.String(), src, MarkIgnored, remark, adminFromGin(c)); err != nil {
+			return err
+		}
+		return s.writeRequiredAuditTx(c, tx, operationlog.WriteOpts{
+			TenantID: tenantID, Action: "task_center.ignore", Resource: "task_center",
+			ResourceID: tt + "/" + id.String(), Status: "success",
+			Message: truncateRunes("markType="+MarkIgnored, 480),
 		})
-	}
-	return nil
+	})
 }
 
 // HandleFailure records handled mark (does not change source task).
@@ -467,23 +506,24 @@ func (s *Service) HandleFailure(c *gin.Context, taskType string, id uuid.UUID, r
 	if err != nil {
 		return err
 	}
-	if _, err := s.unifiedOne(c.Request.Context(), tenantID, tt, id, time.Now().UTC()); err != nil {
+	base, err := s.unifiedOne(c.Request.Context(), tenantID, tt, id, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	if err := s.ensureTaskStoreScope(c, base, true); err != nil {
 		return err
 	}
 	src := sourceTableForType(tt)
-	if err := s.upsertFailureMark(c.Request.Context(), tenantID, tt, id.String(), src, MarkHandled, remark, adminFromGin(c)); err != nil {
-		return err
-	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "task_center.handle",
-			Resource:   "task_center",
-			ResourceID: tt + "/" + id.String(),
-			Status:     "success",
-			Message:    truncateRunes("markType="+MarkHandled, 2000),
+	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := upsertFailureMarkTx(tx, tenantID, tt, id.String(), src, MarkHandled, remark, adminFromGin(c)); err != nil {
+			return err
+		}
+		return s.writeRequiredAuditTx(c, tx, operationlog.WriteOpts{
+			TenantID: tenantID, Action: "task_center.handle", Resource: "task_center",
+			ResourceID: tt + "/" + id.String(), Status: "success",
+			Message: truncateRunes("markType="+MarkHandled, 480),
 		})
-	}
-	return nil
+	})
 }
 
 // UnmarkFailure removes ignored/handled marks for a row.
@@ -499,22 +539,22 @@ func (s *Service) UnmarkFailure(c *gin.Context, taskType string, id uuid.UUID) e
 	if err != nil {
 		return err
 	}
-	if _, err := s.unifiedOne(c.Request.Context(), tenantID, tt, id, time.Now().UTC()); err != nil {
+	base, err := s.unifiedOne(c.Request.Context(), tenantID, tt, id, time.Now().UTC())
+	if err != nil {
 		return err
 	}
-	if err := s.deleteFailureMarks(c.Request.Context(), tenantID, tt, id.String()); err != nil {
+	if err := s.ensureTaskStoreScope(c, base, true); err != nil {
 		return err
 	}
-	if s.OpLog != nil {
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "task_center.unmark",
-			Resource:   "task_center",
-			ResourceID: tt + "/" + id.String(),
-			Status:     "success",
-			Message:    "cleared failure marks",
+	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("tenant_id = ? AND task_type = ? AND source_id = ?", tenantID, tt, id.String()).Delete(&TaskFailureMark{}).Error; err != nil {
+			return err
+		}
+		return s.writeRequiredAuditTx(c, tx, operationlog.WriteOpts{
+			TenantID: tenantID, Action: "task_center.unmark", Resource: "task_center",
+			ResourceID: tt + "/" + id.String(), Status: "success", Message: "cleared failure marks",
 		})
-	}
-	return nil
+	})
 }
 
 // BatchIgnoreFailures applies ignore marks in bulk (single aggregated audit row).
@@ -560,29 +600,35 @@ func (s *Service) batchApplyMark(c *gin.Context, req BatchMarkRequest, markType,
 			out.FailedCount++
 			continue
 		}
-		if _, err := s.unifiedOne(ctx, tenantID, tt, id, now); err != nil {
+		base, err := s.unifiedOne(ctx, tenantID, tt, id, now)
+		if err != nil {
+			out.Results = append(out.Results, BatchRetryOneResult{TaskType: tt, ID: id.String(), OK: false, Error: "not found"})
+			out.FailedCount++
+			continue
+		}
+		if err := s.ensureTaskStoreScope(c, base, true); err != nil {
 			out.Results = append(out.Results, BatchRetryOneResult{TaskType: tt, ID: id.String(), OK: false, Error: "not found"})
 			out.FailedCount++
 			continue
 		}
 		src := sourceTableForType(tt)
-		if err := s.upsertFailureMark(ctx, tenantID, tt, id.String(), src, markType, req.Remark, admin); err != nil {
+		err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if err := upsertFailureMarkTx(tx, tenantID, tt, id.String(), src, markType, req.Remark, admin); err != nil {
+				return err
+			}
+			return s.writeRequiredAuditTx(c, tx, operationlog.WriteOpts{
+				TenantID: tenantID, Action: auditAction, Resource: "task_center",
+				ResourceID: tt + "/" + id.String(), Status: "success",
+				Message: truncateRunes("markType="+markType, 480),
+			})
+		})
+		if err != nil {
 			out.Results = append(out.Results, BatchRetryOneResult{TaskType: tt, ID: id.String(), OK: false, Error: err.Error()})
 			out.FailedCount++
 			continue
 		}
 		out.Results = append(out.Results, BatchRetryOneResult{TaskType: tt, ID: id.String(), OK: true})
 		out.SuccessCount++
-	}
-	if s.OpLog != nil {
-		sum := truncateRunes("success="+strconv.Itoa(out.SuccessCount)+" failed="+strconv.Itoa(out.FailedCount)+" mark="+markType, 2000)
-		_ = s.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     auditAction,
-			Resource:   "task_center",
-			ResourceID: "batch",
-			Status:     "success",
-			Message:    sum,
-		})
 	}
 	return out
 }

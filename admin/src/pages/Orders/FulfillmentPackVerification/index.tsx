@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import {
   ArrowLeftOutlined,
   CheckCircleOutlined,
@@ -51,6 +53,7 @@ function userFacingError(error: unknown, fallback: string) {
 }
 
 export default function FulfillmentPackVerificationPage() {
+  useLanguage();
   const { id = "" } = useParams<{ id: string }>();
   const { can, readonly } = usePermission();
   const canOperate = !readonly && can(PERMISSIONS.ORDER_OPERATE);
@@ -243,7 +246,7 @@ export default function FulfillmentPackVerificationPage() {
       setCarrier(nextOrder?.freightQuote?.carrier ?? carrier);
       setQuoteCandidates([]);
       setSelectedRateId("");
-      message.success("运费试算已人工确认并保存快照");
+      message.success(tr("运费试算已人工确认并保存快照"));
     } catch (error) {
       setQuoteError(
         userFacingError(error, "报价确认失败，请刷新波次后重新试算。"),
@@ -314,7 +317,7 @@ export default function FulfillmentPackVerificationPage() {
       setTrackingUrl("");
       setPackageCode("");
       setActualWeightGrams(undefined);
-      message.success("扫描复核已记录，订单已进入已打包状态。");
+      message.success(tr("扫描复核已记录，订单已进入已打包状态。"));
     } catch (error) {
       setScanError(
         userFacingError(
@@ -331,22 +334,22 @@ export default function FulfillmentPackVerificationPage() {
   return (
     <TmPageContainer
       className="tm-pack-verification-page"
-      title="出库扫描复核"
-      subTitle="本地校验订单、商品和面单，不调用真实物流、打印机、电子秤或平台接口。"
+      title={tr("出库扫描复核")}
+      subTitle={tr("本地校验订单、商品和面单，不调用真实物流、打印机、电子秤或平台接口。")}
       extra={
         <Space wrap>
           <Button
             icon={<ArrowLeftOutlined />}
             onClick={() => history.push("/orders/fulfillment-waves")}
           >
-            返回波次
+            {tr("返回波次")}
           </Button>
           <Button
             icon={<ReloadOutlined />}
             loading={loading}
             onClick={() => void load()}
           >
-            刷新
+            {tr("刷新")}
           </Button>
         </Space>
       }
@@ -355,13 +358,13 @@ export default function FulfillmentPackVerificationPage() {
         <Alert
           showIcon
           type="warning"
-          message="当前账号为只读或缺少订单操作权限，所有扫描与提交操作已禁用。"
+          message={tr("当前账号为只读或缺少订单操作权限，所有扫描与提交操作已禁用。")}
         />
       ) : null}
       {loadError ? (
         <ErrorAlert
-          title={loadError}
-          actionHint={<Button onClick={() => void load()}>重新加载</Button>}
+          title={tr(loadError)}
+          actionHint={<Button onClick={() => void load()}>{tr("重新加载")}</Button>}
         />
       ) : null}
       {loading ? (
@@ -373,37 +376,37 @@ export default function FulfillmentPackVerificationPage() {
             <Alert
               showIcon
               type="info"
-              message="这是扫描复核功能上线前创建的历史波次，请返回波次详情使用原有打包复核。"
+              message={tr("这是扫描复核功能上线前创建的历史波次，请返回波次详情使用原有打包复核。")}
             />
           ) : null}
           <SectionCard
-            title="波次概览"
-            description="每次成功提交只复核一个订单，波次版本随事务原子递增。"
+            title={tr("波次概览")}
+            description={tr("每次成功提交只复核一个订单，波次版本随事务原子递增。")}
           >
             <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small">
-              <Descriptions.Item label="波次号">
+              <Descriptions.Item label={tr("波次号")}>
                 {wave.waveNo}
               </Descriptions.Item>
-              <Descriptions.Item label="仓库">
+              <Descriptions.Item label={tr("仓库")}>
                 {[wave.warehouseCode, wave.warehouseName]
                   .filter(Boolean)
                   .join(" · ") || wave.warehouseId}
               </Descriptions.Item>
-              <Descriptions.Item label="当前版本">
+              <Descriptions.Item label={tr("当前版本")}>
                 {wave.revision}
               </Descriptions.Item>
-              <Descriptions.Item label="待复核订单">
+              <Descriptions.Item label={tr("待复核订单")}>
                 {readyOrders.length}
               </Descriptions.Item>
             </Descriptions>
           </SectionCard>
 
           <SectionCard
-            title="1. 扫描订单"
-            description="仅接受当前波次中已完成拣货或待重试的订单。"
+            title={tr("1. 扫描订单")}
+            description={tr("仅接受当前波次中已完成拣货或待重试的订单。")}
           >
             <Input
-              aria-label="扫描订单号"
+              aria-label={tr("扫描订单号")}
               autoFocus
               allowClear
               disabled={
@@ -413,18 +416,18 @@ export default function FulfillmentPackVerificationPage() {
                 Boolean(selectedOrder)
               }
               prefix={<ScanOutlined />}
-              placeholder="扫描订单号后按回车"
+              placeholder={tr("扫描订单号后按回车")}
               value={orderScan}
               onChange={(event) => setOrderScan(event.target.value)}
               onPressEnter={selectOrderByScan}
             />
             {scanError ? (
-              <Alert showIcon type="error" message={scanError} />
+              <Alert showIcon type="error" message={tr(scanError)} />
             ) : null}
             {!selectedOrder && readyOrders.length === 0 ? (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="当前没有待扫描复核的订单"
+                description={tr("当前没有待扫描复核的订单")}
               />
             ) : null}
           </SectionCard>
@@ -432,17 +435,17 @@ export default function FulfillmentPackVerificationPage() {
           {selectedOrder ? (
             <>
               <SectionCard
-                title={`2. 复核商品 · ${selectedOrder.orderNo}`}
-                description="每扫描一次商品条码计入 1 件；数量未齐或条码不符时不能提交。"
-                headerExtra={<Tag color="processing">待复核</Tag>}
+                title={trFormat("2. 复核商品 · {value0}", { value0: String(selectedOrder.orderNo) })}
+                description={tr("每扫描一次商品条码计入 1 件；数量未齐或条码不符时不能提交。")}
+                headerExtra={<Tag color="processing">{tr("待复核")}</Tag>}
               >
                 <Input
                   ref={itemInputRef}
-                  aria-label="扫描商品条码"
+                  aria-label={tr("扫描商品条码")}
                   allowClear
                   disabled={!canOperate || submitting}
                   prefix={<ScanOutlined />}
-                  placeholder="连续扫描商品条码，每次扫描后按回车"
+                  placeholder={tr("连续扫描商品条码，每次扫描后按回车")}
                   value={itemScan}
                   onChange={(event) => setItemScan(event.target.value)}
                   onPressEnter={recordItemScan}
@@ -453,7 +456,7 @@ export default function FulfillmentPackVerificationPage() {
                       ? Math.round((verifiedQuantity / requiredQuantity) * 100)
                       : 0
                   }
-                  format={() => `${verifiedQuantity} / ${requiredQuantity} 件`}
+                  format={() => trFormat("{verified} / {required} 件", { verified: verifiedQuantity, required: requiredQuantity })}
                   status={allLinesVerified ? "success" : "active"}
                 />
                 <div className="tm-pack-verification-table">
@@ -465,42 +468,42 @@ export default function FulfillmentPackVerificationPage() {
                     dataSource={selectedLines}
                     columns={[
                       {
-                        title: "商品",
+                        title: tr("商品"),
                         dataIndex: "productTitle",
                         width: 220,
                         render: (value) => value || "-",
                       },
                       {
-                        title: "商品规格",
+                        title: tr("商品规格"),
                         dataIndex: "skuCode",
                         width: 140,
                         render: (value) => value || "-",
                       },
                       {
-                        title: "应扫条码",
+                        title: tr("应扫条码"),
                         width: 160,
-                        render: (_, line) => expectedCode(line) || "未配置",
+                        render: (_, line) => expectedCode(line) || tr("未配置"),
                       },
                       {
-                        title: "应复核",
+                        title: tr("应复核"),
                         dataIndex: "requiredQuantity",
                         width: 90,
                       },
                       {
-                        title: "已复核",
+                        title: tr("已复核"),
                         width: 100,
                         render: (_, line) =>
                           lineProgress[line.id]?.verifiedQuantity ?? 0,
                       },
                       {
-                        title: "状态",
+                        title: tr("状态"),
                         width: 100,
                         render: (_, line) =>
                           lineProgress[line.id]?.verifiedQuantity ===
                           line.requiredQuantity ? (
-                            <Tag color="success">已完成</Tag>
+                            <Tag color="success">{tr("已完成")}</Tag>
                           ) : (
-                            <Tag>待扫描</Tag>
+                            <Tag>{tr("待扫描")}</Tag>
                           ),
                       },
                     ]}
@@ -509,25 +512,25 @@ export default function FulfillmentPackVerificationPage() {
               </SectionCard>
 
               <SectionCard
-                title="3. 运费试算与人工确认"
-                description="按订单目的地、当前仓库和实际重量读取本地模板；不会调用物流商，也不会自动选择或确认。"
+                title={tr("3. 运费试算与人工确认")}
+                description={tr("按订单目的地、当前仓库和实际重量读取本地模板；不会调用物流商，也不会自动选择或确认。")}
               >
                 {selectedOrder.freightQuote ? (
                   <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small">
-                    <Descriptions.Item label="已确认渠道">
+                    <Descriptions.Item label={tr("已确认渠道")}>
                       {selectedOrder.freightQuote.channelCode} ·{" "}
                       {selectedOrder.freightQuote.channelName}
                     </Descriptions.Item>
-                    <Descriptions.Item label="计费重量">
-                      {selectedOrder.freightQuote.weightGrams} 克
+                    <Descriptions.Item label={tr("计费重量")}>
+                      {selectedOrder.freightQuote.weightGrams} {tr("克")}
                     </Descriptions.Item>
-                    <Descriptions.Item label="确认运费">
+                    <Descriptions.Item label={tr("确认运费")}>
                       {selectedOrder.freightQuote.currency}{" "}
                       {(selectedOrder.freightQuote.amountMinor / 100).toFixed(
                         2,
                       )}
                     </Descriptions.Item>
-                    <Descriptions.Item label="报价版本">
+                    <Descriptions.Item label={tr("报价版本")}>
                       V{selectedOrder.freightQuote.version}
                     </Descriptions.Item>
                   </Descriptions>
@@ -535,24 +538,24 @@ export default function FulfillmentPackVerificationPage() {
                   <Alert
                     showIcon
                     type="info"
-                    message="尚未确认运费；可继续使用原有人工承运商流程，或先输入实际重量进行本地试算。"
+                    message={tr("尚未确认运费；可继续使用原有人工承运商流程，或先输入实际重量进行本地试算。")}
                   />
                 )}
                 {selectedOrder.freightQuote && !confirmedQuoteMatches ? (
                   <Alert
                     showIcon
                     type="warning"
-                    message="重量或承运商与已确认快照不一致，必须重新试算并确认后才能提交复核。"
+                    message={tr("重量或承运商与已确认快照不一致，必须重新试算并确认后才能提交复核。")}
                   />
                 ) : null}
                 <Space wrap>
                   <InputNumber
-                    aria-label="实际重量（克，可选）"
+                    aria-label={tr("实际重量（克，可选）")}
                     min={1}
                     max={5_000_000}
                     precision={0}
                     disabled={!canOperate || quoteLoading}
-                    placeholder="实际重量（克）"
+                    placeholder={tr("实际重量（克）")}
                     value={actualWeightGrams}
                     onChange={(value) => {
                       setActualWeightGrams(value ?? undefined);
@@ -565,14 +568,14 @@ export default function FulfillmentPackVerificationPage() {
                     disabled={!actualWeightGrams}
                     onClick={() => void quoteFreight()}
                   >
-                    试算运费
+                    {tr("试算运费")}
                   </Button>
                   <Typography.Text type="secondary">
-                    系统不会自动选中最低价，请由操作员核对时效和渠道后确认。
+                    {tr("系统不会自动选中最低价，请由操作员核对时效和渠道后确认。")}
                   </Typography.Text>
                 </Space>
                 {quoteError ? (
-                  <Alert showIcon type="error" message={quoteError} />
+                  <Alert showIcon type="error" message={tr(quoteError)} />
                 ) : null}
                 {quoteCandidates.length > 0 ? (
                   <Table<FulfillmentFreightQuoteCandidate>
@@ -589,25 +592,25 @@ export default function FulfillmentPackVerificationPage() {
                     dataSource={quoteCandidates}
                     columns={[
                       {
-                        title: "渠道",
+                        title: tr("渠道"),
                         width: 190,
                         render: (_, row) =>
                           `${row.channelCode} · ${row.channelName}`,
                       },
-                      { title: "承运商", dataIndex: "carrier", width: 130 },
+                      { title: tr("承运商"), dataIndex: "carrier", width: 130 },
                       {
-                        title: "模板",
+                        title: tr("模板"),
                         dataIndex: "rateTemplateName",
                         width: 160,
                       },
                       {
-                        title: "运费",
+                        title: tr("运费"),
                         width: 130,
                         render: (_, row) =>
                           `${row.currency} ${(row.amountMinor / 100).toFixed(2)}`,
                       },
                       {
-                        title: "计算说明",
+                        title: tr("计算说明"),
                         dataIndex: "explanation",
                         width: 300,
                       },
@@ -621,28 +624,28 @@ export default function FulfillmentPackVerificationPage() {
                     disabled={!selectedRateId || !canOperate}
                     onClick={() => void confirmQuote()}
                   >
-                    人工确认所选报价
+                    {tr("人工确认所选报价")}
                   </Button>
                 ) : null}
               </SectionCard>
 
               <SectionCard
-                title="4. 扫描面单并确认"
-                description="面单条码必须与运单号一致；实际重量用于已确认运费的一致性校验。"
+                title={tr("4. 扫描面单并确认")}
+                description={tr("面单条码必须与运单号一致；实际重量用于已确认运费的一致性校验。")}
               >
                 <Form layout="vertical" className="tm-pack-verification-form">
-                  <Form.Item label="承运商" required>
+                  <Form.Item label={tr("承运商")} required>
                     <Input
-                      aria-label="承运商"
+                      aria-label={tr("承运商")}
                       maxLength={128}
                       disabled={!canOperate || submitting}
                       value={carrier}
                       onChange={(event) => setCarrier(event.target.value)}
                     />
                   </Form.Item>
-                  <Form.Item label="运单号" required>
+                  <Form.Item label={tr("运单号")} required>
                     <Input
-                      aria-label="运单号"
+                      aria-label={tr("运单号")}
                       maxLength={255}
                       disabled={!canOperate || submitting}
                       value={trackingNo}
@@ -650,19 +653,19 @@ export default function FulfillmentPackVerificationPage() {
                     />
                   </Form.Item>
                   <Form.Item
-                    label="扫描面单条码"
+                    label={tr("扫描面单条码")}
                     required
                     validateStatus={
                       packageCode && !packageMatches ? "error" : undefined
                     }
                     help={
                       packageCode && !packageMatches
-                        ? "面单条码与运单号不一致"
+                        ? tr('面单条码与运单号不一致')
                         : undefined
                     }
                   >
                     <Input
-                      aria-label="扫描面单条码"
+                      aria-label={tr("扫描面单条码")}
                       maxLength={255}
                       disabled={!canOperate || submitting}
                       prefix={<ScanOutlined />}
@@ -671,11 +674,11 @@ export default function FulfillmentPackVerificationPage() {
                     />
                   </Form.Item>
                   <Form.Item
-                    label="物流查询地址（可选）"
+                    label={tr("物流查询地址（可选）")}
                     className="tm-pack-verification-form-wide"
                   >
                     <Input
-                      aria-label="物流查询地址（可选）"
+                      aria-label={tr("物流查询地址（可选）")}
                       maxLength={2048}
                       disabled={!canOperate || submitting}
                       value={trackingUrl}
@@ -691,7 +694,7 @@ export default function FulfillmentPackVerificationPage() {
                     disabled={!canSubmit}
                     onClick={() => void submit()}
                   >
-                    确认复核并标记已打包
+                    {tr("确认复核并标记已打包")}
                   </Button>
                   <Button
                     disabled={submitting}
@@ -705,10 +708,10 @@ export default function FulfillmentPackVerificationPage() {
                       setQuoteError("");
                     }}
                   >
-                    重置当前订单
+                    {tr("重置当前订单")}
                   </Button>
                   <Typography.Text type="secondary">
-                    提交后不能修改扫描审计记录；提交前可重置并重新扫描。
+                    {tr("提交后不能修改扫描审计记录；提交前可重置并重新扫描。")}
                   </Typography.Text>
                 </Space>
               </SectionCard>

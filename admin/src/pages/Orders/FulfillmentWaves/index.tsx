@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import {
   CheckCircleOutlined,
   DownloadOutlined,
@@ -50,24 +52,24 @@ import { PERMISSIONS } from "@/utils/permission";
 
 const WAVE_STATUS_META: Record<
   FulfillmentWaveStatus,
-  { label: string; color: string }
+  { source: string; color: string }
 > = {
-  draft: { label: "待开始", color: "default" },
-  picking: { label: "拣货中", color: "processing" },
-  packing: { label: "待打包", color: "blue" },
-  completing: { label: "完成处理中", color: "gold" },
-  partial: { label: "部分完成", color: "warning" },
-  completed: { label: "已完成", color: "success" },
-  cancelled: { label: "已取消", color: "default" },
+  draft: { source: "待开始", color: "default" },
+  picking: { source: "拣货中", color: "processing" },
+  packing: { source: "待打包", color: "blue" },
+  completing: { source: "完成处理中", color: "gold" },
+  partial: { source: "部分完成", color: "warning" },
+  completed: { source: "已完成", color: "success" },
+  cancelled: { source: "已取消", color: "default" },
 };
 
-const ORDER_STATUS_META: Record<string, { label: string; color: string }> = {
-  pending: { label: "待拣货", color: "default" },
-  blocked: { label: "缺货阻断", color: "error" },
-  ready_to_pack: { label: "待打包复核", color: "processing" },
-  packed: { label: "已打包", color: "blue" },
-  fulfilled: { label: "已履约", color: "success" },
-  failed: { label: "履约失败", color: "warning" },
+const ORDER_STATUS_META: Record<string, { source: string; color: string }> = {
+  pending: { source: "待拣货", color: "default" },
+  blocked: { source: "缺货阻断", color: "error" },
+  ready_to_pack: { source: "待打包复核", color: "processing" },
+  packed: { source: "已打包", color: "blue" },
+  fulfilled: { source: "已履约", color: "success" },
+  failed: { source: "履约失败", color: "warning" },
 };
 
 type PickDraftValue = {
@@ -80,18 +82,18 @@ type PackDraft = { carrier: string; trackingNo: string; trackingUrl: string };
 
 function waveStatusTag(status: FulfillmentWaveStatus) {
   const meta = WAVE_STATUS_META[status] ?? {
-    label: "未知状态",
+    source: "未知状态",
     color: "default",
   };
-  return <Tag color={meta.color}>{meta.label}</Tag>;
+  return <Tag color={meta.color}>{tr(meta.source)}</Tag>;
 }
 
 function orderStatusTag(status: string) {
   const meta = ORDER_STATUS_META[status] ?? {
-    label: "未知状态",
+    source: "未知状态",
     color: "default",
   };
-  return <Tag color={meta.color}>{meta.label}</Tag>;
+  return <Tag color={meta.color}>{tr(meta.source)}</Tag>;
 }
 
 function userFacingError(error: unknown, fallback: string) {
@@ -111,6 +113,7 @@ function orderByID(wave?: FulfillmentWave) {
 }
 
 export default function FulfillmentWavesPage() {
+  const language = useLanguage();
   const { can, readonly } = usePermission();
   const canOperate = !readonly && can(PERMISSIONS.ORDER_OPERATE);
   const actionRef = useRef<ActionType>();
@@ -168,35 +171,36 @@ export default function FulfillmentWavesPage() {
       name: string,
       action: (wave: FulfillmentWave) => Promise<unknown>,
       success: string,
+      failure: string,
     ) => {
       if (!detail || submitting || !canOperate) return;
       setSubmitting(name);
       setDetailError("");
       try {
         await action(detail);
-        message.success(success);
+        message.success(tr(success));
         await refresh();
       } catch (error) {
         const text = userFacingError(
           error,
-          `${success.replace("成功", "")}失败，波次可能已变化，请刷新后重试`,
+          failure,
         );
         setDetailError(text);
-        message.error(text);
+        message.error(tr(text));
       } finally {
         setSubmitting("");
       }
     },
-    [canOperate, detail, refresh, submitting],
+    [canOperate, detail, language, refresh, submitting],
   );
 
   const requestStart = useCallback(() => {
     if (!detail) return;
     Modal.confirm({
-      title: "开始拣货？",
-      content: `将按 ${warehouseLabel(detail)} 的库存预占快照开始波次 ${detail.waveNo}。`,
-      okText: "开始拣货",
-      cancelText: "取消",
+      title: tr("开始拣货？"),
+      content: trFormat("将按 {value0} 的库存预占快照开始波次 {value1}。", { value0: String(warehouseLabel(detail)), value1: String(detail.waveNo) }),
+      okText: tr("开始拣货"),
+      cancelText: tr("取消"),
       onOk: () =>
         runRevisionAction(
           "start",
@@ -206,9 +210,10 @@ export default function FulfillmentWavesPage() {
               idempotencyKey: createFulfillmentWaveIdempotencyKey("start"),
             }),
           "开始拣货成功",
+          "开始拣货失败，波次可能已变化，请刷新后重试",
         ),
     });
-  }, [detail, runRevisionAction]);
+  }, [detail, language, runRevisionAction]);
 
   const editablePickLines = useMemo(() => {
     const orders = orderByID(detail);
@@ -260,19 +265,19 @@ export default function FulfillmentWavesPage() {
         }),
       });
       setPickOpen(false);
-      message.success("拣货结果已保存");
+      message.success(tr("拣货结果已保存"));
       await refresh();
     } catch (error) {
       const text = userFacingError(
         error,
-        "拣货结果保存失败，波次可能已变化，请刷新后重试",
+        tr("拣货结果保存失败，波次可能已变化，请刷新后重试"),
       );
       setDetailError(text);
-      message.error(text);
+      message.error(tr(text));
     } finally {
       setSubmitting("");
     }
-  }, [canOperate, detail, editablePickLines, pickDraft, refresh, submitting]);
+  }, [canOperate, detail, editablePickLines, language, pickDraft, refresh, submitting]);
 
   const openPack = useCallback((order: FulfillmentWaveOrder) => {
     setPackOrder(order);
@@ -288,7 +293,7 @@ export default function FulfillmentWavesPage() {
     const carrier = packDraft.carrier.trim();
     const trackingNo = packDraft.trackingNo.trim();
     if (!carrier || !trackingNo) {
-      message.warning("请填写承运商和运单号");
+      message.warning(tr("请填写承运商和运单号"));
       return;
     }
     setSubmitting("pack");
@@ -301,19 +306,19 @@ export default function FulfillmentWavesPage() {
         trackingUrl: packDraft.trackingUrl.trim() || undefined,
       });
       setPackOrder(undefined);
-      message.success("打包复核已保存");
+      message.success(tr("打包复核已保存"));
       await refresh();
     } catch (error) {
       const text = userFacingError(
         error,
-        "打包复核保存失败，波次可能已变化，请刷新后重试",
+        tr("打包复核保存失败，波次可能已变化，请刷新后重试"),
       );
       setDetailError(text);
-      message.error(text);
+      message.error(tr(text));
     } finally {
       setSubmitting("");
     }
-  }, [canOperate, detail, packDraft, packOrder, refresh, submitting]);
+  }, [canOperate, detail, language, packDraft, packOrder, refresh, submitting]);
 
   const requestComplete = useCallback(() => {
     if (!detail) return;
@@ -321,10 +326,10 @@ export default function FulfillmentWavesPage() {
       (order) => order.status === "packed",
     ).length;
     Modal.confirm({
-      title: "确认完成已打包订单？",
-      content: `本次将处理 ${packedCount} 单：在本地扣减库存、创建发货记录并更新订单状态。不会调用真实物流或平台接口，失败项不会自动重试。`,
-      okText: "确认完成",
-      cancelText: "取消",
+      title: tr("确认完成已打包订单？"),
+      content: trFormat("本次将处理 {value0} 单：在本地扣减库存、创建发货记录并更新订单状态。不会调用真实物流或平台接口，失败项不会自动重试。", { value0: String(packedCount) }),
+      okText: tr("确认完成"),
+      cancelText: tr("取消"),
       onOk: () =>
         runRevisionAction(
           "complete",
@@ -334,19 +339,20 @@ export default function FulfillmentWavesPage() {
               idempotencyKey: createFulfillmentWaveIdempotencyKey("complete"),
             }),
           "波次处理成功",
+          "波次处理失败，波次可能已变化，请刷新后重试",
         ),
     });
-  }, [detail, runRevisionAction]);
+  }, [detail, language, runRevisionAction]);
 
   const requestCancel = useCallback(() => {
     if (!detail) return;
     Modal.confirm({
-      title: "取消该拣货波次？",
+      title: tr("取消该拣货波次？"),
       content:
-        "取消只释放订单的波次占用，不会自动释放已预占库存。库存预占需在订单库存流程中人工处理。",
-      okText: "确认取消",
+        tr("取消只释放订单的波次占用，不会自动释放已预占库存。库存预占需在订单库存流程中人工处理。"),
+      okText: tr("确认取消"),
       okButtonProps: { danger: true },
-      cancelText: "返回",
+      cancelText: tr("返回"),
       onOk: () =>
         runRevisionAction(
           "cancel",
@@ -356,13 +362,14 @@ export default function FulfillmentWavesPage() {
               idempotencyKey: createFulfillmentWaveIdempotencyKey("cancel"),
             }),
           "波次取消成功",
+          "波次取消失败，波次可能已变化，请刷新后重试",
         ),
     });
-  }, [detail, runRevisionAction]);
+  }, [detail, language, runRevisionAction]);
 
   const columns: ProColumns<FulfillmentWave>[] = [
     {
-      title: "波次",
+      title: tr("波次"),
       dataIndex: "waveNo",
       width: 190,
       render: (_, row) => (
@@ -375,39 +382,39 @@ export default function FulfillmentWavesPage() {
         </Button>
       ),
     },
-    { title: "仓库", width: 190, render: (_, row) => warehouseLabel(row) },
+    { title: tr("仓库"), width: 190, render: (_, row) => warehouseLabel(row) },
     {
-      title: "状态",
+      title: tr("状态"),
       dataIndex: "status",
       width: 120,
       render: (_, row) => waveStatusTag(row.status),
     },
-    { title: "订单", dataIndex: "orderCount", width: 80 },
+    { title: tr("订单"), dataIndex: "orderCount", width: 80 },
     {
-      title: "拣货进度",
+      title: tr("拣货进度"),
       width: 150,
       render: (_, row) => `${row.pickedQuantity} / ${row.requiredQuantity}`,
     },
     {
-      title: "异常",
+      title: tr("异常"),
       width: 130,
       render: (_, row) =>
         row.shortageQuantity || row.failedCount ? (
           <Typography.Text type="danger">
-            缺货 {row.shortageQuantity} · 失败 {row.failedCount}
+            {tr("缺货")} {row.shortageQuantity} {tr("· 失败")} {row.failedCount}
           </Typography.Text>
         ) : (
           "—"
         ),
     },
     {
-      title: "创建时间",
+      title: tr("创建时间"),
       dataIndex: "createdAt",
       valueType: "dateTime",
       width: 170,
     },
     {
-      title: "操作",
+      title: tr("操作"),
       valueType: "option",
       width: 90,
       fixed: "right",
@@ -418,7 +425,7 @@ export default function FulfillmentWavesPage() {
           icon={<EyeOutlined />}
           onClick={() => drawer.openDrawer(row.id)}
         >
-          查看
+          {tr("查看")}
         </Button>
       ),
     },
@@ -426,16 +433,16 @@ export default function FulfillmentWavesPage() {
 
   const lineColumns = [
     {
-      title: "订单",
+      title: tr("订单"),
       width: 180,
       render: (_: unknown, line: FulfillmentWaveLine) =>
         orderByID(detail).get(line.orderId)?.orderNo ?? line.orderId,
     },
     {
-      title: "商品 / 规格",
+      title: tr("商品 / 规格"),
       render: (_: unknown, line: FulfillmentWaveLine) => (
         <Space direction="vertical" size={0}>
-          <Typography.Text>{line.productTitle || "未命名商品"}</Typography.Text>
+          <Typography.Text>{line.productTitle || tr("未命名商品")}</Typography.Text>
           <Typography.Text type="secondary">
             {line.skuCode || line.skuName || line.productSkuId}
           </Typography.Text>
@@ -443,19 +450,19 @@ export default function FulfillmentWavesPage() {
       ),
     },
     {
-      title: "库位 / 条码",
+      title: tr("库位 / 条码"),
       width: 180,
       render: (_: unknown, line: FulfillmentWaveLine) => (
         <Space direction="vertical" size={0}>
-          <Typography.Text>{line.locationCode || "未配置库位"}</Typography.Text>
-          <Typography.Text type="secondary">{line.barcode || "未配置条码"}</Typography.Text>
+          <Typography.Text>{line.locationCode || tr("未配置库位")}</Typography.Text>
+          <Typography.Text type="secondary">{line.barcode || tr("未配置条码")}</Typography.Text>
         </Space>
       ),
     },
-    { title: "需求", dataIndex: "requiredQuantity", width: 72 },
-    { title: "已拣", dataIndex: "pickedQuantity", width: 72 },
+    { title: tr("需求"), dataIndex: "requiredQuantity", width: 72 },
+    { title: tr("已拣"), dataIndex: "pickedQuantity", width: 72 },
     {
-      title: "缺货",
+      title: tr("缺货"),
       dataIndex: "shortageQuantity",
       width: 72,
       render: (value: number) =>
@@ -482,24 +489,24 @@ export default function FulfillmentWavesPage() {
   return (
     <PermissionGuard require={PERMISSIONS.ORDER_VIEW} showForbiddenPage>
       <TmPageContainer
-        title="拣货波次"
-        subTitle="先按预占快照拣货，再逐单打包复核；只有人工确认完成后才写入本地出库和发货事实。"
+        title={tr("拣货波次")}
+        subTitle={tr("先按预占快照拣货，再逐单打包复核；只有人工确认完成后才写入本地出库和发货事实。")}
       >
         {!canOperate ? (
           <Alert
             type="info"
             showIcon
-            message="当前账号为只读模式，可查看和导出波次，但不能执行拣货、打包或完成操作。"
+            message={tr("当前账号为只读模式，可查看和导出波次，但不能执行拣货、打包或完成操作。")}
             style={{ marginBottom: 16 }}
           />
         ) : null}
         <Alert
           type="warning"
           showIcon
-          message="当前版本仅处理单仓本地履约；不调用真实物流或平台写接口，不自动重试，不自动释放预占，也不支持跨仓拆单。"
+          message={tr("当前版本仅处理单仓本地履约；不调用真实物流或平台写接口，不自动重试，不自动释放预占，也不支持跨仓拆单。")}
           style={{ marginBottom: 16 }}
         />
-        {listError ? <ErrorAlert title={listError} /> : null}
+        {listError ? <ErrorAlert title={tr(listError)} /> : null}
         <TmProTable<FulfillmentWave>
           rowKey="id"
           actionRef={actionRef}
@@ -508,29 +515,29 @@ export default function FulfillmentWavesPage() {
           cardBordered
           scroll={{ x: 1160 }}
           locale={{
-            emptyText: "暂无拣货波次，可从履约分仓页选择已分仓订单创建",
+            emptyText: tr("暂无拣货波次，可从履约分仓页选择已分仓订单创建"),
           }}
           filterBar={
             <Space wrap size="small">
               <Input.Search
-                aria-label="搜索波次"
+                aria-label={tr("搜索波次")}
                 allowClear
                 value={keywordInput}
-                placeholder="波次号或订单号"
+                placeholder={tr("波次号或订单号")}
                 style={{ width: "min(260px, 100%)" }}
                 onChange={(event) => setKeywordInput(event.target.value)}
                 onSearch={(value) => setKeyword(value.trim())}
               />
               <Select<FulfillmentWaveStatus>
-                aria-label="波次状态"
+                aria-label={tr("波次状态")}
                 allowClear
                 value={status}
-                placeholder="全部状态"
+                placeholder={tr("全部状态")}
                 style={{ width: 150 }}
                 options={Object.entries(WAVE_STATUS_META).map(
                   ([value, meta]) => ({
                     value: value as FulfillmentWaveStatus,
-                    label: meta.label,
+                  label: tr(meta.source),
                   }),
                 )}
                 onChange={setStatus}
@@ -542,7 +549,7 @@ export default function FulfillmentWavesPage() {
               key="warehouse-allocations"
               onClick={() => history.push("/orders/warehouse-allocations")}
             >
-              前往履约分仓
+              {tr("前往履约分仓")}
             </Button>,
           ]}
           request={async (params) => {
@@ -562,7 +569,7 @@ export default function FulfillmentWavesPage() {
             } catch (error) {
               const text = userFacingError(
                 error,
-                "波次列表加载失败，请稍后重试",
+                tr("波次列表加载失败，请稍后重试"),
               );
               setListError(text);
               return { data: [], success: false, total: 0 };
@@ -571,7 +578,7 @@ export default function FulfillmentWavesPage() {
         />
 
         <AppDrawer
-          title={detail?.waveNo ? `拣货波次 ${detail.waveNo}` : "拣货波次详情"}
+          title={detail?.waveNo ? trFormat("拣货波次 {value0}", { value0: detail.waveNo }) : tr("拣货波次详情")}
           open={drawer.open}
           onClose={drawer.closeDrawer}
           loading={detailLoading}
@@ -581,34 +588,34 @@ export default function FulfillmentWavesPage() {
               disabled={!drawer.id || detailLoading || Boolean(submitting)}
               onClick={() => drawer.id && void loadDetail(drawer.id)}
             >
-              刷新
+              {tr("刷新")}
             </Button>
           }
         >
-          {detailError ? <ErrorAlert title={detailError} /> : null}
+          {detailError ? <ErrorAlert title={tr(detailError)} /> : null}
           {detail ? (
             <Space direction="vertical" size="middle" style={{ width: "100%" }}>
               <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
-                <Descriptions.Item label="状态">
+                <Descriptions.Item label={tr("状态")}>
                   {waveStatusTag(detail.status)}
                 </Descriptions.Item>
-                <Descriptions.Item label="仓库">
+                <Descriptions.Item label={tr("仓库")}>
                   {warehouseLabel(detail)}
                 </Descriptions.Item>
-                <Descriptions.Item label="订单 / 规格">
+                <Descriptions.Item label={tr("订单 / 规格")}>
                   {detail.orderCount} / {detail.lineCount}
                 </Descriptions.Item>
-                <Descriptions.Item label="拣货数量">
+                <Descriptions.Item label={tr("拣货数量")}>
                   {detail.pickedQuantity} / {detail.requiredQuantity}
                 </Descriptions.Item>
-                <Descriptions.Item label="缺货数量">
+                <Descriptions.Item label={tr("缺货数量")}>
                   {detail.shortageQuantity}
                 </Descriptions.Item>
-                <Descriptions.Item label="完成 / 失败">
+                <Descriptions.Item label={tr("完成 / 失败")}>
                   {detail.fulfilledCount} / {detail.failedCount}
                 </Descriptions.Item>
                 {detail.remark ? (
-                  <Descriptions.Item label="备注" span={{ xs: 1, sm: 2 }}>
+                  <Descriptions.Item label={tr("备注")} span={{ xs: 1, sm: 2 }}>
                     {detail.remark}
                   </Descriptions.Item>
                 ) : null}
@@ -617,7 +624,7 @@ export default function FulfillmentWavesPage() {
                 <Alert
                   type="warning"
                   showIcon
-                  message="当前完成请求正在处理或等待人工重试，请勿使用其他幂等键重复提交。"
+                  message={tr("当前完成请求正在处理或等待人工重试，请勿使用其他幂等键重复提交。")}
                 />
               ) : null}
               <Space wrap>
@@ -629,13 +636,13 @@ export default function FulfillmentWavesPage() {
                     )
                   }
                 >
-                  出库单据中心
+                  {tr("出库单据中心")}
                 </Button>
                 <Button
                   icon={<DownloadOutlined />}
                   onClick={() => downloadFulfillmentWavePickCSV(detail)}
                 >
-                  导出拣货单
+                  {tr("导出拣货单")}
                 </Button>
                 {detail.status === "draft" ? (
                   <Button
@@ -645,7 +652,7 @@ export default function FulfillmentWavesPage() {
                     disabled={!canOperate || Boolean(submitting)}
                     onClick={requestStart}
                   >
-                    开始拣货
+                    {tr("开始拣货")}
                   </Button>
                 ) : null}
                 {pickable ? (
@@ -654,7 +661,7 @@ export default function FulfillmentWavesPage() {
                     disabled={!canOperate || Boolean(submitting)}
                     onClick={openPick}
                   >
-                    录入拣货结果
+                    {tr("录入拣货结果")}
                   </Button>
                 ) : null}
                 {detail.packingVerificationRequired &&
@@ -668,7 +675,7 @@ export default function FulfillmentWavesPage() {
                       )
                     }
                   >
-                    进入出库扫描复核
+                    {tr("进入出库扫描复核")}
                   </Button>
                 ) : null}
                 {packedCount > 0 &&
@@ -680,7 +687,7 @@ export default function FulfillmentWavesPage() {
                     disabled={!canOperate || Boolean(submitting)}
                     onClick={requestComplete}
                   >
-                    完成已打包订单（{packedCount}）
+                    {tr("完成已打包订单（")}{packedCount}）
                   </Button>
                 ) : null}
                 {cancellable ? (
@@ -691,13 +698,13 @@ export default function FulfillmentWavesPage() {
                     disabled={!canOperate || Boolean(submitting)}
                     onClick={requestCancel}
                   >
-                    取消波次
+                    {tr("取消波次")}
                   </Button>
                 ) : null}
               </Space>
 
               <Typography.Title level={5} style={{ margin: 0 }}>
-                订单打包复核
+                {tr("订单打包复核")}
               </Typography.Title>
               <Table<FulfillmentWaveOrder>
                 rowKey="id"
@@ -706,47 +713,47 @@ export default function FulfillmentWavesPage() {
                 scroll={{ x: 780 }}
                 dataSource={detail.orders ?? []}
                 columns={[
-                  { title: "订单", dataIndex: "orderNo", width: 190 },
+                  { title: tr("订单"), dataIndex: "orderNo", width: 190 },
                   {
-                    title: "状态",
+                    title: tr("状态"),
                     dataIndex: "status",
                     width: 130,
                     render: (value: string) => orderStatusTag(value),
                   },
                   {
-                    title: "承运商",
+                    title: tr("承运商"),
                     dataIndex: "carrier",
                     width: 130,
                     render: (value?: string) => value || "—",
                   },
                   {
-                    title: "运单号",
+                    title: tr("运单号"),
                     dataIndex: "trackingNo",
                     width: 180,
                     render: (value?: string) => value || "—",
                   },
                   {
-                    title: "称重",
+                    title: tr("称重"),
                     dataIndex: "actualWeightGrams",
                     width: 110,
                     render: (value?: number) =>
-                      typeof value === "number" ? `${value} 克` : "—",
+                      typeof value === "number" ? trFormat("{value0} 克", { value0: String(value) }) : "—",
                   },
                   {
-                    title: "结果",
+                    title: tr("结果"),
                     dataIndex: "failureReason",
                     ellipsis: true,
                     render: (value?: string) =>
                       value ? (
                         <Typography.Text type="danger">
-                          履约失败，请核对订单与库存后人工重试
+                          {tr("履约失败，请核对订单与库存后人工重试")}
                         </Typography.Text>
                       ) : (
                         "—"
                       ),
                   },
                   {
-                    title: "操作",
+                    title: tr("操作"),
                     width: 100,
                     fixed: "right",
                     render: (_: unknown, order: FulfillmentWaveOrder) => {
@@ -765,7 +772,7 @@ export default function FulfillmentWavesPage() {
                               )
                             }
                           >
-                            扫描复核
+                            {tr("扫描复核")}
                           </Button>
                         );
                       }
@@ -782,7 +789,7 @@ export default function FulfillmentWavesPage() {
                           disabled={!canOperate || Boolean(submitting)}
                           onClick={() => openPack(order)}
                         >
-                          {order.status === "packed" ? "修改复核" : "打包复核"}
+                          {order.status === "packed" ? tr("修改复核") : tr("打包复核")}
                         </Button>
                         );
                       }
@@ -793,7 +800,7 @@ export default function FulfillmentWavesPage() {
               />
 
               <Typography.Title level={5} style={{ margin: 0 }}>
-                拣货明细
+                {tr("拣货明细")}
               </Typography.Title>
               <Table<FulfillmentWaveLine>
                 rowKey="id"
@@ -808,13 +815,13 @@ export default function FulfillmentWavesPage() {
         </AppDrawer>
 
         <Modal
-          title="录入拣货结果"
+          title={tr("录入拣货结果")}
           open={pickOpen}
           width={900}
           style={{ maxWidth: "calc(100vw - 24px)" }}
           destroyOnHidden
-          okText="保存拣货结果"
-          cancelText="取消"
+          okText={tr("保存拣货结果")}
+          cancelText={tr("取消")}
           confirmLoading={submitting === "pick"}
           onCancel={() => !submitting && setPickOpen(false)}
           onOk={() => void submitPick()}
@@ -822,7 +829,7 @@ export default function FulfillmentWavesPage() {
           <Alert
             type="info"
             showIcon
-            message="逐条填写实际拣到数量；系统自动计算缺货数量。缺货订单不能进入打包复核。"
+            message={tr("逐条填写实际拣到数量；系统自动计算缺货数量。缺货订单不能进入打包复核。")}
             style={{ marginBottom: 12 }}
           />
           <Table<FulfillmentWaveLine>
@@ -833,23 +840,23 @@ export default function FulfillmentWavesPage() {
             dataSource={editablePickLines}
             columns={[
               {
-                title: "订单",
+                title: tr("订单"),
                 width: 180,
                 render: (_: unknown, line) =>
                   orderByID(detail).get(line.orderId)?.orderNo ?? line.orderId,
               },
               {
-                title: "商品规格",
+                title: tr("商品规格"),
                 render: (_: unknown, line) =>
                   line.skuCode || line.skuName || line.productSkuId,
               },
-              { title: "需求", dataIndex: "requiredQuantity", width: 80 },
+              { title: tr("需求"), dataIndex: "requiredQuantity", width: 80 },
               {
-                title: "实际拣到",
+                title: tr("实际拣到"),
                 width: 130,
                 render: (_: unknown, line) => (
                   <InputNumber
-                    aria-label={`${line.skuCode || line.productSkuId} 实际拣到数量`}
+                    aria-label={trFormat("{value0} 实际拣到数量", { value0: String(line.skuCode || line.productSkuId) })}
                     min={0}
                     max={line.requiredQuantity}
                     precision={0}
@@ -871,19 +878,19 @@ export default function FulfillmentWavesPage() {
                 ),
               },
               {
-                title: "缺货",
+                title: tr("缺货"),
                 width: 80,
                 render: (_: unknown, line) =>
                   line.requiredQuantity - (pickDraft[line.id]?.pickedQuantity ?? 0),
               },
               {
-                title: "扫描条码",
+                title: tr("扫描条码"),
                 width: 170,
                 render: (_: unknown, line) => (
                   <Input
-                    aria-label={`${line.skuCode || line.productSkuId} 扫描条码`}
+                    aria-label={trFormat("{value0} 扫描条码", { value0: String(line.skuCode || line.productSkuId) })}
                     maxLength={128}
-                    placeholder={line.barcode || "未配置条码"}
+                    placeholder={line.barcode || tr("未配置条码")}
                     value={pickDraft[line.id]?.scannedBarcode ?? ""}
                     onChange={(event) =>
                       setPickDraft((current) => ({
@@ -902,13 +909,13 @@ export default function FulfillmentWavesPage() {
                 ),
               },
               {
-                title: "扫描库位",
+                title: tr("扫描库位"),
                 width: 150,
                 render: (_: unknown, line) => (
                   <Input
-                    aria-label={`${line.skuCode || line.productSkuId} 扫描库位`}
+                    aria-label={trFormat("{value0} 扫描库位", { value0: String(line.skuCode || line.productSkuId) })}
                     maxLength={64}
-                    placeholder={line.locationCode || "未配置库位"}
+                    placeholder={line.locationCode || tr("未配置库位")}
                     value={pickDraft[line.id]?.scannedLocationCode ?? ""}
                     onChange={(event) =>
                       setPickDraft((current) => ({
@@ -931,11 +938,11 @@ export default function FulfillmentWavesPage() {
         </Modal>
 
         <Modal
-          title={packOrder ? `打包复核 · ${packOrder.orderNo}` : "打包复核"}
+          title={packOrder ? trFormat("打包复核 · {value0}", { value0: packOrder.orderNo }) : tr("打包复核")}
           open={Boolean(packOrder)}
           destroyOnHidden
-          okText="保存复核"
-          cancelText="取消"
+          okText={tr("保存复核")}
+          cancelText={tr("取消")}
           confirmLoading={submitting === "pack"}
           onCancel={() => !submitting && setPackOrder(undefined)}
           onOk={() => void submitPack()}
@@ -944,12 +951,12 @@ export default function FulfillmentWavesPage() {
             <Alert
               type="info"
               showIcon
-              message="这里只记录人工承运商和运单信息；保存不会立即扣库存或调用真实物流接口。"
+              message={tr("这里只记录人工承运商和运单信息；保存不会立即扣库存或调用真实物流接口。")}
             />
             <Input
-              aria-label="承运商"
+              aria-label={tr("承运商")}
               maxLength={128}
-              placeholder="承运商"
+              placeholder={tr("承运商")}
               value={packDraft.carrier}
               onChange={(event) =>
                 setPackDraft((current) => ({
@@ -959,9 +966,9 @@ export default function FulfillmentWavesPage() {
               }
             />
             <Input
-              aria-label="运单号"
+              aria-label={tr("运单号")}
               maxLength={255}
-              placeholder="运单号"
+              placeholder={tr("运单号")}
               value={packDraft.trackingNo}
               onChange={(event) =>
                 setPackDraft((current) => ({
@@ -971,9 +978,9 @@ export default function FulfillmentWavesPage() {
               }
             />
             <Input
-              aria-label="物流轨迹链接"
+              aria-label={tr("物流轨迹链接")}
               maxLength={2048}
-              placeholder="物流轨迹链接（可选，http(s)）"
+              placeholder={tr("物流轨迹链接（可选，http(s)）")}
               value={packDraft.trackingUrl}
               onChange={(event) =>
                 setPackDraft((current) => ({

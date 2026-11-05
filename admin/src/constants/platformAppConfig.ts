@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import type { AppConfigFieldDTO } from '@/services/shops';
 import { PLATFORM_COPY } from '@/constants/copywriting';
 
@@ -84,15 +85,15 @@ export const PLATFORM_APP_FIELD_PLACEHOLDER: Record<string, string> = {
 };
 
 export const PLATFORM_STATUS_META: Record<string, { label: string; color: string }> = {
-  available: { label: '可用', color: 'success' },
-  beta: { label: '测试中', color: 'processing' },
-  planned: { label: '规划中', color: 'default' },
-  disabled: { label: '停用', color: 'error' },
+  available: { get label() { return tr("可用"); }, color: 'success' },
+  beta: { get label() { return tr("测试中"); }, color: 'processing' },
+  planned: { get label() { return tr("规划中"); }, color: 'default' },
+  disabled: { get label() { return tr("停用"); }, color: 'error' },
 };
 
 /** 开发者门户快捷链接 */
 export const PLATFORM_DEV_PORTALS: { name: string; url: string }[] = [
-  { name: '抖店开放平台', url: 'https://op.jinritemai.com/docs/' },
+  { get name() { return tr("抖店开放平台"); }, url: 'https://op.jinritemai.com/docs/' },
   { name: 'TikTok Shop Partner', url: 'https://partner.tiktokshop.com/' },
   { name: 'Shopee Open', url: 'https://open.shopee.com/' },
   { name: 'Lazada Open', url: 'https://open.lazada.com/' },

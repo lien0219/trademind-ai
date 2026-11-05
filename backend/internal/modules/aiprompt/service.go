@@ -101,6 +101,20 @@ func (s *Service) Create(ctx context.Context, body CreateBody) (*AIPrompt, error
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("aiprompt: no db")
 	}
+	var row *AIPrompt
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		row, err = s.CreateTx(ctx, tx, body)
+		return err
+	})
+	return row, err
+}
+
+// CreateTx inserts a prompt using the caller's transaction.
+func (s *Service) CreateTx(ctx context.Context, tx *gorm.DB, body CreateBody) (*AIPrompt, error) {
+	if s == nil || tx == nil {
+		return nil, fmt.Errorf("aiprompt: transaction unavailable")
+	}
 	code := strings.TrimSpace(body.Code)
 	if code == "" {
 		return nil, fmt.Errorf("code required")
@@ -135,7 +149,7 @@ func (s *Service) Create(ctx context.Context, body CreateBody) (*AIPrompt, error
 	if body.Enabled != nil {
 		row.Enabled = *body.Enabled
 	}
-	if err := s.DB.WithContext(ctx).Create(row).Error; err != nil {
+	if err := tx.WithContext(ctx).Create(row).Error; err != nil {
 		return nil, err
 	}
 	return row, nil
@@ -146,8 +160,22 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, body UpdateBody) (*A
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("aiprompt: no db")
 	}
+	var row *AIPrompt
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		row, err = s.UpdateTx(ctx, tx, id, body)
+		return err
+	})
+	return row, err
+}
+
+// UpdateTx updates a prompt using the caller's transaction.
+func (s *Service) UpdateTx(ctx context.Context, tx *gorm.DB, id uuid.UUID, body UpdateBody) (*AIPrompt, error) {
+	if s == nil || tx == nil {
+		return nil, fmt.Errorf("aiprompt: transaction unavailable")
+	}
 	var row AIPrompt
-	if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+	if err := tx.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	if body.Name != nil {
@@ -184,7 +212,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, body UpdateBody) (*A
 	if body.Enabled != nil {
 		row.Enabled = *body.Enabled
 	}
-	if err := s.DB.WithContext(ctx).Save(&row).Error; err != nil {
+	if err := tx.WithContext(ctx).Save(&row).Error; err != nil {
 		return nil, err
 	}
 	return &row, nil
@@ -195,7 +223,17 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("aiprompt: no db")
 	}
-	res := s.DB.WithContext(ctx).Delete(&AIPrompt{}, "id = ?", id)
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return s.DeleteTx(ctx, tx, id)
+	})
+}
+
+// DeleteTx soft-deletes a prompt using the caller's transaction.
+func (s *Service) DeleteTx(ctx context.Context, tx *gorm.DB, id uuid.UUID) error {
+	if s == nil || tx == nil {
+		return fmt.Errorf("aiprompt: transaction unavailable")
+	}
+	res := tx.WithContext(ctx).Delete(&AIPrompt{}, "id = ?", id)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -210,12 +248,26 @@ func (s *Service) SetEnabled(ctx context.Context, id uuid.UUID, enabled bool) (*
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("aiprompt: no db")
 	}
+	var row *AIPrompt
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		row, err = s.SetEnabledTx(ctx, tx, id, enabled)
+		return err
+	})
+	return row, err
+}
+
+// SetEnabledTx changes prompt availability using the caller's transaction.
+func (s *Service) SetEnabledTx(ctx context.Context, tx *gorm.DB, id uuid.UUID, enabled bool) (*AIPrompt, error) {
+	if s == nil || tx == nil {
+		return nil, fmt.Errorf("aiprompt: transaction unavailable")
+	}
 	var row AIPrompt
-	if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+	if err := tx.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	row.Enabled = enabled
-	if err := s.DB.WithContext(ctx).Save(&row).Error; err != nil {
+	if err := tx.WithContext(ctx).Save(&row).Error; err != nil {
 		return nil, err
 	}
 	return &row, nil

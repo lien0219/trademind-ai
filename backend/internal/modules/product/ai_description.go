@@ -85,6 +85,10 @@ func (s *Service) generateDescriptionWithExtra(c *gin.Context, productID uuid.UU
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	tenantID, err := s.ensureProductTenantVisible(c, productID)
+	if err != nil {
+		return nil, err
+	}
 	if s.Prompts == nil || s.AITasks == nil || s.AIGateway == nil {
 		return nil, fmt.Errorf("product: ai not configured")
 	}
@@ -106,7 +110,7 @@ func (s *Service) generateDescriptionWithExtra(c *gin.Context, productID uuid.UU
 	if err := s.DB.WithContext(c.Request.Context()).
 		Preload("Images", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).
 		Preload("SKUs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
-		First(&p, "id = ?", productID).Error; err != nil {
+		First(&p, "id = ? AND tenant_id = ?", productID, tenantID).Error; err != nil {
 		return nil, err
 	}
 
@@ -234,7 +238,7 @@ func (s *Service) generateDescriptionWithExtra(c *gin.Context, productID uuid.UU
 	_ = s.AITasks.MarkSuccess(c.Request.Context(), taskID, outJSON, raw, resp.InputTokens, resp.OutputTokens, usedModel)
 
 	if extra != nil && extra.SaveAIField && strings.TrimSpace(parsed.Description) != "" {
-		_ = s.DB.WithContext(c.Request.Context()).Model(&Product{}).Where("id = ?", p.ID).Update("ai_description", strings.TrimSpace(parsed.Description)).Error
+		_ = s.DB.WithContext(c.Request.Context()).Model(&Product{}).Where("id = ? AND tenant_id = ?", p.ID, tenantID).Update("ai_description", strings.TrimSpace(parsed.Description)).Error
 	}
 
 	if s.OpLog != nil && (extra == nil || !extra.SkipSingleOpLog) {
@@ -264,6 +268,10 @@ func (s *Service) ApplyAIDescription(c *gin.Context, productID uuid.UUID, body A
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	tenantID, err := s.ensureProductTenantVisible(c, productID)
+	if err != nil {
+		return nil, err
+	}
 	text := strings.TrimSpace(body.AIDescription)
 	if text == "" {
 		return nil, fmt.Errorf("aiDescription is required")
@@ -290,7 +298,7 @@ func (s *Service) ApplyAIDescription(c *gin.Context, productID uuid.UUID, body A
 	}
 
 	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).First(&p, "id = ?", productID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&p, "id = ? AND tenant_id = ?", productID, tenantID).Error; err != nil {
 		return nil, err
 	}
 	if err := s.applyAIContent(c, &p, AIContentFieldDescription, text, taskUUID, body.ExpectedUpdatedAt, body.SourceSnapshotHash, adminID); err != nil {

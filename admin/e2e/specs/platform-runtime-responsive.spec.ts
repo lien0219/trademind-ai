@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures/admin.fixture";
 import { ok } from "../mocks/envelope";
+import { e2eUser } from "../mocks/auth";
 import {
   expectHeaderContentAligned,
   expectNoRootOverflow,
@@ -47,6 +48,7 @@ test.describe("@smoke @platform-runtime-responsive 平台运行状态", () => {
         });
       });
 
+      await page.route("**/api/v1/auth/profile", (route) => route.fulfill({ json: ok({ ...e2eUser, isRoot: true, tenantId: 101, platformOperator: true }) }));
       await admin.goto("/ops/platform-runtime?platform=douyin_shop");
 
       await expect(

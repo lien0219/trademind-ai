@@ -26,6 +26,7 @@ PR 必须说明变更范围、风险、本地实际检查、交由 CI 的自动�
 
 - `main` 不接受直接 push；`dev` 也优先通过 PR。
 - GitHub Actions 是自动化门禁的权威执行入口，失败不得通过 skip、降低断言或扩大 baseline 掩盖。
+- RBAC、OAuth 与会话变更须保留 `project-tests.yml` 的隔离 PostgreSQL/Redis 及 OAuth callback/state Race 回归；没有目标提交对应的远程运行时，CI 标为 BLOCKED。
 - 功能和业务流程由维护者人工签收。
 - Go 改动执行 `gofmt`；前端/Collector 改动至少完成相关静态检查或构建，完整回归可交由 CI。
 - 环境变量、Docker、Provider、API、部署或 CI 变更必须同步相关文档。
@@ -34,6 +35,10 @@ PR 必须说明变更范围、风险、本地实际检查、交由 CI 的自动�
 ## CI 隔离资源
 
 PostgreSQL 和 Redis 集成测试由 GitHub Actions service container 提供。CI 中的 `trademind_test` 是作业内临时资源，本地无需创建或维护同名数据库。任何本地集成测试都必须显式指向隔离测试资源，不得回退到开发或生产服务。
+
+Admin 可见文案和国际化变更还必须通过 `pnpm check:ui-copy --strict` 与 `node admin/scripts/i18n-audit.mjs --strict --details`。`Internationalization Coverage Audit` 工作流先以冻结锁文件安装 workspace 依赖，再执行六语言全站严格审计、解析器回归和改动行防回退检查；不得将运行中、跳过或仅增量通过的结果写成全站覆盖通过。
+
+`Project Tests` 的 code quality 与 backend integration 作业各自注入 `APP_ENV=test`、`TEST_DATABASE_URL`、`TEST_REDIS_URL` 并运行独立 PostgreSQL/Redis 服务。常规 Go 单元任务不启用 `integration` build tag；数据库、租户和 Worker 回归由显式集成命令执行，库存任务同时启用 `inventorypostgres`。不得通过移除集成命令或缺失环境后的 skip 让 CI 变绿。
 
 ## 发布流程
 

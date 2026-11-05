@@ -144,7 +144,9 @@ func (s *Service) scheduleAutoReplyShopSync(ctx context.Context, policy *custome
 
 	snapshot := syncInputSnapshot{Mode: ModeIncremental, Limit: 100}
 	var latest CustomerMessageSyncTask
-	latestErr := s.DB.WithContext(ctx).Where("shop_id = ?", policy.ShopID).Order("created_at DESC").First(&latest).Error
+	latestErr := s.DB.WithContext(ctx).
+		Where("tenant_id = ? AND shop_id = ?", policy.TenantID, policy.ShopID).
+		Order("created_at DESC").First(&latest).Error
 	if latestErr == nil {
 		if latest.Status == StatusFailed {
 			return fmt.Errorf("latest customer message sync failed; manual retry required")

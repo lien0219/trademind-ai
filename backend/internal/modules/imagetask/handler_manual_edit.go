@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -14,6 +15,9 @@ import (
 func (h *Handler) GetTranslateEditState(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
+		return
+	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermProductView) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -37,6 +41,9 @@ func (h *Handler) GetTranslateEditState(c *gin.Context) {
 func (h *Handler) ManualRenderTranslate(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
+		return
+	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermAIImageApply) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

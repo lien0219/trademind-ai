@@ -32,6 +32,10 @@ type Handler struct {
 	Cfg      *config.Config
 }
 
+// ContextTokenVersionKey carries the verified global identity version from
+// middleware into security-sensitive authentication handlers.
+const ContextTokenVersionKey = "auth.token_version"
+
 type loginBody struct {
 	Account  string `json:"account" binding:"required,min=1,max=128"`
 	Password string `json:"password" binding:"required,min=1,max=128"`
@@ -166,10 +170,19 @@ func (h *Handler) Profile(c *gin.Context) {
 	if dn == "" {
 		dn = u.LoginLabel()
 	}
-	p, _ := adminperm.LoadPrincipal(c, h.DB)
-	perms := adminperm.PermissionsForRole(strings.TrimSpace(u.Role))
+	p, principalErr := adminperm.LoadPrincipal(c, h.DB)
+	if principalErr != nil {
+		response.HandleError(c, principalErr)
+		return
+	}
+	perms := []string{}
+	role := "readonly"
+	status := strings.TrimSpace(u.Status)
+	tenantID, _ := adminperm.TenantIDFromGin(c)
+	tenantName := ""
 	storePerms := make([]gin.H, 0)
-	if p != nil && !p.IsAdmin() {
+	if p != nil {
+		role = p.Role
 		perms = p.Permissions
 		for _, g := range p.StoreGrants {
 			storePerms = append(storePerms, gin.H{
@@ -179,14 +192,48 @@ func (h *Handler) Profile(c *gin.Context) {
 			})
 		}
 	}
+	registry, memberships := adminperm.TenantSchemaState(h.DB)
+	root, rootErr := adminperm.IsRoot(c.Request.Context(), h.DB, uid)
+	if rootErr != nil {
+		response.HandleError(c, rootErr)
+		return
+	}
+	platformOperator := (p != nil && p.PlatformOperator) || root
+	if p != nil && p.SystemContext {
+		tenantName = "系统控制台"
+	}
+	if tenantID > 0 && registry && memberships {
+		access, err := adminperm.ResolveTenantAccess(c.Request.Context(), h.DB, uid, tenantID)
+		if err != nil {
+			response.HandleError(c, err)
+			return
+		}
+		if access != nil {
+			tenantName = access.Tenant.Name
+			status = access.Membership.Status
+		}
+	}
+	if tenantID > 0 {
+		filtered := make([]string, 0, len(perms))
+		for _, permission := range perms {
+			if permission != adminperm.PermSecurityKeyRotate {
+				filtered = append(filtered, permission)
+			}
+		}
+		perms = filtered
+	}
 	response.OK(c, gin.H{
 		"id":               u.ID.String(),
 		"username":         u.LoginLabel(),
 		"email":            u.Email,
 		"phone":            u.Phone,
 		"displayName":      dn,
-		"role":             strings.TrimSpace(u.Role),
-		"status":           strings.TrimSpace(u.Status),
+		"role":             strings.TrimSpace(role),
+		"status":           status,
+		"tenantId":         tenantID,
+		"tenantName":       tenantName,
+		"platformOperator": platformOperator,
+		"isRoot":           root,
 		"permissions":      perms,
 		"storePermissions": storePerms,
 		"createdAt":        u.CreatedAt,
@@ -204,16 +251,52 @@ func (h *Handler) Logout(c *gin.Context) {
 		_ = c.ShouldBindJSON(&body)
 		raw = strings.TrimSpace(body.RefreshToken)
 	}
-	if h.Sessions != nil && raw != "" {
-		_ = h.Sessions.RevokeByRefreshToken(c.Request.Context(), raw)
+	if h == nil || h.Sessions == nil || h.Sessions.DB == nil || h.Sessions.Cfg == nil || h.OpLog == nil || h.OpLog.DB == nil {
+		response.Fail(c, 500, response.CodeInternalError, "logout unavailable")
+		return
 	}
-	ClearSessionCookies(c, h.Cfg)
-	if h.OpLog != nil {
-		_ = h.OpLog.Write(c, operationlog.WriteOpts{
+	var uid *uuid.UUID
+	if id, ok := currentUserID(c); ok {
+		uid = &id
+	}
+	var sid *uuid.UUID
+	if rawSID, ok := c.Get(ctxkey.SessionID); ok {
+		if value, ok := rawSID.(string); ok {
+			if parsed, err := uuid.Parse(strings.TrimSpace(value)); err == nil && parsed != uuid.Nil {
+				sid = &parsed
+			}
+		}
+	}
+	err := h.Sessions.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		sessions := *h.Sessions
+		sessions.DB = tx
+		revoked, err := sessions.revokeByRefreshTokenTx(c.Request.Context(), tx, raw, uid, sid)
+		if err != nil {
+			return err
+		}
+		if !revoked && sid != nil && uid != nil {
+			var sess AuthSession
+			if err := tx.WithContext(c.Request.Context()).First(&sess, "id = ?", *sid).Error; err != nil {
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return err
+				}
+			} else if sess.UserID == *uid {
+				if err := sessions.revokeSessionTx(tx, *sid, "logout"); err != nil {
+					return err
+				}
+			}
+		}
+		return h.OpLog.WriteTx(c, tx, operationlog.WriteOpts{
 			Action:   "logout",
 			Resource: "auth",
 			Status:   "success",
+			Message:  "logout committed",
 		})
+	})
+	if err != nil {
+		response.HandleError(c, err)
+		return
 	}
+	ClearSessionCookies(c, h.Cfg)
 	response.OK(c, gin.H{"ok": true})
 }

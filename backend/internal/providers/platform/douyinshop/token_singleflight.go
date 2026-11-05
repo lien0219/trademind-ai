@@ -63,7 +63,9 @@ func (c *Client) EnsureFreshAccessSingleflight(ctx context.Context) (string, err
 		if locker == nil {
 			locker = DefaultTokenLocker()
 		}
+		c.tokenMu.RLock()
 		ver := c.TokenVersion
+		c.tokenMu.RUnlock()
 		lockKey := TokenVersionKey(key, ver)
 		acquired, _, acqErr := locker.AcquireRefresh(ctx, lockKey, key, ver)
 		if acqErr != nil {
@@ -77,10 +79,9 @@ func (c *Client) EnsureFreshAccessSingleflight(ctx context.Context) (string, err
 			_ = locker.ReleaseRefresh(ctx, lockKey)
 			return "", refreshErr
 		}
-		c.tokenMu.Lock()
-		c.TokenVersion = ver + 1
+		c.tokenMu.RLock()
 		newVer := c.TokenVersion
-		c.tokenMu.Unlock()
+		c.tokenMu.RUnlock()
 		_ = locker.CommitRefresh(ctx, lockKey, newVer)
 		return token, nil
 	})

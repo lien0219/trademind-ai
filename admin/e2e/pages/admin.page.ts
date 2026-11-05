@@ -1,7 +1,7 @@
-import { expect, type Page } from '@playwright/test';
-import { seedAdminAuth, routeAdminApi } from '../utils/routes';
-import { ConsoleGuard } from '../utils/console-guard';
-import { NetworkWriteGuard } from '../utils/network-guard';
+import { expect, type Page } from "@playwright/test";
+import { seedAdminAuth, routeAdminApi } from "../utils/routes";
+import { ConsoleGuard } from "../utils/console-guard";
+import { NetworkWriteGuard } from "../utils/network-guard";
 
 export class AdminPage {
   readonly consoleGuard: ConsoleGuard;
@@ -12,9 +12,9 @@ export class AdminPage {
     this.writeGuard = new NetworkWriteGuard(page);
   }
 
-  async setup() {
+  async setup(anonymousRoutePaths: string[] = []) {
     this.consoleGuard.install();
-    await seedAdminAuth(this.page);
+    await seedAdminAuth(this.page, anonymousRoutePaths);
     await this.writeGuard.install();
     await routeAdminApi(this.page);
   }

@@ -1,3 +1,5 @@
+import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { CheckOutlined, NotificationOutlined } from '@ant-design/icons';
 import { type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { Alert, Button, Form, Input, InputNumber, message, Modal, Space, Tag } from 'antd';
@@ -26,6 +28,7 @@ type SilenceForm = {
 };
 
 export default function SystemAlertsPanel() {
+  const language = useLanguage();
   const actionRef = useRef<ActionType>();
   const guardRef = useRef(createActionGuard());
   const { can } = usePermission();
@@ -55,7 +58,7 @@ export default function SystemAlertsPanel() {
         actionRef.current?.reload?.();
         return true;
       } catch (error) {
-        message.error((error as Error).message || '操作失败');
+        message.error((error as Error).message || tr('操作失败'));
         throw error;
       } finally {
         guardRef.current.unlock(key);
@@ -72,10 +75,10 @@ export default function SystemAlertsPanel() {
       setPending(key, true);
       let submitted = false;
       Modal.confirm({
-        title: '确认系统告警',
-        content: '确认仅表示运维人员已关注，不会自动恢复故障。',
-        okText: '确认告警',
-        cancelText: '取消',
+        title: tr("确认系统告警"),
+        content: tr('确认仅表示运维人员已关注，不会自动恢复故障。'),
+        okText: tr("确认告警"),
+        cancelText: tr("取消"),
         onCancel: () => {
           guardRef.current.unlock(key);
           setPending(key, false);
@@ -85,14 +88,14 @@ export default function SystemAlertsPanel() {
           submitted = true;
           try {
             await acknowledgeAlert(alert.id);
-            message.success('告警已确认');
+            message.success(tr("告警已确认"));
             actionRef.current?.reload?.();
             guardRef.current.unlock(key);
             setPending(key, false);
           } catch (error) {
             submitted = false;
             setPending(key, false);
-            message.error((error as Error).message || '操作失败');
+            message.error((error as Error).message || tr('操作失败'));
             throw error;
           }
         },
@@ -104,14 +107,14 @@ export default function SystemAlertsPanel() {
   const columns: ProColumns<AlertEvent>[] = useMemo(
     () => [
       {
-        title: '最后出现',
+        title: tr("最后出现"),
         dataIndex: 'lastSeenAt',
         width: 168,
         search: false,
         render: (_, row) => formatDateTime(row.lastSeenAt),
       },
       {
-        title: '级别',
+        title: tr("级别"),
         dataIndex: 'severity',
         width: 104,
         valueType: 'select',
@@ -124,7 +127,7 @@ export default function SystemAlertsPanel() {
         },
       },
       {
-        title: '状态',
+        title: tr("状态"),
         dataIndex: 'status',
         width: 112,
         valueType: 'select',
@@ -136,12 +139,12 @@ export default function SystemAlertsPanel() {
           return <Tag color={meta.color}>{meta.text}</Tag>;
         },
       },
-      { title: '模块', dataIndex: 'module', width: 136, ellipsis: true },
-      { title: '规则', dataIndex: 'ruleId', width: 208, ellipsis: true, search: false },
-      { title: '摘要', dataIndex: 'summary', ellipsis: true, search: false },
-      { title: '次数', dataIndex: 'occurrenceCount', width: 72, search: false },
+      { title: tr("模块"), dataIndex: 'module', width: 136, ellipsis: true },
+      { title: tr("规则"), dataIndex: 'ruleId', width: 208, ellipsis: true, search: false },
+      { title: tr("摘要"), dataIndex: 'summary', ellipsis: true, search: false },
+      { title: tr("次数"), dataIndex: 'occurrenceCount', width: 72, search: false },
       {
-        title: '操作',
+        title: tr("操作"),
         valueType: 'option',
         width: 176,
         fixed: 'right',
@@ -160,7 +163,7 @@ export default function SystemAlertsPanel() {
                   disabled={rowPending || row.status !== 'firing'}
                   onClick={() => confirmAcknowledge(row)}
                 >
-                  确认
+                  {tr("确认")}
                 </Button>
               ) : null}
               {canSilence ? (
@@ -174,7 +177,7 @@ export default function SystemAlertsPanel() {
                     setSilenceTarget(row);
                   }}
                 >
-                  静默
+                  {tr("静默")}
                 </Button>
               ) : null}
             </Space>
@@ -182,7 +185,7 @@ export default function SystemAlertsPanel() {
         },
       },
     ],
-    [canAcknowledge, canSilence, confirmAcknowledge, form, pendingKeys],
+    [canAcknowledge, canSilence, confirmAcknowledge, form, language, pendingKeys],
   );
 
   const silenceKey = silenceTarget ? `silence:${silenceTarget.id}` : '';
@@ -193,14 +196,14 @@ export default function SystemAlertsPanel() {
         <Alert
           type="info"
           showIcon
-          message="当前账号可查看系统告警，处置操作需要单独授权"
+          message={tr("当前账号可查看系统告警，处置操作需要单独授权")}
           style={{ marginBottom: 16 }}
         />
       ) : null}
       {loadError ? (
         <ErrorAlert
-          title="系统告警加载失败"
-          actionHint="请检查可观测性服务状态后重试。"
+          title={tr("系统告警加载失败")}
+          actionHint={tr("请检查可观测性服务状态后重试。")}
           style={{ marginBottom: 16 }}
         />
       ) : null}
@@ -211,7 +214,7 @@ export default function SystemAlertsPanel() {
         search={{ layout: 'vertical' }}
         pagination={{ pageSize: 20, showSizeChanger: true }}
         scroll={{ x: 1080 }}
-        locale={{ emptyText: <EmptyState compact title="暂无系统告警" /> }}
+        locale={{ emptyText: <EmptyState compact title={tr("暂无系统告警")} /> }}
         request={async (params) => {
           try {
             const result = await fetchObservabilityAlerts({
@@ -224,17 +227,17 @@ export default function SystemAlertsPanel() {
             setLoadError('');
             return { data: result.items, total: result.pagination.total, success: true };
           } catch (error) {
-            setLoadError((error as Error).message || '系统告警加载失败');
+            setLoadError((error as Error).message || tr('系统告警加载失败'));
             return { data: [], total: 0, success: false };
           }
         }}
       />
 
       <Modal
-        title="静默系统告警"
+        title={tr("静默系统告警")}
         open={!!silenceTarget}
-        okText="确认静默"
-        cancelText="取消"
+        okText={tr("确认静默")}
+        cancelText={tr("取消")}
         confirmLoading={!!silenceKey && pendingKeys.has(silenceKey)}
         maskClosable={false}
         destroyOnHidden
@@ -248,7 +251,7 @@ export default function SystemAlertsPanel() {
             silenceAlert(silenceTarget.id, values),
           );
           if (completed) {
-            message.success('告警已静默');
+            message.success(tr("告警已静默"));
             setSilenceTarget(null);
             form.resetFields();
           }
@@ -257,24 +260,24 @@ export default function SystemAlertsPanel() {
         <Alert
           type="warning"
           showIcon
-          message="静默期间同一规则的新告警会被抑制"
+          message={tr("静默期间同一规则的新告警会被抑制")}
           style={{ marginBottom: 16 }}
         />
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item
             name="reason"
-            label="静默原因"
+            label={tr("静默原因")}
             rules={[
-              { required: true, whitespace: true, message: '请输入静默原因' },
-              { max: 256, message: '静默原因不能超过 256 个字符' },
+              { required: true, whitespace: true, message: tr("请输入静默原因") },
+              { max: 256, message: tr("静默原因不能超过 256 个字符") },
             ]}
           >
             <Input.TextArea rows={3} maxLength={256} showCount />
           </Form.Item>
           <Form.Item
             name="durationHours"
-            label="静默时长（小时）"
-            rules={[{ required: true, message: '请输入静默时长' }]}
+            label={tr("静默时长（小时）")}
+            rules={[{ required: true, message: tr("请输入静默时长") }]}
           >
             <InputNumber min={1} max={720} precision={0} style={{ width: '100%' }} />
           </Form.Item>

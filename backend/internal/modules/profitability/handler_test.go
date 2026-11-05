@@ -11,7 +11,9 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	adminmodel "github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"gorm.io/gorm"
 )
 
@@ -21,10 +23,13 @@ func TestProfitabilityHTTPAppliesStoreScopeAndRestrictsExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&adminmodel.AdminUser{}, &adminmodel.UserStorePermission{}); err != nil {
+	if err := db.AutoMigrate(&adminmodel.AdminUser{}, &adminmodel.UserStorePermission{}, &shop.Shop{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	operatorID, readonlyID, storeID := uuid.New(), uuid.New(), uuid.New()
+	if err := db.Create(&shop.Shop{Base: model.Base{ID: storeID}, TenantID: 41, Platform: "manual", ShopName: "Test profit shop", Status: "active", AuthStatus: "authorized"}).Error; err != nil {
+		t.Fatalf("create shop: %v", err)
+	}
 	for _, row := range []adminmodel.AdminUser{
 		{TenantID: 41, Username: "profit-operator", PasswordHash: "x", Role: "operator", Status: adminmodel.StatusActive},
 		{TenantID: 41, Username: "profit-readonly", PasswordHash: "x", Role: "readonly", Status: adminmodel.StatusActive},
@@ -83,7 +88,7 @@ func TestProfitabilityHTTPAppliesStoreScopeAndRestrictsExport(t *testing.T) {
 	}
 }
 
-func TestProfitabilityRouterRegistersReadOnlyRoutes(t *testing.T) {
+func TestProfitabilityRouterRegistersScopedReadAndFXRateWriteRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	group := router.Group("/api/v1")
@@ -92,13 +97,13 @@ func TestProfitabilityRouterRegistersReadOnlyRoutes(t *testing.T) {
 	for _, route := range router.Routes() {
 		routes[route.Method+" "+route.Path] = true
 	}
-	for _, want := range []string{"GET /api/v1/order-profits", "GET /api/v1/order-profits/:orderId"} {
+	for _, want := range []string{"GET /api/v1/order-profits", "GET /api/v1/order-profits/:orderId", "GET /api/v1/finance/fx-rates", "GET /api/v1/finance/fx-report", "POST /api/v1/finance/fx-rates", "POST /api/v1/finance/fx-snapshots", "GET /api/v1/finance/fx-snapshots", "GET /api/v1/finance/fx-snapshots/:snapshotId"} {
 		if !routes[want] {
 			t.Fatalf("route %q is not registered", want)
 		}
 	}
 	for route := range routes {
-		if strings.HasPrefix(route, "POST ") || strings.HasPrefix(route, "PUT ") || strings.HasPrefix(route, "PATCH ") || strings.HasPrefix(route, "DELETE ") {
+		if (strings.HasPrefix(route, "POST ") && route != "POST /api/v1/finance/fx-rates" && route != "POST /api/v1/finance/fx-snapshots") || strings.HasPrefix(route, "PUT ") || strings.HasPrefix(route, "PATCH ") || strings.HasPrefix(route, "DELETE ") {
 			t.Fatalf("unexpected write route %q", route)
 		}
 	}

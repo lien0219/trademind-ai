@@ -2,6 +2,7 @@ package shopee
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -49,10 +50,19 @@ func ensureFreshAccess(ctx context.Context, shopID uuid.UUID, auth platformp.Tes
 		return "", updated, fmt.Errorf("shopee authorization expired (missing refresh_token)")
 	}
 
-	tok, err := RefreshAccessToken(ctx, auth, ref, sid)
+	refreshCtx := ctx
+	if refreshCtx == nil {
+		refreshCtx = context.Background()
+	}
+	if shopID != uuid.Nil {
+		refreshCtx = platformp.WithOAuthExpectedTokenVersion(refreshCtx, auth.TokenVersion)
+	}
+	tok, err := RefreshAccessToken(refreshCtx, auth, ref, sid)
 	if err != nil {
 		if shopID != uuid.Nil {
-			_ = setAuthStatusMaybe(ctx, shopID, "expired")
+			if statusErr := setAuthStatusMaybe(refreshCtx, shopID, "expired"); statusErr != nil {
+				return "", updated, errors.Join(err, fmt.Errorf("shopee: persist expired auth status: %w", statusErr))
+			}
 		}
 		return "", updated, err
 	}
@@ -67,15 +77,23 @@ func ensureFreshAccess(ctx context.Context, shopID uuid.UUID, auth platformp.Tes
 		updated.RefreshTokenExpiresAt = tok.RefreshExpiresAt
 	}
 
-	if shopID != uuid.Nil && bridges != nil {
-		_ = bridges.PersistOAuthTokenRefresh(ctx, shopID, updated.AccessToken, newRef, tok.AccessExpiresAt, tok.RefreshExpiresAt)
+	if shopID != uuid.Nil {
+		if bridges == nil {
+			return "", updated, fmt.Errorf("shopee: OAuth persistence unavailable")
+		}
+		if err := bridges.PersistOAuthTokenRefresh(refreshCtx, shopID, updated.AccessToken, newRef, tok.AccessExpiresAt, tok.RefreshExpiresAt); err != nil {
+			return "", updated, fmt.Errorf("shopee: persist refreshed token: %w", err)
+		}
 	}
 	return updated.AccessToken, updated, nil
 }
 
 func setAuthStatusMaybe(ctx context.Context, shopID uuid.UUID, status string) error {
-	if bridges == nil || shopID == uuid.Nil {
+	if shopID == uuid.Nil {
 		return nil
+	}
+	if bridges == nil {
+		return fmt.Errorf("shopee: auth status persistence unavailable")
 	}
 	return bridges.SetShopAuthStatus(ctx, shopID, status)
 }

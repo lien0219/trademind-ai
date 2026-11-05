@@ -100,6 +100,28 @@ test.describe('@smoke advertising fee attribution ledger', () => {
     await admin.writeGuard.expectRequestCount('advertising-fee-confirm', 1);
   });
 
+  test('refuses to confirm an advertising preview bound to another shop', async ({ admin, page }) => {
+    admin.writeGuard.allow({
+      operation: 'advertising-fee-preview',
+      method: 'POST',
+      path: /^\/api\/v1\/advertising-fee-imports\/preview$/,
+      response: ok({ ...e2eAdvertisingFeePreview, shopId: 'e2e-other-shop' }),
+    });
+
+    await admin.goto('/finance/advertising-fees');
+    await page.getByRole('button', { name: '导入费用' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('combobox', { name: '费用店铺' }).click();
+    await page.locator('.ant-select-dropdown:visible').getByText('E2E 抖店测试店铺 · 抖店', { exact: true }).click();
+    await dialog.locator('input[type="file"]').setInputFiles({ name: 'advertising.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+    await dialog.getByRole('button', { name: '校验预览' }).click();
+
+    await expect(page.getByText('广告费用校验失败')).toBeVisible();
+    await expect(dialog.getByRole('button', { name: '确认归属' })).toHaveCount(0);
+    await admin.writeGuard.expectRequestCount('advertising-fee-preview', 1);
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
   test('appends one adjustment and one one-time reversal from a direct detail link', async ({ admin, page }) => {
     admin.writeGuard.allow({
       operation: 'advertising-fee-adjust',

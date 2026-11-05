@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 import TechnicalDetails from '@/components/ui/TechnicalDetails';
 import {
   checkPublishTargets,
@@ -42,8 +43,8 @@ function isDouyinPlatform(platform?: string) {
 
 function issueTag(severity: string) {
   const s = (severity || '').toLowerCase();
-  if (s === 'error') return <Tag color="red">需处理</Tag>;
-  return <Tag color="orange">建议检查</Tag>;
+  if (s === 'error') return <Tag color="red">{tr("需处理")}</Tag>;
+  return <Tag color="orange">{tr("建议检查")}</Tag>;
 }
 
 function targetStatusColor(status: string) {
@@ -136,15 +137,15 @@ export default function MultiPlatformPublishCenter({
 
   const runCheck = async () => {
     if (disabled) {
-      message.error('当前账号无刊登草稿写权限');
+      message.error(tr("当前账号无刊登草稿写权限"));
       return;
     }
     if (!selectedList.length) {
-      message.warning('请先选择要刊登的平台和店铺');
+      message.warning(tr("请先选择要刊登的平台和店铺"));
       return;
     }
     if (selectedList.some((target) => isDouyinPlatform(target.platform))) {
-      message.error('抖店平台草稿需逐商品进入运营任务中心并人工审核');
+      message.error(tr("抖店平台草稿需逐商品进入运营任务中心并人工审核"));
       return;
     }
     setChecking(true);
@@ -165,15 +166,15 @@ export default function MultiPlatformPublishCenter({
 
   const runCreate = async (onlyReady: boolean, retryFailedOnly = false) => {
     if (disabled) {
-      message.error('当前账号无刊登草稿写权限');
+      message.error(tr("当前账号无刊登草稿写权限"));
       return;
     }
     if (!retryFailedOnly && !selectedList.length) {
-      message.warning('请先选择要刊登的平台和店铺');
+      message.warning(tr("请先选择要刊登的平台和店铺"));
       return;
     }
     if (selectedList.some((target) => isDouyinPlatform(target.platform))) {
-      message.error('抖店平台草稿需逐商品进入运营任务中心并人工审核');
+      message.error(tr("抖店平台草稿需逐商品进入运营任务中心并人工审核"));
       return;
     }
     setCreating(true);
@@ -189,8 +190,8 @@ export default function MultiPlatformPublishCenter({
       setLastBatchId(res.batchId);
       message.success(
         retryFailedOnly
-          ? `已重试失败目标：${res.successCount} 成功，${res.failedCount} 失败`
-          : `批量创建刊登草稿完成：${res.successCount} 成功，${res.failedCount} 失败`,
+          ? trFormat("已重试失败目标：{value0} 成功，{value1} 失败", { value0: String(res.successCount), value1: String(res.failedCount) })
+          : trFormat("批量创建刊登草稿完成：{value0} 成功，{value1} 失败", { value0: String(res.successCount), value1: String(res.failedCount) }),
       );
       await onDraftsCreated?.();
     } catch (e: unknown) {
@@ -222,16 +223,16 @@ export default function MultiPlatformPublishCenter({
                 <Typography.Text type="secondary"> — {iss.message}</Typography.Text>
               ) : null}
               {iss.technicalDetails?.rawCode ? (
-                <TechnicalDetails label="技术详情">
+                <TechnicalDetails label={tr("技术详情")}>
                   <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    内部编号：{String(iss.technicalDetails.rawCode)}
+                    {tr("内部编号：")}{String(iss.technicalDetails.rawCode)}
                   </Typography.Text>
                 </TechnicalDetails>
               ) : null}
             </div>
           ))
         ) : (
-          <Typography.Text type="secondary">未发现问题</Typography.Text>
+          <Typography.Text type="secondary">{tr("未发现问题")}</Typography.Text>
         )}
       </Space>
     </Card>
@@ -245,30 +246,30 @@ export default function MultiPlatformPublishCenter({
           <Alert
             type="error"
             showIcon
-            message="刊登目标加载失败"
+            message={tr("刊登目标加载失败")}
             description={loadError}
-            action={<Button size="small" onClick={() => void reloadTargets()}>重新加载</Button>}
+            action={<Button size="small" onClick={() => void reloadTargets()}>{tr("重新加载")}</Button>}
           />
         ) : null}
         {actionError ? (
-          <Alert type="error" showIcon message="多平台草稿操作失败" description={actionError} />
+          <Alert type="error" showIcon message={tr("多平台草稿操作失败")} description={actionError} />
         ) : null}
         {disabled ? (
           <Alert
             type="info"
             showIcon
-            message="当前账号仅可查看刊登目标"
-            description="刊登检查、草稿创建和失败重试需要刊登草稿写权限。"
+            message={tr("当前账号仅可查看刊登目标")}
+            description={tr("刊登检查、草稿创建和失败重试需要刊登草稿写权限。")}
           />
         ) : null}
 
-        <Card size="small" title="一、刊登目标" variant="borderless">
-          <Typography.Paragraph type="secondary">选择要刊登的平台和店铺；这里只创建刊登草稿或本地任务快照，不代表平台已经上线。</Typography.Paragraph>
+        <Card size="small" title={tr("一、刊登目标")} variant="borderless">
+          <Typography.Paragraph type="secondary">{tr("选择要刊登的平台和店铺；这里只创建刊登草稿或本地任务快照，不代表平台已经上线。")}</Typography.Paragraph>
           <Space direction="vertical" style={{ width: '100%' }} size={12}>
             {!loadError && !loading && platforms.length === 0 ? (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="暂无可用刊登目标，请先完成平台接入、店铺授权和刊登能力配置。"
+                description={tr("暂无可用刊登目标，请先完成平台接入、店铺授权和刊登能力配置。")}
               />
             ) : null}
             {platforms.map((plat) => {
@@ -295,17 +296,17 @@ export default function MultiPlatformPublishCenter({
                           {plat.capabilityLabel || publishCapabilityLabel(plat.capability)}
                         </Tag>
                         {plat.capability === 'not_configured' ? (
-                          <Link to={plat.settingsPath || '/settings/platforms'}>去设置</Link>
+                          <Link to={plat.settingsPath || '/settings/platforms'}>{tr("去设置")}</Link>
                         ) : null}
                       </Space>
                       {plat.capability === 'local_draft_only' ? (
                         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          暂未接入真实发布，可先生成本地刊登草稿
+                          {tr("暂未接入真实发布，可先生成本地刊登草稿")}
                         </Typography.Text>
                       ) : null}
                       {requiresOperationTask ? (
                         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          需逐商品进入 <Link to={`/ops/task-center/operation-tasks?create=production&productId=${encodeURIComponent(productId)}`}>运营任务中心</Link> 冻结并人工审核
+                          {tr("需逐商品进入")} <Link to={`/ops/task-center/operation-tasks?create=production&productId=${encodeURIComponent(productId)}`}>{tr("运营任务中心")}</Link> {tr("冻结并人工审核")}
                         </Typography.Text>
                       ) : null}
                       {plat.shops.length ? (
@@ -323,8 +324,8 @@ export default function MultiPlatformPublishCenter({
                               {shop.authStatus !== 'authorized' ? (
                                 <Typography.Text type="secondary">
                                   {' '}
-                                  （{shop.authStatusLabel || '店铺未授权'}，
-                                  <Link to="/shops">去授权</Link>）
+                                  （{shop.authStatusLabel || tr("店铺未授权")}，
+                                  <Link to="/shops">{tr("去授权")}</Link>）
                                 </Typography.Text>
                               ) : null}
                             </Checkbox>
@@ -332,7 +333,7 @@ export default function MultiPlatformPublishCenter({
                         </Space>
                       ) : (
                         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          暂无已授权店铺，请先在 <Link to="/shops">店铺管理</Link> 完成授权
+                          {tr("暂无已授权店铺，请先在")} <Link to="/shops">{tr("店铺管理")}</Link> {tr("完成授权")}
                         </Typography.Text>
                       )}
                     </Space>
@@ -343,47 +344,47 @@ export default function MultiPlatformPublishCenter({
           </Space>
         </Card>
 
-        <Card size="small" title="二、统一刊登配置" variant="borderless">
+        <Card size="small" title={tr("二、统一刊登配置")} variant="borderless">
           <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
-            统一标题、描述、价格与图片策略可在各平台单独配置区覆盖。单独配置会优先生效，不会影响其他平台或店铺。
+            {tr("统一标题、描述、价格与图片策略可在各平台单独配置区覆盖。单独配置会优先生效，不会影响其他平台或店铺。")}
           </Typography.Paragraph>
-          <Typography.Text type="secondary">请在下方对应平台区域完成刊登配置。</Typography.Text>
+          <Typography.Text type="secondary">{tr("请在下方对应平台区域完成刊登配置。")}</Typography.Text>
         </Card>
 
-        <Card size="small" title="发布检查结果" variant="borderless">
+        <Card size="small" title={tr("发布检查结果")} variant="borderless">
           {checkResult ? (
             <>
               <Descriptions size="small" column={{ xs: 1, sm: 2, md: 4 }} style={{ marginBottom: 12 }}>
-                <Descriptions.Item label="目标数">{checkResult.summary.targetCount}</Descriptions.Item>
-                <Descriptions.Item label="可以创建草稿">{checkResult.summary.readyCount}</Descriptions.Item>
-                <Descriptions.Item label="需要检查">{checkResult.summary.warningCount}</Descriptions.Item>
-                <Descriptions.Item label="暂不能创建">{checkResult.summary.blockedCount}</Descriptions.Item>
+                <Descriptions.Item label={tr("目标数")}>{checkResult.summary.targetCount}</Descriptions.Item>
+                <Descriptions.Item label={tr("可以创建草稿")}>{checkResult.summary.readyCount}</Descriptions.Item>
+                <Descriptions.Item label={tr("需要检查")}>{checkResult.summary.warningCount}</Descriptions.Item>
+                <Descriptions.Item label={tr("暂不能创建")}>{checkResult.summary.blockedCount}</Descriptions.Item>
               </Descriptions>
               {checkResult.targets.map(renderTargetCheck)}
             </>
           ) : (
-            <Typography.Text type="secondary">选择目标后点击「检查所选目标」</Typography.Text>
+            <Typography.Text type="secondary">{tr("选择目标后点击「检查所选目标」")}</Typography.Text>
           )}
         </Card>
 
         <Space wrap>
           <Button loading={checking} disabled={disabled} onClick={() => void runCheck()}>
-            检查所选目标
+            {tr("检查所选目标")}
           </Button>
           <Button type="primary" loading={creating} disabled={disabled} onClick={() => void runCreate(false)}>
-            创建刊登草稿
+            {tr("创建刊登草稿")}
           </Button>
           <Button loading={creating} disabled={disabled} onClick={() => void runCreate(true)}>
-            只处理可以创建草稿的目标
+            {tr("只处理可以创建草稿的目标")}
           </Button>
           {checkResult && (checkResult.summary.warningCount > 0 || checkResult.summary.blockedCount > 0) ? (
             <Button type="link" disabled={disabled} onClick={() => void runCheck()}>
-              查看需要处理的问题
+              {tr("查看需要处理的问题")}
             </Button>
           ) : null}
           {lastBatchId && createResult && createResult.failedCount > 0 ? (
             <Button loading={creating} disabled={disabled} onClick={() => void runCreate(false, true)}>
-              重试失败目标
+              {tr("重试失败目标")}
             </Button>
           ) : null}
         </Space>
@@ -394,7 +395,7 @@ export default function MultiPlatformPublishCenter({
             items={[
               {
                 key: 'batch',
-                label: `批量创建刊登草稿结果：${createResult.statusLabel || createResult.status}`,
+                label: trFormat("批量创建刊登草稿结果：{value0}", { value0: createResult.statusLabel || createResult.status }),
                 children: (
                   <Space direction="vertical" style={{ width: '100%' }}>
                     {createResult.targets.map((t) => (
@@ -404,7 +405,7 @@ export default function MultiPlatformPublishCenter({
                         </Tag>{' '}
                         {t.platformLabel}
                         {t.shopName ? ` / ${t.shopName}` : ''}
-                        {t.localDraftOnly ? '（本地草稿）' : ''}
+                        {t.localDraftOnly ? tr('（本地草稿）') : ''}
                         {t.errorMessage ? (
                           <Typography.Text type="danger"> — {t.errorMessage}</Typography.Text>
                         ) : null}

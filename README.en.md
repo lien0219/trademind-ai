@@ -5,10 +5,6 @@
 </p>
 
 <p align="center">
-  From a product link to a ready-to-run, publishable, continuously managed product asset
-</p>
-
-<p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue.svg"></a>
   <img alt="Go" src="https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-18+-61DAFB?logo=react&logoColor=111">
@@ -33,9 +29,7 @@
   <img src="docs/assets/img/readme-hero-en.png" alt="TradeMind Product Preview" width="100%" />
 </p>
 
-TradeMind is an open-source AI operations platform for cross-border sellers, brand teams, and developers. It turns product collection, enrichment, content generation, image processing, draft collaboration, platform listing, order sync, and inventory coordination into one observable workflow, so teams can build a durable product engine instead of moving data by hand.
-
-Whether you are building a private commerce workspace or adding AI and platform integrations to an existing business, TradeMind gives you an auditable, self-hosted foundation that can be extended around your own operating model. Your data stays under your control, while every provider and workflow can evolve with your team.
+TradeMind is an open-source AI operations platform for cross-border sellers, brand teams, and developers. It turns product collection, enrichment, content generation, image processing, draft collaboration, platform listing, order sync, and inventory coordination into one observable workflow, with an auditable, self-hosted foundation that can evolve around each team’s operating model.
 
 ## Why TradeMind
 
@@ -44,6 +38,7 @@ Whether you are building a private commerce workspace or adding AI and platform 
 | AI Product Growth | Product collection, draft management, AI titles and descriptions, image processing, and publish-readiness checks in one workspace. |
 | Multi-platform Operations | Store authorization, order sync, SKU matching, inventory mirrors, and product publishing around a unified product asset. |
 | Open and Controlled | Provider-based architecture for AI, storage, image, platform, and collector integrations, with permissions, audit trails, and human confirmation for critical actions. |
+| Multi-tenant Teams | A shared identity can join multiple business tenants with separate roles, store grants, and request context. Tenant provisioning, invitations, session switching, and lifecycle controls use a separate platform control plane. |
 
 ## Screenshots
 
@@ -88,6 +83,10 @@ The screenshots below show TradeMind's core workflow: **collection → draft →
 ### Multi-platform Operations
 
 - Store authorization with Douyin Shop OAuth, encrypted secrets, and connection tests.
+- Business tenants with controlled provisioning, member invitations, per-tenant roles and store grants, server-validated session switching, and suspension revocation. See the [multi-tenant architecture](docs/MULTI_TENANT_ARCHITECTURE.md) for migration and acceptance boundaries.
+- Tenant business settings for language, timezone, reporting currency, collection rules, inventory thresholds, notifications, and branding, with configuration templates, history, import preview, and export.
+- Registration and email administration with open, invitation-only, and closed registration modes, email verification, password reset, SMTP settings, and categorized, previewable multilingual email templates.
+- Six admin UI languages: Simplified Chinese, English, Japanese, Traditional Chinese, Korean, and Thai, with tenant and personal language preferences.
 - Order collaboration with sync, SKU matching, and exception handling.
 - Inventory collaboration with stock mirrors, alerts, and sync tasks.
 - ERP procurement and returns with warehouse and supplier master data, manually confirmed replenishment-to-draft creation, purchase-order approval, partial receipts, receipt-bound supplier returns, warehouse movements, idempotent processing, and an Admin workspace with separated approval/execution duties and revision conflict protection.
@@ -139,7 +138,7 @@ pnpm seed:demo-data
 pnpm seed:demo-permissions
 ```
 
-Development uses isolated PostgreSQL and Redis services, while the complete automated regression suite runs continuously in GitHub Actions.
+Development uses isolated PostgreSQL and Redis 7 services; see the [local development guide](docs/development.md) for native service requirements. The complete automated regression suite runs continuously in GitHub Actions.
 
 ### Docker Deployment
 

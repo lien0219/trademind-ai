@@ -107,12 +107,12 @@ func runCollectWorker(ctx context.Context, log *slog.Logger, svc *Service, queue
 			}
 			continue
 		}
-		processReservedCollectTask(log, svc, queueName, payload, slot, workerLeaseID)
+		processReservedCollectTask(ctx, log, svc, queueName, payload, slot, workerLeaseID)
 	}
 }
 
-func processReservedCollectTask(log *slog.Logger, svc *Service, queueName, payload string, slot int, workerLeaseID string) {
-	jobCtx := context.Background()
+func processReservedCollectTask(ctx context.Context, log *slog.Logger, svc *Service, queueName, payload string, slot int, workerLeaseID string) {
+	jobCtx := ctx
 	ack := func() {
 		if err := svc.ackReservedTask(jobCtx, queueName, payload); err != nil && log != nil {
 			log.Warn("collect_worker_ack_failed", "worker", slot, "error", err)
@@ -127,6 +127,16 @@ func processReservedCollectTask(log *slog.Logger, svc *Service, queueName, paylo
 		}
 		if log != nil {
 			log.Warn("collect_worker_requeued", "worker", slot, "cause", cause)
+		}
+	}
+	requeueClaimMiss := func(cause error) {
+		timer := time.NewTimer(time.Second)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			requeue(cause)
 		}
 	}
 
@@ -160,7 +170,11 @@ func processReservedCollectTask(log *slog.Logger, svc *Service, queueName, paylo
 		return
 	}
 	if task.Status != StatusPending && !(task.Status == StatusRetrying && task.NextRetryAt == nil) {
-		ack()
+		if task.Status == StatusRunning {
+			requeueClaimMiss(errors.New("collect task claim is still active"))
+		} else {
+			ack()
+		}
 		return
 	}
 	if !svc.acceptsTenantID(task.TenantID) {
@@ -180,7 +194,7 @@ func processReservedCollectTask(log *slog.Logger, svc *Service, queueName, paylo
 		requeue(err)
 		return
 	}
-	_, err = svc.RunCollectJob(wctx, tid, workerLeaseID)
+	claimed, err := svc.RunCollectJob(wctx, tid, workerLeaseID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			ack()
@@ -188,6 +202,17 @@ func processReservedCollectTask(log *slog.Logger, svc *Service, queueName, paylo
 		}
 		requeue(err)
 		return
+	}
+	if !claimed {
+		var current CollectTask
+		if qerr := svc.DB.WithContext(jobCtx).Select("status", "next_retry_at").First(&current, "id = ?", tid).Error; qerr != nil {
+			requeue(qerr)
+			return
+		}
+		if current.Status == StatusPending || current.Status == StatusRunning || (current.Status == StatusRetrying && current.NextRetryAt == nil) {
+			requeueClaimMiss(errors.New("collect task claim is still active"))
+			return
+		}
 	}
 	ack()
 }

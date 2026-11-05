@@ -20,18 +20,21 @@ vi.mock('@umijs/max', () => ({
   useAntdConfigSetter,
 }));
 
+const createMatchMedia = () => vi.fn().mockImplementation((query: string) => ({
+  matches: false,
+  media: query,
+  onchange: null,
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
+}));
+
 Object.defineProperty(window, 'matchMedia', {
+  configurable: true,
   writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
+  value: createMatchMedia(),
 });
 
 class ResizeObserverMock {
@@ -53,6 +56,7 @@ Object.defineProperty(window, 'ResizeObserver', { writable: true, value: ResizeO
 Object.defineProperty(window, 'IntersectionObserver', { writable: true, value: IntersectionObserverMock });
 
 beforeEach(() => {
+  window.matchMedia = createMatchMedia();
   request.mockReset();
   useAntdConfigSetter.mockClear();
   useAntdConfigSetter.mockReturnValue(vi.fn());

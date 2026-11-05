@@ -1,4 +1,9 @@
-import { chromium, type Browser, type Page } from "playwright";
+import {
+  chromium,
+  type Browser,
+  type BrowserContextOptions,
+  type Page,
+} from "playwright";
 import { CustomProfileSessionManager } from "./profile-sessions.js";
 import { BrowserSessionManager } from "./session-manager.js";
 import { PAGE_EVALUATE_POLYFILL } from "./evaluate-in-page.js";
@@ -10,7 +15,7 @@ import { installPublicNetworkGuard } from "../security/public-url.js";
 
 /**
  * 统一管理 Chromium 实例，避免各 Provider 自行 newBrowser 导致泄漏。
- * 1688 采集使用 BrowserSessionManager 持久化 Profile（collector/data/browser-profiles/1688）。
+ * 1688 采集使用 BrowserSessionManager 持久化 Profile（collector 包根目录下的 data/browser-profiles/1688）。
  */
 export class BrowserManager {
   private browser: Browser | null = null;
@@ -50,26 +55,38 @@ export class BrowserManager {
     return this.customProfiles.withProfilePage(profileKey, fn);
   }
 
-  async withPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
+  async withUnprofiledPage<T>(
+    fn: (page: Page) => Promise<T>,
+    options: BrowserContextOptions & { timeoutMs?: number } = {},
+  ): Promise<T> {
     const browser = await this.ensureBrowser();
+    const { timeoutMs, ...contextOptions } = options;
     const context = await browser.newContext({
+      ...contextOptions,
       userAgent:
+        contextOptions.userAgent ??
         process.env.COLLECTOR_USER_AGENT ??
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      locale: "zh-CN",
+      locale: contextOptions.locale ?? "zh-CN",
       serviceWorkers: "block",
     });
-    await context.addInitScript(PAGE_EVALUATE_POLYFILL);
-    await installPublicNetworkGuard(context);
-    const page = await context.newPage();
-    page.setDefaultNavigationTimeout(getDefaultNavigationTimeoutMs());
-    page.setDefaultTimeout(getDefaultNavigationTimeoutMs());
+    let page: Page | undefined;
     try {
+      await context.addInitScript(PAGE_EVALUATE_POLYFILL);
+      await installPublicNetworkGuard(context);
+      page = await context.newPage();
+      const timeout = timeoutMs ?? getDefaultNavigationTimeoutMs();
+      page.setDefaultNavigationTimeout(timeout);
+      page.setDefaultTimeout(timeout);
       return await fn(page);
     } finally {
-      await page.close().catch(() => undefined);
+      await page?.close().catch(() => undefined);
       await context.close().catch(() => undefined);
     }
+  }
+
+  async withPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
+    return this.withUnprofiledPage(fn);
   }
 
   async close(): Promise<void> {

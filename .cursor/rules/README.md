@@ -21,7 +21,7 @@
 | `10-progress-sync.mdc` | 较大维护变更后更新精简的当前状态 |
 | `11-local-dev-postgres.mdc` | 本地与默认数据库统一采用 PostgreSQL |
 | `12-ai-coding-doc-sync.mdc` | AI 编程规则、配置与文档同步要求 |
-| `13-ai-workflow.mdc` | AI vibe coding 工作流、提示词优化、上下文节约和经验沉淀入口 |
+| `13-ai-workflow.mdc` | AI 工作流、三方体验改善与功能保护、界面精简与视觉自检、上下文节约和经验沉淀入口 |
 | `15-external-docs-no-phase-status.mdc` | 对外文档保留稳定生命周期/能力边界，不写临时 gate 或运行证据 |
 | `project-testing.mdc` | 生产维护阶段的 CI 自动化回归、隔离测试资源与人工验收总控入口 |
 

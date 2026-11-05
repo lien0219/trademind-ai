@@ -96,6 +96,8 @@ __debug_bin*
 
 # Local validation outputs (CI results stay in GitHub Actions)
 /.tmp/
+/.tmp-*
+/admin/.tmp-*
 /docs/*.auto.json
 /docs/*.auto.md
 /docs/*.run[0-9]*.json
@@ -122,3 +124,6 @@ Desktop.ini
 # This file is for Cursor/developer context only and should not be used as GitHub project homepage.
 TradeMind.md
 PROJECT_SPEC_TradeMind.md
+
+# Local task execution plan
+/docs/superpowers/plans/2026-11-02-full-project-completion.md

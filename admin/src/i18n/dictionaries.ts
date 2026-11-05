@@ -1,0 +1,1441 @@
+import { interfaceTranslations } from './interfaceTranslations';
+import { loginTranslations } from './loginTranslations';
+import { tenantMemberTranslations } from './tenantMemberTranslations';
+import { tenantInvitationTranslations } from './tenantInvitationTranslations';
+import { tenantSettingsTranslations } from './tenantSettingsTranslations';
+import { tenantPreferenceTranslations } from './tenantPreferenceTranslations';
+import { platformTenantTranslations } from './platformTenantTranslations';
+import { commonControlTranslations } from './commonControlTranslations';
+import { workspaceTranslations } from './workspaceTranslations';
+import { aiTaskTranslations } from './aiTaskTranslations';
+import { aiPromptTranslations } from './aiPromptTranslations';
+import { sharedCopyTranslations } from './sharedCopyTranslations';
+import { aiWorkspaceTranslations } from './aiWorkspaceTranslations';
+import { collectShopTranslations } from './collectShopTranslations';
+import { settingsWorkspaceTranslations } from './settingsWorkspaceTranslations';
+import { orderTranslations } from './orderTranslations';
+import { dashboardTranslations } from './dashboardTranslations';
+import { inventoryEffectsTranslations } from './inventoryEffectsTranslations';
+import { financeTranslations } from './financeTranslations';
+import { productTranslations } from './productTranslations';
+import { siteTranslations } from './siteTranslations';
+import { customerTaskCenterTranslations } from './customerTaskCenterTranslations';
+import { inventoryWarehouseTranslations } from './inventoryWarehouseTranslations';
+import { procurementTranslations } from './procurementTranslations';
+import { remainingUiTranslations } from './remainingUiTranslations';
+import { sharedGapTranslations } from './sharedGapTranslations';
+import { rootUiTranslations } from './rootUiTranslations';
+import { productGapTranslations } from './productGapTranslations';
+import { orderProcurementGapTranslations } from './orderProcurementGapTranslations';
+
+// Locale resources use stable Chinese source keys while feature modules migrate
+// to namespaced message IDs. Missing keys fall back to zh-CN and are tracked.
+export const supportedLanguages = ['zh-CN','en-US','ja-JP','zh-TW','ko-KR','th-TH'] as const;
+export type AppLanguage = typeof supportedLanguages[number];
+export const languageNames: Record<AppLanguage,string> = {
+  'zh-CN':'简体中文', 'en-US':'English', 'ja-JP':'日本語',
+  'zh-TW':'繁體中文', 'ko-KR':'한국어', 'th-TH':'ไทย',
+};
+const dictionaries: Record<AppLanguage,Record<string,string>> = {
+  "zh-CN": {
+    "工作台": "工作台",
+    "运营总览": "运营总览",
+    "商品": "商品",
+    "商品草稿": "商品草稿",
+    "商品详情": "商品详情",
+    "采集": "采集",
+    "采集中心": "采集中心",
+    "采集任务": "采集任务",
+    "店铺": "店铺",
+    "店铺管理": "店铺管理",
+    "订单": "订单",
+    "订单列表": "订单列表",
+    "库存": "库存",
+    "库存中心": "库存中心",
+    "库存预警": "库存预警",
+    "财务": "财务",
+    "采购": "采购",
+    "客服": "客服",
+    "设置": "设置",
+    "系统设置": "系统设置",
+    "安全设置": "安全设置",
+    "邮箱设置": "邮箱设置",
+    "用户与权限": "用户与权限",
+    "企业工作台": "企业工作台",
+    "企业信息与设置": "企业信息与设置",
+    "企业业务配置": "企业业务配置",
+    "个人偏好": "个人偏好",
+    "企业成员与邀请": "企业成员与邀请",
+    "平台管理": "平台管理",
+    "操作日志": "操作日志",
+    "告警中心": "告警中心",
+    "文件管理": "文件管理",
+    "运维": "运维",
+    "AI 工具": "AI 工具",
+    "AI 技能模板": "AI 技能模板",
+    "图片任务": "图片任务",
+    "商品运营工作台": "商品运营工作台",
+    "失败任务中心": "失败任务中心",
+    "订单详情": "订单详情",
+    "订单预估利润": "订单预估利润",
+    "仓库管理": "仓库管理",
+    "供应商管理": "供应商管理",
+    "AI 自动回复": "AI 自动回复",
+    "语言": "语言",
+    "简体中文": "简体中文",
+    "繁体中文": "繁体中文",
+    "英语": "英语",
+    "日语": "日语",
+    "韩语": "韩语",
+    "泰语": "泰语",
+    "保存个人偏好": "保存个人偏好",
+    "首选语言": "首选语言",
+    "退出登录": "退出登录",
+    "搜索功能或页面": "搜索功能或页面"
+  },
+  "en-US": {
+    "工作台": "Workspace",
+    "运营总览": "Operations Overview",
+    "商品": "Products",
+    "商品草稿": "Product Drafts",
+    "商品详情": "Product Details",
+    "采集": "Collection",
+    "采集中心": "Collection Center",
+    "采集任务": "Collection Tasks",
+    "店铺": "Stores",
+    "店铺管理": "Store Management",
+    "订单": "Orders",
+    "订单列表": "Order List",
+    "库存": "Inventory",
+    "库存中心": "Inventory Center",
+    "库存预警": "Stock Alerts",
+    "财务": "Finance",
+    "采购": "Procurement",
+    "客服": "Customer Service",
+    "设置": "Settings",
+    "系统设置": "System Settings",
+    "安全设置": "Security Settings",
+    "邮箱设置": "Mail Settings",
+    "用户与权限": "Users & Permissions",
+    "企业工作台": "Organization Workspace",
+    "企业信息与设置": "Organization Settings",
+    "企业业务配置": "Business Settings",
+    "个人偏好": "Personal Preferences",
+    "企业成员与邀请": "Members & Invitations",
+    "平台管理": "Platform Management",
+    "操作日志": "Audit Logs",
+    "告警中心": "Alerts",
+    "文件管理": "File Management",
+    "运维": "Operations",
+    "AI 工具": "AI Tools",
+    "AI 技能模板": "AI Templates",
+    "图片任务": "Image Tasks",
+    "商品运营工作台": "Product Workbench",
+    "失败任务中心": "Failed Tasks",
+    "订单详情": "Order Details",
+    "订单预估利润": "Estimated Profit",
+    "仓库管理": "Warehouse Management",
+    "供应商管理": "Supplier Management",
+    "AI 自动回复": "AI Auto Reply",
+    "语言": "Language",
+    "简体中文": "Simplified Chinese",
+    "繁体中文": "Traditional Chinese",
+    "英语": "English",
+    "日语": "Japanese",
+    "韩语": "Korean",
+    "泰语": "Thai",
+    "保存个人偏好": "Save Preferences",
+    "首选语言": "Preferred Language",
+    "退出登录": "Sign Out",
+    "搜索功能或页面": "Search pages or features"
+  },
+  "ja-JP": {
+    "工作台": "ワークスペース",
+    "运营总览": "運営概要",
+    "商品": "商品",
+    "商品草稿": "商品下書き",
+    "商品详情": "商品詳細",
+    "采集": "収集",
+    "采集中心": "収集センター",
+    "采集任务": "収集タスク",
+    "店铺": "店舗",
+    "店铺管理": "店舗管理",
+    "订单": "注文",
+    "订单列表": "注文一覧",
+    "库存": "在庫",
+    "库存中心": "在庫センター",
+    "库存预警": "在庫アラート",
+    "财务": "財務",
+    "采购": "調達",
+    "客服": "カスタマーサポート",
+    "设置": "設定",
+    "系统设置": "システム設定",
+    "安全设置": "セキュリティ設定",
+    "邮箱设置": "メール設定",
+    "用户与权限": "ユーザーと権限",
+    "企业工作台": "組織ワークスペース",
+    "企业信息与设置": "組織情報・設定",
+    "企业业务配置": "業務設定",
+    "个人偏好": "個人設定",
+    "企业成员与邀请": "メンバーと招待",
+    "平台管理": "プラットフォーム管理",
+    "操作日志": "操作ログ",
+    "告警中心": "アラート",
+    "文件管理": "ファイル管理",
+    "运维": "運用",
+    "AI 工具": "AI ツール",
+    "AI 技能模板": "AI テンプレート",
+    "图片任务": "画像タスク",
+    "商品运营工作台": "商品運用ワークベンチ",
+    "失败任务中心": "失敗タスク",
+    "订单详情": "注文詳細",
+    "订单预估利润": "推定利益",
+    "仓库管理": "倉庫管理",
+    "供应商管理": "仕入先管理",
+    "AI 自动回复": "AI 自動返信",
+    "语言": "言語",
+    "简体中文": "簡体字中国語",
+    "繁体中文": "繁体字中国語",
+    "英语": "英語",
+    "日语": "日本語",
+    "韩语": "韓国語",
+    "泰语": "タイ語",
+    "保存个人偏好": "個人設定を保存",
+    "首选语言": "優先言語",
+    "退出登录": "ログアウト",
+    "搜索功能或页面": "ページ・機能を検索"
+  },
+  "zh-TW": {
+    "工作台": "工作臺",
+    "运营总览": "營運總覽",
+    "商品": "商品",
+    "商品草稿": "商品草稿",
+    "商品详情": "商品詳情",
+    "采集": "採集",
+    "采集中心": "採集中心",
+    "采集任务": "採集任務",
+    "店铺": "店鋪",
+    "店铺管理": "店鋪管理",
+    "订单": "訂單",
+    "订单列表": "訂單列表",
+    "库存": "庫存",
+    "库存中心": "庫存中心",
+    "库存预警": "庫存預警",
+    "财务": "財務",
+    "采购": "採購",
+    "客服": "客服",
+    "设置": "設定",
+    "系统设置": "系統設定",
+    "安全设置": "安全設定",
+    "邮箱设置": "郵箱設定",
+    "用户与权限": "使用者與權限",
+    "企业工作台": "企業工作臺",
+    "企业信息与设置": "企業資訊與設定",
+    "企业业务配置": "企業業務設定",
+    "个人偏好": "個人偏好",
+    "企业成员与邀请": "企業成員與邀請",
+    "平台管理": "平台管理",
+    "操作日志": "操作日誌",
+    "告警中心": "告警中心",
+    "文件管理": "檔案管理",
+    "运维": "維運",
+    "AI 工具": "AI 工具",
+    "AI 技能模板": "AI 技能範本",
+    "图片任务": "圖片任務",
+    "商品运营工作台": "商品營運工作臺",
+    "失败任务中心": "失敗任務中心",
+    "订单详情": "訂單詳情",
+    "订单预估利润": "預估利潤",
+    "仓库管理": "倉庫管理",
+    "供应商管理": "供應商管理",
+    "AI 自动回复": "AI 自動回覆",
+    "语言": "語言",
+    "简体中文": "簡體中文",
+    "繁体中文": "繁體中文",
+    "英语": "英語",
+    "日语": "日語",
+    "韩语": "韓語",
+    "泰语": "泰語",
+    "保存个人偏好": "儲存個人偏好",
+    "首选语言": "偏好語言",
+    "退出登录": "登出",
+    "搜索功能或页面": "搜尋功能或頁面"
+  },
+  "ko-KR": {
+    "工作台": "작업 공간",
+    "运营总览": "운영 개요",
+    "商品": "상품",
+    "商品草稿": "상품 초안",
+    "商品详情": "상품 상세",
+    "采集": "수집",
+    "采集中心": "수집 센터",
+    "采集任务": "수집 작업",
+    "店铺": "스토어",
+    "店铺管理": "스토어 관리",
+    "订单": "주문",
+    "订单列表": "주문 목록",
+    "库存": "재고",
+    "库存中心": "재고 센터",
+    "库存预警": "재고 알림",
+    "财务": "재무",
+    "采购": "조달",
+    "客服": "고객 지원",
+    "设置": "설정",
+    "系统设置": "시스템 설정",
+    "安全设置": "보안 설정",
+    "邮箱设置": "메일 설정",
+    "用户与权限": "사용자 및 권한",
+    "企业工作台": "조직 작업 공간",
+    "企业信息与设置": "조직 정보 및 설정",
+    "企业业务配置": "비즈니스 설정",
+    "个人偏好": "개인 설정",
+    "企业成员与邀请": "구성원 및 초대",
+    "平台管理": "플랫폼 관리",
+    "操作日志": "감사 로그",
+    "告警中心": "알림 센터",
+    "文件管理": "파일 관리",
+    "运维": "운영",
+    "AI 工具": "AI 도구",
+    "AI 技能模板": "AI 템플릿",
+    "图片任务": "이미지 작업",
+    "商品运营工作台": "상품 작업 공간",
+    "失败任务中心": "실패한 작업",
+    "订单详情": "주문 상세",
+    "订单预估利润": "예상 이익",
+    "仓库管理": "창고 관리",
+    "供应商管理": "공급업체 관리",
+    "AI 自动回复": "AI 자동 답변",
+    "语言": "언어",
+    "简体中文": "중국어 간체",
+    "繁体中文": "중국어 번체",
+    "英语": "영어",
+    "日语": "일본어",
+    "韩语": "한국어",
+    "泰语": "태국어",
+    "保存个人偏好": "개인 설정 저장",
+    "首选语言": "기본 언어",
+    "退出登录": "로그아웃",
+    "搜索功能或页面": "페이지 또는 기능 검색"
+  },
+  "th-TH": {
+    "工作台": "พื้นที่ทำงาน",
+    "运营总览": "ภาพรวมการดำเนินงาน",
+    "商品": "สินค้า",
+    "商品草稿": "ร่างสินค้า",
+    "商品详情": "รายละเอียดสินค้า",
+    "采集": "การรวบรวม",
+    "采集中心": "ศูนย์รวบรวม",
+    "采集任务": "งานรวบรวม",
+    "店铺": "ร้านค้า",
+    "店铺管理": "จัดการร้านค้า",
+    "订单": "คำสั่งซื้อ",
+    "订单列表": "รายการคำสั่งซื้อ",
+    "库存": "สินค้าคงคลัง",
+    "库存中心": "ศูนย์สินค้าคงคลัง",
+    "库存预警": "แจ้งเตือนสต็อก",
+    "财务": "การเงิน",
+    "采购": "การจัดซื้อ",
+    "客服": "บริการลูกค้า",
+    "设置": "การตั้งค่า",
+    "系统设置": "การตั้งค่าระบบ",
+    "安全设置": "การตั้งค่าความปลอดภัย",
+    "邮箱设置": "ตั้งค่าอีเมล",
+    "用户与权限": "ผู้ใช้และสิทธิ์",
+    "企业工作台": "พื้นที่ทำงานองค์กร",
+    "企业信息与设置": "ข้อมูลองค์กรและการตั้งค่า",
+    "企业业务配置": "ตั้งค่าธุรกิจ",
+    "个人偏好": "การตั้งค่าส่วนบุคคล",
+    "企业成员与邀请": "สมาชิกและคำเชิญ",
+    "平台管理": "จัดการแพลตฟอร์ม",
+    "操作日志": "บันทึกการดำเนินการ",
+    "告警中心": "ศูนย์แจ้งเตือน",
+    "文件管理": "จัดการไฟล์",
+    "运维": "ปฏิบัติการ",
+    "AI 工具": "เครื่องมือ AI",
+    "AI 技能模板": "เทมเพลต AI",
+    "图片任务": "งานรูปภาพ",
+    "商品运营工作台": "พื้นที่ทำงานสินค้า",
+    "失败任务中心": "งานที่ล้มเหลว",
+    "订单详情": "รายละเอียดคำสั่งซื้อ",
+    "订单预估利润": "กำไรโดยประมาณ",
+    "仓库管理": "จัดการคลังสินค้า",
+    "供应商管理": "จัดการซัพพลายเออร์",
+    "AI 自动回复": "ตอบกลับอัตโนมัติ AI",
+    "语言": "ภาษา",
+    "简体中文": "จีนตัวย่อ",
+    "繁体中文": "จีนตัวเต็ม",
+    "英语": "อังกฤษ",
+    "日语": "ญี่ปุ่น",
+    "韩语": "เกาหลี",
+    "泰语": "ไทย",
+    "保存个人偏好": "บันทึกการตั้งค่า",
+    "首选语言": "ภาษาที่ต้องการ",
+    "退出登录": "ออกจากระบบ",
+    "搜索功能或页面": "ค้นหาหน้าหรือฟังก์ชัน"
+  }
+};
+const additionalTranslations: Record<string,[string,string,string,string,string]> = {
+  "库存同步": [
+    "Inventory Sync",
+    "在庫同期",
+    "庫存同步",
+    "재고 동기화",
+    "ซิงค์สินค้าคงคลัง"
+  ],
+  "库存同步运行详情": [
+    "Inventory Sync Run Details",
+    "在庫同期実行詳細",
+    "庫存同步執行詳情",
+    "재고 동기화 실행 상세",
+    "รายละเอียดการซิงค์"
+  ],
+  "SKU 校准": [
+    "SKU Calibration",
+    "SKU 校正",
+    "SKU 校準",
+    "SKU 보정",
+    "ปรับเทียบ SKU"
+  ],
+  "人工绑定": [
+    "Manual Binding",
+    "手動紐付け",
+    "手動綁定",
+    "수동 연결",
+    "ผูกข้อมูลด้วยตนเอง"
+  ],
+  "绑定历史": [
+    "Binding History",
+    "紐付け履歴",
+    "綁定歷史",
+    "연결 기록",
+    "ประวัติการผูก"
+  ],
+  "绑定历史详情": [
+    "Binding Details",
+    "紐付け詳細",
+    "綁定歷史詳情",
+    "연결 상세",
+    "รายละเอียดประวัติการผูก"
+  ],
+  "后台任务监控": [
+    "Background Task Monitor",
+    "バックグラウンドタスク監視",
+    "背景任務監控",
+    "백그라운드 작업 모니터링",
+    "ตรวจสอบงานเบื้องหลัง"
+  ],
+  "运营任务中心": [
+    "Operations Task Center",
+    "運用タスクセンター",
+    "營運任務中心",
+    "운영 작업 센터",
+    "ศูนย์งานปฏิบัติการ"
+  ],
+  "运营任务详情": [
+    "Operations Task Details",
+    "運用タスク詳細",
+    "營運任務詳情",
+    "운영 작업 상세",
+    "รายละเอียดงานปฏิบัติการ"
+  ],
+  "可观测性中心": [
+    "Observability Center",
+    "監視センター",
+    "可觀測性中心",
+    "관측 센터",
+    "ศูนย์สังเกตการณ์"
+  ],
+  "平台运行状态": [
+    "Platform Runtime",
+    "プラットフォーム稼働状況",
+    "平台運行狀態",
+    "플랫폼 실행 상태",
+    "สถานะแพลตฟอร์ม"
+  ],
+  "AI 任务记录": [
+    "AI Task History",
+    "AI タスク履歴",
+    "AI 任務記錄",
+    "AI 작업 기록",
+    "ประวัติงาน AI"
+  ],
+  "历史 AI 批次": [
+    "AI Batch History",
+    "AI バッチ履歴",
+    "歷史 AI 批次",
+    "AI 일괄 기록",
+    "ประวัติชุดงาน AI"
+  ],
+  "批量文案任务": [
+    "Bulk Copywriting",
+    "文章一括生成",
+    "批次文案任務",
+    "일괄 문구 생성",
+    "สร้างข้อความจำนวนมาก"
+  ],
+  "批量图片任务": [
+    "Bulk Image Tasks",
+    "画像一括処理",
+    "批次圖片任務",
+    "이미지 일괄 작업",
+    "งานรูปภาพจำนวนมาก"
+  ],
+  "批量创建刊登草稿": [
+    "Bulk Listing Drafts",
+    "出品下書き一括作成",
+    "批次建立刊登草稿",
+    "등록 초안 일괄 생성",
+    "สร้างร่างประกาศจำนวนมาก"
+  ],
+  "批量 AI 优化": [
+    "Bulk AI Optimization",
+    "AI 一括最適化",
+    "批次 AI 優化",
+    "AI 일괄 최적화",
+    "เพิ่มประสิทธิภาพด้วย AI"
+  ],
+  "AI 文案批次复核": [
+    "AI Copy Review",
+    "AI 文章一括レビュー",
+    "AI 文案批次複核",
+    "AI 문구 일괄 검토",
+    "ตรวจทานข้อความ AI"
+  ],
+  "批量 AI 图片处理": [
+    "Bulk AI Image Processing",
+    "AI 画像一括処理",
+    "批次 AI 圖片處理",
+    "AI 이미지 일괄 처리",
+    "ประมวลผลรูปภาพ AI"
+  ],
+  "AI 图片批次复核": [
+    "AI Image Review",
+    "AI 画像一括レビュー",
+    "AI 圖片批次複核",
+    "AI 이미지 일괄 검토",
+    "ตรวจทานรูปภาพ AI"
+  ],
+  "刊登批次详情": [
+    "Listing Batch Details",
+    "出品バッチ詳細",
+    "刊登批次詳情",
+    "등록 일괄 작업 상세",
+    "รายละเอียดชุดลงสินค้า"
+  ],
+  "刊登任务": [
+    "Listing Tasks",
+    "出品タスク",
+    "刊登任務",
+    "등록 작업",
+    "งานลงสินค้า"
+  ],
+  "批量采集": [
+    "Bulk Collection",
+    "一括収集",
+    "批次採集",
+    "일괄 수집",
+    "รวบรวมจำนวนมาก"
+  ],
+  "采集浏览器登录状态": [
+    "Collection Browser Sessions",
+    "収集ブラウザーログイン状態",
+    "採集瀏覽器登入狀態",
+    "수집 브라우저 세션",
+    "สถานะเข้าสู่ระบบเบราว์เซอร์"
+  ],
+  "采集规则": [
+    "Collection Rules",
+    "収集ルール",
+    "採集規則",
+    "수집 규칙",
+    "กฎการรวบรวม"
+  ],
+  "采集监控": [
+    "Collection Monitoring",
+    "収集監視",
+    "採集監控",
+    "수집 모니터링",
+    "ตรวจสอบการรวบรวม"
+  ],
+  "履约分仓": [
+    "Fulfillment Allocation",
+    "出荷倉庫割り当て",
+    "履約分倉",
+    "주문 처리 창고 배정",
+    "จัดสรรคลังสินค้า"
+  ],
+  "拣货波次": [
+    "Picking Waves",
+    "ピッキングウェーブ",
+    "揀貨波次",
+    "피킹 웨이브",
+    "ชุดหยิบสินค้า"
+  ],
+  "物流渠道": [
+    "Shipping Channels",
+    "配送チャネル",
+    "物流管道",
+    "물류 채널",
+    "ช่องทางขนส่ง"
+  ],
+  "出库扫描复核": [
+    "Packing Verification",
+    "梱包スキャン検証",
+    "出庫掃描複核",
+    "출고 스캔 검증",
+    "ตรวจสอบการสแกนจัดส่ง"
+  ],
+  "履约出库单据中心": [
+    "Fulfillment Documents",
+    "出荷書類センター",
+    "履約出庫單據中心",
+    "출고 문서 센터",
+    "ศูนย์เอกสารจัดส่ง"
+  ],
+  "履约库存对账": [
+    "Fulfillment Stock Reconciliation",
+    "出荷在庫照合",
+    "履約庫存對帳",
+    "주문 처리 재고 대사",
+    "กระทบยอดสต็อกจัดส่ง"
+  ],
+  "售后详情": [
+    "After-Sales Details",
+    "アフターサービス詳細",
+    "售後詳情",
+    "사후 서비스 상세",
+    "รายละเอียดบริการหลังการขาย"
+  ],
+  "平台售后对账详情": [
+    "After-Sales Reconciliation Details",
+    "アフターサービス照合詳細",
+    "平台售後對帳詳情",
+    "사후 대사 상세",
+    "รายละเอียดกระทบยอดหลังการขาย"
+  ],
+  "平台售后对账": [
+    "After-Sales Reconciliation",
+    "アフターサービス照合",
+    "平台售後對帳",
+    "사후 서비스 대사",
+    "กระทบยอดหลังการขาย"
+  ],
+  "退款执行详情": [
+    "Refund Execution Details",
+    "返金処理詳細",
+    "退款執行詳情",
+    "환불 실행 상세",
+    "รายละเอียดการคืนเงิน"
+  ],
+  "退款执行": [
+    "Refund Execution",
+    "返金処理",
+    "退款執行",
+    "환불 실행",
+    "ดำเนินการคืนเงิน"
+  ],
+  "退货退款": [
+    "Returns & Refunds",
+    "返品・返金",
+    "退貨退款",
+    "반품 및 환불",
+    "คืนสินค้าและคืนเงิน"
+  ],
+  "同步任务": [
+    "Sync Tasks",
+    "同期タスク",
+    "同步任務",
+    "동기화 작업",
+    "งานซิงค์"
+  ],
+  "规格匹配": [
+    "SKU Matching",
+    "SKU 照合",
+    "規格匹配",
+    "SKU 매칭",
+    "จับคู่ SKU"
+  ],
+  "异常工作台": [
+    "Exception Workbench",
+    "例外処理ワークベンチ",
+    "異常工作臺",
+    "예외 처리 작업 공간",
+    "พื้นที่จัดการข้อผิดพลาด"
+  ],
+  "平台结算对账": [
+    "Platform Settlement Reconciliation",
+    "プラットフォーム決済照合",
+    "平台結算對帳",
+    "플랫폼 정산 대사",
+    "กระทบยอดการชำระ"
+  ],
+  "仓库操作费": [
+    "Warehouse Handling Fees",
+    "倉庫作業費",
+    "倉庫操作費",
+    "창고 작업비",
+    "ค่าดำเนินการคลัง"
+  ],
+  "广告费用归属": [
+    "Advertising Cost Allocation",
+    "広告費配賦",
+    "廣告費用歸屬",
+    "광고비 배분",
+    "จัดสรรค่าโฆษณา"
+  ],
+  "承运商运费账单": [
+    "Carrier Freight Bills",
+    "運送業者運賃請求書",
+    "承運商運費帳單",
+    "운송사 운임 청구서",
+    "บิลค่าขนส่ง"
+  ],
+  "仓库库存账": [
+    "Warehouse Stock Ledger",
+    "倉庫在庫台帳",
+    "倉庫庫存帳",
+    "창고 재고 원장",
+    "บัญชีสินค้าคงคลัง"
+  ],
+  "仓库调拨": [
+    "Warehouse Transfers",
+    "倉庫間移動",
+    "倉庫調撥",
+    "창고 이동",
+    "โอนสินค้าระหว่างคลัง"
+  ],
+  "库存盘点": [
+    "Stocktaking",
+    "棚卸し",
+    "庫存盤點",
+    "재고 실사",
+    "ตรวจนับสต็อก"
+  ],
+  "库位与条码": [
+    "Storage Locations & Barcodes",
+    "保管場所とバーコード",
+    "庫位與條碼",
+    "보관 위치 및 바코드",
+    "ตำแหน่งจัดเก็บและบาร์โค้ด"
+  ],
+  "库存扣减记录": [
+    "Stock Deductions",
+    "在庫引当記録",
+    "庫存扣減記錄",
+    "재고 차감 기록",
+    "ประวัติตัดสต็อก"
+  ],
+  "库存同步任务": [
+    "Inventory Sync Tasks",
+    "在庫同期タスク",
+    "庫存同步任務",
+    "재고 동기화 작업",
+    "งานซิงค์สต็อก"
+  ],
+  "库存同步批次": [
+    "Inventory Sync Batches",
+    "在庫同期バッチ",
+    "庫存同步批次",
+    "재고 동기화 일괄 작업",
+    "ชุดซิงค์สต็อก"
+  ],
+  "库存流水": [
+    "Inventory Movements",
+    "在庫移動履歴",
+    "庫存流水",
+    "재고 변동 내역",
+    "ความเคลื่อนไหวสต็อก"
+  ],
+  "采购单详情": [
+    "Purchase Order Details",
+    "発注書詳細",
+    "採購單詳情",
+    "구매 주문 상세",
+    "รายละเอียดใบสั่งซื้อ"
+  ],
+  "采购单": [
+    "Purchase Orders",
+    "発注書",
+    "採購單",
+    "구매 주문서",
+    "ใบสั่งซื้อ"
+  ],
+  "采购退货详情": [
+    "Purchase Return Details",
+    "仕入返品詳細",
+    "採購退貨詳情",
+    "구매 반품 상세",
+    "รายละเอียดคืนสินค้าจัดซื้อ"
+  ],
+  "采购退货": [
+    "Purchase Returns",
+    "仕入返品",
+    "採購退貨",
+    "구매 반품",
+    "คืนสินค้าจัดซื้อ"
+  ],
+  "补货建议": [
+    "Replenishment Suggestions",
+    "補充発注提案",
+    "補貨建議",
+    "보충 제안",
+    "คำแนะนำเติมสต็อก"
+  ],
+  "客服中心": [
+    "Customer Support Center",
+    "サポートセンター",
+    "客服中心",
+    "고객 지원 센터",
+    "ศูนย์บริการลูกค้า"
+  ],
+  "会话列表": [
+    "Conversations",
+    "会話一覧",
+    "會話列表",
+    "대화 목록",
+    "รายการสนทนา"
+  ],
+  "AI 客服工作台": [
+    "AI Support Workbench",
+    "AI サポート業務画面",
+    "AI 客服工作臺",
+    "AI 상담 작업 공간",
+    "พื้นที่บริการลูกค้า AI"
+  ],
+  "消息同步任务": [
+    "Message Sync Tasks",
+    "メッセージ同期タスク",
+    "訊息同步任務",
+    "메시지 동기화 작업",
+    "งานซิงค์ข้อความ"
+  ],
+  "接受企业邀请": [
+    "Accept Invitation",
+    "組織招待を承認",
+    "接受企業邀請",
+    "조직 초대 수락",
+    "ยอมรับคำเชิญองค์กร"
+  ],
+  "租户管理": [
+    "Tenant Management",
+    "テナント管理",
+    "租戶管理",
+    "테넌트 관리",
+    "จัดการผู้เช่า"
+  ],
+  "租户详情": [
+    "Tenant Details",
+    "テナント詳細",
+    "租戶詳情",
+    "테넌트 상세",
+    "รายละเอียดผู้เช่า"
+  ],
+  "告警通知配置": [
+    "Alert Notifications",
+    "アラート通知設定",
+    "告警通知配置",
+    "알림 설정",
+    "ตั้งค่าการแจ้งเตือน"
+  ],
+  "存储设置": [
+    "Storage Settings",
+    "ストレージ設定",
+    "儲存設定",
+    "스토리지 설정",
+    "ตั้งค่าที่จัดเก็บ"
+  ],
+  "AI 设置": [
+    "AI Settings",
+    "AI 設定",
+    "AI 設定",
+    "AI 설정",
+    "ตั้งค่า AI"
+  ],
+  "图片 AI 设置": [
+    "Image AI Settings",
+    "画像 AI 設定",
+    "圖片 AI 設定",
+    "이미지 AI 설정",
+    "ตั้งค่า AI รูปภาพ"
+  ],
+  "采集服务": [
+    "Collection Services",
+    "収集サービス",
+    "採集服務",
+    "수집 서비스",
+    "บริการรวบรวม"
+  ],
+  "库存 / 订单": [
+    "Inventory / Orders",
+    "在庫・注文",
+    "庫存／訂單",
+    "재고 / 주문",
+    "สินค้าคงคลัง / คำสั่งซื้อ"
+  ],
+  "商品定价": [
+    "Product Pricing",
+    "商品価格設定",
+    "商品定價",
+    "상품 가격",
+    "กำหนดราคาสินค้า"
+  ],
+  "平台接入设置": [
+    "Platform Integrations",
+    "プラットフォーム連携設定",
+    "平台接入設定",
+    "플랫폼 연동 설정",
+    "เชื่อมต่อแพลตฟอร์ม"
+  ],
+  "平台刊登预设": [
+    "Platform Listing Presets",
+    "出品プリセット",
+    "平台刊登預設",
+    "플랫폼 등록 사전 설정",
+    "ค่าล่วงหน้าการลงสินค้า"
+  ],
+  "第三方集成总览": [
+    "Third-Party Integrations",
+    "外部連携概要",
+    "第三方整合總覽",
+    "외부 연동 개요",
+    "ภาพรวมการเชื่อมต่อ"
+  ],
+  "配置状态中心": [
+    "Configuration Status",
+    "設定状態センター",
+    "配置狀態中心",
+    "설정 상태 센터",
+    "สถานะการตั้งค่า"
+  ]
+};
+for (const [source, translations] of Object.entries(additionalTranslations)) {
+  (['en-US','ja-JP','zh-TW','ko-KR','th-TH'] as const).forEach((language,index)=>{
+    dictionaries[language][source]=translations[index];
+  });
+}
+const commonUITranslations: Record<string,[string,string,string,string,string]> = {
+  "界面主题": [
+    "Interface Theme",
+    "画面テーマ",
+    "介面主題",
+    "화면 테마",
+    "ธีมหน้าจอ"
+  ],
+  "浅色模式": [
+    "Light Mode",
+    "ライトモード",
+    "淺色模式",
+    "라이트 모드",
+    "โหมดสว่าง"
+  ],
+  "深色模式": [
+    "Dark Mode",
+    "ダークモード",
+    "深色模式",
+    "다크 모드",
+    "โหมดมืด"
+  ],
+  "还原": [
+    "Reset",
+    "元に戻す",
+    "還原",
+    "되돌리기",
+    "คืนค่า"
+  ],
+  "重试": [
+    "Retry",
+    "再試行",
+    "重試",
+    "다시 시도",
+    "ลองอีกครั้ง"
+  ],
+  "个人偏好加载失败": [
+    "Failed to load personal preferences",
+    "個人設定を読み込めませんでした",
+    "載入個人偏好失敗",
+    "개인 설정을 불러오지 못했습니다",
+    "โหลดการตั้งค่าส่วนบุคคลไม่สำเร็จ"
+  ],
+  "个人偏好已保存；部分设置将在重新进入页面后应用": [
+    "Preferences saved; some changes apply after reopening the page",
+    "個人設定を保存しました。一部の変更は再表示後に反映されます",
+    "個人偏好已儲存；部分設定重新進入頁面後生效",
+    "설정이 저장되었습니다. 일부 변경 사항은 페이지를 다시 열 때 적용됩니다",
+    "บันทึกการตั้งค่าแล้ว บางรายการจะมีผลเมื่อเปิดหน้าใหม่"
+  ],
+  "保存失败，请刷新后重试": [
+    "Save failed. Refresh and try again.",
+    "保存できませんでした。更新して再試行してください。",
+    "儲存失敗，請重新整理後再試。",
+    "저장에 실패했습니다. 새로고침 후 다시 시도하세요.",
+    "บันทึกไม่สำเร็จ โปรดรีเฟรชและลองอีกครั้ง"
+  ],
+  "偏好生效范围": [
+    "Preference scope",
+    "個人設定の適用範囲",
+    "偏好生效範圍",
+    "설정 적용 범위",
+    "ขอบเขตการตั้งค่า"
+  ],
+  "主题可立即应用；语言与日期格式已保存，但尚未统一接入各业务页面的国际化和时间展示组件。": [
+    "The theme applies immediately. Language and date formatting are being rolled out across business pages.",
+    "テーマはすぐに適用されます。言語と日付形式は各業務画面へ順次対応中です。",
+    "主題立即生效，語言與日期格式正逐步接入各業務頁面。",
+    "테마는 즉시 적용됩니다. 언어와 날짜 형식은 업무 페이지에 순차 적용 중입니다.",
+    "ธีมมีผลทันที ส่วนภาษาและรูปแบบวันที่กำลังทยอยรองรับในทุกหน้าธุรกิจ"
+  ],
+  "仅对当前企业的当前账号有效，不改变其他成员、店铺或企业的业务规则。": [
+    "Applies only to your account in this organization; other members, stores and business rules remain unchanged.",
+    "現在の組織の自分のアカウントのみに適用されます。他のメンバーや店舗の設定は変更されません。",
+    "只對目前企業中的目前帳號生效，不影響其他成員、店鋪或企業規則。",
+    "현재 조직의 내 계정에만 적용되며 다른 구성원과 스토어 설정은 변경되지 않습니다.",
+    "มีผลเฉพาะบัญชีของคุณในองค์กรปัจจุบัน ไม่กระทบสมาชิก ร้านค้า หรือกฎธุรกิจอื่น"
+  ],
+  "操作成功": [
+    "Operation successful",
+    "操作が完了しました",
+    "操作成功",
+    "작업 성공",
+    "ดำเนินการสำเร็จ"
+  ],
+  "登录": [
+    "Log In",
+    "ログイン",
+    "登入",
+    "로그인",
+    "เข้าสู่ระบบ"
+  ],
+  "注册": [
+    "Sign Up",
+    "新規登録",
+    "註冊",
+    "회원가입",
+    "สมัครสมาชิก"
+  ],
+  "欢迎回来": [
+    "Welcome back",
+    "おかえりなさい",
+    "歡迎回來",
+    "다시 오신 것을 환영합니다",
+    "ยินดีต้อนรับกลับ"
+  ],
+  "注册账号": [
+    "Create an account",
+    "アカウントを作成",
+    "註冊帳號",
+    "계정 만들기",
+    "สร้างบัญชี"
+  ],
+  "登录你的 TradeMind 工作台": [
+    "Sign in to your TradeMind workspace",
+    "TradeMind ワークスペースにログイン",
+    "登入 TradeMind 工作臺",
+    "TradeMind 작업 공간 로그인",
+    "เข้าสู่ระบบ TradeMind"
+  ],
+  "开启你的 AI 跨境之旅": [
+    "Start your AI-powered commerce journey",
+    "AI を活用した越境ビジネスを始めましょう",
+    "開啟 AI 跨境之旅",
+    "AI 기반 글로벌 커머스를 시작하세요",
+    "เริ่มต้นธุรกิจข้ามพรมแดนด้วย AI"
+  ],
+  "登录成功": [
+    "Signed in successfully",
+    "ログインしました",
+    "登入成功",
+    "로그인 성공",
+    "เข้าสู่ระบบสำเร็จ"
+  ],
+  "注册并登录成功": [
+    "Account created and signed in",
+    "登録・ログインが完了しました",
+    "註冊並登入成功",
+    "가입 및 로그인 성공",
+    "สมัครและเข้าสู่ระบบสำเร็จ"
+  ],
+  "验证码已发送": [
+    "Verification code sent",
+    "認証コードを送信しました",
+    "驗證碼已發送",
+    "인증 코드를 보냈습니다",
+    "ส่งรหัสยืนยันแล้ว"
+  ],
+  "搜索功能": [
+    "Search Features",
+    "機能を検索",
+    "搜尋功能",
+    "기능 검색",
+    "ค้นหาฟังก์ชัน"
+  ],
+  "搜索结果": [
+    "Search Results",
+    "検索結果",
+    "搜尋結果",
+    "검색 결과",
+    "ผลการค้นหา"
+  ],
+  "输入功能名称，例如：商品草稿、订单异常": [
+    "Enter a page or feature, such as Product Drafts or Order Exceptions",
+    "商品下書き、注文例外処理などを入力",
+    "輸入功能名稱，例如商品草稿、訂單異常",
+    "상품 초안 또는 주문 예외 등 기능을 입력하세요",
+    "พิมพ์ชื่อหน้า เช่น ร่างสินค้าหรือคำสั่งซื้อผิดปกติ"
+  ]
+};
+for (const [source, translations] of Object.entries(commonUITranslations)) {
+  (['en-US','ja-JP','zh-TW','ko-KR','th-TH'] as const).forEach((language,index)=>{
+    dictionaries[language][source]=translations[index];
+  });
+}
+// Organization configuration messages. Other unconverted pages retain their original copy.
+export const tenantBusinessTranslations: Record<string,[string,string,string,string,string]> = {
+  "基础偏好": [
+    "General preferences",
+    "基本設定",
+    "基本偏好",
+    "기본 설정",
+    "การตั้งค่าทั่วไป"
+  ],
+  "AI 与内容": [
+    "AI and content",
+    "AI とコンテンツ",
+    "AI 與內容",
+    "AI 및 콘텐츠",
+    "AI และเนื้อหา"
+  ],
+  "采集与发布": [
+    "Collection and publishing",
+    "収集と公開",
+    "採集與發布",
+    "수집 및 게시",
+    "การเก็บข้อมูลและเผยแพร่"
+  ],
+  "库存默认规则": [
+    "Inventory defaults",
+    "在庫の既定ルール",
+    "庫存預設規則",
+    "재고 기본 규칙",
+    "กฎสินค้าคงคลังเริ่มต้น"
+  ],
+  "企业通知": [
+    "Organization notifications",
+    "組織の通知",
+    "企業通知",
+    "조직 알림",
+    "การแจ้งเตือนองค์กร"
+  ],
+  "订单默认规则": [
+    "Order defaults",
+    "注文の既定ルール",
+    "訂單預設規則",
+    "주문 기본 규칙",
+    "กฎคำสั่งซื้อเริ่มต้น"
+  ],
+  "企业品牌与标签": [
+    "Organization branding and tags",
+    "組織のブランドとタグ",
+    "企業品牌與標籤",
+    "조직 브랜딩 및 태그",
+    "แบรนด์และแท็กองค์กร"
+  ],
+  "中文内容创作": [
+    "Chinese content",
+    "中国語コンテンツ",
+    "中文內容創作",
+    "중국어 콘텐츠",
+    "เนื้อหาภาษาจีน"
+  ],
+  "国际站英文内容": [
+    "English for international stores",
+    "海外店舗向け英語",
+    "國際站英文內容",
+    "해외몰 영어 콘텐츠",
+    "ภาษาอังกฤษสำหรับร้านค้าสากล"
+  ],
+  "日本站内容": [
+    "Japanese store content",
+    "日本店舗向けコンテンツ",
+    "日本站內容",
+    "일본몰 콘텐츠",
+    "เนื้อหาสำหรับร้านค้าญี่ปุ่น"
+  ],
+  "继承平台采集策略": [
+    "Inherit platform collection rules",
+    "収集設定を継承",
+    "繼承平台採集策略",
+    "수집 정책 상속",
+    "สืบทอดกฎการเก็บข้อมูล"
+  ],
+  "小批量人工采集": [
+    "Small manual batch",
+    "少量の手動収集",
+    "小批量人工採集",
+    "소규모 수동 수집",
+    "เก็บข้อมูลชุดเล็กด้วยตนเอง"
+  ],
+  "保守库存预警": [
+    "Conservative inventory alert",
+    "保守的な在庫警告",
+    "保守庫存預警",
+    "보수적 재고 경고",
+    "การเตือนสต็อกแบบระมัดระวัง"
+  ],
+  "标准库存预警": [
+    "Standard inventory alert",
+    "標準の在庫警告",
+    "標準庫存預警",
+    "표준 재고 경고",
+    "การเตือนสต็อกมาตรฐาน"
+  ],
+  "拼多多": [
+    "Pinduoduo",
+    "拼多多",
+    "拼多多",
+    "핀둬둬",
+    "พินตัวตัว"
+  ],
+  "淘宝/天猫": [
+    "Taobao / Tmall",
+    "タオバオ / Tmall",
+    "淘寶／天貓",
+    "타오바오 / 티몰",
+    "เถาเป่า / ทีมอลล์"
+  ],
+  "速卖通": [
+    "AliExpress",
+    "AliExpress",
+    "速賣通",
+    "알리익스프레스",
+    "AliExpress"
+  ],
+  "自定义采集": [
+    "Custom collection",
+    "カスタム収集",
+    "自訂採集",
+    "맞춤 수집",
+    "เก็บข้อมูลแบบกำหนดเอง"
+  ],
+  "加载失败，请重试": [
+    "Load failed. Try again.",
+    "読み込みに失敗しました。再試行してください。",
+    "載入失敗，請重試",
+    "로드하지 못했습니다. 다시 시도하세요.",
+    "โหลดไม่สำเร็จ โปรดลองอีกครั้ง"
+  ],
+  "放弃未保存的更改？": [
+    "Discard unsaved changes?",
+    "未保存の変更を破棄しますか？",
+    "放棄尚未儲存的變更？",
+    "저장하지 않은 변경 사항을 버릴까요?",
+    "ทิ้งการเปลี่ยนแปลงที่ยังไม่ได้บันทึกหรือไม่"
+  ],
+  "切换模块前请确认更改已保存。": [
+    "Save changes before switching modules.",
+    "切り替える前に変更を保存してください。",
+    "切換模組前請先儲存變更。",
+    "모듈 전환 전에 변경 사항을 저장하세요.",
+    "บันทึกการเปลี่ยนแปลงก่อนสลับโมดูล"
+  ],
+  "放弃并切换": [
+    "Discard and switch",
+    "破棄して切り替え",
+    "放棄並切換",
+    "버리고 전환",
+    "ทิ้งแล้วสลับ"
+  ],
+  "继续编辑": [
+    "Keep editing",
+    "編集を続ける",
+    "繼續編輯",
+    "계속 편집",
+    "แก้ไขต่อ"
+  ],
+  "企业业务配置已保存；已接入的业务模块将在新任务中使用": [
+    "Settings saved. Connected modules will use them for new tasks.",
+    "設定を保存しました。対応する新規タスクに適用します。",
+    "配置已儲存；已接入的模組將於新任務套用。",
+    "설정을 저장했습니다. 새 작업부터 적용됩니다.",
+    "บันทึกการตั้งค่าแล้ว งานใหม่จะใช้การตั้งค่านี้"
+  ],
+  "配置保存失败，请检查字段": [
+    "Save failed. Check the fields.",
+    "保存に失敗しました。入力内容を確認してください。",
+    "儲存失敗，請檢查欄位",
+    "저장에 실패했습니다. 입력값을 확인하세요.",
+    "บันทึกไม่สำเร็จ โปรดตรวจสอบข้อมูล"
+  ],
+  "无法加载历史": [
+    "Could not load history",
+    "履歴を読み込めません",
+    "無法載入歷史",
+    "기록을 불러올 수 없습니다",
+    "โหลดประวัติไม่ได้"
+  ],
+  "已恢复为新版本；历史记录未被覆盖": [
+    "Restored as a new version; history was preserved.",
+    "新しいバージョンとして復元し、履歴を保持しました。",
+    "已還原為新版本；歷史紀錄已保留",
+    "새 버전으로 복원하고 기록을 유지했습니다.",
+    "กู้คืนเป็นเวอร์ชันใหม่และเก็บประวัติเดิมไว้"
+  ],
+  "恢复失败，请刷新": [
+    "Restore failed. Refresh and try again.",
+    "復元に失敗しました。更新してください。",
+    "還原失敗，請重新整理",
+    "복원에 실패했습니다. 새로고침하세요.",
+    "กู้คืนไม่สำเร็จ โปรดรีเฟรช"
+  ],
+  "已导出全部企业业务配置，不包含任何密钥": [
+    "All business settings exported without secrets.",
+    "機密情報を含まずに組織設定を出力しました。",
+    "已匯出全部企業配置，不含任何密鑰",
+    "비밀 정보 없이 조직 설정을 내보냈습니다.",
+    "ส่งออกการตั้งค่าทั้งหมดโดยไม่มีข้อมูลลับ"
+  ],
+  "导出失败，请检查读取权限后重试": [
+    "Export failed. Check access and try again.",
+    "出力に失敗しました。読み取り権限を確認してください。",
+    "匯出失敗，請檢查讀取權限",
+    "내보내기에 실패했습니다. 읽기 권한을 확인하세요.",
+    "ส่งออกไม่สำเร็จ โปรดตรวจสิทธิ์อ่าน"
+  ],
+  "配置文件不可导入或超过大小限制": [
+    "Cannot import file or size limit exceeded.",
+    "インポートできないかサイズ制限を超えています。",
+    "設定檔無法匯入或超過大小限制",
+    "파일을 가져올 수 없거나 크기 제한을 초과했습니다.",
+    "นำเข้าไฟล์ไม่ได้หรือไฟล์มีขนาดเกินกำหนด"
+  ],
+  "文件不是配置对象": [
+    "The file is not a configuration object.",
+    "設定オブジェクトではありません。",
+    "檔案不是設定物件",
+    "파일이 설정 객체가 아닙니다.",
+    "ไฟล์ไม่ใช่ออบเจ็กต์การตั้งค่า"
+  ],
+  "配置格式或模块不匹配": [
+    "Configuration format or module mismatch.",
+    "形式またはモジュールが一致しません。",
+    "設定格式或模組不相符",
+    "형식이나 모듈이 일치하지 않습니다.",
+    "รูปแบบการตั้งค่าหรือโมดูลไม่ตรงกัน"
+  ],
+  "已载入配置预览，检查后点击保存才会生效": [
+    "Preview loaded. Review and save to apply.",
+    "プレビューを確認して保存してください。",
+    "預覽已載入；確認並儲存才會生效",
+    "미리보기를 확인한 후 저장하세요.",
+    "โหลดตัวอย่างแล้ว ตรวจสอบและบันทึกจึงจะมีผล"
+  ],
+  "导入失败": [
+    "Import failed",
+    "インポート失敗",
+    "匯入失敗",
+    "가져오기 실패",
+    "นำเข้าไม่สำเร็จ"
+  ],
+  "版本": [
+    "Version",
+    "バージョン",
+    "版本",
+    "버전",
+    "เวอร์ชัน"
+  ],
+  "继承默认值": [
+    "Inherited defaults",
+    "既定値を継承",
+    "繼承預設值",
+    "기본값 상속",
+    "ใช้ค่าเริ่มต้นที่สืบทอด"
+  ],
+  "历史版本": [
+    "Historical version",
+    "過去のバージョン",
+    "歷史版本",
+    "이전 버전",
+    "เวอร์ชันก่อนหน้า"
+  ],
+  "与当前配置对比": [
+    "vs. current settings",
+    "現在の設定と比較",
+    "與目前配置對比",
+    "현재 설정과 비교",
+    "เทียบกับการตั้งค่าปัจจุบัน"
+  ],
+  "恢复版本": [
+    "Restore version",
+    "バージョンを復元",
+    "還原版本",
+    "버전 복원",
+    "กู้คืนเวอร์ชัน"
+  ],
+  "模板预览：": [
+    "Template preview: ",
+    "テンプレートプレビュー：",
+    "範本預覽：",
+    "템플릿 미리보기: ",
+    "ตัวอย่างเทมเพลต: "
+  ],
+  "配置预览": [
+    "Configuration preview",
+    "設定プレビュー",
+    "設定預覽",
+    "설정 미리보기",
+    "ตัวอย่างการตั้งค่า"
+  ],
+  "应用到表单": [
+    "Apply to form",
+    "フォームに適用",
+    "套用至表單",
+    "양식에 적용",
+    "ใช้กับแบบฟอร์ม"
+  ],
+  "当前：": [
+    "Current: ",
+    "現在：",
+    "目前：",
+    "현재: ",
+    "ปัจจุบัน: "
+  ],
+  "模板：": [
+    "Template: ",
+    "テンプレート：",
+    "範本：",
+    "템플릿: ",
+    "เทมเพลต: "
+  ],
+  "首选日期格式": [
+    "Preferred date format",
+    "希望する日付形式",
+    "偏好日期格式",
+    "선호 날짜 형식",
+    "รูปแบบวันที่ที่ต้องการ"
+  ]
+};
+for (const [source, translated] of Object.entries({...tenantBusinessTranslations, ...interfaceTranslations, ...loginTranslations, ...tenantMemberTranslations, ...tenantInvitationTranslations, ...tenantSettingsTranslations, ...tenantPreferenceTranslations, ...platformTenantTranslations, ...commonControlTranslations, ...workspaceTranslations, ...aiTaskTranslations, ...aiPromptTranslations, ...sharedCopyTranslations, ...aiWorkspaceTranslations, ...collectShopTranslations, ...settingsWorkspaceTranslations, ...orderTranslations, ...dashboardTranslations, ...inventoryEffectsTranslations, ...financeTranslations, ...siteTranslations, ...customerTaskCenterTranslations, ...productTranslations, ...inventoryWarehouseTranslations, ...procurementTranslations, ...remainingUiTranslations, ...sharedGapTranslations, ...rootUiTranslations, ...productGapTranslations, ...orderProcurementGapTranslations})) {
+  (['en-US','ja-JP','zh-TW','ko-KR','th-TH'] as const).forEach((language,index)=>{
+    dictionaries[language][source] = translated[index];
+  });
+}
+
+const tenantSafetyTranslations: Record<string,[string,string,string,string,string]> = {
+  '操作失败，请重试': ['Operation failed. Try again.', '操作に失敗しました。再試行してください。', '操作失敗，請重試', '작업에 실패했습니다. 다시 시도하세요.', 'ดำเนินการไม่สำเร็จ โปรดลองอีกครั้ง'],
+  '保存失败；请刷新以避免覆盖其他管理员的更改': ['Save failed. Refresh to avoid overwriting changes by another administrator.', '保存できませんでした。ほかの管理者の変更を上書きしないよう更新してください。', '儲存失敗；請重新整理以免覆蓋其他管理員的變更', '저장에 실패했습니다. 다른 관리자의 변경 내용을 덮어쓰지 않도록 새로고침하세요.', 'บันทึกไม่สำเร็จ รีเฟรชเพื่อหลีกเลี่ยงการเขียนทับการเปลี่ยนแปลงของผู้ดูแลคนอื่น'],
+};
+for (const [source, translations] of Object.entries(tenantSafetyTranslations)) {
+  (['en-US','ja-JP','zh-TW','ko-KR','th-TH'] as const).forEach((language,index)=>{
+    dictionaries[language][source] = translations[index];
+  });
+}
+export function isAppLanguage(value: unknown): value is AppLanguage {
+  return typeof value === 'string' && (supportedLanguages as readonly string[]).includes(value);
+}
+export function translateMessage(language: AppLanguage, source: string): string {
+  if (language === 'zh-CN') return source;
+  return hasTranslation(language, source) ? dictionaries[language][source] : source;
+}
+
+export function hasTranslation(language: AppLanguage, source: string): boolean {
+  return language === 'zh-CN' || Object.prototype.hasOwnProperty.call(dictionaries[language], source);
+}

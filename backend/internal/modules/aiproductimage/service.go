@@ -19,8 +19,10 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -30,7 +32,17 @@ func detachedGinContext(c *gin.Context) *gin.Context {
 		return c
 	}
 	cp := c.Copy()
-	cp.Request = cp.Request.WithContext(context.Background())
+	// The request must outlive the HTTP handler, but the trusted tenant scope
+	// must remain available to every background query and provider call.
+	background := context.Background()
+	tenantContext := security.FromContext(c.Request.Context())
+	if tenantContext == nil {
+		tenantContext = security.FromGin(c)
+	}
+	if tenantContext != nil {
+		background = security.WithTenantContext(background, tenantContext)
+	}
+	cp.Request = cp.Request.WithContext(background)
 	return cp
 }
 
@@ -161,9 +173,9 @@ func imageURLHash(url string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func (s *Service) loadProducts(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*product.Product, error) {
+func (s *Service) loadProducts(ctx context.Context, tenantID int64, ids []uuid.UUID) (map[uuid.UUID]*product.Product, error) {
 	var rows []product.Product
-	if err := s.DB.WithContext(ctx).Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id IN ? AND tenant_id = ?", ids, tenantID).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	m := make(map[uuid.UUID]*product.Product, len(rows))
@@ -190,9 +202,9 @@ type imageSelection struct {
 	Image     product.ProductImage
 }
 
-func (s *Service) resolveImageSelections(ctx context.Context, productIDs, imageIDs []uuid.UUID) ([]imageSelection, error) {
+func (s *Service) resolveImageSelections(ctx context.Context, tenantID int64, productIDs, imageIDs []uuid.UUID) ([]imageSelection, error) {
 	var images []product.ProductImage
-	q := s.DB.WithContext(ctx).Where("product_id IN ?", productIDs)
+	q := s.DB.WithContext(ctx).Where("product_id IN (SELECT id FROM products WHERE tenant_id = ? AND deleted_at IS NULL AND id IN ?)", tenantID, productIDs)
 	if len(imageIDs) > 0 {
 		q = q.Where("id IN ?", imageIDs)
 	}
@@ -294,10 +306,15 @@ func (s *Service) checkOneImage(ctx context.Context, p *product.Product, img pro
 }
 
 // CheckBatch validates products and images before creating a batch.
-func (s *Service) CheckBatch(ctx context.Context, req CheckBatchRequest) (*CheckBatchResponse, error) {
+func (s *Service) CheckBatch(c *gin.Context, req CheckBatchRequest) (*CheckBatchResponse, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("服务不可用")
 	}
+	tenantID, err := requestTenantID(c)
+	if err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
 	productIDs, err := parseProductIDs(req.ProductIDs)
 	if err != nil {
 		return nil, err
@@ -314,11 +331,11 @@ func (s *Service) CheckBatch(ctx context.Context, req CheckBatchRequest) (*Check
 	if err != nil {
 		return nil, err
 	}
-	products, err := s.loadProducts(ctx, productIDs)
+	products, err := s.loadProducts(ctx, tenantID, productIDs)
 	if err != nil {
 		return nil, err
 	}
-	selections, err := s.resolveImageSelections(ctx, productIDs, imageIDs)
+	selections, err := s.resolveImageSelections(ctx, tenantID, productIDs, imageIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -517,7 +534,7 @@ func (s *Service) failImageBatchCreate(ctx context.Context, job *imageBatchAcqui
 	_ = s.Idempotency.Fail(ctx, job.RecordID, job.Owner, code, retryable)
 }
 
-func (s *Service) resolveExistingImageBatch(ctx context.Context, res *idempotency.AcquireResult, idemKey string) (*AIProductImageBatch, error) {
+func (s *Service) resolveExistingImageBatch(ctx context.Context, res *idempotency.AcquireResult, idemKey string, tenantID int64) (*AIProductImageBatch, error) {
 	rid := ""
 	if res != nil {
 		rid = res.ResourceID
@@ -528,13 +545,13 @@ func (s *Service) resolveExistingImageBatch(ctx context.Context, res *idempotenc
 	if rid != "" {
 		if bid, err := uuid.Parse(rid); err == nil {
 			var batch AIProductImageBatch
-			if err := s.DB.WithContext(ctx).First(&batch, "id = ?", bid).Error; err == nil {
+			if err := s.DB.WithContext(ctx).First(&batch, "id = ? AND tenant_id = ?", bid, tenantID).Error; err == nil {
 				return &batch, nil
 			}
 		}
 	}
 	var existing AIProductImageBatch
-	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
+	if err := s.DB.WithContext(ctx).Where("idempotency_key = ? AND tenant_id = ?", idemKey, tenantID).First(&existing).Error; err == nil {
 		return &existing, nil
 	}
 	return nil, fmt.Errorf("%s", errAIImageBatchInProgress)
@@ -543,6 +560,10 @@ func (s *Service) resolveExistingImageBatch(ctx context.Context, res *idempotenc
 // CreateBatch creates items and runs generation asynchronously (never auto-applies).
 func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *uuid.UUID) (*AIProductImageBatch, error) {
 	ctx := c.Request.Context()
+	tenantID, err := requestTenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	if !s.imageConfigured(ctx) {
 		s.ObserveAIImage("unknown", "batch", "environment_blocked", "environment_blocked", "provider_missing", 0)
 		return nil, fmt.Errorf("AI 图片服务未配置，请先在「设置 → 图片 AI」完成配置")
@@ -566,10 +587,10 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.loadProducts(ctx, productIDs); err != nil {
+	if _, err := s.loadProducts(ctx, tenantID, productIDs); err != nil {
 		return nil, err
 	}
-	selections, err := s.resolveImageSelections(ctx, productIDs, imageIDs)
+	selections, err := s.resolveImageSelections(ctx, tenantID, productIDs, imageIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -591,10 +612,10 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		return nil, acqErr
 	}
 	if idemJob == nil && replayRes != nil {
-		return s.resolveExistingImageBatch(ctx, replayRes, idemKey)
+		return s.resolveExistingImageBatch(ctx, replayRes, idemKey, tenantID)
 	}
 	var existing AIProductImageBatch
-	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
+	if err := s.DB.WithContext(ctx).Where("idempotency_key = ? AND tenant_id = ?", idemKey, tenantID).First(&existing).Error; err == nil {
 		return &existing, nil
 	} else if err != gorm.ErrRecordNotFound {
 		return nil, err
@@ -612,6 +633,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		uniqueProducts[sel.ProductID] = struct{}{}
 	}
 	batch := &AIProductImageBatch{
+		TenantID:       tenantID,
 		BatchNo:        batchNo,
 		BatchType:      BatchTypeAIImage,
 		Status:         BatchRunning,
@@ -679,12 +701,21 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 
 func (s *Service) runGeneration(c *gin.Context, batchID uuid.UUID, opts ImageGenerationOptions, adminID *uuid.UUID) {
 	ctx := c.Request.Context()
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return
+	}
 	conc := s.batchConcurrency(ctx)
 	sem := make(chan struct{}, conc)
 	var wg sync.WaitGroup
 
 	var items []AIProductImageItem
-	_ = s.DB.WithContext(ctx).Where("batch_id = ?", batchID).Find(&items).Error
+	if err := s.DB.WithContext(ctx).
+		Where("batch_id = ?", batchID).
+		Where("batch_id IN (SELECT id FROM ai_product_image_batches WHERE tenant_id = ? AND deleted_at IS NULL)", tenantID).
+		Find(&items).Error; err != nil {
+		return
+	}
 	for _, item := range items {
 		item := item
 		wg.Add(1)
@@ -696,24 +727,36 @@ func (s *Service) runGeneration(c *gin.Context, batchID uuid.UUID, opts ImageGen
 		}()
 	}
 	wg.Wait()
-	s.finalizeBatch(ctx, batchID)
+	s.finalizeBatch(ctx, batchID, tenantID)
 }
 
 func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts ImageGenerationOptions, adminID *uuid.UUID) {
 	ctx := c.Request.Context()
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return
+	}
 	start := time.Now()
 	var item AIProductImageItem
-	if err := s.DB.WithContext(ctx).First(&item, "id = ?", seed.ID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).
+		Where("id = ?", seed.ID).
+		Where("batch_id IN (SELECT id FROM ai_product_image_batches WHERE tenant_id = ? AND deleted_at IS NULL)", tenantID).
+		First(&item).Error; err != nil {
+		return
+	}
+	if err := s.validateItemTenant(ctx, &item, tenantID); err != nil {
+		s.failItem(ctx, item.ID, "resource_scope_invalid", truncateMsg(err.Error(), 500), tenantID)
 		return
 	}
 	if item.Status == ItemCancelled || item.Status == ItemApplied {
 		return
 	}
-	_ = s.DB.WithContext(ctx).Model(&item).Update("status", ItemRunning).Error
+	_ = scopeItemQuery(s.DB.WithContext(ctx).Model(&item), tenantID).
+		Where("id = ?", item.ID).Update("status", ItemRunning).Error
 
 	taskType := resolveGenerationTaskType(s.configuredImageProvider(ctx), item.OperationType)
 	if taskType == "" {
-		s.failItem(ctx, item.ID, "unsupported_operation", "不支持的处理类型")
+		s.failItem(ctx, item.ID, "unsupported_operation", "不支持的处理类型", tenantID)
 		return
 	}
 
@@ -751,23 +794,23 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 
 	task, err := s.Image.CreateAndPersist(ctx, payload)
 	if err != nil {
-		s.failItem(ctx, item.ID, "create_failed", truncateMsg(err.Error(), 500))
+		s.failItem(ctx, item.ID, "create_failed", truncateMsg(err.Error(), 500), tenantID)
 		return
 	}
 	if err := s.Image.FinalizeNewImageTask(ctx, c, task); err != nil {
 		s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "failure", "failure", "enqueue_failed", time.Since(start))
-		s.failItem(ctx, item.ID, "enqueue_failed", truncateMsg(err.Error(), 500))
+		s.failItem(ctx, item.ID, "enqueue_failed", truncateMsg(err.Error(), 500), tenantID)
 		return
 	}
 
-	finished, runErr := s.waitForImageTask(ctx, task.ID, 5*time.Minute)
+	finished, runErr := s.waitForImageTask(ctx, task.ID, 5*time.Minute, tenantID)
 	if runErr != nil {
 		if isAIImageTimeout(runErr.Error()) {
 			s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "timeout", "timeout", "provider_timeout", time.Since(start))
 		} else {
 			s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "failure", "failure", classifyAIImageError(runErr.Error()), time.Since(start))
 		}
-		s.failItem(ctx, item.ID, "generation_failed", truncateMsg(runErr.Error(), 500))
+		s.failItem(ctx, item.ID, "generation_failed", truncateMsg(runErr.Error(), 500), tenantID)
 		return
 	}
 
@@ -798,7 +841,7 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 			}
 		}
 		if resultURL == "" {
-			s.failItem(ctx, item.ID, "no_result", "未生成有效结果图")
+			s.failItem(ctx, item.ID, "no_result", "未生成有效结果图", tenantID)
 			return
 		}
 		updates["result_image_url"] = resultURL
@@ -810,7 +853,8 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 	}
 	if item.ImageID != nil {
 		var img product.ProductImage
-		if err := s.DB.WithContext(ctx).First(&img, "id = ?", *item.ImageID).Error; err == nil {
+		if err := scopeImageQuery(s.DB.WithContext(ctx), tenantID).
+			Where("id = ?", *item.ImageID).First(&img).Error; err == nil {
 			curURL := strings.TrimSpace(img.PublicURL)
 			if curURL == "" {
 				curURL = strings.TrimSpace(img.OriginURL)
@@ -823,15 +867,20 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 			updates["image_updated_at"] = &t
 		}
 	}
-	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ? AND status = ?", item.ID, ItemRunning).Updates(updates).Error
+	_ = scopeItemQuery(s.DB.WithContext(ctx).Model(&AIProductImageItem{}), tenantID).
+		Where("id = ? AND status = ?", item.ID, ItemRunning).Updates(updates).Error
 	s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "request", "success", "", time.Since(start))
 }
 
-func (s *Service) waitForImageTask(ctx context.Context, taskID uuid.UUID, timeout time.Duration) (*imagetask.ImageTask, error) {
+func (s *Service) waitForImageTask(ctx context.Context, taskID uuid.UUID, timeout time.Duration, tenantIDs ...int64) (*imagetask.ImageTask, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		var task imagetask.ImageTask
-		if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
+		q := s.DB.WithContext(ctx).Where("id = ?", taskID)
+		if len(tenantIDs) > 0 {
+			q = scopeTaskQuery(q, tenantIDs[0])
+		}
+		if err := q.First(&task).Error; err != nil {
 			return nil, err
 		}
 		switch task.Status {
@@ -853,7 +902,7 @@ func (s *Service) waitForImageTask(ctx context.Context, taskID uuid.UUID, timeou
 	return nil, fmt.Errorf("图片处理超时，请稍后在复核页重试")
 }
 
-func (s *Service) failItem(ctx context.Context, itemID uuid.UUID, code, msg string) {
+func (s *Service) failItem(ctx context.Context, itemID uuid.UUID, code, msg string, tenantIDs ...int64) {
 	norm := NormalizeItemErrorCode(code, msg)
 	if norm == CodeProviderTimeout {
 		s.ObserveAIImage("configured", "generation", "timeout", "timeout", "provider_timeout", 0)
@@ -862,7 +911,11 @@ func (s *Service) failItem(ctx context.Context, itemID uuid.UUID, code, msg stri
 	if m := WarningCodeMessage(norm); m != "" {
 		userMsg = m
 	}
-	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ? AND status IN ?", itemID, []string{ItemRunning, ItemPending}).Updates(map[string]any{
+	q := s.DB.WithContext(ctx).Model(&AIProductImageItem{})
+	if len(tenantIDs) > 0 {
+		q = scopeItemQuery(q, tenantIDs[0])
+	}
+	_ = q.Where("id = ? AND status IN ?", itemID, []string{ItemRunning, ItemPending}).Updates(map[string]any{
 		"status":        ItemFailed,
 		"error_code":    norm,
 		"error_message": userMsg,
@@ -877,14 +930,17 @@ func truncateMsg(s string, max int) string {
 	return s[:max] + "…"
 }
 
-func (s *Service) finalizeBatch(ctx context.Context, batchID uuid.UUID) {
+func (s *Service) finalizeBatch(ctx context.Context, batchID uuid.UUID, tenantIDs ...int64) {
 	type counts struct {
 		Status string
 		N      int64
 	}
 	var rows []counts
-	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).
-		Select("status, COUNT(*) as n").Where("batch_id = ?", batchID).
+	q := s.DB.WithContext(ctx).Model(&AIProductImageItem{})
+	if len(tenantIDs) > 0 {
+		q = scopeItemQuery(q, tenantIDs[0])
+	}
+	_ = q.Select("status, COUNT(*) as n").Where("batch_id = ?", batchID).
 		Group("status").Find(&rows).Error
 	var success, failed, pending, running, applied int
 	for _, r := range rows {
@@ -912,7 +968,11 @@ func (s *Service) finalizeBatch(ctx context.Context, batchID uuid.UUID) {
 	out := map[string]any{"successCount": success, "failedCount": failed, "appliedCount": applied}
 	outJSON, _ := json.Marshal(out)
 	fin := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&AIProductImageBatch{}).Where("id = ?", batchID).Updates(map[string]any{
+	bq := s.DB.WithContext(ctx).Model(&AIProductImageBatch{})
+	if len(tenantIDs) > 0 {
+		bq = scopeBatchQuery(bq, tenantIDs[0])
+	}
+	_ = bq.Where("id = ?", batchID).Updates(map[string]any{
 		"success_count": success,
 		"failed_count":  failed,
 		"applied_count": applied,

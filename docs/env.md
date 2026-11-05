@@ -1,5 +1,7 @@
 # 环境变量说明
 
+Bootstrap 管理账号：`ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PHONE` 指定恢复身份，后端启动时保持管理员与启用状态，并对恢复变更作事务审计及安全版本更新。普通运行环境不会用 `.env` 新密码覆盖已有数据库密码；修改密码使用用户管理的重置与首次改密流程。公开自助注册已关闭，新控制台账号由管理员创建。仅在授权的隔离测试中配置 `TEST_DATABASE_URL` / `TEST_REDIS_URL`，测试不可回退开发或生产资源。
+
 本文件是唯一配置模板 `.env.example` 的说明索引。`.env` 是唯一运行配置并保持 Git ignored；新增、删除或重命名环境变量时，必须同步更新本文件，并检查 `docs/module-map.md` 中的关联项。
 
 ## 使用方式
@@ -109,6 +111,8 @@ docker compose -f docker-compose.full.yml up -d --build
 
 ## Redis
 
+使用 Redis 7，与 Compose / CI 保持一致；本机服务和 `TEST_REDIS_URL` 指向的隔离实例也适用。OAuth 状态消费使用 `GETDEL`，Redis 5 / 6.0 不支持该命令。
+
 | 变量 | 示例 / 默认 | 服务 | 敏感 | 说明 |
 | --- | --- | --- | --- | --- |
 | `REDIS_ADDR` | `127.0.0.1:6379` / `redis:6379` | backend | 否 | Redis 地址。 |
@@ -128,9 +132,9 @@ docker compose -f docker-compose.full.yml up -d --build
 | `COLLECTOR_HEADERS_TIMEOUT_MS` | `10000` | collector | 否 | HTTP 请求头接收超时，允许 1-60 秒。 |
 | `COLLECTOR_GOTO_TIMEOUT_MS` | `45000` | collector | 否 | Playwright 页面打开超时。 |
 | `COLLECTOR_HEADLESS` | `1` | collector | 否 | 是否无头浏览器运行；本地打开登录浏览器时可设为 `0`。 |
-| `COLLECTOR_BROWSER_PROFILE_DIR` / `BROWSER_PROFILE_ROOT` | `collector/data/browser-profiles`（相对 collector 包根目录） | collector | 否 | 1688 持久化 Profile 根目录（1688 使用子目录 `1688`）。Docker 通常设为 `/workspace/data/browser-profiles`。 |
+| `COLLECTOR_BROWSER_PROFILE_DIR` / `BROWSER_PROFILE_ROOT` | `data/browser-profiles`（相对 collector 包根目录） | collector | 否 | 1688 持久化 Profile 根目录（1688 使用子目录 `1688`）。相对覆盖值均按 collector 包根目录解析；Docker 通常设为 `/workspace/data/browser-profiles`。 |
 | `COLLECTOR_STORAGE_STATE_DIR` | `data/storage-states` | collector | 否 | Playwright storageState 导出目录（预留）。 |
-| `COLLECTOR_1688_AUTH_PROBE_URL` | 注释示例 | collector | 否 | 登录态检测时用于探测的商品详情 URL。 |
+| `COLLECTOR_1688_AUTH_CHECK_URL` | 注释示例 | collector | 否 | 登录态检测时用于探测的商品详情 URL。 |
 | `COLLECTOR_USER_AGENT` | 注释示例 | collector | 否 | 可选 UA 覆盖。 |
 
 本地 `pnpm dev` 会从根 `.env`（不存在时从 `backend/.env`）读取 Collector 配置；进程环境变量优先。若 `COLLECTOR_SERVICE_TOKEN` 为空，开发启动器只为当前 backend/collector 会话生成随机 Token，不会写回配置文件；单独启动两个服务时必须显式提供相同 Token。
@@ -216,6 +220,8 @@ Operational values must be supplied by the target host or managed secret system 
 ## 测试资源
 
 - `TEST_DATABASE_URL` 与 `TEST_REDIS_URL` 只用于显式隔离的测试资源或 CI service container，不属于生产运行配置。
+- `ADMIN_E2E_BASE_URL` 可选用于 Admin Playwright Test 复用已启动的本机预览，例如 `http://localhost:8000`。仅接受 `http` / `https` 的 `localhost`、`127.0.0.1` 或 `[::1]` origin；设置后 Playwright 不启动 `webServer`，未设置时仍使用默认 `http://127.0.0.1:8001`。
+- PostgreSQL 集成测试要求 `APP_ENV=test`；`test:db`、`test:backend:integration` 与库存套件还包含 PostgreSQL/Redis 联合 Worker 回归，应同时提供两个隔离 URL。Redis URL 必须包含大于 0 的测试 DB 编号。
 - 本地测试数据库可不存在；项目不会自动创建或重建 `trademind_test`。
 - GitHub Actions 可以在作业内临时创建同名数据库，作业结束后随 service container 销毁。
 - 未提供安全隔离 URL 时，不在本地运行对应集成测试，且绝不回退到开发库或生产资源。

@@ -117,13 +117,19 @@ func (s *Service) CountTasksByStatus(ctx context.Context) (ImageTaskStatusCounts
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return out, err
+	}
 	type row struct {
 		Status string
 		N      int64
 	}
 	var rows []row
-	if err := s.DB.WithContext(ctx).Model(&ImageTask{}).
-		Select("status, count(*) as n").
+	query := s.DB.WithContext(ctx).Model(&ImageTask{}).
+		Select("status, count(*) as n")
+	query = scopeImageTaskQuery(query, tenantID, scoped)
+	if err := query.
 		Group("status").
 		Scan(&rows).Error; err != nil {
 		return out, err
@@ -155,6 +161,10 @@ func (s *Service) BuildMonitorSnapshot(ctx context.Context) (*MonitorSnapshot, e
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return nil, err
+	}
 	q := BuildImageQueueHealthBlock(ctx, s.Redis, s.QueueEnabled, s.QueueName, ImageWorkerConcurrencyConfigured())
 
 	tasks, err := s.CountTasksByStatus(ctx)
@@ -170,8 +180,10 @@ func (s *Service) BuildMonitorSnapshot(ctx context.Context) (*MonitorSnapshot, e
 
 	nowUTC := time.Now().UTC()
 	var dueN int64
-	if err := s.DB.WithContext(ctx).Model(&ImageTask{}).
-		Where("status = ? AND next_retry_at IS NOT NULL AND next_retry_at <= ?", StatusRetrying, nowUTC).
+	dueQuery := s.DB.WithContext(ctx).Model(&ImageTask{}).
+		Where("status = ? AND next_retry_at IS NOT NULL AND next_retry_at <= ?", StatusRetrying, nowUTC)
+	dueQuery = scopeImageTaskQuery(dueQuery, tenantID, scoped)
+	if err := dueQuery.
 		Count(&dueN).Error; err != nil {
 		return nil, err
 	}
@@ -191,8 +203,10 @@ func (s *Service) BuildMonitorSnapshot(ctx context.Context) (*MonitorSnapshot, e
 	}
 
 	var retr []ImageTask
-	if err := s.DB.WithContext(ctx).
-		Where("status = ?", StatusRetrying).
+	retryingQuery := s.DB.WithContext(ctx).Model(&ImageTask{}).
+		Where("status = ?", StatusRetrying)
+	retryingQuery = scopeImageTaskQuery(retryingQuery, tenantID, scoped)
+	if err := retryingQuery.
 		Find(&retr).Error; err != nil {
 		return nil, err
 	}
@@ -213,8 +227,10 @@ func (s *Service) BuildMonitorSnapshot(ctx context.Context) (*MonitorSnapshot, e
 	snap.Retry.OldestRetryingSeconds = oldestRetryWait
 
 	var recentR []ImageTask
-	if err := s.DB.WithContext(ctx).
-		Where("status = ?", StatusRetrying).
+	recentRetryQuery := s.DB.WithContext(ctx).Model(&ImageTask{}).
+		Where("status = ?", StatusRetrying)
+	recentRetryQuery = scopeImageTaskQuery(recentRetryQuery, tenantID, scoped)
+	if err := recentRetryQuery.
 		Order("updated_at DESC").
 		Limit(10).
 		Find(&recentR).Error; err != nil {
@@ -248,8 +264,10 @@ func (s *Service) BuildMonitorSnapshot(ctx context.Context) (*MonitorSnapshot, e
 	}
 
 	var fails []ImageTask
-	if err := s.DB.WithContext(ctx).
-		Where("status = ?", StatusFailed).
+	failureQuery := s.DB.WithContext(ctx).Model(&ImageTask{}).
+		Where("status = ?", StatusFailed)
+	failureQuery = scopeImageTaskQuery(failureQuery, tenantID, scoped)
+	if err := failureQuery.
 		Order("updated_at DESC").
 		Limit(10).
 		Find(&fails).Error; err != nil {

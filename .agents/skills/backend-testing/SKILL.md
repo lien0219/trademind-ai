@@ -13,7 +13,7 @@ handler/service/repository/adapter/worker 的测试应验证模块边界、事�
 
 ## 技术栈
 
-- 语言：Go 1.25 module `github.com/trademind-ai/trademind/backend`。
+- 语言：Go 版本以 `backend/go.mod` 的 `go` 指令为准，module 为 `github.com/trademind-ai/trademind/backend`。
 - HTTP：Gin。
 - ORM：GORM；默认 PostgreSQL，也存在 MySQL driver。
 - Redis：go-redis v9，LIST 队列 + workers。

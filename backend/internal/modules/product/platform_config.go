@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -18,11 +19,17 @@ func (s *Service) GetPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	if _, err := s.ensureProductTenantVisible(c, productID); err != nil {
+		return nil, err
+	}
 	plat := strings.TrimSpace(strings.ToLower(platform))
 	var row ProductPlatformPublishConfig
 	if err := s.DB.WithContext(c.Request.Context()).
 		Where("product_id = ? AND platform = ?", productID, plat).
 		First(&row).Error; err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, row.ShopID); err != nil {
 		return nil, err
 	}
 	return platformConfigDTO(row), nil
@@ -32,6 +39,9 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	if _, err := s.ensureProductTenantVisible(c, productID); err != nil {
+		return nil, err
+	}
 	plat := strings.TrimSpace(strings.ToLower(platform))
 	if plat == "" {
 		return nil, fmt.Errorf("platform required")
@@ -39,15 +49,14 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	if plat != "douyin_shop" {
 		return nil, fmt.Errorf("platform config is currently supported for douyin_shop only")
 	}
-	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).Select("id").First(&p, "id = ?", productID).Error; err != nil {
-		return nil, err
-	}
 	var shopID *uuid.UUID
 	if raw := strings.TrimSpace(body.ShopID); raw != "" {
 		u, err := uuid.Parse(raw)
 		if err != nil || u == uuid.Nil {
 			return nil, fmt.Errorf("invalid shopId")
+		}
+		if err := adminperm.EnsureStoreVisible(c, s.DB, &u); err != nil {
+			return nil, err
 		}
 		shopID = &u
 	}

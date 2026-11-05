@@ -12,6 +12,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
@@ -24,7 +25,7 @@ func trackingHTTPFixture(t *testing.T) (*gorm.DB, uuid.UUID, uuid.UUID, uuid.UUI
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&admin.AdminUser{}, &admin.UserStorePermission{}, &Order{}, &OrderShipment{}, &OrderShipmentEvent{}); err != nil {
+	if err := db.AutoMigrate(&admin.AdminUser{}, &admin.UserStorePermission{}, &shop.Shop{}, &Order{}, &OrderShipment{}, &OrderShipmentEvent{}); err != nil {
 		t.Fatal(err)
 	}
 	operatorID, readonlyID := uuid.New(), uuid.New()

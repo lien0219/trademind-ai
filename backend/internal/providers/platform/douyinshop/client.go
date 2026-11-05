@@ -2,12 +2,15 @@ package douyinshop
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 )
 
 const (
@@ -111,10 +114,18 @@ func (c *Client) logRequest(ctx context.Context, entry SafeRequestLog) {
 	c.Logger.LogDouyinRequest(ctx, entry)
 }
 
-func (c *Client) markAuthStatus(ctx context.Context, status string) {
-	if c != nil && c.MarkAuthStatus != nil && strings.TrimSpace(status) != "" {
-		_ = c.MarkAuthStatus(ctx, strings.TrimSpace(status))
+func (c *Client) markAuthStatus(ctx context.Context, status string) error {
+	if c == nil || c.MarkAuthStatus == nil || strings.TrimSpace(status) == "" {
+		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	c.tokenMu.RLock()
+	version := c.TokenVersion
+	c.tokenMu.RUnlock()
+	ctx = platformp.WithOAuthExpectedTokenVersion(ctx, version)
+	return c.MarkAuthStatus(ctx, strings.TrimSpace(status))
 }
 
 func (c *Client) accessFresh(now time.Time) bool {
@@ -162,8 +173,11 @@ func (c *Client) ensureFreshAccessDirect(ctx context.Context) (string, error) {
 		return token, nil
 	}
 	if !c.refreshUsable(now) {
-		c.markAuthStatus(ctx, "expired")
-		return "", NewError(CodeDouyinAuthExpired, "douyin authorization expired", "", "", "")
+		authErr := NewError(CodeDouyinAuthExpired, "douyin authorization expired", "", "", "")
+		if statusErr := c.markAuthStatus(ctx, "expired"); statusErr != nil {
+			return "", errors.Join(authErr, fmt.Errorf("douyin_shop: persist expired auth status: %w", statusErr))
+		}
+		return "", authErr
 	}
 	tok, err := c.RefreshAccessToken(ctx)
 	if err != nil {
@@ -178,22 +192,31 @@ func (c *Client) EnsureFreshAccess(ctx context.Context) (string, error) {
 
 func (c *Client) RefreshAccessToken(ctx context.Context) (*TokenBundle, error) {
 	if c == nil {
-		c.markAuthStatus(ctx, "expired")
 		return nil, NewError(CodeDouyinAuthExpired, "douyin authorization expired", "", "", "")
 	}
 	c.tokenMu.RLock()
 	refreshToken := strings.TrimSpace(c.RefreshTokenValue)
+	expectedVersion := c.TokenVersion
 	c.tokenMu.RUnlock()
 	if refreshToken == "" {
-		c.markAuthStatus(ctx, "expired")
-		return nil, NewError(CodeDouyinAuthExpired, "douyin authorization expired", "", "", "")
+		authErr := NewError(CodeDouyinAuthExpired, "douyin authorization expired", "", "", "")
+		if statusErr := c.markAuthStatus(ctx, "expired"); statusErr != nil {
+			return nil, errors.Join(authErr, fmt.Errorf("douyin_shop: persist expired auth status: %w", statusErr))
+		}
+		return nil, authErr
 	}
-	tok, err := c.RefreshToken(ctx, refreshToken)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	refreshCtx := platformp.WithOAuthExpectedTokenVersion(ctx, expectedVersion)
+	tok, err := c.RefreshToken(refreshCtx, refreshToken)
 	if err != nil {
 		douyinmetrics.RecordTokenRefresh(c.configEnvironment(), err)
 		var de *Error
 		if AsError(err, &de) && de.Code == CodeDouyinAuthExpired {
-			c.markAuthStatus(ctx, "expired")
+			if statusErr := c.markAuthStatus(refreshCtx, "expired"); statusErr != nil {
+				return nil, errors.Join(de, fmt.Errorf("douyin_shop: persist expired auth status: %w", statusErr))
+			}
 			return nil, de
 		}
 		return nil, NewError(CodeDouyinTokenRefreshFailed, "douyin token refresh failed", platformCodeOf(err), safeMessageOf(err), requestIDOf(err))
@@ -203,17 +226,25 @@ func (c *Client) RefreshAccessToken(ctx context.Context) (*TokenBundle, error) {
 		tok.RefreshToken = refreshToken
 	}
 	if c.PersistRefreshedToken != nil {
-		if err := c.PersistRefreshedToken(ctx, tok); err != nil {
+		if err := c.PersistRefreshedToken(refreshCtx, tok); err != nil {
 			return nil, err
 		}
 	}
 	c.tokenMu.Lock()
+	if c.TokenVersion != expectedVersion {
+		actualVersion := c.TokenVersion
+		c.tokenMu.Unlock()
+		return nil, TokenVersionConflictError(c.ShopID, expectedVersion, actualVersion)
+	}
 	c.AccessToken = strings.TrimSpace(tok.AccessToken)
 	c.RefreshTokenValue = strings.TrimSpace(tok.RefreshToken)
 	c.AccessTokenExpiresAt = tok.AccessExpiresAt
 	c.RefreshTokenExpiresAt = tok.RefreshExpiresAt
+	c.TokenVersion++
 	c.tokenMu.Unlock()
-	c.markAuthStatus(ctx, "authorized")
+	if err := c.markAuthStatus(refreshCtx, "authorized"); err != nil {
+		return nil, fmt.Errorf("douyin_shop: persist authorized auth status: %w", err)
+	}
 	return tok, nil
 }
 

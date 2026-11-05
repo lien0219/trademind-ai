@@ -24,7 +24,9 @@ func (h *Handler) requireSettingsManage(c *gin.Context) bool {
 		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
 		return false
 	}
-	return adminperm.RequireWrite(c, h.DB, adminperm.PermSettingsManage)
+	// Global configuration is held at tenant zero regardless of whether the
+	// singleton Root is currently in its internal or a customer workspace.
+	return adminperm.RequirePlatformPermission(c, h.DB, adminperm.PermSettingsManage, true)
 }
 
 type putBody struct {
@@ -46,7 +48,9 @@ func (h *Handler) List(c *gin.Context) {
 	if !h.requireSettingsManage(c) {
 		return
 	}
-	rows, err := h.Svc.List(c.Request.Context())
+	// System configuration is global, even when Root is currently operating
+	// inside the protected business workspace or an enterprise.
+	rows, err := h.Svc.ListForTenant(c.Request.Context(), 0)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -64,14 +68,20 @@ func (h *Handler) Put(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
+	// Never use the active business tenant for platform configuration.
+	const globalSettingsTenantID int64 = 0
 	items := make([]PutItem, 0, len(body.Items))
 	for _, it := range body.Items {
-		tid := int64(0)
+		itemTenantID := globalSettingsTenantID
 		if it.TenantID != nil {
-			tid = *it.TenantID
+			itemTenantID = *it.TenantID
+		}
+		if itemTenantID != globalSettingsTenantID {
+			adminperm.DenySettings(c)
+			return
 		}
 		items = append(items, PutItem{
-			TenantID:    tid,
+			TenantID:    itemTenantID,
 			GroupKey:    it.GroupKey,
 			ItemKey:     it.ItemKey,
 			ItemValue:   it.ItemValue,
@@ -80,22 +90,18 @@ func (h *Handler) Put(c *gin.Context) {
 			Remark:      it.Remark,
 		})
 	}
-	if err := h.Svc.PutBulk(c.Request.Context(), items); err != nil {
-		if h.OpLog != nil {
-			_ = h.OpLog.Write(c, operationlog.WriteOpts{
-				Action:   "settings_update",
-				Resource: "settings",
-				Status:   "failed",
-				Message:  err.Error(),
-			})
-		}
-		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+	if h.OpLog == nil || h.Svc.DB == nil {
+		response.Fail(c, 500, response.CodeInternalError, "settings audit unavailable")
 		return
 	}
 	alertNotifyTouch := false
 	pricingTouch := false
 	for _, it := range items {
 		gk := strings.TrimSpace(it.GroupKey)
+		if gk == "auth_registration" || gk == "mail_templates" {
+			response.Fail(c, 400, response.CodeBadRequest, "use dedicated registration/email template API")
+			return
+		}
 		if gk == "alert_notify" {
 			alertNotifyTouch = true
 		}
@@ -103,31 +109,42 @@ func (h *Handler) Put(c *gin.Context) {
 			pricingTouch = true
 		}
 	}
-	if alertNotifyTouch && h.OpLog != nil {
-		_ = h.OpLog.Write(c, operationlog.WriteOpts{
-			Action:   "settings.alert_notify.update",
-			Resource: "settings",
-			Status:   "success",
-			Message:  "alert_notify bulk upsert",
+	var auditErr error
+	err := h.Svc.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := h.Svc.PutBulkTx(tx, items); err != nil {
+			return err
+		}
+		audits := make([]operationlog.WriteOpts, 0, 3)
+		if alertNotifyTouch {
+			audits = append(audits, operationlog.WriteOpts{
+				Action: "settings.alert_notify.update", Resource: "settings", Status: "success", Message: "alert_notify bulk upsert",
+			})
+		}
+		if pricingTouch {
+			audits = append(audits, operationlog.WriteOpts{
+				Action: "settings.pricing.update", Resource: "settings", Status: "success", Message: "pricing bulk upsert",
+			})
+		}
+		audits = append(audits, operationlog.WriteOpts{
+			Action: "settings_update", Resource: "settings", Status: "success", Message: "bulk upsert",
 		})
+		for _, audit := range audits {
+			if err := h.OpLog.WriteTx(c, tx, audit); err != nil {
+				auditErr = err
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if auditErr != nil {
+			response.Fail(c, 500, response.CodeInternalError, "settings audit unavailable")
+			return
+		}
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
 	}
-	if pricingTouch && h.OpLog != nil {
-		_ = h.OpLog.Write(c, operationlog.WriteOpts{
-			Action:   "settings.pricing.update",
-			Resource: "settings",
-			Status:   "success",
-			Message:  "pricing bulk upsert",
-		})
-	}
-	if h.OpLog != nil {
-		_ = h.OpLog.Write(c, operationlog.WriteOpts{
-			Action:   "settings_update",
-			Resource: "settings",
-			Status:   "success",
-			Message:  "bulk upsert",
-		})
-	}
-	rows, err := h.Svc.List(c.Request.Context())
+	rows, err := h.Svc.ListForTenant(c.Request.Context(), globalSettingsTenantID)
 	if err != nil {
 		response.HandleError(c, err)
 		return

@@ -295,6 +295,8 @@ var readonlyPermissions = []string{
 // PermissionsForRole returns granted permission keys for a role.
 func PermissionsForRole(role string) []string {
 	switch normalizeRole(role) {
+	case RoleAdmin:
+		return copyPermissions(adminPermissions)
 	case RoleReadonly:
 		return copyPermissions(readonlyPermissions)
 	case RoleOperator:
@@ -302,7 +304,7 @@ func PermissionsForRole(role string) []string {
 	case RoleReviewer:
 		return copyPermissions(reviewerPermissions)
 	default:
-		return copyPermissions(adminPermissions)
+		return []string{}
 	}
 }
 

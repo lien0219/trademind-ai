@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import type { ColumnsType } from 'antd/es/table';
 import {
   Alert,
@@ -44,6 +46,7 @@ export default function SalesReturnCreateModal({
   onClose,
   onCreated,
 }: Props) {
+  useLanguage();
   const [form] = Form.useForm<Values>();
   const returnType = Form.useWatch('type', form) || 'return_refund';
   const [items, setItems] = useState<ReturnableSalesItem[]>([]);
@@ -111,7 +114,7 @@ export default function SalesReturnCreateModal({
       (item) => Number(values.quantities?.[item.orderItemId] || 0) > 0,
     );
     if (selected.length === 0) {
-      message.warning('请至少填写一条售后数量。');
+      message.warning(tr("请至少填写一条售后数量。"));
       return;
     }
     const payloadItems = selected.map((item) => ({
@@ -129,7 +132,7 @@ export default function SalesReturnCreateModal({
       payloadItems.some((item) => item.refundAmountMinor < 0) ||
       payloadItems.reduce((sum, item) => sum + item.refundAmountMinor, 0) < 1
     ) {
-      message.warning('退款金额必须大于 0。');
+      message.warning(tr("退款金额必须大于 0。"));
       return;
     }
     submittingRef.current = true;
@@ -143,14 +146,14 @@ export default function SalesReturnCreateModal({
         remark: values.remark?.trim() || '',
         items: payloadItems,
       });
-      message.success(`售后草稿已创建：${result.returnNo}`);
+      message.success(trFormat("售后草稿已创建：{value0}", { value0: result.returnNo }));
       onCreated(result.id);
     } catch (nextError) {
       message.error(
-        salesReturnErrorMessage(
+        tr(salesReturnErrorMessage(
           extractSalesReturnAPIError(nextError),
-          '售后草稿创建失败，请核对后重试。',
-        ),
+          tr('售后草稿创建失败，请核对后重试。'),
+        )),
       );
     } finally {
       submittingRef.current = false;
@@ -159,21 +162,21 @@ export default function SalesReturnCreateModal({
   };
 
   const columns: ColumnsType<ReturnableSalesItem> = [
-    { title: '商品', dataIndex: 'productTitle', width: 190, ellipsis: true },
+    { title: tr("商品"), dataIndex: 'productTitle', width: 190, ellipsis: true },
     {
-      title: '规格',
+      title: tr("规格"),
       width: 150,
       ellipsis: true,
       render: (_, item) => item.skuName || item.skuCode,
     },
     {
-      title: '可退',
+      title: tr("可退"),
       dataIndex: 'remainingQuantity',
       width: 72,
       align: 'right',
     },
     {
-      title: '本次数量',
+      title: tr("本次数量"),
       width: 130,
       render: (_, item) => (
         <Form.Item
@@ -184,7 +187,7 @@ export default function SalesReturnCreateModal({
               type: 'number',
               min: 0,
               max: item.remainingQuantity,
-              message: `不能超过 ${item.remainingQuantity}`,
+              message: trFormat("不能超过 {value0}", { value0: item.remainingQuantity }),
             },
           ]}
         >
@@ -199,31 +202,31 @@ export default function SalesReturnCreateModal({
       ),
     },
     {
-      title: '入库处置',
+      title: tr("入库处置"),
       width: 130,
       render: (_, item) =>
         returnType === 'refund_only' ? (
-          <Typography.Text type="secondary">不入库</Typography.Text>
+          <Typography.Text type="secondary">{tr("不入库")}</Typography.Text>
         ) : (
           <Form.Item name={['dispositions', item.orderItemId]} noStyle>
             <Select
               style={{ width: 108 }}
               options={[
-                { value: 'sellable', label: '良品' },
-                { value: 'damaged', label: '残次品' },
+                { value: 'sellable', label: tr("良品") },
+                { value: 'damaged', label: tr("残次品") },
               ]}
             />
           </Form.Item>
         ),
     },
     {
-      title: `退款金额 (${currency})`,
+      title: trFormat("退款金额 ({value0})", { value0: currency }),
       width: 170,
       render: (_, item) => (
         <Form.Item
           name={['refundAmounts', item.orderItemId]}
           noStyle
-          rules={[{ type: 'number', min: 0, message: '金额不能为负数' }]}
+          rules={[{ type: 'number', min: 0, message: tr("金额不能为负数") }]}
         >
           <InputNumber
             min={0}
@@ -238,12 +241,12 @@ export default function SalesReturnCreateModal({
 
   return (
     <Modal
-      title="发起退货退款"
+      title={tr("发起退货退款")}
       open={open}
       width={920}
       confirmLoading={submitting}
-      okText="创建草稿"
-      cancelText="取消"
+      okText={tr("创建草稿")}
+      cancelText={tr("取消")}
       okButtonProps={{
         disabled: loading || Boolean(error) || items.length === 0,
       }}
@@ -259,31 +262,31 @@ export default function SalesReturnCreateModal({
         preserve={false}
         onFinish={(values) => void submit(values)}
       >
-        {error ? <ErrorAlert title={error} /> : null}
+        {error ? <ErrorAlert title={tr(error)} /> : null}
         {!loading && !error && items.length === 0 ? (
-          <Alert type="info" showIcon message="该订单没有剩余可售后数量。" />
+          <Alert type="info" showIcon message={tr("该订单没有剩余可售后数量。")} />
         ) : null}
         <div className="tm-sales-return-form-grid">
-          <Form.Item label="售后类型" name="type" rules={[{ required: true }]}>
+          <Form.Item label={tr("售后类型")} name="type" rules={[{ required: true }]}>
             <Select
               options={[
-                { value: 'return_refund', label: '退货退款' },
-                { value: 'refund_only', label: '仅退款' },
+                { value: 'return_refund', label: tr("退货退款") },
+                { value: 'refund_only', label: tr("仅退款") },
               ]}
             />
           </Form.Item>
           <Form.Item
-            label="售后原因"
+            label={tr("售后原因")}
             name="reason"
             rules={[
-              { required: true, whitespace: true, message: '请输入售后原因' },
+              { required: true, whitespace: true, message: tr("请输入售后原因") },
               { max: 128 },
             ]}
           >
             <Input maxLength={128} />
           </Form.Item>
         </div>
-        <Form.Item label="备注" name="remark" rules={[{ max: 520 }]}>
+        <Form.Item label={tr("备注")} name="remark" rules={[{ max: 520 }]}>
           <Input.TextArea rows={2} maxLength={520} showCount />
         </Form.Item>
         <Table<ReturnableSalesItem>
@@ -294,7 +297,7 @@ export default function SalesReturnCreateModal({
           dataSource={items}
           columns={columns}
           scroll={{ x: 850 }}
-          locale={{ emptyText: '暂无可售后明细' }}
+          locale={{ emptyText: tr('暂无可售后明细') }}
         />
       </Form>
     </Modal>

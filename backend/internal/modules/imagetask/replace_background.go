@@ -27,6 +27,10 @@ func (s *Service) prepareReplaceBackgroundHints(ctx context.Context, task *Image
 		platform = stringFromMap(next, "targetPlatform")
 	}
 	size := stringFromMap(next, "size")
+	tenantID, scoped, scopeErr := imageTaskTenantScope(ctx)
+	if scopeErr != nil {
+		return next
+	}
 
 	var b strings.Builder
 	b.WriteString("Editing task: keep the product subject exactly as-is (same colors, shape, logos, and any text printed on the product). ")
@@ -38,7 +42,9 @@ func (s *Service) prepareReplaceBackgroundHints(ctx context.Context, task *Image
 
 	if s != nil && s.DB != nil && task != nil && task.ProductID != nil && *task.ProductID != uuid.Nil {
 		var prod product.Product
-		if err := s.DB.WithContext(ctx).First(&prod, "id = ?", task.ProductID).Error; err == nil {
+		query := s.DB.WithContext(ctx).Model(&product.Product{}).Where("id = ?", *task.ProductID)
+		query = scopeProductQuery(query, tenantID, scoped)
+		if err := query.First(&prod).Error; err == nil {
 			if t := strings.TrimSpace(prod.Title); t != "" {
 				next["productTitle"] = t
 				fmt.Fprintf(&b, "Product title: %s. ", t)

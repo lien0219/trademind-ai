@@ -5,6 +5,24 @@ import (
 	"time"
 )
 
+type oauthExpectedTokenVersionKey struct{}
+
+// WithOAuthExpectedTokenVersion binds a provider refresh to the token row
+// version read before the outbound request. Shop persistence uses it to
+// reject callbacks that finish after local revocation.
+func WithOAuthExpectedTokenVersion(ctx context.Context, version int64) context.Context {
+	return context.WithValue(ctx, oauthExpectedTokenVersionKey{}, version)
+}
+
+// OAuthExpectedTokenVersion reads the refresh fencing version, if present.
+func OAuthExpectedTokenVersion(ctx context.Context) (int64, bool) {
+	if ctx == nil {
+		return 0, false
+	}
+	version, ok := ctx.Value(oauthExpectedTokenVersionKey{}).(int64)
+	return version, ok && version >= 0
+}
+
 // Provider rollout / implementation status.
 const (
 	StatusAvailable = "available"
@@ -56,6 +74,7 @@ type TestConnectionRequest struct {
 	Extra                 map[string]string // from auth_config key/value when needed
 	AccessTokenExpiresAt  *time.Time
 	RefreshTokenExpiresAt *time.Time
+	TokenVersion          int64
 }
 
 // TestConnectionResult is a minimal connectivity outcome.

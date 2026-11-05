@@ -1,6 +1,7 @@
 package idor_test
 
 import (
+	"context"
 	"fmt"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -33,6 +35,7 @@ func openIDORDB(t *testing.T) *gorm.DB {
 	}
 	if err := db.AutoMigrate(
 		&product.Product{}, &product.ProductImage{}, &product.ProductSKU{},
+		&product.ProductPlatformPublishConfig{}, &product.ProductAIContentApplication{}, &aitask.AITask{},
 		&order.Order{}, &shop.Shop{}, &files.FileRecord{}, &admin.AdminUser{},
 		&imagetask.ImageTask{},
 	); err != nil {
@@ -157,6 +160,141 @@ func TestIDOR_ProductListExcludesOtherTenant(t *testing.T) {
 	}
 	if res.Total != 1 {
 		t.Fatalf("expected 1 product, got %d", res.Total)
+	}
+}
+
+func TestIDOR_ProductImagesRejectCrossTenantWrites(t *testing.T) {
+	db := openIDORDB(t)
+	svc := &product.Service{DB: db}
+	productB := seedProduct(t, db, tenantB, "secret-image-product")
+	image := &product.ProductImage{
+		ProductID: productB,
+		ImageType: product.ImageTypeMain,
+		PublicURL: "https://tenant-b.example/image.jpg",
+	}
+	if err := db.Create(image).Error; err != nil {
+		t.Fatal(err)
+	}
+	fileB := seedFile(t, db, tenantB)
+	c := ginWithTenant(tenantA, uuid.New())
+
+	if _, err := svc.CreateProductImage(c, productB, product.ImageCreateBody{FileID: &fileB, ImageType: product.ImageTypeMain}, nil); err == nil {
+		t.Fatal("expected cross-tenant image create denied")
+	}
+	if _, err := svc.UpdateProductImage(c, productB, image.ID, product.ImageUpdateBody{}, nil); err == nil {
+		t.Fatal("expected cross-tenant image update denied")
+	}
+	if err := svc.DeleteProductImage(c, productB, image.ID, nil); err == nil {
+		t.Fatal("expected cross-tenant image delete denied")
+	}
+	if err := svc.ReorderProductImages(c, productB, product.ImageReorderBody{ImageIDs: []uuid.UUID{image.ID}}, nil); err == nil {
+		t.Fatal("expected cross-tenant image reorder denied")
+	}
+
+	var persisted product.ProductImage
+	if err := db.First(&persisted, "id = ?", image.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if persisted.PublicURL != image.PublicURL {
+		t.Fatal("cross-tenant image write mutated data")
+	}
+}
+
+func TestIDOR_ProductPlatformConfigCrossTenantReadWriteDenied(t *testing.T) {
+	db := openIDORDB(t)
+	svc := &product.Service{DB: db}
+	productB := seedProduct(t, db, tenantB, "tenant-b-config")
+	shopB := seedShop(t, db, tenantB)
+	if err := db.Create(&product.ProductPlatformPublishConfig{
+		ProductID: productB, Platform: "douyin_shop", ShopID: &shopB,
+		CategoryID: "leaf-b",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	c := ginWithTenant(tenantA, uuid.New())
+	if _, err := svc.GetPlatformPublishConfig(c, productB, "douyin_shop"); err == nil {
+		t.Fatal("expected cross-tenant platform config read denied")
+	}
+	if _, err := svc.PutPlatformPublishConfig(c, productB, "douyin_shop", product.PlatformPublishConfigBody{ShopID: shopB.String()}, nil); err == nil {
+		t.Fatal("expected cross-tenant platform config write denied")
+	}
+
+	productA := seedProduct(t, db, tenantA, "tenant-a-config")
+	if err := db.Create(&product.ProductPlatformPublishConfig{
+		ProductID: productA, Platform: "douyin_shop", ShopID: &shopB,
+		CategoryID: "leaf-b",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.GetPlatformPublishConfig(c, productA, "douyin_shop"); err == nil {
+		t.Fatal("expected persisted cross-tenant shop reference to be denied on read")
+	}
+}
+
+func TestIDOR_ProductDouyinMappingRejectsCrossTenantShop(t *testing.T) {
+	db := openIDORDB(t)
+	svc := &product.Service{DB: db}
+	productA := seedProduct(t, db, tenantA, "tenant-a-mapping")
+	shopB := seedShop(t, db, tenantB)
+	ctx := security.WithTenantContext(context.Background(), &security.TenantContext{TenantID: tenantA})
+	err := svc.SaveDouyinDraftMapping(ctx, productA, &product.DouyinDraftMapping{ShopID: shopB.String()})
+	if err == nil {
+		t.Fatal("expected cross-tenant Douyin mapping shop to be rejected")
+	}
+	var count int64
+	if err := db.Model(&product.ProductPlatformPublishConfig{}).Where("product_id = ?", productA).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("cross-tenant mapping must not create config, got %d", count)
+	}
+}
+
+func TestIDOR_ProductOperationProgressCrossTenantDenied(t *testing.T) {
+	db := openIDORDB(t)
+	svc := &product.Service{DB: db}
+	productB := seedProduct(t, db, tenantB, "tenant-b-progress")
+	ctx := security.WithTenantContext(context.Background(), security.WorkerTenantContext(tenantA, uuid.Nil))
+	if _, err := svc.GetOperationProgress(ctx, productB); err == nil {
+		t.Fatal("expected cross-tenant operation progress denied")
+	}
+}
+
+func TestIDOR_ProductAITasksCrossTenantDenied(t *testing.T) {
+	db := openIDORDB(t)
+	svc := &product.Service{DB: db, AITasks: &aitask.Service{DB: db}}
+	productB := seedProduct(t, db, tenantB, "tenant-b-ai-task")
+	task := &aitask.AITask{TaskType: "product_title_optimize", Status: aitask.StatusSuccess, ProductID: &productB}
+	if err := db.Create(task).Error; err != nil {
+		t.Fatal(err)
+	}
+	c := ginWithTenant(tenantA, uuid.New())
+	if _, err := svc.ListRecentAITasks(c, productB, 10); err == nil {
+		t.Fatal("expected cross-tenant AI task list denied")
+	}
+}
+
+func TestIDOR_ProductAIApplyCrossTenantDenied(t *testing.T) {
+	db := openIDORDB(t)
+	svc := &product.Service{DB: db, AITasks: &aitask.Service{DB: db}}
+	productB := seedProduct(t, db, tenantB, "tenant-b-ai-apply")
+	task := &aitask.AITask{TaskType: "product_title_optimize", Status: aitask.StatusSuccess, ProductID: &productB}
+	if err := db.Create(task).Error; err != nil {
+		t.Fatal(err)
+	}
+	c := ginWithTenant(tenantA, uuid.New())
+	_, err := svc.ApplyAITitle(c, productB, product.ApplyAITitleBody{
+		AITitle: "cross-tenant title", TaskID: task.ID.String(),
+	}, nil)
+	if err == nil {
+		t.Fatal("expected cross-tenant AI apply denied")
+	}
+	var persisted product.Product
+	if err := db.First(&persisted, "id = ?", productB).Error; err != nil {
+		t.Fatal(err)
+	}
+	if persisted.AITitle != "" {
+		t.Fatal("cross-tenant AI apply mutated product")
 	}
 }
 

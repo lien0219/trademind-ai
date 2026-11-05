@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 export type ProductReadinessAction = {
   actionKey: string;
   label: string;
@@ -15,16 +16,16 @@ export function getProductReadinessAction(code?: string | null): ProductReadines
   if (!c) return null;
 
   if (c === 'product.ai_title_missing') {
-    return action({ actionKey: 'generate_ai_title', label: '去 AI 标题', tab: 'ai' });
+    return action({ actionKey: 'generate_ai_title', label: tr("去 AI 标题"), tab: 'ai' });
   }
   if (c.startsWith('product.title')) {
-    return action({ actionKey: 'edit_title', label: '去基础信息', tab: 'basic', section: 'title' });
+    return action({ actionKey: 'edit_title', label: tr("去基础信息"), tab: 'basic', section: 'title' });
   }
   if (c.startsWith('product.description')) {
-    return action({ actionKey: 'edit_description', label: '去基础信息', tab: 'basic', section: 'description' });
+    return action({ actionKey: 'edit_description', label: tr("去基础信息"), tab: 'basic', section: 'description' });
   }
   if (c === 'product.currency_missing' || c === 'product.archived') {
-    return action({ actionKey: 'review_basic_info', label: '去基础信息', tab: 'basic', section: 'title' });
+    return action({ actionKey: 'review_basic_info', label: tr("去基础信息"), tab: 'basic', section: 'title' });
   }
 
   if (
@@ -36,27 +37,27 @@ export function getProductReadinessAction(code?: string | null): ProductReadines
     c.endsWith('.stock_unknown') ||
     c.endsWith('.detail_images_incomplete')
   ) {
-    return action({ actionKey: 'review_collect', label: '检查采集结果', tab: 'basic', section: 'collect-review' });
+    return action({ actionKey: 'review_collect', label: tr("检查采集结果"), tab: 'basic', section: 'collect-review' });
   }
   if (
     c.endsWith('.detail_images_missing') ||
     c === 'collect.taobao_tmall.external_image' ||
     c.endsWith('.external_image')
   ) {
-    return action({ actionKey: 'review_images', label: '去图片管理', tab: 'images', section: 'image-list' });
+    return action({ actionKey: 'review_images', label: tr("去图片管理"), tab: 'images', section: 'image-list' });
   }
   if (c.endsWith('.price_missing') || c.endsWith('.sku_incomplete')) {
-    return action({ actionKey: 'review_pricing', label: '去商品规格', tab: 'skus', section: 'pricing' });
+    return action({ actionKey: 'review_pricing', label: tr("去商品规格"), tab: 'skus', section: 'pricing' });
   }
 
   if (c.startsWith('image.')) {
-    return action({ actionKey: 'fix_images', label: '去图片管理', tab: 'images', section: 'image-list' });
+    return action({ actionKey: 'fix_images', label: tr("去图片管理"), tab: 'images', section: 'image-list' });
   }
   if (c.startsWith('pricing.') || c.startsWith('sku.')) {
-    return action({ actionKey: 'fix_pricing', label: '去商品规格', tab: 'skus', section: 'pricing' });
+    return action({ actionKey: 'fix_pricing', label: tr("去商品规格"), tab: 'skus', section: 'pricing' });
   }
   if (c.startsWith('inventory.')) {
-    return action({ actionKey: 'review_inventory', label: '去库存', tab: 'inventory', section: 'local-skus' });
+    return action({ actionKey: 'review_inventory', label: tr("去库存"), tab: 'inventory', section: 'local-skus' });
   }
 
   if (
@@ -65,7 +66,7 @@ export function getProductReadinessAction(code?: string | null): ProductReadines
     c === 'publish_config_missing' ||
     c === 'platform_not_supported'
   ) {
-    return action({ actionKey: 'fix_publish_config', label: '去刊登配置', tab: 'publish', section: 'publish-config' });
+    return action({ actionKey: 'fix_publish_config', label: tr("去刊登配置"), tab: 'publish', section: 'publish-config' });
   }
 
   if (
@@ -76,10 +77,10 @@ export function getProductReadinessAction(code?: string | null): ProductReadines
     c === 'platform.shop_token_missing' ||
     c === 'douyin_shop_not_authorized'
   ) {
-    return action({ actionKey: 'manage_shops', label: '店铺管理', href: '/shops' });
+    return action({ actionKey: 'manage_shops', label: tr("店铺管理"), href: '/shops' });
   }
   if (c.startsWith('platform.') || c.startsWith('douyin_')) {
-    return action({ actionKey: 'fix_publish_config', label: '去刊登配置', tab: 'publish', section: 'publish-config' });
+    return action({ actionKey: 'fix_publish_config', label: tr("去刊登配置"), tab: 'publish', section: 'publish-config' });
   }
 
   return null;

@@ -11,7 +11,7 @@ export const COLLECTOR_PACKAGE_ROOT = path.resolve(
 
 /**
  * 1688 等 Provider 持久化 Profile 根目录。
- * 优先 COLLECTOR_BROWSER_PROFILE_DIR，其次 BROWSER_PROFILE_ROOT，默认 collector/data/browser-profiles。
+ * 优先 COLLECTOR_BROWSER_PROFILE_DIR，其次 BROWSER_PROFILE_ROOT，默认 data/browser-profiles（相对 collector 包根目录）。
  */
 export function getBrowserProfileRoot(): string {
   const raw =

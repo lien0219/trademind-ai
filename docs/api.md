@@ -1,5 +1,58 @@
 # API 契约
 
+## 用户与权限
+
+完整权限矩阵、资源范围和迁移边界见 [RBAC 设计](RBAC_PERMISSION_DESIGN.md)，验证状态和人工步骤见 [权限检查](SECURITY_PERMISSION_CHECKLIST.md)。以下路径均以 `/api/v1` 为前缀。
+
+| 方法 | 路径 | 契约 |
+| --- | --- | --- |
+| GET / POST | `/admin/users` | `user.manage`，当前租户列表/建号；新账号必须先修改临时密码 |
+| GET / PATCH | `/admin/users/:id` | 同租户及用户管理权限；编辑显示名、角色、启停 |
+| DELETE | `/admin/users/:id` | 同租户有效系统管理员的 `user.manage`；软删除账号、清除店铺授权、安全版本递增与审计同事务；不能删除自己或最后有效管理员；成功 `{deleted:true}` |
+| PUT | `/admin/users/:id/store-permissions` | 全量替换授予列表；空数组撤销全部；目标用户及每家店铺都校验租户 |
+| POST | `/admin/users/:id/reset-password` | 成功返回一次 `temporaryPassword`；旧凭据立即失效；日志不含密码 |
+| GET / POST | `/admin/roles` | 含成员数的角色列表/新建自定义角色；系统权限不可委派 |
+| PATCH | `/admin/roles/:code` | 修改名称、描述、权限和 enabled；系统角色拒绝，停启均使成员旧凭据失效 |
+| DELETE | `/admin/roles/:code` | 同租户有效系统管理员的 `user.manage`；只允许无未删除成员的自定义角色；有成员返回 HTTP 409 / code 40001，系统角色返回 400；成功 `{deleted:true}` |
+| GET | `/admin/permissions` | 返回可委派权限目录，不能靠提交未展示键绕过后端白名单 |
+| POST | `/auth/change-required-password` | 验证临时密码、完成强制改密，成功后再登录 |
+| DELETE | `/auth/sessions/:id` | 仅撤销当前登录用户的指定会话及关联 Refresh Token |
+| POST | `/auth/sessions/revoke-others`、`/auth/logout-all` | 仅影响当前登录用户；事务审计失败整笔回滚并返回 500 |
+| POST | `/auth/logout` | Refresh 仅撤销匹配当前用户/会话的记录；撤销与成功审计同事务；数据库查询或审计失败返回错误，成功后清理 Cookie |
+| POST | `/auth/register`、`/auth/send-email-code` | 403，提示联系管理员；不公开创建管理员或发送注册验证码 |
+| GET | `/auth/profile` | 权限来自服务端；非零租户管理员不返回 `security.key.rotate` |
+| GET | `/security/keys/rotation/status`、`/security/keys/references`、`/security/keys/rotation/:id`、`/security/keys/rotation/:id/progress` | 仅 tenant 0 的有效系统管理员及密钥轮换权限；普通租户管理员、自定义角色、缺少身份或租户声明均拒绝 |
+| POST | `/security/keys/rotation/prepare`、`/security/keys/rotation/start`、`/security/keys/rotation/:id/pause`、`resume`、`verify` | 同上；成功审计和控制状态同事务，审计失败返回 500 并回滚；预检/启动仍要求确认短语；暂停/恢复的任务不存在或状态不匹配返回 404，不产生成功审计 |
+| GET / POST | `/security/audit/integrity/status`、`/security/audit/integrity/verify` | `audit.read`，只验证当前认证租户的审计链 |
+
+## 多租户
+
+以下路径均以 `/api/v1` 为前缀。业务请求的 tenant context 取自已验证的 JWT/Session；请求 body 中的 `tenantId` 只用于切换目标。平台控制面要求已启用的 `platform_operators` 身份；目前没有应用内平台运营者授权管理 API。
+
+| 方法 | 路径 | 权限与契约 |
+| --- | --- | --- |
+| GET | `/auth/tenants` | 返回当前身份有效 membership 且租户为 active 的可切换租户，以及 `currentTenantId`。 |
+| POST | `/auth/tenants/switch` | JSON `{tenantId}`；服务端重新校验租户和 membership，创建 tenant-bound Session 并撤销旧 Session/凭据；拒绝暂停租户、停用成员或非成员。 |
+| GET / POST | `/platform/tenants` | 平台运营者分页查询/创建租户。创建需要 `code`、`name`、`ownerEmail`、`idempotencyKey`；租户、owner membership 和成功审计事务提交。可选 `ownerPassword` 只用于新建 owner，首次登录需改密；邀请/创建本身不会启用公开注册。 |
+| GET / PATCH | `/platform/tenants/:id` | 平台运营者读取详情/更新租户元数据；写入提交当前 `version`，冲突时拒绝。 |
+| PATCH | `/platform/tenants/:id/status` | 平台运营者提交 `{status,version}`；按合法生命周期迁移并撤销暂停/归档/关闭租户成员凭据；状态变化与成功审计同事务。 |
+| GET | `/platform/tenants/:id/audit` | 平台运营者查看租户最近最多 200 条操作日志。 |
+| GET / PATCH | `/tenant/current` | 查询当前租户；`settings.manage` 可按 `version` 更新资料。 |
+| GET / PATCH | `/tenant/members`、`/tenant/members/:id` | `user.manage` 查询成员或更新当前租户成员角色、状态及店铺权限。最后一位有效管理员受保护；变更会使成员旧凭据失效。 |
+| POST | `/tenant/members/leave` | 当前成员退出；最后一位有效管理员不能退出。 |
+| GET / POST / DELETE | `/tenant/invitations`、`/tenant/invitations/:id` | `user.manage` 管理邀请。创建返回一次性明文 Token；数据库保存 Token 摘要，邀请绑定邮箱/角色/店铺授权并有过期时间。服务端不发送邮件。 |
+| POST | `/tenant/invitations/accept` | 已认证用户提交 `{token}`；仅在邮箱匹配且邀请有效时单次接受，返回 `{tenantId}`，不提供匿名注册。 |
+
+成员和邀请端点同时保留 `/tenant/current/members`、`/tenant/current/invitations` 兼容别名。成功响应统一采用 `code`、`message`、`data`、`traceId` envelope。租户生命周期、身份/Session 模型、迁移和回滚边界见[多租户架构](MULTI_TENANT_ARCHITECTURE.md)、[安全控制](MULTI_TENANT_SECURITY.md)与[迁移手册](MULTI_TENANT_MIGRATION.md)。
+
+关键成功审计与业务写入同事务，拒绝/失败审计在回滚后单独写入；日志持久化失败明确返回 500。无模块权限为 403，不可见的跨租户/未授权资源通常为 404。角色、状态、授权及密码变更增加 SQL 安全版本，旧 Access、Refresh 和历史会话不可重用。
+
+新建账号和首次强制改密的新密码统一要求 12–72 位可打印 ASCII 字符，必须包含英文字母和数字，可含英文符号；中文、全角、空格及控制字符均拒绝。旧密码仍按原样验证。前端在本地安全随机生成 20 位密码并提供显式复制；密码重置由后端生成符合规则的一次性临时密码，只在成功响应中返回。删除后历史业务及审计保留；重复删除返回 404。审计或数据库错误时删除整笔回滚并返回 500。
+
+Amazon、Douyin、Lazada、Shopee、TikTok 的店铺 OAuth 刷新以请求前捕获的 TokenVersion 校验提交；凭据、授权状态及刷新成功审计同事务。撤销后到达的旧刷新结果明确失败，不能恢复授权；Provider 持久化失败不得继续把新 Token 当作成功结果使用。
+
+AI 批次、商品图片批次与图片任务的读取需要 `product.view`，写入按文字/图片操作要求 `ai_text.apply` / `ai_image.apply`，并同时验证批次、子任务和输入资源的租户。客服消息同步按 `customer.view` / `customer.operate` 授权并校验店铺范围；运营总览的批次、图片、采集、刊登和客服聚合限定当前租户。
+
 本文件记录 TradeMind 后端 API 的公共约定。新增、删除或修改接口时，必须同步检查后端 handler / service / DTO、前端 services / types / 页面，以及本文档。
 
 ## 基础约定
@@ -297,7 +350,34 @@ V6 按订单动态汇总现有只读事实，不落库利润，不生成会计�
 | `GET` | `/api/v1/order-profits` | `order_profit.view`；CSV 需 `order_profit.export` | 分页查询当前租户、授权店铺内的订单预估利润；支持 `page`、`pageSize`、`orderNo`、`platform`、`shopId`、`warehouseId`、`currency`、`status=complete\|pending\|mismatch\|blocked`、`start`、`end`。传 `format=csv` 导出当前筛选结果。派生状态筛选和导出必须先把候选范围收窄到最多 5000 单，超出返回 `413`。 |
 | `GET` | `/api/v1/order-profits/:orderId` | `order_profit.view` | 查询订单的费用组件、缺口、商品成本依据，以及履约成本快照、履约波次、供应商、退款执行、结算对账、广告费用导入/来源/归属/调整、仓库操作费快照与调整关联；成本行返回 `costBasis`、`snapshotId`、`resolutionStatus`、`capturedAt`、来源供应商字段和候选数量，跨租户或越权店铺返回 `404`。 |
 
-所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费、有效仓库操作费和明确未被结算覆盖的有效广告归属；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v6`。利润模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、广告平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
+所有返回金额均为 JavaScript 安全整数范围内的最小货币单位。`knownContributionMinor` 只减去已经可靠取得的成本和费用，包括对账一致的平台费、有效仓库操作费和明确未被结算覆盖的有效广告归属；只有全部组件可用时才返回 `estimatedProfitMinor` 和 `estimatedMarginBps`，否则二者保持 `null`。CSV 同时单列展示平台费用、广告费用及仓库操作费的原始最小币种单位金额；缺失或不可用的费用保留空字段，不按零值导出，便于核对已知贡献额。列表、详情和 CSV 都使用公式版本 `order_profit_estimate_v6`。利润模块没有 POST/PUT/PATCH/DELETE 路由，不调用真实平台、广告平台、承运商或支付接口，不启动 Worker、重试、自动分摊或真实结算流程。
+
+## 跨币种历史报表快照
+
+- `POST /api/v1/finance/fx-snapshots?baseCurrency=CNY&platform=...&shopId=...`：企业管理员且具有订单利润导出权限才能保存；以同一租户及店铺访问范围生成报表，保存完整 JSON、SHA-256 哈希和历史计算版本；8 MiB 上限。
+- `GET /api/v1/finance/fx-snapshots`：企业管理员拥有利润读取权限时获取最近 50 条当前租户快照元数据。
+- `GET /api/v1/finance/fx-snapshots/:snapshotId`：企业管理员拥有利润读取权限时按当前租户读取不可变历史报告，重新验证 SHA-256 与行数。
+- 快照记录与操作审计在同一事务内写入，不提供修改或删除 API；保存后新增汇率不会回写该历史报告。尚非会计凭证。
+
+## 采购成本、运费及退款的独立跨币种核验
+
+仅在 V6 原始来源状态为 `supplier_cost_currency_mismatch`、`freight_currency_mismatch` 或 `sales_return_currency_mismatch` 时，另外读取订单所在租户的事实记录；所有明细、数量、来源唯一性及业务状态必须通过验证。已履约采购使用履约成本快照；尚未履约的供应商报价必须是唯一来源，且报价更新不晚于订单时间。运费优先使用经核对的承运商实账及完整包裹覆盖，否则采用唯一有效本地运费报价，不将部分包裹估价视为完整费用。退款仅使用已成功执行、与完成售后金额币种一致的唯一执行记录。
+
+转换使用订单时间对应的企业历史汇率，每个来源金额在报表币种最小单位进行精确有理数舍入；原金额/币种、事实 ID、汇率 ID 与生效时间保存在 `componentRates`。若缺少或无法核实任何必要事实或汇率，整单不进入完整利润汇总，V6 的 `status` 和原始金额保持不变。
+
+## 已确认异币种费用的独立换算（预估报表）
+
+在保留 V6 原始利润与状态不变的前提下，跨币种预估报表对 **仅因币种不一致** 的平台结算费、广告费、仓库操作费重新读取对应租户、订单归属且状态已确认的原币种事实，并按订单时间匹配企业人工登记的历史汇率。仅当 **所有** 费用及收入均具有完整可核对依据时，才独立计算报表基准币种利润。缺少对应汇率时标记 `rate_missing`，来源缺失、状态未确认或其它 mismatch 继续 `source_incomplete`，不计入利润合计。
+
+逐项证据在 JSON 的 `calculationMethod`、`componentRates` 和 CSV 同名列中保存原币金额、原币种、换算额、汇率 ID 与生效时间，历史快照也保存同样的数据。此规则只读，不更新 V6、资金事实或原始订单；**供应商采购成本、退款、运费等未核验的异币种来源仍保持阻断**，不得将其视为已完成。
+
+## 跨币种预估利润（仅人工确认汇率）
+
+- `GET /api/v1/finance/fx-rates?baseCurrency=CNY`：`order_profit.view`，列出当前租户的最近 100 条已登记汇率，不跨租户读取。
+- `POST /api/v1/finance/fx-rates`：`settings.manage` 且须当前企业管理员；请求 `fromCurrency`、`toCurrency`、`rate`（十进制字符串）、`effectiveAt`（RFC3339）、`evidence`（来源依据）；按币种对及生效时间追加不可变记录，使用事务审计，不提供编辑/删除或自动抓取。
+- `GET /api/v1/finance/fx-report?baseCurrency=CNY`：`order_profit.view`；支持与原利润列表一致的筛选及 `format=csv`（需要 `order_profit.export`）。沿用 5000 订单上限、租户和店铺隔离，保留原始金额、换算金额、汇率 ID 和生效时间。
+
+采用订单下单日期之前最新已登记的有效汇率，精确有理数换算、最终最小单位四舍五入（中点远离零）。没有订单日期、缺少有效汇率或费用来源不完整时不计入合计，明确标示原因，不将空值改为零值。不反向推导汇率、不使用当前汇率静默回填历史记录。换算报表是动态预估（不是会计凭证），不会修改原始 V6 利润数据或触发平台写入。
 
 ## 图片 AI
 

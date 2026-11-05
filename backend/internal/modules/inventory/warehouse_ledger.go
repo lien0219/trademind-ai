@@ -310,7 +310,11 @@ func (s *Service) ListWarehouseBalances(ctx context.Context, tenantID int64, pro
 
 func resolveLegacyMigrationWarehouse(ctx context.Context, tx *gorm.DB, tenantID int64, actor *uuid.UUID) (*warehouse.Warehouse, error) {
 	var row warehouse.Warehouse
-	err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+	// Warehouse metadata is read-only here. Match RequireActive's shared lock:
+	// upgrading it after locking a SKU can deadlock with an order that already
+	// holds a shared warehouse lock while waiting for the same SKU. SHARE still
+	// prevents the warehouse from being disabled or reassigned during migration.
+	err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "SHARE"}).
 		Where("tenant_id = ? AND status = ? AND is_default = ?", tenantID, warehouse.StatusActive, true).
 		Order("id ASC").First(&row).Error
 	if err == nil {

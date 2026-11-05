@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -57,16 +58,107 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		}
 		return nil, err
 	}
-	cacheKey := permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role, "")
+	platformOperator := false
+	if db.Migrator().HasTable(&admin.PlatformOperator{}) {
+		var operator admin.PlatformOperator
+		err := db.WithContext(c.Request.Context()).Where("user_id = ? AND enabled = ?", uid, true).First(&operator).Error
+		if err == nil {
+			platformOperator = true
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	}
+	requestTenant := row.TenantID
+	if rawTenant, ok := c.Get(ctxkey.TenantID); ok {
+		switch v := rawTenant.(type) {
+		case int64:
+			requestTenant = v
+		case int:
+			requestTenant = int64(v)
+		default:
+			requestTenant = -1
+		}
+	}
+	registry, memberships := TenantSchemaState(db)
+	root, err := IsRoot(c.Request.Context(), db, uid)
+	if err != nil {
+		return nil, err
+	}
+	if root && requestTenant > 0 && registry && memberships {
+		var target admin.Tenant
+		if err := db.WithContext(c.Request.Context()).First(&target, "id = ?", requestTenant).Error; err != nil || target.Status != admin.TenantActive {
+			return &Principal{UserID: uid, TenantID: requestTenant, Disabled: true}, nil
+		}
+		principal := &Principal{UserID: uid, TenantID: requestTenant, Role: RoleAdmin, PlatformOperator: true, Permissions: PermissionsForRole(RoleAdmin)}
+		c.Set(ctxPrincipalKey, principal)
+		return principal, nil
+	}
+	if registry && memberships && requestTenant == 0 && IsSystemAdministrator(&row) {
+		// Do not put system capabilities in the tenant permission cache.
+		p := &Principal{UserID: uid, TenantID: 0, Role: RoleAdmin, SystemContext: true,
+			PlatformOperator: platformOperator, Permissions: systemPermissions()}
+		c.Set(ctxPrincipalKey, p)
+		return p, nil
+	}
+	if registry || memberships {
+		// Once migration has created either tenant table, legacy AdminUser.Role
+		// cannot authorize a positive tenant. Partial migration also fails closed.
+		p := &Principal{UserID: uid, TenantID: requestTenant, Role: RoleReadonly, Disabled: true, PlatformOperator: platformOperator}
+		if requestTenant > 0 && registry && memberships {
+			access, err := ResolveTenantAccess(c.Request.Context(), db, uid, requestTenant)
+			if err != nil {
+				return nil, err
+			}
+			if access != nil && access.Allowed {
+				row.Role = access.Membership.Role
+				p.Disabled = false
+			}
+		}
+		if p.Disabled {
+			c.Set(ctxPrincipalKey, p)
+			return p, nil
+		}
+	} else if requestTenant < 0 || row.TenantID != requestTenant {
+		p := &Principal{UserID: uid, TenantID: requestTenant, Role: RoleReadonly, Disabled: true, PlatformOperator: platformOperator}
+		c.Set(ctxPrincipalKey, p)
+		return p, nil
+	}
+	// Every authenticated request reads the user security version from SQL.
+	// Role changes atomically bump it for all affected users.
+	cacheKey := permissionCacheKey(requestTenant, uid, row.TokenVersion, row.Status, row.Role, "")
 	if cached, ok := getCachedPrincipal(cacheKey); ok {
 		c.Set(ctxPrincipalKey, cached)
 		return cached, nil
 	}
 	role := normalizeRole(row.Role)
 	p := &Principal{
-		UserID:      uid,
-		Role:        role,
-		Permissions: PermissionsForRole(role),
+		UserID:           uid,
+		TenantID:         requestTenant,
+		Role:             role,
+		PlatformOperator: platformOperator,
+		Permissions:      PermissionsForRole(role),
+	}
+	if IsCustomRole(role) {
+		var definition admin.RoleDefinition
+		roleErr := db.WithContext(c.Request.Context()).Where("tenant_id = ? AND code = ? AND enabled = ?", requestTenant, role, true).First(&definition).Error
+		if errors.Is(roleErr, gorm.ErrRecordNotFound) {
+			p.Disabled = true
+			p.Permissions = nil
+		} else if roleErr != nil {
+			return nil, fmt.Errorf("resolve custom role: %w", roleErr)
+		} else {
+			var decoded []string
+			if err := json.Unmarshal([]byte(definition.PermissionsJSON), &decoded); err != nil {
+				return nil, fmt.Errorf("invalid role permissions: %w", err)
+			}
+			grants, err := ValidateCustomPermissions(decoded)
+			if err != nil {
+				p.Disabled = true
+				p.Permissions = nil
+			} else {
+				p.Permissions = grants
+			}
+		}
 	}
 	if !strings.EqualFold(strings.TrimSpace(row.Status), admin.StatusActive) {
 		p.Disabled = true
@@ -75,12 +167,14 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		putCachedPrincipal(cacheKey, p)
 		return p, nil
 	}
-	if !p.IsAdmin() {
+	if !p.Disabled && !p.IsAdmin() {
 		var grants []admin.UserStorePermission
-		_ = db.WithContext(c.Request.Context()).
-			Where("user_id = ?", uid).
+		if err := db.WithContext(c.Request.Context()).
+			Where("user_id = ? AND store_id IN (SELECT id FROM shops WHERE tenant_id = ?)", uid, requestTenant).
 			Order("created_at ASC").
-			Find(&grants).Error
+			Find(&grants).Error; err != nil {
+			return nil, fmt.Errorf("load store grants: %w", err)
+		}
 		p.StoreGrants = make([]StoreGrant, 0, len(grants))
 		for _, g := range grants {
 			p.StoreGrants = append(p.StoreGrants, StoreGrant{
@@ -90,7 +184,7 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 			})
 		}
 	}
-	cacheKey = permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role, storeGrantsFingerprint(p.StoreGrants))
+	cacheKey = permissionCacheKey(requestTenant, uid, row.TokenVersion, row.Status, row.Role, storeGrantsFingerprint(p.StoreGrants))
 	if cached, ok := getCachedPrincipal(cacheKey); ok {
 		c.Set(ctxPrincipalKey, cached)
 		return cached, nil
@@ -168,7 +262,7 @@ func RequireStoreView(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
 		response.HandleError(c, err)
 		return false
 	}
-	if p.CanViewStore(storeID) {
+	if p.CanViewStore(storeID) && storeBelongsToRequestTenant(c, db, storeID) {
 		return true
 	}
 	response.Fail(c, 404, response.CodeNotFound, "资源不存在")
@@ -184,7 +278,7 @@ func EnsureStoreVisible(c *gin.Context, db *gorm.DB, shopID *uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	if p.CanViewStore(*shopID) {
+	if p.CanViewStore(*shopID) && storeBelongsToRequestTenant(c, db, *shopID) {
 		return nil
 	}
 	return gorm.ErrRecordNotFound
@@ -197,7 +291,7 @@ func RequireStoreOperate(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
 		response.HandleError(c, err)
 		return false
 	}
-	if p.CanOperateStore(storeID) {
+	if p.CanOperateStore(storeID) && storeBelongsToRequestTenant(c, db, storeID) {
 		return true
 	}
 	if storeID != uuid.Nil && !p.CanViewStore(storeID) {
@@ -206,4 +300,21 @@ func RequireStoreOperate(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
 	}
 	DenyStorePermission(c)
 	return false
+}
+
+// storeBelongsToRequestTenant is a defense-in-depth check for grant rows. The
+// grant table predates tenant_id and therefore cannot be trusted by itself.
+func storeBelongsToRequestTenant(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
+	if db == nil || storeID == uuid.Nil {
+		return false
+	}
+	tid, err := TenantIDFromGin(c)
+	if err != nil {
+		return false
+	}
+	var tenant struct{ TenantID int64 }
+	if err := db.WithContext(c.Request.Context()).Table("shops").Select("tenant_id").Where("id = ?", storeID).Take(&tenant).Error; err != nil {
+		return false
+	}
+	return tenant.TenantID == tid
 }

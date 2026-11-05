@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/gorm"
 )
 
@@ -31,7 +32,14 @@ func (s *Service) ReconcileAIApply(ctx context.Context, productID uuid.UUID, fie
 	}
 
 	var app ProductAIContentApplication
-	err = s.DB.WithContext(ctx).
+	query := s.DB.WithContext(ctx)
+	if tc := security.FromContext(ctx); tc != nil {
+		if tc.TenantID < 0 {
+			return fmt.Errorf("tenant context missing")
+		}
+		query = query.Where("product_id IN (SELECT id FROM products WHERE tenant_id = ?)", tc.TenantID)
+	}
+	err = query.
 		Where("product_id = ? AND field_type = ? AND ai_task_id = ? AND status = ?",
 			productID, fieldType, tid, AIContentApplyStatusApplied).
 		Order("applied_at DESC").First(&app).Error
@@ -43,7 +51,11 @@ func (s *Service) ReconcileAIApply(ctx context.Context, productID uuid.UUID, fie
 	}
 
 	var prod Product
-	if err := s.DB.WithContext(ctx).First(&prod, "id = ?", productID).Error; err != nil {
+	prodQuery := s.DB.WithContext(ctx)
+	if tc := security.FromContext(ctx); tc != nil {
+		prodQuery = prodQuery.Where("tenant_id = ?", tc.TenantID)
+	}
+	if err := prodQuery.First(&prod, "id = ?", productID).Error; err != nil {
 		return err
 	}
 	current := currentAIValueForField(&prod, fieldType)

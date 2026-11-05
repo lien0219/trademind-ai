@@ -1,7 +1,7 @@
+import { tr } from '@/i18n';
 import type { MenuDataItem } from '@umijs/route-utils';
 import {
   hasPermission,
-  normalizeRole,
   PERMISSIONS,
   type PermissionKey,
 } from '@/utils/permission';
@@ -26,21 +26,27 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/ops/task-center/operation-tasks': PERMISSIONS.OPERATION_TASK_AUDIT_READ,
   '/ops/observability': PERMISSIONS.OBSERVABILITY_READ,
   '/ops/platform-runtime': PERMISSIONS.STORE_VIEW,
+  '/ops/inventory-sync': PERMISSIONS.INVENTORY_SYNC_READ,
+  '/ops/inventory-sync/runs': PERMISSIONS.INVENTORY_SYNC_READ,
+  '/ops/inventory-sync/calibration': PERMISSIONS.SKU_BINDING_READ,
+  '/ops/inventory-sync/manual-bindings': PERMISSIONS.SKU_BINDING_READ,
+  '/ops/inventory-sync/bindings': PERMISSIONS.SKU_BINDING_READ,
   '/files': PERMISSIONS.PRODUCT_VIEW,
   '/ai/prompts': PERMISSIONS.SETTINGS_MANAGE,
   '/ai/tasks': PERMISSIONS.PRODUCT_VIEW,
   '/ai/image-tasks': PERMISSIONS.PRODUCT_VIEW,
   '/ai/text-batches': PERMISSIONS.PRODUCT_VIEW,
   '/ai/image-batches': PERMISSIONS.PRODUCT_VIEW,
+  '/ai/batches': PERMISSIONS.PRODUCT_VIEW,
   '/ai/operation-workbench': PERMISSIONS.PRODUCT_VIEW,
   '/product/drafts': PERMISSIONS.PRODUCT_VIEW,
   '/product/publish-tasks': PERMISSIONS.PRODUCT_VIEW,
   '/collect/hub': PERMISSIONS.PRODUCT_VIEW,
   '/collect/tasks': PERMISSIONS.PRODUCT_VIEW,
   '/collect/batches': PERMISSIONS.PRODUCT_VIEW,
-  '/collect/browser-profiles': PERMISSIONS.SETTINGS_MANAGE,
+  '/collect/browser-profiles': PERMISSIONS.PRODUCT_VIEW,
   '/collect/rules': PERMISSIONS.SETTINGS_MANAGE,
-  '/collect/monitor': PERMISSIONS.SETTINGS_MANAGE,
+  '/collect/monitor': PERMISSIONS.PRODUCT_VIEW,
   '/shops/manage': PERMISSIONS.STORE_VIEW,
   '/orders/list': PERMISSIONS.ORDER_VIEW,
   '/orders/warehouse-allocations': PERMISSIONS.ORDER_VIEW,
@@ -84,6 +90,10 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/settings/integrations': PERMISSIONS.SETTINGS_MANAGE,
   '/settings/config-status': PERMISSIONS.SETTINGS_MANAGE,
   '/settings/users': PERMISSIONS.USER_MANAGE,
+  '/tenant/business-settings': PERMISSIONS.PRODUCT_VIEW,
+  // Personal preferences are available to every authenticated tenant member.
+  '/tenant/preferences': [],
+  '/tenant/members': PERMISSIONS.USER_MANAGE,
 };
 
 function routePerm(path?: string): PermissionKey | PermissionKey[] | undefined {
@@ -101,7 +111,30 @@ function canAccessRoute(
   path: string | undefined,
   role?: string | null,
   profilePerms?: string[],
+  platformOperator = false,
+  tenantId?: number,
+  isRoot = false,
 ): boolean {
+  if (isRoot && tenantId !== 0) return true;
+  // A tenant-zero session can administer the platform but cannot browse
+  // tenant business data without an explicitly selected membership.
+  if (tenantId === 0) {
+    if (path === '/platform' || path?.startsWith('/platform/')) return platformOperator;
+    if (path === '/settings') return true;
+    if (path === '/ai' || path === '/collect' || path === '/ai/prompts' || path === '/collect/rules' || path?.startsWith('/ai/prompts/') || path?.startsWith('/collect/rules/')) {
+      return platformOperator && hasPermission(role, PERMISSIONS.SETTINGS_MANAGE, profilePerms);
+    }
+    if (path === '/settings/system' || path === '/settings/config-status') {
+      return hasPermission(role, PERMISSIONS.SETTINGS_MANAGE, profilePerms);
+    }
+    if (path === '/tenant/invitations/accept') return true;
+    return false;
+  }
+  // Organization-level settings grants never confer platform-global access.
+  if (path === '/ai/prompts' || path?.startsWith('/ai/prompts/') || path === '/collect/rules' || path?.startsWith('/collect/rules/')) return false;
+  if (path === '/ops/platform-runtime' || path?.startsWith('/ops/platform-runtime/')) return false;
+  if (path?.startsWith('/settings/') && path !== '/settings/users') return false;
+  if (path?.startsWith('/platform')) return false;
   const perm = routePerm(path);
   if (!perm) return true;
   const list = Array.isArray(perm) ? perm : [perm];
@@ -113,22 +146,26 @@ export function filterMenuByPermission(
   menus: MenuDataItem[],
   role?: string | null,
   profilePerms?: string[],
+  platformOperator = false,
+  tenantId?: number,
+  isRoot = false,
 ): MenuDataItem[] {
-  const r = normalizeRole(role);
-
   const walk = (items: MenuDataItem[]): MenuDataItem[] =>
     items
       .map((item) => {
-        if (item.hideInMenu) return item;
+        if (item.hideInMenu) {
+          return { ...item, name: typeof item.name === 'string' ? tr(item.name) : item.name };
+        }
         const path = item.path || item.redirect;
-        if (path && !canAccessRoute(path, r, profilePerms)) {
+        if (path && !canAccessRoute(path, role, profilePerms, platformOperator, tenantId, isRoot)) {
           return null;
         }
         const children = item.children ? walk(item.children) : undefined;
-        if (children && item.children?.length && children.length === 0 && !item.component) {
+        if (item.children?.some((child) => child.name && !child.hideInMenu)
+          && !children?.some((child) => child.name && !child.hideInMenu)) {
           return null;
         }
-        return { ...item, children: children?.length ? children : item.children };
+        return { ...item, name: typeof item.name === 'string' ? tr(item.name) : item.name, children };
       })
       .filter(Boolean) as MenuDataItem[];
 
@@ -139,6 +176,9 @@ export function canAccessPath(
   pathname: string,
   role?: string | null,
   profilePerms?: string[],
+  platformOperator = false,
+  tenantId?: number,
+  isRoot = false,
 ): boolean {
-  return canAccessRoute(pathname, role, profilePerms);
+  return canAccessRoute(pathname, role, profilePerms, platformOperator, tenantId, isRoot);
 }

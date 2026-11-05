@@ -49,6 +49,47 @@ test.describe('@smoke warehouse operation fee ledger', () => {
     });
   }
 
+  test('can close rate-card history while loading and ignores the late response', async ({ admin, page }) => {
+    await admin.goto('/finance/warehouse-fees');
+    await page.getByRole('tab', { name: '费率卡' }).click();
+
+    let signalStarted!: () => void;
+    const started = new Promise<void>((resolve) => { signalStarted = resolve; });
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route(`**/api/v1/warehouse-fee-rate-cards/${E2E_WAREHOUSE_FEE_RATE_ID}`, async (route) => {
+      signalStarted();
+      await held;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(ok({ ...e2eWarehouseFeeRate, revisions: [] })),
+      });
+    });
+
+    await page.getByRole('button', { name: '历史' }).click();
+    try {
+      await started;
+      const dialog = page.getByRole('dialog', { name: '费率修订历史' });
+      await expect(dialog).toBeVisible();
+      // Use the explicit, accessible close action while the response is held.
+      // Escape is not guaranteed to reach a modal without keyboard focus.
+      await dialog.getByRole('button', { name: /^关\s*闭$/ }).click();
+      await expect(dialog).toHaveCount(0);
+
+      const returned = page.waitForResponse((response) =>
+        response.url().includes(`/api/v1/warehouse-fee-rate-cards/${E2E_WAREHOUSE_FEE_RATE_ID}`) &&
+        response.request().method() === 'GET',
+      );
+      release();
+      await returned;
+      await expect(page.getByRole('dialog', { name: /修订历史/ })).toHaveCount(0);
+      await admin.writeGuard.expectRequestCount('unexpected', 0);
+    } finally {
+      release();
+    }
+  });
+
   test('cancels preview without any request', async ({ admin, page }) => {
     await admin.goto('/finance/warehouse-fees');
     await page.getByRole('button', { name: '预览' }).click();
@@ -99,6 +140,25 @@ test.describe('@smoke warehouse operation fee ledger', () => {
     await page.getByRole('tab', { name: '费率卡' }).click();
     await expect(page.getByRole('button', { name: '新增费率卡' })).toBeDisabled();
     await expect(page.getByRole('button', { name: '修订' })).toBeDisabled();
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
+  test('cancels a rate-card create without writes and clears its unfinished form', async ({ admin, page }) => {
+    await admin.goto('/finance/warehouse-fees');
+    await page.getByRole('tab', { name: '费率卡' }).click();
+    await page.getByRole('button', { name: '新增费率卡' }).click();
+    let dialog = page.getByRole('dialog');
+    await dialog.getByRole('textbox', { name: '费率编码' }).fill('E2E-CANCELLED');
+    await dialog.getByRole('textbox', { name: '费率名称' }).fill('E2E 未提交费率卡');
+    await dialog.getByRole('button', { name: /^取\s*消$/ }).click();
+    await expect(page.getByRole('dialog', { name: '新增费率卡' })).toHaveCount(0);
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+
+    await page.getByRole('button', { name: '新增费率卡' }).click();
+    dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('textbox', { name: '费率编码' })).toBeEmpty();
+    await expect(dialog.getByRole('textbox', { name: '费率名称' })).toBeEmpty();
+    await dialog.getByRole('button', { name: /^取\s*消$/ }).click();
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });
 
@@ -188,6 +248,25 @@ test.describe('@smoke warehouse operation fee ledger', () => {
     await expect(page).toHaveURL(/drawer=warehouse-fee/);
   });
 
+  test('invalidates a cancelled adjustment and clears its values before reopening', async ({ admin, page }) => {
+    await admin.goto(`/finance/warehouse-fees?drawer=warehouse-fee&id=${E2E_WAREHOUSE_FEE_SNAPSHOT_ID}`);
+    await expect(page.getByRole('dialog')).toContainText('加固包装材料补收');
+    await page.getByRole('button', { name: '追加调整' }).click();
+    let dialog = page.getByRole('dialog').last();
+    await dialog.getByRole('spinbutton', { name: /调整金额/ }).fill('42');
+    await dialog.getByRole('textbox', { name: '原因' }).fill('E2E 未确认的调整');
+    await dialog.getByRole('button', { name: /^取\s*消$/ }).click();
+    await expect(page.getByRole('dialog', { name: '追加费用调整' })).toHaveCount(0);
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+
+    await page.getByRole('button', { name: '追加调整' }).click();
+    dialog = page.getByRole('dialog').last();
+    await expect(dialog.getByRole('spinbutton', { name: /调整金额/ })).toBeEmpty();
+    await expect(dialog.getByRole('textbox', { name: '原因' })).toBeEmpty();
+    await dialog.getByRole('button', { name: /^取\s*消$/ }).click();
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
   test('reuses the adjustment idempotency key after a recoverable failure', async ({ admin, page }) => {
     let attempts = 0;
     admin.writeGuard.allow({
@@ -221,9 +300,13 @@ test.describe('@smoke warehouse operation fee ledger', () => {
   test('distinguishes loading, empty, and request error states without writes', async ({ admin, page }) => {
     let candidateMode: 'loading' | 'normal' | 'error' = 'loading';
     let failRateLoad = false;
+    let releaseInitialCandidates!: () => void;
+    const initialCandidatesPending = new Promise<void>((resolve) => {
+      releaseInitialCandidates = resolve;
+    });
     await page.route('**/api/v1/warehouse-operation-fees/candidates*', async (route) => {
       if (candidateMode === 'loading') {
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        await initialCandidatesPending;
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -258,7 +341,11 @@ test.describe('@smoke warehouse operation fee ledger', () => {
     });
 
     await admin.goto('/finance/warehouse-fees');
-    await expect(page.locator('.ant-spin-spinning')).toBeVisible();
+    try {
+      await expect(page.locator('.ant-spin-spinning')).toBeVisible();
+    } finally {
+      releaseInitialCandidates();
+    }
     await expect(page.getByText('暂无可登记的履约订单')).toBeVisible();
 
     candidateMode = 'normal';

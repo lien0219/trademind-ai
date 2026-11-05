@@ -14,6 +14,7 @@ import (
 type AdminUser struct {
 	model.Base
 	TenantID           int64      `gorm:"not null;default:0;index" json:"tenantId"`
+	LastTenantID       int64      `gorm:"not null;default:0" json:"-"`
 	Username           string     `gorm:"size:40;not null;uniqueIndex" json:"username"`
 	Email              string     `gorm:"size:128" json:"email"`
 	Phone              string     `gorm:"size:32" json:"phone"`
@@ -30,6 +31,14 @@ type AdminUser struct {
 func (AdminUser) TableName() string {
 	return "admin_users"
 }
+
+// AdminMutationLock provides a stable row that serializes security-sensitive
+// admin mutations across application instances and supported SQL dialects.
+type AdminMutationLock struct {
+	KeyHash string `gorm:"size:64;primaryKey"`
+}
+
+func (AdminMutationLock) TableName() string { return "admin_mutation_locks" }
 
 // NewInternalUsername returns a DB-unique opaque id (never used as a login credential).
 func NewInternalUsername() string {

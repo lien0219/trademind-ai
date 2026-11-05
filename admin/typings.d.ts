@@ -19,6 +19,10 @@ declare namespace API {
     status?: string;
     permissions?: string[];
     storePermissions?: StorePermission[];
+    tenantId?: number;
+    tenantName?: string;
+    platformOperator?: boolean;
+    isRoot?: boolean;
     createdAt?: string;
     updatedAt?: string;
   };

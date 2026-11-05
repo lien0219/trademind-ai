@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import { ModalForm, ProFormSelect, ProFormText } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import { Alert, Button, message, Space, Spin } from 'antd';
@@ -46,10 +48,10 @@ function resolveRuleId(
       const suggested = suggestRuleDomainForHost(host);
       return {
         ok: false,
-        message: `未找到匹配的启用规则。链接主机名为 ${host}，请创建域名为 ${suggested} 的规则，或手动选择规则。`,
+        message: trFormat("未找到匹配的启用规则。链接主机名为 {host}，请创建域名为 {suggested} 的规则，或手动选择规则。", { host: host, suggested: suggested }),
       };
     } catch {
-      return { ok: false, message: '没有找到可用采集规则，请先创建规则或手动选择' };
+      return { ok: false, message: tr("没有找到可用采集规则，请先创建规则或手动选择") };
     }
   }
   const best = [...matched].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))[0];
@@ -65,14 +67,15 @@ function PlatformConflictAlert({
   onDismissPlanned: () => void;
   onUseDedicated: (source: string) => void;
 }) {
+  useLanguage();
   const isBlocked = hint.kind === 'blocked';
   return (
     <Alert
       type={isBlocked ? 'warning' : 'info'}
       showIcon
       style={{ marginBottom: 16 }}
-      message={isBlocked ? '请使用专用采集器' : hint.platformLabel}
-      description={hint.message}
+      message={isBlocked ? tr("请使用专用采集器") : hint.platformLabel}
+      description={tr(hint.message)}
       action={
         isBlocked ? (
           <Button type="primary" size="small" onClick={() => onUseDedicated(hint.source)}>
@@ -98,6 +101,7 @@ function isLoginLikelyHost(url: string): boolean {
 }
 
 export function CustomCollectModal({ open, onClose }: Props) {
+  useLanguage();
   const [rules, setRules] = useState<CollectRuleRow[]>([]);
   const [loadingRules, setLoadingRules] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -163,11 +167,11 @@ export function CustomCollectModal({ open, onClose }: Props) {
     if (submitBlocked) return;
     const url = formUrl.trim();
     if (!url) {
-      message.warning('请先填写商品链接');
+      message.warning(tr("请先填写商品链接"));
       return;
     }
     if (rules.length === 0) {
-      message.warning(NO_COLLECT_RULE_MESSAGE);
+        message.warning(tr(NO_COLLECT_RULE_MESSAGE));
       return;
     }
     const picked = resolveRuleId(rules, url, formRuleId);
@@ -185,14 +189,14 @@ export function CustomCollectModal({ open, onClose }: Props) {
       });
       setTestResult(res);
       if (res.accessStatus === 'public' && !res.missingFields?.length) {
-        message.success('访问正常，核心字段已提取');
+        message.success(tr("访问正常，核心字段已提取"));
       } else if (res.accessStatus === 'login_required' || res.accessStatus === 'verify_required') {
-        message.warning(res.suggestion || '页面访问受限，请查看测试结果');
+        message.warning(res.suggestion || tr("页面访问受限，请查看测试结果"));
       } else {
-        message.info(res.suggestion || '测试完成，请查看字段提取情况');
+        message.info(res.suggestion || tr("测试完成，请查看字段提取情况"));
       }
     } catch (e) {
-      message.error(mapCollectErrorMessage(e));
+      message.error(tr(mapCollectErrorMessage(e)));
     } finally {
       setTesting(false);
     }
@@ -204,7 +208,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
   return (
     <>
     <ModalForm<{ url: string; ruleId?: string }>
-      title="自定义链接采集"
+      title={tr("自定义链接采集")}
       open={open}
       modalProps={{
         destroyOnHidden: true,
@@ -215,13 +219,12 @@ export function CustomCollectModal({ open, onClose }: Props) {
         if (!v) onClose();
       }}
       submitter={{
-        searchConfig: { submitText: '提交采集任务' },
+        searchConfig: { submitText: tr("提交采集任务") },
         submitButtonProps: { disabled: submitBlocked },
         render: (_, dom) => (
           <Space size="middle" wrap className="tm-action-space" style={{ justifyContent: 'flex-end', width: '100%' }}>
             <Button type="link" onClick={() => history.push('/collect/rules')}>
-              管理采集规则
-            </Button>
+              {tr("管理采集规则")}</Button>
             {dom}
           </Space>
         ),
@@ -230,11 +233,11 @@ export function CustomCollectModal({ open, onClose }: Props) {
         if (submitBlocked) return false;
         const url = vals.url?.trim();
         if (!url) {
-          message.warning('请填写商品链接');
+          message.warning(tr("请填写商品链接"));
           return false;
         }
         if (rules.length === 0) {
-          message.warning(NO_COLLECT_RULE_MESSAGE);
+          message.warning(tr(NO_COLLECT_RULE_MESSAGE));
           return false;
         }
         const picked = resolveRuleId(rules, url, vals.ruleId);
@@ -243,11 +246,11 @@ export function CustomCollectModal({ open, onClose }: Props) {
           return false;
         }
         if (isLoginLikelyHost(url) && !(useBrowserProfile && profileId)) {
-          message.warning('该站点通常需要登录态才能看到商品信息，请先启用「已登录采集浏览器」并选择 Profile');
+          message.warning(tr("该站点通常需要登录态才能看到商品信息，请先启用「已登录采集浏览器」并选择 Profile"));
           return false;
         }
         if (testResult?.missingFields?.includes('title') && !(useBrowserProfile && profileId)) {
-          message.warning('测试未识别商品标题，建议先启用登录态并重新测试后再提交');
+          message.warning(tr("测试未识别商品标题，建议先启用登录态并重新测试后再提交"));
           return false;
         }
         try {
@@ -263,7 +266,7 @@ export function CustomCollectModal({ open, onClose }: Props) {
           history.push('/collect/tasks?source=custom');
           return true;
         } catch (e) {
-          message.error(mapCollectErrorMessage(e));
+          message.error(tr(mapCollectErrorMessage(e)));
           return false;
         }
       }}
@@ -280,17 +283,15 @@ export function CustomCollectModal({ open, onClose }: Props) {
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
-          message={NO_COLLECT_RULE_MESSAGE}
+          message={tr(NO_COLLECT_RULE_MESSAGE)}
           description={
             <Space direction="vertical" size="small">
-              <span>可使用 AI 根据商品页面自动生成规则，或手动创建。</span>
+              <span>{tr("可使用 AI 根据商品页面自动生成规则，或手动创建。")}</span>
               <Space wrap>
                 <Button type="primary" size="small" onClick={() => setAiModalOpen(true)}>
-                  AI 帮我生成规则
-                </Button>
+                  {tr("AI 帮我生成规则")}</Button>
                 <Button size="small" onClick={() => history.push('/collect/rules')}>
-                  去采集规则页面手动创建
-                </Button>
+                  {tr("去采集规则页面手动创建")}</Button>
               </Space>
             </Space>
           }
@@ -301,22 +302,21 @@ export function CustomCollectModal({ open, onClose }: Props) {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="未找到匹配规则"
+          message={tr("未找到匹配规则")}
           description={
             <Space direction="vertical" size="small">
-              <span>是否使用 AI 根据该页面生成规则？</span>
+              <span>{tr("是否使用 AI 根据该页面生成规则？")}</span>
               <Button type="primary" size="small" onClick={() => setAiModalOpen(true)}>
-                AI 帮我生成规则
-              </Button>
+                {tr("AI 帮我生成规则")}</Button>
             </Space>
           }
         />
       ) : null}
       <ProFormText
         name="url"
-        label="商品详情链接"
+        label={tr("商品详情链接")}
         placeholder="https://example.com/product/..."
-        rules={[{ required: true, message: '必填' }]}
+        rules={[{ required: true, message: tr("必填") }]}
         fieldProps={{
           onChange: (e) => {
             setFormUrl(e.target.value);
@@ -326,9 +326,9 @@ export function CustomCollectModal({ open, onClose }: Props) {
       />
       <ProFormSelect
         name="ruleId"
-        label="采集规则"
+        label={tr("采集规则")}
         allowClear
-        placeholder="留空则按域名与优先级自动匹配"
+        placeholder={tr("留空则按域名与优先级自动匹配")}
         options={ruleOptions}
         fieldProps={{
           disabled: submitBlocked,
@@ -340,15 +340,13 @@ export function CustomCollectModal({ open, onClose }: Props) {
       />
       <Space style={{ marginBottom: testResult ? 8 : 16 }}>
         <Button loading={testing} disabled={submitBlocked} onClick={() => void runAccessTest()}>
-          测试采集效果
-        </Button>
+          {tr("测试采集效果")}</Button>
         <span style={{ color: 'var(--ant-color-text-secondary)', fontSize: 12 }}>
-          不提交采集任务，仅检测页面能否打开、商品信息能否识别
-        </span>
+          {tr("不提交采集任务，仅检测页面能否打开、商品信息能否识别")}</span>
       </Space>
       {testing ? (
         <div style={{ textAlign: 'center', padding: 16 }}>
-          <Spin tip="正在打开页面并检测…" />
+          <Spin tip={tr("正在打开页面并检测…")} />
         </div>
       ) : null}
       {formUrl.trim() && isLoginLikelyHost(formUrl) && !(useBrowserProfile && profileId) ? (
@@ -356,8 +354,8 @@ export function CustomCollectModal({ open, onClose }: Props) {
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
-          message="该站点建议使用已登录采集浏览器"
-          description="京东 / 淘宝 / 天猫商品页在未登录时往往看不到标题、价格和主图，采集会失败。"
+          message={tr("该站点建议使用已登录采集浏览器")}
+          description={tr("京东 / 淘宝 / 天猫商品页在未登录时往往看不到标题、价格和主图，采集会失败。")}
         />
       ) : null}
       <BrowserProfileLoginPanel
@@ -374,8 +372,8 @@ export function CustomCollectModal({ open, onClose }: Props) {
           type="error"
           showIcon
           style={{ marginTop: 12 }}
-          message="页面需要登录"
-          description="请在上方面板选择 Profile 并完成登录，然后重新测试后再提交采集任务。"
+          message={tr("页面需要登录")}
+          description={tr("请在上方面板选择 Profile 并完成登录，然后重新测试后再提交采集任务。")}
         />
       ) : null}
       {useBrowserProfile && profileId && testResult?.accessStatus !== 'login_required' ? (
@@ -383,8 +381,8 @@ export function CustomCollectModal({ open, onClose }: Props) {
           type="info"
           showIcon
           style={{ marginTop: 12 }}
-          message="已启用登录状态"
-          description="提交采集任务时将使用所选登录状态（采集浏览器中的登录信息）。"
+          message={tr("已启用登录状态")}
+          description={tr("提交采集任务时将使用所选登录状态（采集浏览器中的登录信息）。")}
         />
       ) : null}
     </ModalForm>

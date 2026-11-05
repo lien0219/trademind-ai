@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
@@ -22,6 +24,7 @@ function sumBatches(b: CollectMonitorData['batches']) {
 }
 
 export default function CollectMonitorPage() {
+  useLanguage();
   const [data, setData] = useState<CollectMonitorData | null>(null);
   const [eventDrawerOpen, setEventDrawerOpen] = useState(false);
   const [eventDrawerTaskId, setEventDrawerTaskId] = useState<string | null>(null);
@@ -67,24 +70,24 @@ export default function CollectMonitorPage() {
 
   const failureColumns: ProColumns<CollectMonitorData['recentFailures'][number]>[] = [
     {
-      title: '时间',
+      title: tr("时间"),
       dataIndex: 'updatedAt',
       width: 172,
       render: (_, row) => formatDateTime(row.updatedAt),
     },
     {
-      title: '来源',
+      title: tr("来源"),
       dataIndex: 'source',
       width: 80,
     },
     {
-      title: '链接',
+      title: tr("链接"),
       dataIndex: 'sourceUrl',
       ellipsis: true,
       copyable: true,
     },
     {
-      title: '批次',
+      title: tr("批次"),
       dataIndex: 'batchId',
       width: 120,
       ellipsis: true,
@@ -96,7 +99,7 @@ export default function CollectMonitorPage() {
         ),
     },
     {
-      title: '错误原因',
+      title: tr("错误原因"),
       dataIndex: 'errorMessage',
       ellipsis: true,
       render: (_, row) => (
@@ -108,7 +111,7 @@ export default function CollectMonitorPage() {
       ),
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 200,
       render: (_, row) => {
@@ -122,14 +125,12 @@ export default function CollectMonitorPage() {
               setEventDrawerOpen(true);
             }}
           >
-            事件
-          </Button>,
+            {tr("事件")}</Button>,
         ];
         if (row.batchId) {
           actions.push(
             <Link key="batch" to={`/collect/batches?batchId=${encodeURIComponent(row.batchId)}`}>
-              跳转批次
-            </Link>,
+              {tr("跳转批次")}</Link>,
           );
         }
         return actions;
@@ -139,35 +140,35 @@ export default function CollectMonitorPage() {
 
   const retryingColumns: ProColumns<CollectMonitorData['recentRetrying'][number]>[] = [
     {
-      title: '时间',
+      title: tr("时间"),
       dataIndex: 'updatedAt',
       width: 172,
       render: (_, row) => formatDateTime(row.updatedAt),
     },
     {
-      title: '来源',
+      title: tr("来源"),
       dataIndex: 'source',
       width: 80,
     },
     {
-      title: '链接',
+      title: tr("链接"),
       dataIndex: 'sourceUrl',
       ellipsis: true,
       copyable: true,
     },
     {
-      title: '重试',
+      title: tr("重试"),
       width: 88,
       render: (_, row) => `${row.retryCount}/${row.maxRetries}`,
     },
     {
-      title: '下次重试',
+      title: tr("下次重试"),
       dataIndex: 'nextRetryAt',
       width: 172,
       render: (_, row) => formatDateTime(row.nextRetryAt),
     },
     {
-      title: '错误摘要',
+      title: tr("错误摘要"),
       dataIndex: 'errorMessage',
       ellipsis: true,
       render: (_, row) => (
@@ -179,7 +180,7 @@ export default function CollectMonitorPage() {
       ),
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 160,
       render: (_, row) => {
@@ -193,14 +194,12 @@ export default function CollectMonitorPage() {
               setEventDrawerOpen(true);
             }}
           >
-            事件
-          </Button>,
+            {tr("事件")}</Button>,
         ];
         if (row.batchId) {
           actions.push(
             <Link key="batch" to={`/collect/batches?batchId=${encodeURIComponent(row.batchId)}`}>
-              跳转批次
-            </Link>,
+              {tr("跳转批次")}</Link>,
           );
         }
         return actions;
@@ -218,23 +217,23 @@ export default function CollectMonitorPage() {
   const batchTotal = batches ? sumBatches(batches) : 0;
 
   return (
-    <TmPageContainer title="采集监控" subTitle="查看采集任务排队情况、后台进程与采集服务状态（约每 5 秒刷新）">
+    <TmPageContainer title={tr("采集监控")} subTitle={tr("查看采集任务排队情况、后台进程与采集服务状态（约每 5 秒刷新）")}>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} lg={6}>
           <Card size="small" variant="outlined">
-            <Statistic title="排队任务数" value={q?.depth ?? '—'} suffix={q && !q.redisAvailable ? <Tag color="warning">队列不可用</Tag> : null} />
+            <Statistic title={tr("排队任务数")} value={q?.depth ?? '—'} suffix={q && !q.redisAvailable ? <Tag color="warning">{tr("队列不可用")}</Tag> : null} />
             <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
-              {q?.name ?? '—'} · {q?.redisAvailable ? '任务队列正常' : '任务队列不可用'}
+              {q?.name ?? '—'} · {q?.redisAvailable ? tr("任务队列正常") : tr("任务队列不可用")}
             </Typography.Paragraph>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card size="small" variant="outlined">
-            <Statistic title="同时执行数" value={w?.concurrency ?? '—'} />
+            <Statistic title={tr("同时执行数")} value={w?.concurrency ?? '—'} />
             <div style={{ marginTop: 8 }}>
               <Space size="small">
-                <Tag color={w?.enabled ? 'blue' : 'default'}>{w?.enabled ? '队列已启用' : '队列未启用'}</Tag>
-                <Tag color={w?.running ? 'success' : 'default'}>{w?.running ? '运行中' : '未运行'}</Tag>
+                <Tag color={w?.enabled ? 'blue' : 'default'}>{w?.enabled ? tr("队列已启用") : tr("队列未启用")}</Tag>
+                <Tag color={w?.running ? 'success' : 'default'}>{w?.running ? tr("运行中") : tr("未运行")}</Tag>
               </Space>
             </div>
           </Card>
@@ -242,18 +241,17 @@ export default function CollectMonitorPage() {
         <Col xs={24} sm={12} lg={6}>
           <Card size="small" variant="outlined">
             <Statistic
-              title="任务 pending / running / failed"
+              title={tr("任务 pending / running / failed")}
               value={`${((tasks?.pending ?? 0) + (tasks?.retryingCount ?? tasks?.retrying ?? 0)).toString()} / ${(tasks?.running ?? 0).toString()} / ${(tasks?.failed ?? 0).toString()}`}
             />
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              排队数含等待重试
-            </Typography.Text>
+              {tr("排队数含等待重试")}</Typography.Text>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card size="small" variant="outlined">
-            <div style={{ marginBottom: 4 }}>采集服务</div>
-            <Badge status={col?.reachable ? 'success' : 'error'} text={col?.reachable ? '可达' : '不可达'} />
+            <div style={{ marginBottom: 4 }}>{tr("采集服务")}</div>
+            <Badge status={col?.reachable ? 'success' : 'error'} text={col?.reachable ? tr("可达") : tr("不可达")} />
             <Typography.Paragraph ellipsis type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
               {col?.baseUrl ?? '—'}
             </Typography.Paragraph>
@@ -263,21 +261,21 @@ export default function CollectMonitorPage() {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} md={12}>
-          <Card size="small" variant="outlined" title="自动重试">
+          <Card size="small" variant="outlined" title={tr("自动重试")}>
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Space wrap>
-                <Tag color={r?.enabled ? 'success' : 'default'}>{r?.enabled ? '已开启' : '已关闭'}</Tag>
-                <Tag>默认最大次数 {r?.maxRetries ?? '—'}</Tag>
+                <Tag color={r?.enabled ? 'success' : 'default'}>{r?.enabled ? tr("已开启") : tr("已关闭")}</Tag>
+                <Tag>{tr("默认最大次数")}{r?.maxRetries ?? '—'}</Tag>
                 <Tag>
-                  阶梯基准 {r?.baseDelaySeconds ?? '—'}s / 上限 {r?.maxDelaySeconds ?? '—'}s
+                  {tr("阶梯基准")}{r?.baseDelaySeconds ?? '—'}{tr("s / 上限")}{r?.maxDelaySeconds ?? '—'}s
                 </Tag>
               </Space>
               <Typography.Text>
-                已到点待入队：<strong>{r?.nextRetryDueCount ?? 0}</strong>
+                {tr("已到点待入队：")}<strong>{r?.nextRetryDueCount ?? 0}</strong>
                 {r?.oldestRetryingSeconds != null ? (
                   <>
                     {' '}
-                    · 等待重试状态最久约 <strong>{r.oldestRetryingSeconds}s</strong>
+                    {tr("· 等待重试状态最久约")}<strong>{r.oldestRetryingSeconds}s</strong>
                   </>
                 ) : null}
               </Typography.Text>
@@ -286,16 +284,16 @@ export default function CollectMonitorPage() {
         </Col>
       </Row>
       {q?.oldestPendingSeconds != null && (
-        <ProCard title="队列积压提示" variant="outlined" style={{ marginBottom: 16 }} size="small">
+        <ProCard title={tr("队列积压提示")} variant="outlined" style={{ marginBottom: 16 }} size="small">
           <Typography.Text>
-            最早 pending / retrying 任务已等待约 <strong>{q.oldestPendingSeconds}s</strong>
+            {tr("最早 pending / retrying 任务已等待约")}<strong>{q.oldestPendingSeconds}s</strong>
           </Typography.Text>
         </ProCard>
       )}
 
-      <ProCard title="任务状态分布" variant="outlined" style={{ marginBottom: 16 }} size="small">
+      <ProCard title={tr("任务状态分布")} variant="outlined" style={{ marginBottom: 16 }} size="small">
         {!tasks || taskTotal === 0 ? (
-          <Typography.Text type="secondary">暂无任务记录</Typography.Text>
+          <Typography.Text type="secondary">{tr("暂无任务记录")}</Typography.Text>
         ) : (
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             {(
@@ -328,9 +326,9 @@ export default function CollectMonitorPage() {
         )}
       </ProCard>
 
-      <ProCard title="批次状态分布" variant="outlined" style={{ marginBottom: 16 }} size="small">
+      <ProCard title={tr("批次状态分布")} variant="outlined" style={{ marginBottom: 16 }} size="small">
         {!batches || batchTotal === 0 ? (
-          <Typography.Text type="secondary">暂无批次记录</Typography.Text>
+          <Typography.Text type="secondary">{tr("暂无批次记录")}</Typography.Text>
         ) : (
           <Space wrap size="middle">
             {(
@@ -353,7 +351,7 @@ export default function CollectMonitorPage() {
         )}
       </ProCard>
 
-      <ProCard title="最近等待重试（10 条）" variant="outlined" style={{ marginBottom: 16 }} size="small">
+      <ProCard title={tr("最近等待重试（10 条）")} variant="outlined" style={{ marginBottom: 16 }} size="small">
         <ProTable<CollectMonitorData['recentRetrying'][number]>
           rowKey="id"
           search={false}
@@ -365,7 +363,7 @@ export default function CollectMonitorPage() {
         />
       </ProCard>
 
-      <ProCard title="最近失败任务（10 条）" variant="outlined" size="small">
+      <ProCard title={tr("最近失败任务（10 条）")} variant="outlined" size="small">
         <ProTable<CollectMonitorData['recentFailures'][number]>
           rowKey="id"
           search={false}

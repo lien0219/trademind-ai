@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr, trFormat } from '@/i18n';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
@@ -49,13 +51,14 @@ type RateForm = RatePayload & { status: 'active' | 'inactive' };
 const money = (minor: number, currency: string) =>
   `${currency} ${(minor / 100).toFixed(2)}`;
 const statusTag = (status: string) =>
-  status === 'active' ? <Tag color="success">启用</Tag> : <Tag>停用</Tag>;
+  status === 'active' ? <Tag color="success">{tr("启用")}</Tag> : <Tag>{tr("停用")}</Tag>;
 const errorText = (error: unknown, fallback: string) => {
   const value = (error as Error)?.message?.trim();
   return value && /[\u3400-\u9fff]/.test(value) ? value : fallback;
 };
 
 export default function LogisticsChannelsPage() {
+  useLanguage();
   const { can, readonly } = usePermission();
   const canManage = !readonly && can(PERMISSIONS.LOGISTICS_MANAGE);
   const [channelForm] = Form.useForm<ChannelForm>();
@@ -163,19 +166,19 @@ export default function LogisticsChannelsPage() {
           carrier: values.carrier.trim(),
           status: values.status,
         });
-        message.success('物流渠道已更新');
+        message.success(tr("物流渠道已更新"));
       } else {
         await createShippingChannel({
           code: values.code.trim().toUpperCase(),
           name: values.name.trim(),
           carrier: values.carrier.trim(),
         });
-        message.success('物流渠道已创建');
+        message.success(tr("物流渠道已创建"));
       }
       setChannelModal(false);
       await load();
     } catch (nextError) {
-      message.error(errorText(nextError, '物流渠道保存失败，请刷新后重试。'));
+      message.error(tr(errorText(nextError, tr('物流渠道保存失败，请刷新后重试。'))));
     } finally {
       setSubmitting(false);
     }
@@ -206,16 +209,16 @@ export default function LogisticsChannelsPage() {
           expectedRevision: editingRate.revision,
           status: values.status,
         });
-        message.success('运费模板已更新');
+        message.success(tr("运费模板已更新"));
       } else {
         await createShippingRateTemplate(payload);
-        message.success('运费模板已创建');
+        message.success(tr("运费模板已创建"));
       }
       setRateModal(false);
       await load();
     } catch (nextError) {
       message.error(
-        errorText(nextError, '运费模板保存失败，请检查重量区间和引用配置。'),
+        tr(errorText(nextError, tr('运费模板保存失败，请检查重量区间和引用配置。'))),
       );
     } finally {
       setSubmitting(false);
@@ -223,24 +226,24 @@ export default function LogisticsChannelsPage() {
   };
 
   const channelColumns: ProColumns<ShippingChannel>[] = [
-    { title: '渠道编码', dataIndex: 'code', width: 140, copyable: true },
-    { title: '渠道名称', dataIndex: 'name', minWidth: 180, ellipsis: true },
-    { title: '承运商', dataIndex: 'carrier', minWidth: 160, ellipsis: true },
+    { title: tr("渠道编码"), dataIndex: 'code', width: 140, copyable: true },
+    { title: tr("渠道名称"), dataIndex: 'name', minWidth: 180, ellipsis: true },
+    { title: tr("承运商"), dataIndex: 'carrier', minWidth: 160, ellipsis: true },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 90,
       render: (_, row) => statusTag(row.status),
     },
-    { title: '版本', dataIndex: 'revision', width: 80 },
+    { title: tr("版本"), dataIndex: 'revision', width: 80 },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 90,
       render: (_, row) =>
         canManage ? (
           <Button type="link" size="small" onClick={() => openChannel(row)}>
-            编辑
+            {tr("编辑")}
           </Button>
         ) : (
           '—'
@@ -248,61 +251,61 @@ export default function LogisticsChannelsPage() {
     },
   ];
   const rateColumns: ProColumns<ShippingRateTemplate>[] = [
-    { title: '模板编码', dataIndex: 'code', width: 140, copyable: true },
-    { title: '模板名称', dataIndex: 'name', minWidth: 180, ellipsis: true },
+    { title: tr("模板编码"), dataIndex: 'code', width: 140, copyable: true },
+    { title: tr("模板名称"), dataIndex: 'name', minWidth: 180, ellipsis: true },
     {
-      title: '渠道',
+      title: tr("渠道"),
       width: 180,
       render: (_, row) =>
         [row.channelCode, row.channelName].filter(Boolean).join(' · '),
     },
     {
-      title: '仓库',
+      title: tr("仓库"),
       width: 150,
       render: (_, row) =>
         row.warehouseId
           ? [row.warehouseCode, row.warehouseName]
               .filter(Boolean)
               .join(' · ') || row.warehouseId
-          : '全部仓库',
+          : tr("全部仓库"),
     },
     {
-      title: '目的地',
+      title: tr("目的地"),
       width: 180,
       render: (_, row) =>
         [
           row.countryCode,
           row.region,
-          row.postalCodePrefix && `邮编 ${row.postalCodePrefix}*`,
+          row.postalCodePrefix && trFormat("邮编 {prefix}*", { prefix: row.postalCodePrefix }),
         ]
           .filter(Boolean)
           .join(' · '),
     },
     {
-      title: '重量（克）',
+      title: tr("重量（克）"),
       width: 150,
       render: (_, row) => `${row.minWeightGrams}–${row.maxWeightGrams}`,
     },
     {
-      title: '计费',
+      title: tr("计费"),
       width: 230,
       render: (_, row) =>
-        `${money(row.baseFeeMinor, row.currency)} + 每起始千克 ${money(row.perKilogramFeeMinor, row.currency)}`,
+        trFormat("{value0} + 每起始千克 {value1}", { value0: String(money(row.baseFeeMinor, row.currency)), value1: String(money(row.perKilogramFeeMinor, row.currency)) }),
     },
     {
-      title: '状态',
+      title: tr("状态"),
       dataIndex: 'status',
       width: 90,
       render: (_, row) => statusTag(row.status),
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 90,
       render: (_, row) =>
         canManage ? (
           <Button type="link" size="small" onClick={() => openRate(row)}>
-            编辑
+            {tr("编辑")}
           </Button>
         ) : (
           '—'
@@ -313,8 +316,8 @@ export default function LogisticsChannelsPage() {
   return (
     <PermissionGuard require={PERMISSIONS.LOGISTICS_VIEW} showForbiddenPage>
       <TmPageContainer
-        title="物流渠道与运费模板"
-        subTitle="维护本地渠道和确定性计费规则。试算结果仅供人工确认，不连接物流商、不申请运单或面单。"
+        title={tr("物流渠道与运费模板")}
+        subTitle={tr("维护本地渠道和确定性计费规则。试算结果仅供人工确认，不连接物流商、不申请运单或面单。")}
         extra={
           <TmPageHeaderExtra>
             <Button
@@ -322,7 +325,7 @@ export default function LogisticsChannelsPage() {
               loading={loading}
               onClick={() => void load()}
             >
-              刷新
+              {tr("刷新")}
             </Button>
           </TmPageHeaderExtra>
         }
@@ -331,20 +334,20 @@ export default function LogisticsChannelsPage() {
           <Alert
             showIcon
             type="info"
-            message="当前账号只能查看物流配置，不能创建或修改。"
+            message={tr("当前账号只能查看物流配置，不能创建或修改。")}
           />
         ) : null}
         {error ? (
           <ErrorAlert
-            title={error}
-            actionHint={<Button onClick={() => void load()}>重新加载</Button>}
+            title={tr(error)}
+            actionHint={<Button onClick={() => void load()}>{tr("重新加载")}</Button>}
           />
         ) : null}
         <Tabs
           items={[
             {
               key: 'channels',
-              label: `物流渠道（${channels.length}）`,
+              label: trFormat("物流渠道（{value0}）", { value0: channels.length }),
               children: (
                 <TmProTable<ShippingChannel>
                   rowKey="id"
@@ -364,18 +367,18 @@ export default function LogisticsChannelsPage() {
                       disabled={!canManage}
                       onClick={() => openChannel()}
                     >
-                      新建渠道
+                      {tr("新建渠道")}
                     </Button>,
                   ]}
                   locale={{
-                    emptyText: error ? '渠道列表暂不可用' : '暂无物流渠道',
+                    emptyText: error ? tr('渠道列表暂不可用') : tr('暂无物流渠道'),
                   }}
                 />
               ),
             },
             {
               key: 'rates',
-              label: `运费模板（${rates.length}）`,
+              label: trFormat("运费模板（{value0}）", { value0: rates.length }),
               children: (
                 <TmProTable<ShippingRateTemplate>
                   rowKey="id"
@@ -395,13 +398,13 @@ export default function LogisticsChannelsPage() {
                       disabled={!canManage || activeChannels.length === 0}
                       onClick={() => openRate()}
                     >
-                      新建模板
+                      {tr("新建模板")}
                     </Button>,
                   ]}
                   locale={{
                     emptyText: error
-                      ? '模板列表暂不可用'
-                      : '暂无运费模板，请先创建启用渠道。',
+                      ? tr('模板列表暂不可用')
+                      : tr('暂无运费模板，请先创建启用渠道。'),
                   }}
                 />
               ),
@@ -412,8 +415,8 @@ export default function LogisticsChannelsPage() {
         <Modal
           title={
             editingChannel
-              ? `编辑渠道 · ${editingChannel.code}`
-              : '新建物流渠道'
+              ? trFormat("编辑渠道 · {value0}", { value0: String(editingChannel.code) })
+              : tr('新建物流渠道')
           }
           open={channelModal}
           confirmLoading={submitting}
@@ -428,45 +431,45 @@ export default function LogisticsChannelsPage() {
             onFinish={(values) => void saveChannel(values)}
           >
             <Form.Item
-              label="渠道编码"
+              label={tr("渠道编码")}
               name="code"
               rules={[
                 { required: true },
                 {
                   pattern: /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/,
-                  message: '仅支持字母、数字、下划线和短横线',
+                  message: tr("仅支持字母、数字、下划线和短横线"),
                 },
               ]}
             >
               <Input
                 disabled={Boolean(editingChannel)}
                 maxLength={64}
-                placeholder="例如 SF_STANDARD"
+                placeholder={tr("例如 SF_STANDARD")}
               />
             </Form.Item>
             <Form.Item
-              label="渠道名称"
+              label={tr("渠道名称")}
               name="name"
               rules={[{ required: true, whitespace: true }]}
             >
               <Input maxLength={160} />
             </Form.Item>
             <Form.Item
-              label="承运商"
+              label={tr("承运商")}
               name="carrier"
               rules={[{ required: true, whitespace: true }]}
             >
               <Input
                 maxLength={128}
-                placeholder="提交出库复核时使用的承运商快照"
+                placeholder={tr("提交出库复核时使用的承运商快照")}
               />
             </Form.Item>
             {editingChannel ? (
-              <Form.Item label="状态" name="status">
+              <Form.Item label={tr("状态")} name="status">
                 <Radio.Group
                   options={[
-                    { label: '启用', value: 'active' },
-                    { label: '停用', value: 'inactive' },
+                    { label: tr("启用"), value: 'active' },
+                    { label: tr("停用"), value: 'inactive' },
                   ]}
                 />
               </Form.Item>
@@ -477,7 +480,7 @@ export default function LogisticsChannelsPage() {
         <Modal
           width={760}
           title={
-            editingRate ? `编辑运费模板 · ${editingRate.code}` : '新建运费模板'
+            editingRate ? trFormat("编辑运费模板 · {value0}", { value0: String(editingRate.code) }) : tr('新建运费模板')
           }
           open={rateModal}
           confirmLoading={submitting}
@@ -493,7 +496,7 @@ export default function LogisticsChannelsPage() {
           >
             <Space wrap size="middle" className="tm-logistics-rate-fields">
               <Form.Item
-                label="物流渠道"
+                label={tr("物流渠道")}
                 name="channelId"
                 rules={[{ required: true }]}
               >
@@ -505,11 +508,11 @@ export default function LogisticsChannelsPage() {
                   }))}
                 />
               </Form.Item>
-              <Form.Item label="适用仓库" name="warehouseId">
+              <Form.Item label={tr("适用仓库")} name="warehouseId">
                 <Select
                   allowClear
                   className="tm-logistics-field-lg"
-                  placeholder="全部仓库"
+                  placeholder={tr("全部仓库")}
                   options={warehouses
                     .filter((row) => row.status === 'active')
                     .map((row) => ({
@@ -519,7 +522,7 @@ export default function LogisticsChannelsPage() {
                 />
               </Form.Item>
               <Form.Item
-                label="模板编码"
+                label={tr("模板编码")}
                 name="code"
                 rules={[
                   { required: true },
@@ -532,76 +535,76 @@ export default function LogisticsChannelsPage() {
                 />
               </Form.Item>
               <Form.Item
-                label="模板名称"
+                label={tr("模板名称")}
                 name="name"
                 rules={[{ required: true, whitespace: true }]}
               >
                 <Input className="tm-logistics-field-lg" maxLength={160} />
               </Form.Item>
               <Form.Item
-                label="国家/地区代码"
+                label={tr("国家/地区代码")}
                 name="countryCode"
                 rules={[
                   { required: true },
-                  { pattern: /^[A-Za-z]{2}$/, message: '请输入 2 位代码' },
+                  { pattern: /^[A-Za-z]{2}$/, message: tr("请输入 2 位代码") },
                 ]}
               >
                 <Input className="tm-logistics-field-sm" maxLength={2} />
               </Form.Item>
-              <Form.Item label="省/州（可选）" name="region">
+              <Form.Item label={tr("省/州（可选）")} name="region">
                 <Input className="tm-logistics-field-md" maxLength={120} />
               </Form.Item>
-              <Form.Item label="邮编前缀（可选）" name="postalCodePrefix">
+              <Form.Item label={tr("邮编前缀（可选）")} name="postalCodePrefix">
                 <Input className="tm-logistics-field-md" maxLength={32} />
               </Form.Item>
               <Form.Item
-                label="起始重量（克）"
+                label={tr("起始重量（克）")}
                 name="minWeightGrams"
                 rules={[{ required: true }]}
               >
                 <InputNumber min={0} max={4_999_999} precision={0} />
               </Form.Item>
               <Form.Item
-                label="最大重量（克）"
+                label={tr("最大重量（克）")}
                 name="maxWeightGrams"
                 rules={[{ required: true }]}
               >
                 <InputNumber min={1} max={5_000_000} precision={0} />
               </Form.Item>
               <Form.Item
-                label="基础费（分）"
+                label={tr("基础费（分）")}
                 name="baseFeeMinor"
                 rules={[{ required: true }]}
               >
                 <InputNumber min={0} precision={0} />
               </Form.Item>
               <Form.Item
-                label="续重每千克（分）"
+                label={tr("续重每千克（分）")}
                 name="perKilogramFeeMinor"
                 rules={[{ required: true }]}
               >
                 <InputNumber min={0} precision={0} />
               </Form.Item>
               <Form.Item
-                label="币种"
+                label={tr("币种")}
                 name="currency"
                 rules={[{ required: true }, { pattern: /^[A-Za-z]{3}$/ }]}
               >
                 <Input className="tm-logistics-field-xs" maxLength={3} />
               </Form.Item>
               <Form.Item
-                label="优先级"
+                label={tr("优先级")}
                 name="priority"
                 rules={[{ required: true }]}
               >
                 <InputNumber min={0} max={999} precision={0} />
               </Form.Item>
               {editingRate ? (
-                <Form.Item label="状态" name="status">
+                <Form.Item label={tr("状态")} name="status">
                   <Radio.Group
                     options={[
-                      { label: '启用', value: 'active' },
-                      { label: '停用', value: 'inactive' },
+                      { label: tr("启用"), value: 'active' },
+                      { label: tr("停用"), value: 'inactive' },
                     ]}
                   />
                 </Form.Item>
@@ -610,7 +613,7 @@ export default function LogisticsChannelsPage() {
             <Alert
               showIcon
               type="info"
-              message="基础费覆盖起始重量；超出部分按每个起始千克计费。国家、区域、邮编和重量必须同时匹配才会产生候选报价。"
+              message={tr("基础费覆盖起始重量；超出部分按每个起始千克计费。国家、区域、邮编和重量必须同时匹配才会产生候选报价。")}
             />
           </Form>
         </Modal>

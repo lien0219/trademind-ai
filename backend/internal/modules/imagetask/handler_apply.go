@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -22,6 +23,9 @@ type applyBody struct {
 func (h *Handler) Apply(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
+		return
+	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermAIImageApply) {
 		return
 	}
 	taskID, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -75,6 +79,9 @@ func (h *Handler) ListItems(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
 		return
 	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
 	taskID, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -92,6 +99,9 @@ func (h *Handler) ListItems(c *gin.Context) {
 func (h *Handler) DeleteItem(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
+		return
+	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermAIImageApply) {
 		return
 	}
 	taskID, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

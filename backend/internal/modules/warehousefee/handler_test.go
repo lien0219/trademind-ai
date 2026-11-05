@@ -14,7 +14,9 @@ import (
 	"github.com/google/uuid"
 	adminmodel "github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"gorm.io/gorm"
 )
 
@@ -24,7 +26,7 @@ func TestWarehouseFeePreviewRequiresManageAndStoreOperationScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&adminmodel.AdminUser{}, &adminmodel.UserStorePermission{}); err != nil {
+	if err := db.AutoMigrate(&adminmodel.AdminUser{}, &adminmodel.UserStorePermission{}, &shop.Shop{}); err != nil {
 		t.Fatal(err)
 	}
 	operator := adminmodel.AdminUser{TenantID: 7, Username: "fee-operator", PasswordHash: "x", Role: "operator", Status: adminmodel.StatusActive}
@@ -36,6 +38,9 @@ func TestWarehouseFeePreviewRequiresManageAndStoreOperationScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	shopID := uuid.New()
+	if err := db.Create(&shop.Shop{Base: model.Base{ID: shopID}, TenantID: 7, Platform: "manual", ShopName: "Test fee shop", Status: "active", AuthStatus: "authorized"}).Error; err != nil {
+		t.Fatal(err)
+	}
 	if err := db.Create(&adminmodel.UserStorePermission{UserID: operator.ID, StoreID: shopID, Platform: "manual", PermissionScope: adminmodel.StorePermScopeOperate}).Error; err != nil {
 		t.Fatal(err)
 	}

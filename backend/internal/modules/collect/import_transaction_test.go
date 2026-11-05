@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
@@ -27,6 +28,7 @@ func openCollectImportTestDB(t *testing.T) *gorm.DB {
 		&product.Product{},
 		&product.ProductImage{},
 		&product.ProductSKU{},
+		&tenantconfig.Setting{},
 	))
 	return db
 }

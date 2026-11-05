@@ -1,0 +1,388 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
+import { CodeOutlined, ReloadOutlined, SaveOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { Link } from '@umijs/max';
+import { Alert, Button, Descriptions, Form, Input, Modal, Popconfirm, Space, Spin, Tag, Typography, message } from 'antd';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActionBar, ErrorAlert, FormGrid, FormGridFull, FormGridItem, SectionCard, StatusTag, TmPageContainer } from '@/components/ui';
+import { usePermission } from '@/hooks/usePermission';
+import { getCurrentTenant, updateCurrentTenant, type TenantDetail, type TenantMetadataBody } from '@/services/tenants';
+import { getBusinessSettings } from '@/services/tenantBusinessSettings';
+import { formatDateTime } from '@/utils/formatTime';
+import { PERMISSIONS } from '@/utils/permission';
+import { TENANT_SETTINGS_EXAMPLE, formatTenantSettings, inspectTenantSettings, summarizeTenantSettings } from '@/utils/tenantSettings';
+import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
+import './index.less';
+
+const { Text } = Typography;
+
+function localizeConfigSummary(label: string): string {
+  const count = /^已保存 (\d+) 项扩展字段$/.exec(label);
+  if (count) return tr('已保存 {count} 项扩展字段').replace('{count}', count[1]);
+  return tr(label);
+}
+
+
+type TenantProfileForm = {
+  name: string;
+  legalName?: string;
+  description?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+};
+
+const TENANT_STATUS_LABELS: Record<string, string> = {
+  get pending() { return tr("待开通"); },
+  get active() { return tr("正常"); },
+  get suspended() { return tr("已暂停"); },
+  get archived() { return tr("已归档"); },
+  get closed() { return tr("已关闭"); },
+};
+
+export default function TenantSettingsPage() {
+  useLanguage();
+  const { can } = usePermission();
+  const canEdit = can(PERMISSIONS.SETTINGS_MANAGE);
+  const [detail, setDetail] = useState<TenantDetail | null>(null);
+  const [brand, setBrand] = useState<{displayName?:string;logoUrl?:string;labels?:string[]}|null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const [form] = Form.useForm<TenantProfileForm>();
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [advancedText, setAdvancedText] = useState('{}');
+  const [advancedError, setAdvancedError] = useState<string | null>(null);
+  const [showExample, setShowExample] = useState(false);
+  const readSequence = useRef(0);
+
+  const load = useCallback(async () => {
+    if (submittingRef.current) return;
+    const sequence = ++readSequence.current;
+    const context = captureTenantContext();
+    const isCurrent = () => sequence === readSequence.current && isTenantContextCurrent(context);
+    setLoading(true);
+    setError(null);
+    // Drop the previous tenant's information before the next request.
+    setDetail(null);
+    setBrand(null);
+    try {
+      const result = await getCurrentTenant();
+      if (!isCurrent()) return;
+      setDetail(result);
+      try {
+        const branding = await getBusinessSettings('branding');
+        if (isCurrent()) setBrand(branding.values);
+      } catch {
+        if (isCurrent()) setBrand(null);
+      }
+      if (!isCurrent()) return;
+      setAdvancedOpen(false);
+      setAdvancedError(null);
+      setShowExample(false);
+    } catch (requestError) {
+      if (isCurrent()) setError((requestError as Error)?.message || tr("企业资料加载失败，请重试"));
+    } finally {
+      if (sequence === readSequence.current) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    return () => { ++readSequence.current; };
+  }, [load]);
+
+  // The editor only mounts after tenant data arrives and is not rendered for
+  // read-only members. Populate the form after that commit; writing into the
+  // unconnected Form.useForm instance during load() causes an AntD warning.
+  useEffect(() => {
+    if (!canEdit || !detail) return;
+    form.setFieldsValue({
+      name: detail.tenant.name,
+      legalName: detail.tenant.legalName || '',
+      description: detail.tenant.description || '',
+      contactEmail: detail.tenant.contactEmail || '',
+      contactPhone: detail.tenant.contactPhone || '',
+    });
+  }, [canEdit, detail, form]);
+
+  // Profile saves deliberately omit settings. A stale, unopened JSON editor
+  // must never overwrite independent changes to the tenant's advanced options.
+  const saveProfile = async (values: TenantProfileForm) => {
+    if (!canEdit || !detail || submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    const body: TenantMetadataBody = {
+      name: values.name.trim(),
+      legalName: values.legalName?.trim() || undefined,
+      description: values.description?.trim() || undefined,
+      contactEmail: values.contactEmail?.trim() || undefined,
+      contactPhone: values.contactPhone?.trim() || undefined,
+      version: detail.tenant.version,
+    };
+    const context = captureTenantContext();
+    try {
+      const tenant = await updateCurrentTenant(body);
+      if (!isTenantContextCurrent(context)) return;
+      setDetail((current) => current ? { ...current, tenant } : current);
+      message.success(tr("企业资料已保存"));
+    } catch (requestError) {
+      if (isTenantContextCurrent(context))
+        message.error((requestError as Error)?.message || tr('保存失败，请刷新后重试'));
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
+
+  const openAdvanced = () => {
+    if (!canEdit || !detail || submittingRef.current) return;
+    setAdvancedText(formatTenantSettings(detail.tenant.settings || '{}'));
+    setAdvancedError(null);
+    setShowExample(false);
+    setAdvancedOpen(true);
+  };
+
+  const updateAdvancedText = (value: string) => {
+    setAdvancedText(value);
+    setAdvancedError(null);
+  };
+
+  const formatAdvanced = () => {
+    const result = inspectTenantSettings(advancedText);
+    if (!result.ok) {
+      setAdvancedError(result.error);
+      return;
+    }
+    setAdvancedText(JSON.stringify(result.value, null, 2));
+    setAdvancedError(null);
+  };
+
+  const saveAdvanced = async () => {
+    if (!canEdit || !detail || submittingRef.current) return;
+    const result = inspectTenantSettings(advancedText);
+    if (!result.ok) {
+      setAdvancedError(result.error);
+      return;
+    }
+    submittingRef.current = true;
+    setSubmitting(true);
+    const tenant = detail.tenant;
+    // The backend update contract writes profile fields on every call.
+    // Use the last loaded values, not unsaved edits in the separate form.
+    const body: TenantMetadataBody = {
+      name: tenant.name,
+      legalName: tenant.legalName,
+      description: tenant.description,
+      contactEmail: tenant.contactEmail,
+      contactPhone: tenant.contactPhone,
+      settings: JSON.stringify(result.value),
+      version: tenant.version,
+    };
+    const context = captureTenantContext();
+    try {
+      const updated = await updateCurrentTenant(body);
+      if (!isTenantContextCurrent(context)) return;
+      setDetail((current) => current ? { ...current, tenant: updated } : current);
+      setAdvancedOpen(false);
+      setAdvancedError(null);
+      message.success(tr("企业高级配置已保存"));
+    } catch (requestError) {
+      if (isTenantContextCurrent(context))
+        message.error((requestError as Error)?.message || tr('保存失败；请刷新以避免覆盖其他管理员的更改'));
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
+
+  const rootWorkspace = detail?.tenant.code === 'root-workspace';
+  const configSummary = summarizeTenantSettings(detail?.tenant.settings || '{}');
+
+  return (
+    <TmPageContainer
+      title={rootWorkspace ? tr("Root 工作台信息") : tr("企业信息与设置")}
+      subTitle={rootWorkspace ? tr("系统自动维护的业务工作空间，不等同于平台全局配置。") : undefined}
+      extra={[<Button key="refresh" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>]}
+    >
+      {error ? <ErrorAlert title={tr("企业资料加载失败")} actionHint={error} action={<Button type="link" onClick={() => void load()}>{tr("重试")}</Button>} /> : null}
+      {loading && !detail ? (
+        <SectionCard><Spin tip={tr("正在加载企业资料")}><div style={{ minHeight: 96 }} /></Spin></SectionCard>
+      ) : detail ? (
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          {rootWorkspace ? (
+            <Alert
+              type="info"
+              showIcon
+              message={tr("这是 Root 专属业务工作空间")}
+              description={tr("企业级资料和扩展选项只作用于这个工作空间；全平台运行参数请到「设置 → 系统设置」中管理。此处 JSON 不控制 Root 权限。")}
+            />
+          ) : null}
+          <SectionCard title={brand?.displayName || detail.tenant.name} description={detail.tenant.description || undefined} headerExtra={!canEdit ? <Tag>{tr("当前组织")}</Tag> : undefined}>
+            {brand?.logoUrl ? <div style={{marginBottom:16}}>
+              <img alt={tr("企业 Logo")} src={brand.logoUrl} loading="lazy" referrerPolicy="no-referrer" style={{maxHeight:60,maxWidth:180,objectFit:'contain'}}/>
+            </div> : null}
+            {brand?.labels?.length ? <div style={{marginBottom:12}}>
+              <Space size={[6,6]} wrap>{brand.labels.map(label=><Tag key={label}>{label}</Tag>)}</Space>
+            </div> : null}
+            <Descriptions column={{ xs: 1, sm: 2, md: 3 }} size="small">
+              <Descriptions.Item label={tr("企业标识")}>{detail.tenant.code}</Descriptions.Item>
+              <Descriptions.Item label={tr("企业状态")}><StatusTag status={detail.tenant.status} text={tr(TENANT_STATUS_LABELS[detail.tenant.status] || detail.tenant.status)} /></Descriptions.Item>
+              <Descriptions.Item label={tr("企业 ID")}>{detail.tenant.id}</Descriptions.Item>
+              <Descriptions.Item label={tr("成员数")}>{detail.memberCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("店铺数")}>{detail.shopCount}</Descriptions.Item>
+              <Descriptions.Item label={tr("创建时间")}>{formatDateTime(detail.tenant.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label={tr("法定主体")}>{detail.tenant.legalName || '—'}</Descriptions.Item>
+              <Descriptions.Item label={tr("联系邮箱")}>{detail.tenant.contactEmail || '—'}</Descriptions.Item>
+              <Descriptions.Item label={tr("联系电话")}>{detail.tenant.contactPhone || '—'}</Descriptions.Item>
+            </Descriptions>
+          </SectionCard>
+
+          {canEdit ? <><SectionCard
+            title={rootWorkspace ? tr("工作台资料") : tr("企业基本资料")}
+            description={tr("常用资料直接填写；保存不会修改高级 JSON 配置。并发修改需刷新后重试。")}
+          >
+            <Form className="tm-tenant-settings__profile" form={form} layout="vertical" onFinish={saveProfile} disabled={!canEdit || submitting}>
+              <FormGrid>
+              <FormGridItem>
+              <Form.Item name="name" label={rootWorkspace ? tr("工作台名称") : tr("企业名称")} rules={[{ required: true, message: tr("请输入名称") }, { max: 120, message: tr("名称不能超过 120 个字符") }]}>
+                <Input maxLength={120} />
+              </Form.Item>
+              </FormGridItem>
+              <FormGridItem>
+              <Form.Item name="legalName" label={tr("法定主体名称")}><Input maxLength={160} placeholder={tr("选填")} /></Form.Item>
+              </FormGridItem>
+              <FormGridFull>
+              <Form.Item name="description" label={tr("企业说明")}><Input.TextArea rows={3} maxLength={500} showCount placeholder={tr("描述该企业的用途或经营范围（选填）")} /></Form.Item>
+              </FormGridFull>
+              <FormGridItem>
+                <Form.Item name="contactEmail" label={tr("联系邮箱")} rules={[{ type: 'email', message: tr("请输入有效邮箱") }]}><Input placeholder={tr("选填")} /></Form.Item>
+              </FormGridItem>
+              <FormGridItem>
+                <Form.Item name="contactPhone" label={tr("联系电话")}><Input maxLength={40} placeholder={tr("选填")} /></Form.Item>
+              </FormGridItem>
+              </FormGrid>
+              {canEdit ? (
+                <ActionBar><Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={submitting} disabled={submitting}>{tr("保存基本资料")}</Button></ActionBar>
+              ) : null}
+            </Form>
+          </SectionCard>
+
+          <SectionCard title={tr("企业业务配置")} headerExtra={<Link to="/tenant/business-settings">{tr("进入企业业务配置")}</Link>}>
+              <Typography.Text type="secondary">{tr("新建业务任务会根据当前企业的有效规则执行；企业资料与全局平台配置互不影响。")}</Typography.Text>
+          </SectionCard>
+          <SectionCard
+            title={tr("开发者扩展元数据")}
+            description={tr("仅存储兼容性扩展 JSON；不再作为业务配置入口。")}
+            headerExtra={canEdit ? <Button icon={<CodeOutlined />} onClick={openAdvanced} disabled={submitting}>{tr("编辑高级配置")}</Button> : <Tag>{tr("仅管理员可编辑")}</Tag>}
+          >
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <Space wrap>
+                <Tag color={configSummary.valid ? 'default' : 'warning'}>{localizeConfigSummary(configSummary.label)}</Tag>
+                <Text type="secondary">{tr("当前设置项仅用于存储企业扩展数据，不会自动启用功能、改变权限或覆盖 .env。")}</Text>
+              </Space>
+              <Alert
+                type="info"
+                showIcon
+                message={tr("系统尚未为这些扩展字段提供统一的业务开关。请通过各功能页面配置已经支持的选项；仅在明确知道字段用途时使用高级编辑。")}
+              />
+            </Space>
+          </SectionCard>
+
+          <Modal
+            title={tr("编辑企业高级配置")}
+            open={advancedOpen && canEdit}
+            onCancel={() => { if (!submitting) { setAdvancedOpen(false); setAdvancedError(null); } }}
+            onOk={() => { void saveAdvanced(); }}
+            okText={tr("保存高级配置")}
+            okButtonProps={{ disabled: submitting || !canEdit }}
+            confirmLoading={submitting}
+            maskClosable={false}
+            width={720}
+            destroyOnHidden
+          >
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <Alert
+                type="warning"
+                showIcon
+                message={tr("仅供高级管理员使用")}
+                description={tr("这里只允许普通企业扩展选项，不允许密码、API Key、Token、Cookie 或私钥。Root 权限和平台配置不由此控制。保存会增加企业版本号。")}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                <label htmlFor="tenant-advanced-json">{tr("扩展设置（JSON 对象）")}</label>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<QuestionCircleOutlined />}
+                  aria-expanded={showExample}
+                  aria-controls="tenant-settings-example"
+                  onClick={() => setShowExample((previous) => !previous)}
+                >
+                  {showExample ? tr("收起填写示例") : tr("查看填写示例")}
+                </Button>
+              </div>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {tr('没有额外配置请保留 {}。键名和文本必须使用英文双引号；不能写注释、尾随逗号。')}
+              </Text>
+              {showExample ? (
+                <div
+                  id="tenant-settings-example"
+                  style={{
+                    border: '1px solid var(--ant-color-border-secondary)',
+                    background: 'var(--ant-color-fill-quaternary)',
+                    borderRadius: 8,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                    <Text strong>{tr("JSON 结构示例")}</Text>
+                    <Popconfirm
+                      title={tr("用示例替换当前编辑框内容？")}
+                      description={tr("这会覆盖当前未保存的编辑内容，但不会自动保存到服务器。")}
+                      okText={tr("替换")}
+                      cancelText={tr("取消")}
+                      onConfirm={() => updateAdvancedText(TENANT_SETTINGS_EXAMPLE)}
+                    >
+                      <Button size="small" disabled={submitting}>{tr("填入示例")}</Button>
+                    </Popconfirm>
+                  </div>
+                  <pre
+                    style={{
+                      whiteSpace: 'pre-wrap',
+                      overflowWrap: 'anywhere',
+                      margin: '0 0 8px',
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                      fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+                    }}
+                  >{TENANT_SETTINGS_EXAMPLE}</pre>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {tr('示例中的 custom、department、remark、labels 仅为元数据，不会改变系统功能、权限、语言或业务规则。')}
+                  </Text>
+                </div>
+              ) : null}
+              <Input.TextArea
+                id="tenant-advanced-json"
+                aria-label={tr("企业扩展设置 JSON")}
+                value={advancedText}
+                onChange={(event) => updateAdvancedText(event.target.value)}
+                autoSize={{ minRows: 8, maxRows: 18 }}
+                spellCheck={false}
+                disabled={submitting}
+                style={{ fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace' }}
+              />
+              {advancedError ? <Alert type="error" showIcon message={tr(advancedError)} /> : null}
+              <Space wrap>
+                <Button onClick={formatAdvanced} disabled={submitting}>{tr("校验并格式化")}</Button>
+                <Popconfirm title={tr("清空全部扩展选项？")} description={tr("只会改变编辑框内容，点击保存后才会提交。")} onConfirm={() => updateAdvancedText('{}')} okText={tr("清空")} cancelText={tr("取消")}>
+                  <Button disabled={submitting}>{tr("恢复为空对象")}</Button>
+                </Popconfirm>
+              </Space>
+              <Text type="secondary">{tr("最大 64 KiB；原始 JSON 不会随基本资料一同保存。修改前请先确认已有选项的用途。")}</Text>
+            </Space>
+          </Modal></> : null}
+        </Space>
+      ) : null}
+    </TmPageContainer>
+  );
+}

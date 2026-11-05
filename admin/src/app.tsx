@@ -3,29 +3,56 @@ import type {
   ReactElement,
   ReactNode,
 } from "react";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { MenuDataItem } from "@umijs/route-utils";
 import { history } from "@umijs/max";
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import type { ConfigProviderProps } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import enUS from "antd/locale/en_US";
+import jaJP from "antd/locale/ja_JP";
+import zhTW from "antd/locale/zh_TW";
+import koKR from "antd/locale/ko_KR";
+import thTH from "antd/locale/th_TH";
+import dayjs from "dayjs";
+import "dayjs/locale/zh-cn";
+import "dayjs/locale/zh-tw";
+import "dayjs/locale/en";
+import "dayjs/locale/ja";
+import "dayjs/locale/ko";
+import "dayjs/locale/th";
 import type { RequestConfig, RunTimeLayoutConfig } from "@/typings/umi-runtime";
 import AppGlobalSearch from "@/components/layout/AppGlobalSearch";
 import AppTopNav from "@/components/layout/AppTopNav";
 import ThemeToggleButton from "@/components/layout/ThemeToggleButton";
 import AppModalBridge from "@/components/AppModalBridge";
 import AppMessageBridge from "@/components/AppMessageBridge";
+import LocaleBoundary from "@/components/LocaleBoundary";
 import BrandLogo from "@/components/BrandLogo";
 import { AUTH_TOKEN_KEY } from "@/constants/auth";
 import { layoutTokens } from "@/constants/layoutTokens";
 import { postJSON } from "@/services/request";
+import { getBusinessSettings, subscribeBrandingChanges } from "@/services/tenantBusinessSettings";
+import { validateProfile } from "@/services/auth";
+import { isAppLanguage } from "@/i18n/dictionaries";
+import { readLanguage, setLanguage, setRegionalPreferences, subscribeLanguage, tr } from "@/i18n";
+import { useLanguage } from "@/i18n/useLanguage";
 import {
   applyThemeMode,
   createAdminDrawerConfig,
   createAdminThemeConfig,
   getStoredThemeMode,
+  persistThemeMode,
 } from "@/theme";
 import { canAccessPath, filterMenuByPermission } from "@/utils/menuAccess";
 import { isPublicAdminPath } from "@/utils/publicRoutes";
+import {
+  captureTenantContext,
+  isTenantContextCurrent,
+  isTenantSwitchRequest,
+  isTenantSwitching,
+  type TenantContextSnapshot,
+} from "@/utils/tenantContext";
 import { useInitialStateModel } from "@/hooks/useInitialStateModel";
 import type { InitialStateModel } from "@/typings/umi-runtime";
 
@@ -45,6 +72,9 @@ type HeaderLayoutProps = SiderMenuLayoutProps & {
 type HeaderContentProps = HeaderLayoutProps & {
   role?: string | null;
   permissions?: string[];
+  tenantId?: number;
+  platformOperator?: boolean;
+  isRoot?: boolean;
 };
 
 const DESKTOP_SIDER_WIDTH = 224;
@@ -62,13 +92,18 @@ function getSiderWidth(): number {
 
 async function loadProfileFromToken(
   token: string,
+  context: TenantContextSnapshot,
 ): Promise<API.CurrentUser | undefined> {
-  const res = await fetch("/api/v1/auth/profile", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const json = (await res.json()) as { code: number; data?: API.CurrentUser };
-  if (!res.ok || json.code !== 0 || !json.data) return undefined;
-  return json.data;
+  try {
+    const res = await fetch("/api/v1/auth/profile", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = (await res.json()) as { code: number; data?: API.CurrentUser };
+    if (!isTenantContextCurrent(context) || !res.ok || json.code !== 0) return undefined;
+    return validateProfile(json.data);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -77,20 +112,25 @@ async function loadProfileFromToken(
  */
 export function innerProvider(container: ReactElement) {
   return (
-    <>
+    <LocaleBoundary>
       <AppModalBridge />
       <AppMessageBridge />
       {container}
-    </>
+    </LocaleBoundary>
   );
 }
 
 export const antd = (memo: ConfigProviderProps): ConfigProviderProps => {
   const mode = getStoredThemeMode();
   applyThemeMode(mode);
+  const language = readLanguage();
+  const localeMap = {"zh-CN":zhCN,"en-US":enUS,"ja-JP":jaJP,"zh-TW":zhTW,"ko-KR":koKR,"th-TH":thTH};
+  const dayjsMap = {"zh-CN":"zh-cn","en-US":"en","ja-JP":"ja","zh-TW":"zh-tw","ko-KR":"ko","th-TH":"th"};
+  dayjs.locale(dayjsMap[language]);
   return {
     ...memo,
     drawer: createAdminDrawerConfig(memo.drawer),
+    locale: localeMap[language],
     theme: createAdminThemeConfig(mode),
   };
 };
@@ -98,27 +138,97 @@ export const antd = (memo: ConfigProviderProps): ConfigProviderProps => {
 export async function getInitialState(): Promise<{
   currentUser?: API.CurrentUser;
 }> {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const context = captureTenantContext();
+  const token = context.token;
   if (!token) {
     return {};
   }
-  const user = await loadProfileFromToken(token);
+  const user = await loadProfileFromToken(token, context);
   if (!user) {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
+    if (isTenantContextCurrent(context)) {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+    }
     return {};
   }
+  // Personal appearance is tenant- and account-scoped. Ignore stale responses
+  // after a workspace switch; backend remains authoritative for the profile.
+  if ((user.tenantId ?? 0) > 0) {
+    try {
+      const preferenceResponse = await fetch("/api/v1/tenant/preferences", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (preferenceResponse.ok && isTenantContextCurrent(context)) {
+        const preference = (await preferenceResponse.json()) as {
+          code?: number;
+          data?: { values?: { theme?: string; language?: string; dateFormat?: string }; inherited?: boolean };
+        };
+        const theme = preference.data?.values?.theme;
+        const language = preference.data?.values?.language;
+        if (preference.code === 0 && isTenantContextCurrent(context)) {
+          setRegionalPreferences({ dateFormat: preference.data?.values?.dateFormat });
+          if (!preference.data?.inherited && isAppLanguage(language)) {
+            setLanguage(language);
+          }
+          // Every member uses the organization's timezone; an explicit
+          // personal language overrides the inherited organization language.
+          try {
+            const generalResponse = await fetch("/api/v1/tenant/settings/general", {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const general = (await generalResponse.json()) as {
+              code?: number; data?: { values?: { language?: string; timezone?: string } };
+            };
+            if (generalResponse.ok && general.code === 0 && isTenantContextCurrent(context)) {
+              setRegionalPreferences({ dateFormat: preference.data?.values?.dateFormat, timeZone: general.data?.values?.timezone });
+              if (preference.data?.inherited && isAppLanguage(general.data?.values?.language)) {
+                setLanguage(general.data.values.language);
+              }
+            }
+          } catch { /* keep valid preferences when general settings cannot be read */ }
+        }
+        if (preference.code === 0 && (theme === "light" || theme === "dark") && isTenantContextCurrent(context)) {
+          persistThemeMode(theme);
+        }
+      }
+    } catch {
+      // Preferences are optional for bootstrap; a transient error must not
+      // block authentication or cause a cross-workspace appearance leak.
+    }
+  }
+  if (!isTenantContextCurrent(context)) return {};
   return { currentUser: user };
 }
 
 export const request: RequestConfig = {
   requestInterceptors: [
     (url, options) => {
+      const requestUrl = String(url);
+      if (isTenantSwitching() && !isTenantSwitchRequest(requestUrl)) {
+        const blocked = new Error("tenant switch in progress");
+        (blocked as Error & { info?: unknown }).info = {
+          skipErrorHandler: true,
+        };
+        throw blocked;
+      }
       const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      const context = captureTenantContext();
       const headers: Record<string, string> = {
         ...((options.headers as Record<string, string>) || {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
-      return { url, options: { ...options, headers } };
+      return { url, options: { ...options, headers, __tenantContext: context } };
+    },
+  ],
+  responseInterceptors: [
+    (response: unknown) => {
+      const config = (response as { config?: Record<string, unknown> })?.config;
+      const context = config?.__tenantContext as TenantContextSnapshot | undefined;
+      if (context && !isTenantContextCurrent(context)) {
+        const stale = new Error("tenant context changed");
+        (stale as Error & { info?: unknown }).info = { skipErrorHandler: true };
+        throw stale;
+      }
+      return response;
     },
   ],
   errorConfig: {
@@ -129,6 +239,21 @@ export const request: RequestConfig = {
       const status = error?.response?.status;
       const reqUrl = String(error?.config?.url || "");
       if (status === 401 && !reqUrl.includes("/auth/login")) {
+        const requestAuthorization = String(
+          error?.config?.headers?.Authorization ||
+            error?.config?.headers?.authorization ||
+            "",
+        );
+        const requestToken = requestAuthorization.replace(/^Bearer\s+/i, "");
+        const currentToken = localStorage.getItem(AUTH_TOKEN_KEY) || "";
+        const requestContext = error?.config?.__tenantContext as TenantContextSnapshot | undefined;
+        if (
+          isTenantSwitching() ||
+          (requestContext && !isTenantContextCurrent(requestContext)) ||
+          (requestToken && currentToken && requestToken !== currentToken)
+        ) {
+          throw error;
+        }
         localStorage.removeItem(AUTH_TOKEN_KEY);
         const path = history.location.pathname;
         if (!isPublicAdminPath(path)) {
@@ -149,6 +274,8 @@ const TM_BRAND_MARK = <BrandLogo height={28} className="tm-app-brand-logo" />;
 
 const TM_APP_LAYOUT_STYLE = {
   "--tm-app-header-height": `${layoutTokens.appHeaderHeight}px`,
+  "--tm-header-control-height": `${layoutTokens.controlHeight}px`,
+  "--tm-header-control-radius": `${layoutTokens.borderRadius}px`,
 } as CSSProperties;
 
 async function logoutAndClear(
@@ -166,6 +293,9 @@ async function logoutAndClear(
 
 function AppTopNavBridge({ isMobile = false }: { isMobile?: boolean }) {
   const { setInitialState, initialState } = useInitialStateModel();
+  // Umi suppresses deeply equal model updates; retain the active language so
+  // menus and breadcrumbs refresh without recreating the routed page or auth.
+  useEffect(() => subscribeLanguage(language => setInitialState(state => ({ ...state, interfaceLanguage: language }))), [setInitialState]);
   return (
     <AppTopNav
       user={initialState?.currentUser}
@@ -175,19 +305,88 @@ function AppTopNavBridge({ isMobile = false }: { isMobile?: boolean }) {
   );
 }
 
+type TenantBranding = {
+  displayName?: unknown;
+  logoUrl?: unknown;
+};
+
+function safeTenantLogoUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function AppBrandButton({ collapsed = false }: { collapsed?: boolean }) {
+  useLanguage();
+  const { initialState } = useInitialStateModel();
+  const tenantId = initialState?.currentUser?.tenantId;
+  const userId = initialState?.currentUser?.id;
+  const [tenantBranding, setTenantBranding] = useState<{
+    tenantId: number;
+    context: TenantContextSnapshot;
+    values: TenantBranding;
+  }>();
+
+  useEffect(() => {
+    let active = true;
+    const context = captureTenantContext();
+    if (typeof tenantId !== "number" || !Number.isSafeInteger(tenantId) || tenantId <= 0) {
+      setTenantBranding(undefined);
+      return () => { active = false; };
+    }
+
+    setTenantBranding(undefined);
+    let readSequence = 0;
+    const load = () => {
+      if (!isTenantContextCurrent(context)) return;
+      const sequence = ++readSequence;
+      const isCurrent = () => active && sequence === readSequence && isTenantContextCurrent(context);
+      void getBusinessSettings("branding").then(({ values }) => {
+        if (isCurrent()) setTenantBranding({ tenantId, context, values });
+      }).catch(() => {
+        if (isCurrent()) setTenantBranding(undefined);
+      });
+    };
+    load();
+    const unsubscribe = subscribeBrandingChanges(load);
+    return () => { active = false; unsubscribe(); };
+  }, [tenantId, userId]);
+
+  const values = tenantBranding && tenantBranding.tenantId === tenantId && isTenantContextCurrent(tenantBranding.context)
+    ? tenantBranding.values : undefined;
+  const configuredName = typeof values?.displayName === "string" ? values.displayName.trim() : "";
+  const displayName = configuredName || "贸灵";
+  const logoUrl = safeTenantLogoUrl(values?.logoUrl);
+
   return (
     <button
       type="button"
       className={`tm-app-brand-header${
         collapsed ? " tm-app-brand-header--collapsed" : ""
       }`}
-      aria-label="返回工作台"
+      aria-label={tr('返回工作台')}
       onClick={() => history.push("/dashboard")}
     >
-      <BrandLogo height={28} className="tm-app-brand-logo" />
+      {logoUrl ? (
+        <img
+          src={logoUrl}
+          alt=""
+          draggable={false}
+          className="tm-app-brand-logo"
+          onError={(event) => {
+            event.currentTarget.onerror = null;
+            event.currentTarget.src = "/favicon.png";
+          }}
+          referrerPolicy="no-referrer"
+          style={{ height: 28, width: "auto", maxWidth: 40, objectFit: "contain", display: "block", flexShrink: 0, verticalAlign: "middle" }}
+        />
+      ) : <BrandLogo height={28} className="tm-app-brand-logo" />}
       <span className="tm-app-brand-header__name">
-        <span className="tm-app-brand-header__name-primary">贸灵</span>
+        <span className="tm-app-brand-header__name-primary">{displayName}</span>
         <span className="tm-app-brand-header__name-secondary">TradeMind</span>
       </span>
     </button>
@@ -199,7 +398,8 @@ function AppSiderFooter({
   isMobile = false,
   onCollapse,
 }: SiderMenuLayoutProps) {
-  const collapseLabel = collapsed ? "展开侧栏" : "收起侧栏";
+  useLanguage();
+  const collapseLabel = collapsed ? tr('展开侧栏') : tr('收起侧栏');
 
   if (isMobile) return null;
 
@@ -221,7 +421,7 @@ function AppSiderFooter({
         ) : (
           <>
             <MenuFoldOutlined aria-hidden="true" />
-            <span>收起</span>
+            <span>{tr('收起')}</span>
           </>
         )}
       </button>
@@ -232,11 +432,14 @@ function AppSiderFooter({
 function AppHeaderContent({
   role,
   permissions,
+  tenantId,
+  platformOperator,
+  isRoot,
   ...layoutProps
 }: HeaderContentProps) {
   const canSearchPath = useCallback(
-    (path: string) => canAccessPath(path, role, permissions),
-    [permissions, role],
+    (path: string) => canAccessPath(path, role, permissions, platformOperator, tenantId, isRoot),
+    [permissions, role, platformOperator, tenantId, isRoot],
   );
 
   return (
@@ -251,6 +454,7 @@ function AppHeaderContent({
         canAccessPath={canSearchPath}
         onNavigate={(path) => history.push(path)}
       />
+      <AppTopNavBridge isMobile={layoutProps.isMobile} />
     </div>
   );
 }
@@ -263,9 +467,8 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   layout: "mix",
   navTheme: "light",
   siderWidth: getSiderWidth(),
-  actionsRender: (props: HeaderLayoutProps) => (
-    <AppTopNavBridge isMobile={props.isMobile} />
-  ),
+  // Keep search and account controls in one flex row; ProLayout caches action widths on resize.
+  actionsRender: false,
   avatarProps: false,
   rightContentRender: false,
   // Keep the desktop brand and utility controls in the sider so the whole left
@@ -276,6 +479,9 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
       {...props}
       role={initialState?.currentUser?.role}
       permissions={initialState?.currentUser?.permissions}
+      tenantId={initialState?.currentUser?.tenantId}
+      platformOperator={initialState?.currentUser?.platformOperator === true}
+      isRoot={initialState?.currentUser?.isRoot === true}
     />
   ),
   menuHeaderRender: (
@@ -325,6 +531,9 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
       menuData,
       initialState?.currentUser?.role,
       initialState?.currentUser?.permissions,
+      initialState?.currentUser?.platformOperator === true,
+      initialState?.currentUser?.tenantId,
+      initialState?.currentUser?.isRoot === true,
     ),
   onPageChange: () => {
     const { pathname } = history.location;
@@ -332,6 +541,18 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     // 必须用 token 判断：initialState 在此闭包里不会在登录后刷新，会一直当作未登录并反复 push 登录页，触发 Navigate 死循环。
     if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
       history.replace(`/user/login?redirect=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    if (pathname.startsWith('/platform') && initialState?.currentUser?.platformOperator !== true) {
+      history.replace('/dashboard');
+      return;
+    }
+    // The bootstrap identity has no tenant business authorization until it
+    // is explicitly assigned to an active enterprise.
+    const user = initialState?.currentUser;
+    if (user?.platformOperator === true && user.tenantId === 0 &&
+        !canAccessPath(pathname, user.role, user.permissions, true, 0)) {
+      history.replace('/platform/tenants');
     }
   },
 });

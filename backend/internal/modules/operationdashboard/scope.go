@@ -60,6 +60,65 @@ func (sc Scope) applyProductScope(tx *gorm.DB) *gorm.DB {
 	)`, sc.AllowedShopIDs, sc.AllowedShopIDs)
 }
 
+// applyProductIDScope restricts a child query that carries a product ID but
+// does not join the products table itself. Unassigned products stay hidden
+// from scoped roles because they have no authorized shop linkage.
+func (sc Scope) applyProductIDScope(tx *gorm.DB, tenantID int64, column string) *gorm.DB {
+	if tx == nil || sc.IsAdmin {
+		return tx
+	}
+	if len(sc.AllowedShopIDs) == 0 {
+		return tx.Where("1 = 0")
+	}
+	if column == "" {
+		column = "product_id"
+	}
+	return tx.Where(column+` IN (
+		SELECT p.id FROM products p
+		WHERE p.tenant_id = ? AND p.id IN (
+			SELECT product_id FROM product_platform_publish_configs WHERE shop_id IN ?
+			UNION
+			SELECT product_id FROM product_publications WHERE shop_id IN ? AND deleted_at IS NULL
+		)
+	)`, tenantID, sc.AllowedShopIDs, sc.AllowedShopIDs)
+}
+
+// applyBatchScope restricts batches through their product-linked tasks. A
+// batch is visible to a scoped role only when at least one task belongs to an
+// authorized product in the current tenant.
+func (sc Scope) applyBatchScope(tx *gorm.DB, tenantID int64) *gorm.DB {
+	if tx == nil || sc.IsAdmin {
+		return tx
+	}
+	if len(sc.AllowedShopIDs) == 0 {
+		return tx.Where("1 = 0")
+	}
+	return tx.Where(`(
+		EXISTS (
+			SELECT 1 FROM ai_tasks at
+			JOIN products p ON p.id = at.product_id
+			WHERE at.batch_id = ai_operation_batches.id
+			  AND p.tenant_id = ?
+			  AND p.id IN (
+				SELECT product_id FROM product_platform_publish_configs WHERE shop_id IN ?
+				UNION
+				SELECT product_id FROM product_publications WHERE shop_id IN ? AND deleted_at IS NULL
+			  )
+		)
+		OR EXISTS (
+			SELECT 1 FROM image_tasks it
+			JOIN products p2 ON p2.id = it.product_id
+			WHERE it.batch_id = ai_operation_batches.id
+			  AND p2.tenant_id = ?
+			  AND p2.id IN (
+				SELECT product_id FROM product_platform_publish_configs WHERE shop_id IN ?
+				UNION
+				SELECT product_id FROM product_publications WHERE shop_id IN ? AND deleted_at IS NULL
+			  )
+		)
+	)`, tenantID, sc.AllowedShopIDs, sc.AllowedShopIDs, tenantID, sc.AllowedShopIDs, sc.AllowedShopIDs)
+}
+
 func (sc Scope) shopIDStrings() []string {
 	if len(sc.AllowedShopIDs) == 0 {
 		return nil

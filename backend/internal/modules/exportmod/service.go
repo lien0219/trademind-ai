@@ -26,7 +26,7 @@ type CreateJobInput struct {
 	Filters    map[string]any
 }
 
-// CreateJob enqueues a tenant-scoped export job.
+// CreateJob persists a tenant-scoped export job in pending state.
 func (s *Service) CreateJob(c *gin.Context, in CreateJobInput) (*ExportJob, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("export: unavailable")

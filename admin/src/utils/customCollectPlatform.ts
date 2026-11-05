@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 export type CustomCollectPlatformBlocked = {
   kind: 'blocked';
   source: string;
@@ -10,7 +11,7 @@ export type CustomCollectPlatformPlanned = {
   kind: 'planned';
   platformLabel: string;
   message: string;
-  actionLabel: '我知道了';
+  actionLabel: string;
 };
 
 export type CustomCollectPlatformHint = CustomCollectPlatformBlocked | CustomCollectPlatformPlanned;
@@ -78,9 +79,10 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
       kind: 'blocked',
       source: '1688',
       platformLabel: '1688',
-      message:
-        '该链接属于 1688 平台，请使用「1688 采集器」。1688 采集器已针对商品标题、主图、详情图、商品参数、商品规格做专门适配，识别更稳定。',
-      actionLabel: '去使用 1688 采集器',
+      get message() {
+        return tr('该链接属于 1688 平台，请使用「1688 采集器」。1688 采集器已针对商品标题、主图、详情图、商品参数、商品规格做专门适配，识别更稳定。');
+      },
+      get actionLabel() { return tr('去使用 1688 采集器'); },
     };
   }
 
@@ -89,8 +91,8 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
       kind: 'blocked',
       source: 'aliexpress',
       platformLabel: 'AliExpress',
-      message: '该链接属于 AliExpress 平台，请使用「速卖通采集器」。专用采集器字段识别更稳定。',
-      actionLabel: '去使用速卖通采集器',
+      get message() { return tr('该链接属于 AliExpress 平台，请使用「速卖通采集器」。专用采集器字段识别更稳定。'); },
+      get actionLabel() { return tr('去使用速卖通采集器'); },
     };
   }
 
@@ -98,10 +100,11 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
     return {
       kind: 'blocked',
       source: 'taobao_tmall',
-      platformLabel: '淘宝 / 天猫',
-      message:
-        '该链接属于淘宝/天猫平台，请使用「淘宝/天猫采集器」。专用采集器字段识别更稳定，请勿使用自定义链接采集器。',
-      actionLabel: '去使用淘宝/天猫采集器',
+      get platformLabel() { return tr('淘宝 / 天猫'); },
+      get message() {
+        return tr('该链接属于淘宝/天猫平台，请使用「淘宝/天猫采集器」。专用采集器字段识别更稳定，请勿使用自定义链接采集器。');
+      },
+      get actionLabel() { return tr('去使用淘宝/天猫采集器'); },
     };
   }
 
@@ -109,10 +112,9 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
     return {
       kind: 'blocked',
       source: 'pinduoduo',
-      platformLabel: '拼多多',
-      message:
-        '该链接属于拼多多平台，请使用「拼多多采集器」。专用采集器字段识别更稳定。',
-      actionLabel: '去使用拼多多采集器',
+      get platformLabel() { return tr('拼多多'); },
+      get message() { return tr('该链接属于拼多多平台，请使用「拼多多采集器」。专用采集器字段识别更稳定。'); },
+      get actionLabel() { return tr('去使用拼多多采集器'); },
     };
   }
 
@@ -120,9 +122,8 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
     return {
       kind: 'planned',
       platformLabel: 'SHEIN / Temu',
-      message:
-        '该链接属于暂未开放专用采集器的平台。请先创建采集规则并测试采集效果，再开始采集。',
-      actionLabel: '我知道了',
+      get message() { return tr('该链接属于暂未开放专用采集器的平台。请先创建采集规则并测试采集效果，再开始采集。'); },
+      get actionLabel() { return tr('我知道了'); },
     };
   }
 
@@ -140,12 +141,12 @@ export const DEDICATED_COLLECT_CARD_NOTES =
 
 export const COLLECT_HUB_TYPE_HINT = {
   dedicated: {
-    title: '专用采集器',
-    summary: '适合采集完整商品数据（含规格、库存等），已针对平台专门适配。',
+    get title() { return tr('专用采集器'); },
+    get summary() { return tr('适合采集完整商品数据（含规格、库存等），已针对平台专门适配。'); },
   },
   custom: {
-    title: '自定义采集器',
-    summary: '适合采集页面基础信息（标题、价格、图片、参数）；SKU / 库存 / 动态价格不保证完整。',
+    get title() { return tr('自定义采集器'); },
+    get summary() { return tr('适合采集页面基础信息（标题、价格、图片、参数）；SKU / 库存 / 动态价格不保证完整。'); },
   },
 } as const;
 

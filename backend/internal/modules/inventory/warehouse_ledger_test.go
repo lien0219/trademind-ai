@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"gorm.io/gorm"
 )
@@ -29,7 +30,7 @@ func newWarehouseLedgerFixture(t *testing.T, withDefault bool) *warehouseLedgerF
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&admin.AdminUser{}, &product.Product{}, &product.ProductSKU{}, &warehouse.Warehouse{}, &WarehouseStockBalance{}, &InventoryMovement{}, &InventoryChangeLog{}, &InventoryStocktake{}, &InventoryStocktakeItem{}, &InventoryStocktakeAction{}); err != nil {
+	if err := db.AutoMigrate(&admin.AdminUser{}, &product.Product{}, &product.ProductSKU{}, &warehouse.Warehouse{}, &WarehouseStockBalance{}, &InventoryMovement{}, &InventoryChangeLog{}, &InventoryStocktake{}, &InventoryStocktakeItem{}, &InventoryStocktakeAction{}, &admin.UserStorePermission{}, &shop.Shop{}); err != nil {
 		t.Fatal(err)
 	}
 	warehouseService := &warehouse.Service{DB: db}

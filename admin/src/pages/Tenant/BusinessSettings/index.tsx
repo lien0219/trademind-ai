@@ -1,0 +1,372 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { useEffect, useState, useRef } from 'react';
+import { Alert, Button, Form, Input, InputNumber, Modal, Select, Space, Spin, Tag, Typography, message, Popconfirm, Switch } from 'antd';
+import { BellOutlined, CloudDownloadOutlined, GlobalOutlined, HistoryOutlined, InboxOutlined, ReloadOutlined, RobotOutlined, SaveOutlined, ShoppingCartOutlined, TagsOutlined } from '@ant-design/icons';
+import { ActionBar, SectionCard, TmPageContainer } from '@/components/ui';
+import { layoutTokens } from '@/constants/layoutTokens';
+import { tr, formatLocalizedDate } from '@/i18n';
+import { languageNames, supportedLanguages } from '@/i18n/dictionaries';
+import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
+import ShopInventoryOverride from './ShopInventoryOverride';
+import { usePermission } from '@/hooks/usePermission';
+import { PERMISSIONS } from '@/utils/permission';
+import { getBusinessSettings, putBusinessSettings, listBusinessSettingsHistory, restoreBusinessSettings, type BusinessModule, type BusinessSnapshot, type BusinessRevision } from '@/services/tenantBusinessSettings';
+import './index.less';
+
+const labels: Record<BusinessModule, string> = {
+  general: '基础偏好',
+  ai: 'AI 与内容',
+  collect: '采集与发布',
+  inventory: '库存默认规则',
+  notifications: '企业通知',
+  orders: '订单默认规则',
+  branding: '企业品牌与标签',
+};
+const modules: BusinessModule[] = ['general', 'ai', 'collect', 'inventory', 'notifications', 'orders', 'branding'];
+const moduleIcons = {
+  general: GlobalOutlined,
+  ai: RobotOutlined,
+  collect: CloudDownloadOutlined,
+  inventory: InboxOutlined,
+  notifications: BellOutlined,
+  orders: ShoppingCartOutlined,
+  branding: TagsOutlined,
+} satisfies Record<BusinessModule, typeof GlobalOutlined>;
+const templates: Partial<Record<BusinessModule, {name:string;values:Record<string,unknown>}[]>> = {
+  ai: [
+    {get name() { return tr("中文内容创作"); },values:{defaultLanguage:'zh-CN'}},
+    {get name() { return tr("国际站英文内容"); },values:{defaultLanguage:'en-US'}},
+    {get name() { return tr("日本站内容"); },values:{defaultLanguage:'ja-JP'}},
+  ],
+  collect: [
+    {get name() { return tr("继承平台采集策略"); },values:{allowedSources:[],maxBatchURLs:0}},
+    {get name() { return tr("小批量人工采集"); },values:{allowedSources:[],maxBatchURLs:10}},
+  ],
+  inventory: [
+    {get name() { return tr("保守库存预警"); },values:{lowStockThreshold:20}},
+    {get name() { return tr("标准库存预警"); },values:{lowStockThreshold:5}},
+  ],
+};
+const languageOptions = supportedLanguages.map(value => ({value, label: languageNames[value]}));
+const BUSINESS_FIELD_LABELS: Record<string, string> = {
+  language: '默认界面语言', timezone: '默认时区', currency: '报表显示货币',
+  defaultLanguage: 'AI 文案默认语言', allowedSources: '允许的采集来源',
+  maxBatchURLs: '企业采集批次链接上限', lowStockThreshold: '企业默认低库存阈值',
+  businessAlertsEnabled: '开启企业业务通知', mailRecipients: '企业告警邮件接收人',
+  defaultCurrency: '手工订单默认币种', displayName: '企业展示名称',
+  logoUrl: '企业 Logo HTTPS 地址', labels: '企业标签',
+};
+const sourceOptions = [
+  {value:'1688',label:'1688'}, {value:'pinduoduo',get label() { return tr("拼多多"); }},
+  {value:'taobao_tmall',get label() { return tr("淘宝/天猫"); }}, {value:'aliexpress',get label() { return tr("速卖通"); }},
+  {value:'custom',get label() { return tr("自定义采集"); }},
+];
+
+function formatBusinessValue(key: string, value: unknown): string {
+  if (value === null || value === undefined || value === '') return tr('未设置');
+  if (typeof value === 'boolean') return tr(value ? '已开启' : '已关闭');
+  if (Array.isArray(value)) {
+    if (value.length === 0) return key === 'allowedSources' || key === 'mailRecipients' ? tr('继承默认值') : tr('未设置');
+    return value.map(item => key === 'allowedSources'
+      ? sourceOptions.find(option => option.value === item)?.label || String(item)
+      : String(item)).join('、');
+  }
+  if (key === 'language' || key === 'defaultLanguage') {
+    return languageNames[String(value) as keyof typeof languageNames] || String(value);
+  }
+  if (key === 'timezone') {
+    const timezones: Record<string, string> = {
+      'Asia/Shanghai': '上海 / UTC+08:00', 'Asia/Tokyo': '东京 / UTC+09:00', UTC: 'UTC',
+    };
+    return tr(timezones[String(value)] || String(value));
+  }
+  if (key === 'currency' || key === 'defaultCurrency') {
+    const currencies: Record<string, string> = {
+      CNY: '人民币 CNY', USD: '美元 USD', JPY: '日元 JPY', EUR: '欧元 EUR', GBP: '英镑 GBP',
+    };
+    return tr(currencies[String(value)] || String(value));
+  }
+  if (key === 'maxBatchURLs' && value === 0) return tr('继承默认值');
+  return typeof value === 'object' ? JSON.stringify(value) : String(value);
+}
+
+export default function TenantBusinessSettingsPage() {
+  useLanguage();
+  const { can } = usePermission();
+  const writable = can(PERMISSIONS.SETTINGS_MANAGE);
+  const [module, setModule] = useState<BusinessModule>('general');
+  const [snapshot, setSnapshot] = useState<BusinessSnapshot | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [revisions, setRevisions] = useState<BusinessRevision[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [preview, setPreview] = useState<{name:string;values:Record<string,unknown>} | null>(null);
+  const [error, setError] = useState('');
+  const [form] = Form.useForm();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const selectedModule = useRef<BusinessModule>('general');
+  const readSequence = useRef(0);
+  const mutationPending = useRef(false);
+  const formDirty = useRef(false);
+  const [exporting, setExporting] = useState(false);
+
+  const load = async (key: BusinessModule) => {
+    if (mutationPending.current || selectedModule.current !== key) return;
+    const request = ++readSequence.current;
+    const context = captureTenantContext();
+    const isCurrent = () => request === readSequence.current && selectedModule.current === key && isTenantContextCurrent(context);
+    setLoading(true);
+    setError('');
+    setSnapshot(null);
+    setHistoryOpen(false);
+    setPreview(null);
+    formDirty.current = false;
+    try {
+      const current = await getBusinessSettings(key);
+      if (!isCurrent()) return;
+      setSnapshot(current);
+    } catch (e) {
+      if (isCurrent())
+        setError((e as Error)?.message || tr('加载失败，请重试'));
+    } finally {
+      if (request === readSequence.current) setLoading(false);
+    }
+  };
+  useEffect(() => { void load(module); }, [module]);
+
+  // The form mounts only after the snapshot loads. Initialize it after that
+  // commit so Ant Design does not receive an unconnected instance.
+  useEffect(() => {
+    if (!snapshot) return;
+    form.resetFields();
+    form.setFieldsValue(snapshot.values);
+    formDirty.current = false;
+  }, [form, snapshot]);
+
+  const chooseModule = (next:BusinessModule) => {
+    if (next === selectedModule.current || mutationPending.current) return;
+    const switchModule = () => {
+      if (mutationPending.current) return;
+      selectedModule.current = next;
+      ++readSequence.current;
+      setPreview(null);
+      setModule(next);
+    };
+    if (formDirty.current) {
+      Modal.confirm({title:tr('放弃未保存的更改？'),content:tr('切换模块前请确认更改已保存。'),okText:tr('放弃并切换'),cancelText:tr('继续编辑'),onOk:switchModule});
+    } else switchModule();
+  };
+  const save = async () => {
+    if (!writable || !snapshot || snapshot.module !== module || mutationPending.current) return;
+    const key = module;
+    const context = captureTenantContext();
+    try {
+      const values = await form.validateFields();
+      if (selectedModule.current !== key || mutationPending.current || !isTenantContextCurrent(context)) return;
+      mutationPending.current = true;
+      setSaving(true);
+      const next = await putBusinessSettings(key, {expectedVersion:snapshot.version, values});
+      if (selectedModule.current === key && isTenantContextCurrent(context)) {
+        setSnapshot(next);
+        form.setFieldsValue(next.values);
+        formDirty.current = false;
+        message.success(tr('企业业务配置已保存；已接入的业务模块将在新任务中使用'));
+        if (historyOpen) setRevisions((await listBusinessSettingsHistory(key)).items);
+      }
+    } catch (e) { message.error((e as Error)?.message || tr('配置保存失败，请检查字段')); }
+    finally { mutationPending.current = false; setSaving(false); }
+  };
+  const openHistory = async () => {
+    if (!writable || !snapshot || snapshot.module !== module) return;
+    const key = module;
+    const context = captureTenantContext();
+    try {
+      const rows = await listBusinessSettingsHistory(key);
+      if (selectedModule.current !== key || !isTenantContextCurrent(context)) return;
+      setRevisions(rows.items || []);
+      setHistoryOpen(true);
+    } catch (e) {
+      if (selectedModule.current === key && isTenantContextCurrent(context)) message.error((e as Error)?.message || tr('无法加载历史'));
+    }
+  };
+  const restore = async (version: number) => {
+    if (!snapshot || !writable || snapshot.module !== module || mutationPending.current) return;
+    const key = module;
+    const context = captureTenantContext();
+    mutationPending.current = true;
+    setSaving(true);
+    try {
+      const next = await restoreBusinessSettings(key, {targetVersion:version, expectedVersion:snapshot.version});
+      if (selectedModule.current === key && isTenantContextCurrent(context)) {
+        setSnapshot(next);
+        form.setFieldsValue(next.values);
+        formDirty.current = false;
+        setRevisions((await listBusinessSettingsHistory(key)).items);
+        message.success(tr('已恢复为新版本；历史记录未被覆盖'));
+      }
+    } catch (e) { message.error((e as Error)?.message || tr('恢复失败，请刷新')); }
+    finally { mutationPending.current = false; setSaving(false); }
+  };
+  const exportCurrent = () => {
+    if (!snapshot) return;
+    const documentBody = JSON.stringify({format:'trademind-tenant-config-v1',module:snapshot.module,values:snapshot.values},null,2);
+    const blob = new Blob([documentBody],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href=url;
+    link.download=`tenant-${snapshot.module}-settings.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const exportAll = async () => {
+    if (exporting) return;
+    const context = captureTenantContext();
+    setExporting(true);
+    try {
+      // Export all tenant modules as read-only snapshots. Never include
+      // platform provider credentials, personal preferences, or user tokens.
+      const snapshots = await Promise.all(modules.map(async key => getBusinessSettings(key)));
+      if (!isTenantContextCurrent(context)) return;
+      const body = JSON.stringify({
+        format: 'trademind-tenant-config-bundle-v1',
+        exportedAt: new Date().toISOString(),
+        modules: Object.fromEntries(snapshots.map(item => [item.module, {
+          version: item.version, inherited: item.inherited, values: item.values,
+        }])),
+      }, null, 2);
+      const url = URL.createObjectURL(new Blob([body], {type: 'application/json'}));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'tenant-business-settings-bundle.json';
+      link.click();
+      URL.revokeObjectURL(url);
+      message.success(tr('已导出全部企业业务配置，不包含任何密钥'));
+    } catch (e) {
+      message.error((e as Error)?.message || tr('导出失败，请检查读取权限后重试'));
+    } finally { setExporting(false); }
+  };
+  const importFile = async (file: File) => {
+    if (!writable || !snapshot || mutationPending.current || file.size > 8192) { message.error(tr('配置文件不可导入或超过大小限制')); return; }
+    const key = module;
+    const context = captureTenantContext();
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      if (selectedModule.current !== key || !isTenantContextCurrent(context)) return;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(tr('文件不是配置对象'));
+      const obj = parsed as Record<string, unknown>;
+      if (obj.format !== 'trademind-tenant-config-v1' || obj.module !== module || !obj.values || typeof obj.values !== 'object' || Array.isArray(obj.values)) throw new Error(tr('配置格式或模块不匹配'));
+      // Import only populates the form; saving always invokes server-side schema validation and version checks.
+      form.setFieldsValue(obj.values);
+      formDirty.current = true;
+      message.info(tr('已载入配置预览，检查后点击保存才会生效'));
+    } catch (e) { message.error((e as Error)?.message || tr('导入失败')); }
+  };
+  return <TmPageContainer title={tr("企业业务配置")}
+    contentMaxWidth={layoutTokens.settingsMaxWidth}
+    fluid={false}
+    extra={<Space wrap>
+      <Button onClick={exportCurrent} disabled={!snapshot}>{tr("导出配置")}</Button>
+      <Button loading={exporting} disabled={exporting} onClick={() => void exportAll()}>{tr("导出全部模块")}</Button>
+      {writable?<><input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];if(file) void importFile(file);e.target.value='';}} />
+        <Button disabled={!snapshot || saving} onClick={()=>fileInput.current?.click()}>{tr("导入预览")}</Button></>:null}
+      <Button icon={<ReloadOutlined />} disabled={saving} onClick={() => void load(module)} loading={loading}>{tr("刷新")}</Button>
+    </Space>}>
+    <div className="tm-tenant-business-settings__layout" style={{gap:layoutTokens.cardGap}}>
+      <SectionCard className="tm-tenant-business-settings__navigation" bodyStyle={{padding:8}}>
+        <nav className="tm-tenant-business-settings__nav" aria-label={tr("企业业务配置")}>
+          {modules.map(item=>{
+            const Icon = moduleIcons[item];
+            return <Button key={item} disabled={saving} type="text"
+              className={`tm-tenant-business-settings__nav-item${module===item?' tm-tenant-business-settings__nav-item--active':''}`}
+              icon={<Icon aria-hidden />}
+              aria-pressed={module===item}
+              onClick={()=>chooseModule(item)}>{tr(labels[item])}</Button>;
+          })}
+        </nav>
+      </SectionCard>
+      <SectionCard className="tm-tenant-business-settings__editor" title={tr(labels[module])}
+        headerExtra={
+          <div className="tm-tenant-business-settings__header-actions">
+            <Tag>{snapshot?.inherited ? tr('继承默认值') : `${tr('版本')} ${snapshot?.version || 0}`}</Tag>
+            {writable ? (
+              <Button icon={<HistoryOutlined />} onClick={() => void openHistory()}>{tr('版本历史')}</Button>
+            ) : null}
+          </div>
+        }>
+        {error?<Alert type="error" showIcon message={error} action={<Button onClick={()=>void load(module)}>{tr("重试")}</Button>}/>:null}
+        {loading || !snapshot?(error ? null : <div style={{padding:30,textAlign:'center'}}><Spin /></div>):
+          <Form className={`tm-tenant-business-settings__form${module==='general'?' tm-tenant-business-settings__form--general':''}`} style={{columnGap:layoutTokens.formColumnGap}} form={form} layout="vertical" disabled={!writable || saving} onValuesChange={() => { formDirty.current = true; }}>
+            {module==='general'?<>
+              <Form.Item name="language" label={tr("默认界面语言")} rules={[{required:true}]}><Select options={languageOptions}/></Form.Item>
+              <Form.Item name="timezone" label={tr("默认时区")} rules={[{required:true}]}><Select options={[
+                {value:'Asia/Shanghai',label:tr("上海 / UTC+08:00")}, {value:'Asia/Tokyo',label:tr("东京 / UTC+09:00")}, {value:'UTC',label:'UTC'},
+              ]}/></Form.Item>
+              <Form.Item name="currency" label={tr("报表显示货币")} rules={[{required:true}]}><Select options={[
+                {value:'CNY',label:tr("人民币 CNY")}, {value:'USD',label:tr("美元 USD")}, {value:'JPY',label:tr("日元 JPY")},
+              ]}/></Form.Item>
+
+            </>:null}
+            {module==='ai'?<>
+              <Form.Item name="defaultLanguage" label={tr("AI 文案默认语言")} rules={[{required:true}]}><Select options={languageOptions}/></Form.Item>
+
+            </>:null}
+            {module==='collect'?<>
+              <Form.Item name="allowedSources" label={tr("允许的采集来源")} extra={tr("留空表示继承平台所有已开放来源；设置后，未选来源会被后端拒绝。")}><Select mode="multiple" allowClear options={sourceOptions.map(item => ({...item, label:tr(item.label)}))} placeholder={tr("继承全部来源")}/></Form.Item>
+              <Form.Item name="maxBatchURLs" label={tr("企业采集批次链接上限")} extra={tr("0 表示继承平台上限；企业值只能收紧，不能提高平台上限。")} rules={[{required:true}]}><InputNumber min={0} max={100} style={{width:'100%'}}/></Form.Item>
+
+            </>:null}
+            {module==='inventory'?<>
+              <Form.Item name="lowStockThreshold" label={tr("企业默认低库存阈值")} rules={[{required:true}]}><InputNumber min={0} max={1000000} style={{width:'100%'}}/></Form.Item>
+
+            </>:null}
+            {module==='notifications'?<>
+              <Form.Item name="businessAlertsEnabled" label={tr("开启企业业务通知")} valuePropName="checked"><Switch/></Form.Item>
+              <Form.Item name="mailRecipients" label={tr("企业告警邮件接收人")} extra={tr("最多 10 个地址；留空继承平台通知收件人。SMTP 配置由平台统一管理。")}>
+                <Select mode="tags" tokenSeparators={[',']} maxCount={10} placeholder="ops@example.com"/>
+              </Form.Item>
+
+            </>:null}
+            {module==='orders'?<>
+              <Form.Item name="defaultCurrency" label={tr("手工订单默认币种")} rules={[{required:true}]}>
+                <Select options={[{value:'USD',label:tr("美元 USD")},{value:'CNY',label:tr("人民币 CNY")},{value:'JPY',label:tr("日元 JPY")},{value:'EUR',label:tr("欧元 EUR")},{value:'GBP',label:tr("英镑 GBP")}]}/>
+              </Form.Item>
+
+            </>:null}
+            {module==='branding'?<>
+              <Form.Item name="displayName" label={tr("企业展示名称")}><Input maxLength={120}/></Form.Item>
+              <Form.Item name="logoUrl" label={tr("企业 Logo HTTPS 地址")} rules={[{type:'url'}]}><Input placeholder="https://..."/></Form.Item>
+              <Form.Item name="labels" label={tr("企业标签")}><Select mode="tags" maxCount={20} placeholder={tr("添加标签，回车确认")}/></Form.Item>
+            </>:null}
+            {writable && (templates[module]?.length ?? 0)>0?<div style={{marginTop:layoutTokens.fieldGroupGap}}>
+              <Typography.Text strong>{tr("配置模板")}</Typography.Text>
+              <div style={{marginTop:8}}><Space wrap>{templates[module]?.map(template=>
+                <Button key={template.name} size="small" onClick={()=>setPreview(template)}>{tr(template.name)}</Button>
+              )}</Space></div>
+              <Typography.Text type="secondary">{tr("模板只会预填表单；保存后才会生效。")}</Typography.Text>
+            </div>:null}
+            <ActionBar><Button type="primary" icon={<SaveOutlined />} disabled={!writable} loading={saving} onClick={()=>void save()}>{tr("保存企业配置")}</Button><Button onClick={()=>void load(module)}>{tr("放弃更改")}</Button></ActionBar>
+          </Form>}
+        {module==='inventory' && !loading && snapshot ? <ShopInventoryOverride/> : null}
+        {historyOpen?<div style={{marginTop:20}}>
+          <Typography.Title level={5}>{tr("配置变更历史")}</Typography.Title>
+          <Space direction="vertical" style={{width:'100%'}}>{revisions.length===0?<Typography.Text type="secondary">{tr("暂无历史版本")}</Typography.Text>:revisions.map(row=><div key={row.version} style={{display:'flex',flexWrap:'wrap',justifyContent:'space-between',gap:10,alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--ant-color-border-secondary)'}}>
+            <span>{tr('版本')} {row.version} · {row.action} · {formatLocalizedDate(row.createdAt)}</span>
+            <Button size="small" disabled={saving} onClick={()=>setPreview({name:`${tr('历史版本')} ${row.version} ${tr('与当前配置对比')}`,values:row.values as Record<string,unknown>})}>{tr("对比当前")}</Button>
+            <Popconfirm title={`${tr('恢复版本')} ${row.version}？`} description={tr("恢复会生成新版本并保留审计记录。")} onConfirm={()=>void restore(row.version)}>
+              <Button size="small" disabled={saving || !writable}>{tr("恢复")}</Button>
+            </Popconfirm>
+          </div>)}</Space>
+        </div>:null}
+      </SectionCard>
+    </div>
+    <Modal title={preview?`${tr('模板预览：')}${tr(preview.name)}`:tr('配置预览')} open={Boolean(preview)} onCancel={()=>setPreview(null)}
+      okText={tr('应用到表单')} okButtonProps={{disabled:saving || !writable}} onOk={()=>{if(preview && !saving && writable && snapshot?.module === module){form.setFieldsValue(preview.values);formDirty.current=true;}setPreview(null);}}>
+
+      {preview?Object.entries(preview.values).map(([key,value])=><div key={key} style={{marginBottom:10}}>
+        <Typography.Text strong>{tr(BUSINESS_FIELD_LABELS[key] || key)}</Typography.Text>
+        <Typography.Paragraph style={{marginBottom:0}}>{tr('当前：')}{formatBusinessValue(key, form.getFieldValue(key))}</Typography.Paragraph>
+        <Typography.Paragraph style={{marginBottom:0}}>{tr('模板：')}{formatBusinessValue(key, value)}</Typography.Paragraph>
+      </div>):null}
+    </Modal>
+  </TmPageContainer>;
+}

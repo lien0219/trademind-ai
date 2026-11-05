@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -86,6 +87,10 @@ func (h *Handler) PutPlatformAppSettings(c *gin.Context) {
 	}
 	out, err := h.Svc.PutPlatformAppSettings(c, plat, body.Values)
 	if err != nil {
+		if errors.Is(err, errPlatformSettingsAudit) {
+			response.Fail(c, 500, response.CodeInternalError, "platform settings audit unavailable")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -136,6 +141,10 @@ func (h *Handler) PutPlatformPublishSettings(c *gin.Context) {
 	}
 	out, err := h.Svc.PutPlatformPublishSettings(c, plat, body.Values)
 	if err != nil {
+		if errors.Is(err, errPlatformSettingsAudit) {
+			response.Fail(c, 500, response.CodeInternalError, "platform settings audit unavailable")
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -349,6 +358,18 @@ func (h *Handler) ListDouyinCategories(c *gin.Context) {
 		}
 		shopID = &u
 	}
+	if queryBoolShop(c, "refresh") {
+		if shopID == nil || *shopID == uuid.Nil {
+			response.Fail(c, 400, response.CodeBadRequest, "shopId required for refresh")
+			return
+		}
+		if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermStoreOperate) {
+			return
+		}
+		if !adminperm.RequireStoreOperate(c, h.Svc.DB, *shopID) {
+			return
+		}
+	}
 	out, err := h.Svc.ListDouyinCategories(c, DouyinCategoryListQuery{
 		Keyword:  c.Query("keyword"),
 		ParentID: c.Query("parentId"),
@@ -378,6 +399,9 @@ func (h *Handler) SyncDouyinCategories(c *gin.Context) {
 	sid, err := uuid.Parse(strings.TrimSpace(firstNonEmptyDouyin(body.ShopID, c.Query("shopId"))))
 	if err != nil || sid == uuid.Nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+		return
+	}
+	if !adminperm.RequireStoreOperate(c, h.Svc.DB, sid) {
 		return
 	}
 	out, err := h.Svc.SyncDouyinCategories(c, sid, adminUUID(c))
@@ -417,6 +441,9 @@ func (h *Handler) SyncDouyinCategoryAttributes(c *gin.Context) {
 	sid, err := uuid.Parse(strings.TrimSpace(firstNonEmptyDouyin(body.ShopID, c.Query("shopId"))))
 	if err != nil || sid == uuid.Nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+		return
+	}
+	if !adminperm.RequireStoreOperate(c, h.Svc.DB, sid) {
 		return
 	}
 	out, err := h.Svc.SyncDouyinCategoryAttributes(c, sid, strings.TrimSpace(c.Param("categoryId")), adminUUID(c))

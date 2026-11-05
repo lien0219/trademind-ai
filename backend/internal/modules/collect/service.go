@@ -21,6 +21,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
@@ -444,10 +445,18 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 			"rule":         ruleObj,
 		}
 		if snap.UseBrowserProfile && strings.TrimSpace(snap.ProfileKey) != "" {
-			collectorOpts["useBrowserProfile"] = true
-			collectorOpts["profileKey"] = strings.TrimSpace(snap.ProfileKey)
-			if strings.TrimSpace(snap.ProfileID) != "" {
-				collectorOpts["profileId"] = strings.TrimSpace(snap.ProfileID)
+			if s.Profiles == nil || strings.TrimSpace(snap.ProfileID) == "" {
+				s.failTask(ctx, task, prevStatus, "browser profile reference unavailable", nil, workerID, claim)
+				return true, nil
+			}
+			profileID, err := uuid.Parse(strings.TrimSpace(snap.ProfileID))
+			if err != nil {
+				s.failTask(ctx, task, prevStatus, "invalid browser profile reference", nil, workerID, claim)
+				return true, nil
+			}
+			if err := s.Profiles.EnrichCollectorOptions(ctx, task.TenantID, collectorOpts, &profileID, true, task.SourceURL); err != nil {
+				s.failTask(ctx, task, prevStatus, "browser profile unavailable", nil, workerID, claim)
+				return true, nil
 			}
 		}
 	}
@@ -641,6 +650,15 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 		return zero, security.ErrTenantContextMissing
 	}
 	source := strings.TrimSpace(body.Source)
+	if tenantID > 0 {
+		policy, _, err := tenantconfig.ReadCollect(c.Request.Context(), s.DB, tenantID)
+		if err != nil {
+			return zero, fmt.Errorf("tenant collect policy unavailable: %w", err)
+		}
+		if err := tenantconfig.CheckCollectSource(policy, source); err != nil {
+			return zero, err
+		}
+	}
 	url := strings.TrimSpace(body.URL)
 	if source == "" || url == "" {
 		return zero, fmt.Errorf("source and url are required")
@@ -684,7 +702,7 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 			if err != nil {
 				return zero, fmt.Errorf("invalid profileId")
 			}
-			blob, err = s.Profiles.MergeIntoRequestOptions(c.Request.Context(), blob, &pid, true, url)
+			blob, err = s.Profiles.MergeIntoRequestOptions(c.Request.Context(), tenantID, blob, &pid, true, url)
 			if err != nil {
 				return zero, err
 			}

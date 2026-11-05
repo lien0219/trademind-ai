@@ -1,6 +1,9 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import type { ReactNode } from 'react';
 import { ProCard, type ProCardProps } from '@ant-design/pro-components';
 import { Space, Typography } from 'antd';
+import { tr } from '@/i18n';
+import { layoutTokens } from '@/constants/layoutTokens';
 
 const { Text } = Typography;
 
@@ -23,13 +26,19 @@ export default function SectionCard({
   variant = 'outlined',
   compact,
   bordered,
+  bodyStyle,
   ...rest
 }: SectionCardProps) {
+  useLanguage();
   const showBorder = bordered ?? variant === 'outlined';
   return (
     <ProCard
       {...rest}
       bordered={showBorder}
+      bodyStyle={{
+        padding: compact ? layoutTokens.cardPaddingCompact : layoutTokens.cardPadding,
+        ...bodyStyle,
+      }}
       className={[
         'tm-section-card',
         `tm-section-card--${variant}`,
@@ -42,10 +51,10 @@ export default function SectionCard({
         title ? (
           <div className="tm-section-card__head">
             <div className="tm-section-card__head-main">
-              <div className="tm-section-card__title">{title}</div>
+              <div className="tm-section-card__title">{typeof title === "string" ? tr(title) : title}</div>
               {description ? (
                 <Text type="secondary" className="tm-section-card__desc">
-                  {description}
+                  {typeof description === "string" ? tr(description) : description}
                 </Text>
               ) : null}
             </div>

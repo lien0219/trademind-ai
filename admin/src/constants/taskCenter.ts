@@ -1,9 +1,10 @@
+import { tr } from '@/i18n';
 /** 失败任务 / 告警 · 严重等级（与后端 failureclassifier 一致） */
 export const TASK_FAILURE_SEVERITY: Record<string, { text: string; color: string }> = {
-  low: { text: '低', color: 'default' },
-  medium: { text: '中', color: 'blue' },
-  high: { text: '高', color: 'orange' },
-  critical: { text: '紧急', color: 'red' },
+  low: { get text() { return tr("低"); }, color: 'default' },
+  medium: { get text() { return tr("中"); }, color: 'blue' },
+  high: { get text() { return tr("高"); }, color: 'orange' },
+  critical: { get text() { return tr("紧急"); }, color: 'red' },
 };
 
 export const TASK_FAILURE_SEVERITY_OPTIONS = Object.entries(TASK_FAILURE_SEVERITY).map(([value, m]) => ({
@@ -172,20 +173,20 @@ export function resolveAlertRelatedLink(alert: {
   const sourceId = (alert.sourceId || '').trim();
 
   if (taskType === 'douyin_platform') {
-    return { href: '/ops/platform-runtime?platform=douyin_shop', label: '平台运维' };
+    return { href: '/ops/platform-runtime?platform=douyin_shop', label: tr("平台运维") };
   }
   if (isPlatformAlertTaskType(taskType)) {
-    return { href: '/ops/task-center/alerts', label: '告警中心' };
+    return { href: '/ops/task-center/alerts', label: tr("告警中心") };
   }
   if (canOpenFailureDetail(taskType, sourceId)) {
     const sp = new URLSearchParams({ taskType, jumpId: sourceId });
-    return { href: `/ops/task-center/failures?${sp.toString()}`, label: '失败任务' };
+    return { href: `/ops/task-center/failures?${sp.toString()}`, label: tr("失败任务") };
   }
   if ((alert.platform || '').trim()) {
     const sp = new URLSearchParams({ platform: alert.platform!.trim() });
-    return { href: `/ops/task-center/failures?${sp.toString()}`, label: '失败任务' };
+    return { href: `/ops/task-center/failures?${sp.toString()}`, label: tr("失败任务") };
   }
-  return { href: '/ops/task-center/failures', label: '失败任务' };
+  return { href: '/ops/task-center/failures', label: tr("失败任务") };
 }
 
 /** 抖店任务恢复状态 → 用户可见文案（不展示 stale / result_unknown 等内部值） */
@@ -210,18 +211,18 @@ export function recoveryStatusLabel(status?: string | null): string {
 
 /** Worker 进程有效状态（监控页） */
 export const WORKER_EFFECTIVE_STATUS: Record<string, { text: string; color: string }> = {
-  running: { text: '运行中', color: 'success' },
-  stale: { text: '心跳超时', color: 'warning' },
-  stopped: { text: '已停止', color: 'default' },
+  running: { get text() { return tr("运行中"); }, color: 'success' },
+  stale: { get text() { return tr("心跳超时"); }, color: 'warning' },
+  stopped: { get text() { return tr("已停止"); }, color: 'default' },
 };
 
 export const WORKER_STATUS_METRIC: Record<
   'running' | 'stale' | 'stopped',
   { text: string; valueStyle: string }
 > = {
-  running: { text: '运行中', valueStyle: 'var(--ant-color-success)' },
-  stale: { text: '心跳超时', valueStyle: 'var(--ant-color-warning)' },
-  stopped: { text: '已停止', valueStyle: 'var(--ant-color-text-secondary)' },
+  running: { get text() { return tr("运行中"); }, valueStyle: 'var(--ant-color-success)' },
+  stale: { get text() { return tr("心跳超时"); }, valueStyle: 'var(--ant-color-warning)' },
+  stopped: { get text() { return tr("已停止"); }, valueStyle: 'var(--ant-color-text-secondary)' },
 };
 
 /** Worker 监控按类型分组（与后端 byType 键一致） */
@@ -251,13 +252,13 @@ export function taskCenterTaskTypeLabel(taskType?: string): string {
 
 /** 归一化状态 */
 export const TASK_NORMALIZED_STATUS: Record<string, { text: string; color: string }> = {
-  failed: { text: '失败', color: 'error' },
-  partial_success: { text: '部分成功', color: 'warning' },
-  retrying: { text: '重试中', color: 'processing' },
-  stale: { text: '停滞', color: 'warning' },
-  lease_expired: { text: '执行超时', color: 'warning' },
-  running: { text: '执行中', color: 'processing' },
-  pending: { text: '排队', color: 'default' },
-  success: { text: '成功', color: 'success' },
-  cancelled: { text: '取消', color: 'default' },
+  failed: { get text() { return tr("失败"); }, color: 'error' },
+  partial_success: { get text() { return tr("部分成功"); }, color: 'warning' },
+  retrying: { get text() { return tr("重试中"); }, color: 'processing' },
+  stale: { get text() { return tr("停滞"); }, color: 'warning' },
+  lease_expired: { get text() { return tr("执行超时"); }, color: 'warning' },
+  running: { get text() { return tr("执行中"); }, color: 'processing' },
+  pending: { get text() { return tr("排队"); }, color: 'default' },
+  success: { get text() { return tr("成功"); }, color: 'success' },
+  cancelled: { get text() { return tr("取消"); }, color: 'default' },
 };

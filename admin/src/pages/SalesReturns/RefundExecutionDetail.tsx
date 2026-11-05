@@ -1,3 +1,5 @@
+import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history, useParams } from '@umijs/max';
@@ -37,8 +39,8 @@ import {
 import { formatDateTime } from '@/utils/formatTime';
 import { PERMISSIONS } from '@/utils/permission';
 import {
-  REFUND_EXECUTION_STATUS,
-  REFUND_REVIEW_STATUS,
+  getRefundExecutionStatusMeta,
+  getRefundReviewStatusMeta,
 } from './RefundExecutions';
 import RefundExecutionModals, {
   type ManualRefundValues,
@@ -62,6 +64,7 @@ const REVIEW_REASON: Record<string, string> = {
 };
 
 export default function RefundExecutionDetailPage() {
+  const language = useLanguage();
   const { id = '' } = useParams<{ id: string }>();
   const { can, readonly } = usePermission();
   const canRefund = !readonly && can(PERMISSIONS.SALES_RETURN_REFUND);
@@ -130,11 +133,11 @@ export default function RefundExecutionDetailPage() {
       });
       setRow(updated);
       setManualOpen(false);
-      message.success('退款结果已登记');
+      message.success(tr("退款结果已登记"));
     } catch (nextError) {
       const apiError = extractSalesReturnAPIError(nextError);
       message.error(
-        salesReturnErrorMessage(apiError, '退款结果登记失败，请核对后重试。'),
+        tr(salesReturnErrorMessage(apiError, tr('退款结果登记失败，请核对后重试。'))),
       );
       if (apiError.message.toLowerCase().includes('revision conflict')) await load();
     } finally {
@@ -166,18 +169,18 @@ export default function RefundExecutionDetailPage() {
       setLocalAction(undefined);
       message.success(
         localAction === 'confirm_platform'
-          ? '已按平台事实确认退款结果'
-          : '退款执行单已取消',
+          ? tr('已按平台事实确认退款结果')
+          : tr('退款执行单已取消'),
       );
     } catch (nextError) {
       const apiError = extractSalesReturnAPIError(nextError);
       message.error(
-        salesReturnErrorMessage(
+        tr(salesReturnErrorMessage(
           apiError,
           localAction === 'confirm_platform'
-            ? '平台事实确认失败，请核对后重试。'
-            : '取消退款执行单失败，请稍后重试。',
-        ),
+            ? tr('平台事实确认失败，请核对后重试。')
+            : tr('取消退款执行单失败，请稍后重试。'),
+        )),
       );
       if (apiError.message.toLowerCase().includes('revision conflict')) await load();
     } finally {
@@ -188,43 +191,43 @@ export default function RefundExecutionDetailPage() {
 
   const eventColumns: ProColumns<RefundExecutionEvent>[] = [
     {
-      title: '动作',
+      title: tr("动作"),
       dataIndex: 'action',
       width: 150,
       render: (_, event) =>
         event.action === 'record_result'
-          ? '人工登记结果'
+          ? tr('人工登记结果')
           : event.action === 'confirm_platform'
-            ? '按平台事实确认'
+            ? tr('按平台事实确认')
             : event.action === 'cancel'
-              ? '取消执行单'
-              : '其他操作',
+              ? tr('取消执行单')
+              : tr('其他操作'),
     },
     {
-      title: '状态变化',
+      title: tr("状态变化"),
       width: 190,
       render: (_, event) => {
-        const from = REFUND_EXECUTION_STATUS[event.fromStatus]?.text || '其他状态';
-        const to = REFUND_EXECUTION_STATUS[event.toStatus]?.text || '其他状态';
+        const from = getRefundExecutionStatusMeta(event.fromStatus).text || tr('其他状态');
+        const to = getRefundExecutionStatusMeta(event.toStatus).text || tr('其他状态');
         return `${from} → ${to}`;
       },
     },
     {
-      title: '外部退款编号',
+      title: tr("外部退款编号"),
       dataIndex: 'externalRefundId',
       minWidth: 180,
       ellipsis: true,
       render: (_, event) => event.externalRefundId || '—',
     },
     {
-      title: '说明',
+      title: tr("说明"),
       dataIndex: 'reason',
       minWidth: 200,
       ellipsis: true,
       render: (_, event) => event.reason || '—',
     },
     {
-      title: '记录时间',
+      title: tr("记录时间"),
       dataIndex: 'createdAt',
       valueType: 'dateTime',
       width: 180,
@@ -240,72 +243,67 @@ export default function RefundExecutionDetailPage() {
           icon={<ArrowLeftOutlined />}
           onClick={() => history.push('/orders/refund-executions')}
         >
-          返回列表
+          {tr("返回列表")}
         </Button>
         {canRefund && row.status === 'pending' ? (
           <Button type="primary" onClick={openManual}>
-            人工登记结果
+            {tr("人工登记结果")}
           </Button>
         ) : null}
         {canRefund && canFinalize && row.platformReview?.platformAfterSaleId ? (
           <Button onClick={() => openAction('confirm_platform')}>
-            按平台事实确认
+            {tr("按平台事实确认")}
           </Button>
         ) : null}
         {canRefund && row.status === 'pending' ? (
           <Button danger onClick={() => openAction('cancel')}>
-            取消执行单
+            {tr("取消执行单")}
           </Button>
         ) : null}
       </Space>
     );
-  }, [canRefund, row]);
+  }, [canRefund, language, row]);
 
-  const statusMeta = row
-    ? REFUND_EXECUTION_STATUS[row.status] || { text: row.status, color: 'default' }
-    : undefined;
+  const statusMeta = row ? getRefundExecutionStatusMeta(row.status) : undefined;
   const reviewStatus = row?.platformReview?.status || 'pending';
-  const reviewMeta = REFUND_REVIEW_STATUS[reviewStatus] || {
-    text: reviewStatus,
-    color: 'default',
-  };
+  const reviewMeta = getRefundReviewStatusMeta(reviewStatus);
 
   return (
     <PermissionGuard require={PERMISSIONS.SALES_RETURN_VIEW} showForbiddenPage>
       <TmPageContainer
         className="tm-sales-return-page"
-        title={row?.executionNo || '退款执行详情'}
-        subTitle="本页面只登记外部结果或确认只读平台事实，不会向平台发起退款"
+        title={row?.executionNo || tr('退款执行详情')}
+        subTitle={tr("本页面只登记外部结果或确认只读平台事实，不会向平台发起退款")}
         extra={<TmPageHeaderExtra>{actions}</TmPageHeaderExtra>}
       >
-        {loading ? <Alert type="info" showIcon message="正在加载退款执行详情…" /> : null}
+        {loading ? <Alert type="info" showIcon message={tr("正在加载退款执行详情…")} /> : null}
         {error ? (
           <ErrorAlert
-            title={error}
-            actionHint={<Button onClick={() => void load()}>重新加载</Button>}
+            title={tr(error)}
+            actionHint={<Button onClick={() => void load()}>{tr("重新加载")}</Button>}
           />
         ) : null}
         {readonly ? (
           <Alert
             type="info"
             showIcon
-            message="当前账号为只读模式，不能登记、确认或取消退款执行单。"
+            message={tr("当前账号为只读模式，不能登记、确认或取消退款执行单。")}
           />
         ) : null}
         {row ? (
           <>
-            <SectionCard title="退款执行信息">
+            <SectionCard title={tr("退款执行信息")}>
               <Descriptions column={{ xs: 1, sm: 2, lg: 3 }}>
-                <Descriptions.Item label="执行单号">
+                <Descriptions.Item label={tr("执行单号")}>
                   <Typography.Text copyable>{row.executionNo}</Typography.Text>
                 </Descriptions.Item>
-                <Descriptions.Item label="执行状态">
+                <Descriptions.Item label={tr("执行状态")}>
                   <Tag color={statusMeta?.color}>{statusMeta?.text}</Tag>
                 </Descriptions.Item>
-                <Descriptions.Item label="平台复核">
+                <Descriptions.Item label={tr("平台复核")}>
                   <Tag color={reviewMeta.color}>{reviewMeta.text}</Tag>
                 </Descriptions.Item>
-                <Descriptions.Item label="售后单">
+                <Descriptions.Item label={tr("售后单")}>
                   <Button
                     type="link"
                     size="small"
@@ -314,7 +312,7 @@ export default function RefundExecutionDetailPage() {
                     {row.returnNo || row.salesReturnId}
                   </Button>
                 </Descriptions.Item>
-                <Descriptions.Item label="订单">
+                <Descriptions.Item label={tr("订单")}>
                   <Button
                     type="link"
                     size="small"
@@ -323,46 +321,46 @@ export default function RefundExecutionDetailPage() {
                     {row.orderNo || row.orderId}
                   </Button>
                 </Descriptions.Item>
-                <Descriptions.Item label="退款金额">
+                <Descriptions.Item label={tr("退款金额")}>
                   {formatSalesReturnAmount(row.refundAmountMinor, row.currency)}
                 </Descriptions.Item>
-                <Descriptions.Item label="结果来源">
+                <Descriptions.Item label={tr("结果来源")}>
                   {row.source === 'platform_fact'
-                    ? '平台事实'
+                    ? tr('平台事实')
                     : row.source === 'manual'
-                      ? '人工登记'
+                      ? tr('人工登记')
                       : '—'}
                 </Descriptions.Item>
-                <Descriptions.Item label="外部退款编号">
+                <Descriptions.Item label={tr("外部退款编号")}>
                   {row.externalRefundId ? (
                     <Typography.Text copyable>{row.externalRefundId}</Typography.Text>
                   ) : (
                     '—'
                   )}
                 </Descriptions.Item>
-                <Descriptions.Item label="执行时间">
+                <Descriptions.Item label={tr("执行时间")}>
                   {row.executedAt ? formatDateTime(row.executedAt) : '—'}
                 </Descriptions.Item>
-                <Descriptions.Item label="结果说明">
+                <Descriptions.Item label={tr("结果说明")}>
                   {row.resultReason || '—'}
                 </Descriptions.Item>
-                <Descriptions.Item label="版本">{row.revision}</Descriptions.Item>
-                <Descriptions.Item label="创建时间">
+                <Descriptions.Item label={tr("版本")}>{row.revision}</Descriptions.Item>
+                <Descriptions.Item label={tr("创建时间")}>
                   {formatDateTime(row.createdAt)}
                 </Descriptions.Item>
               </Descriptions>
             </SectionCard>
 
-            <SectionCard title="平台事实复核">
+            <SectionCard title={tr("平台事实复核")}>
               {row.platformReview?.platformAfterSaleId ? (
                 <Descriptions column={{ xs: 1, sm: 2, lg: 3 }}>
-                  <Descriptions.Item label="平台">
+                  <Descriptions.Item label={tr("平台")}>
                     {row.platformReview.platform || '—'}
                   </Descriptions.Item>
-                  <Descriptions.Item label="平台状态">
+                  <Descriptions.Item label={tr("平台状态")}>
                     {row.platformReview.platformStatus || '—'}
                   </Descriptions.Item>
-                  <Descriptions.Item label="平台售后编号">
+                  <Descriptions.Item label={tr("平台售后编号")}>
                     <Button
                       type="link"
                       size="small"
@@ -376,32 +374,32 @@ export default function RefundExecutionDetailPage() {
                         row.platformReview.platformAfterSaleId}
                     </Button>
                   </Descriptions.Item>
-                  <Descriptions.Item label="平台退款金额">
+                  <Descriptions.Item label={tr("平台退款金额")}>
                     {formatSalesReturnAmount(
                       row.platformReview.refundAmountMinor || 0,
                       row.platformReview.currency || row.currency,
                     )}
                   </Descriptions.Item>
-                  <Descriptions.Item label="平台更新时间">
+                  <Descriptions.Item label={tr("平台更新时间")}>
                     {row.platformReview.platformUpdatedAt
                       ? formatDateTime(row.platformReview.platformUpdatedAt)
                       : '—'}
                   </Descriptions.Item>
-                  <Descriptions.Item label="复核说明">
-                    {REVIEW_REASON[row.platformReview.reason] ||
-                      '需要人工核对平台事实'}
+                  <Descriptions.Item label={tr("复核说明")}>
+                    {tr(REVIEW_REASON[row.platformReview.reason] ||
+                      '需要人工核对平台事实')}
                   </Descriptions.Item>
                 </Descriptions>
               ) : (
                 <Alert
                   type="info"
                   showIcon
-                  message="尚未收到可安全关联的平台退款事实；可先人工登记结果，后续再复核。"
+                  message={tr("尚未收到可安全关联的平台退款事实；可先人工登记结果，后续再复核。")}
                 />
               )}
             </SectionCard>
 
-            <SectionCard title="不可变操作记录">
+            <SectionCard title={tr("不可变操作记录")}>
               <TmProTable<RefundExecutionEvent>
                 rowKey="id"
                 columns={eventColumns}
@@ -411,7 +409,7 @@ export default function RefundExecutionDetailPage() {
                 pagination={false}
                 cardBordered={false}
                 scroll={{ x: 900 }}
-                locale={{ emptyText: '暂无退款执行操作记录。' }}
+                locale={{ emptyText: tr('暂无退款执行操作记录。') }}
               />
             </SectionCard>
           </>

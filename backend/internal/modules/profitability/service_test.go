@@ -3,6 +3,7 @@ package profitability
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"errors"
 	"math"
 	"strings"
@@ -467,6 +468,69 @@ func TestWriteCSVNeutralizesSpreadsheetFormulas(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("CSV missing neutralized value %q: %s", want, text)
 		}
+	}
+}
+
+func TestWriteCSVIncludesAdvertisingFeeWithoutTreatingUnknownAsZero(t *testing.T) {
+	now := time.Date(2026, time.November, 3, 0, 0, 0, 0, time.UTC)
+	advertisingMinor := int64(125)
+	warehouseMinor := int64(250)
+	rows := []OrderProfit{
+		{
+			OrderNo: "confirmed-fee", Currency: "USD", Status: StatusComplete,
+			Components: ProfitComponents{
+				Advertising:  MoneyComponent{AmountMinor: &advertisingMinor},
+				WarehouseFee: MoneyComponent{AmountMinor: &warehouseMinor},
+			},
+			CalculatedAt: now, FormulaVersion: FormulaVersion,
+		},
+		{
+			OrderNo: "missing-fee", Currency: "USD", Status: StatusPending,
+			Components:   ProfitComponents{Advertising: MoneyComponent{Status: ComponentMissing}},
+			CalculatedAt: now, FormulaVersion: FormulaVersion,
+		},
+	}
+	var output bytes.Buffer
+	if err := WriteCSV(&output, rows); err != nil {
+		t.Fatalf("WriteCSV() error = %v", err)
+	}
+	records, err := csv.NewReader(&output).ReadAll()
+	if err != nil {
+		t.Fatalf("read exported CSV: %v", err)
+	}
+	if len(records) != 3 {
+		t.Fatalf("CSV records = %d, want 3", len(records))
+	}
+	col := -1
+	for i, heading := range records[0] {
+		if heading == "广告费用(最小单位)" {
+			col = i
+			break
+		}
+	}
+	if col < 0 {
+		t.Fatalf("advertising fee column missing: %v", records[0])
+	}
+	for i, record := range records {
+		if len(record) != len(records[0]) {
+			t.Fatalf("row %d has %d columns, want %d", i, len(record), len(records[0]))
+		}
+	}
+	if got := records[1][col]; got != "125" {
+		t.Fatalf("confirmed advertising fee = %q, want 125", got)
+	}
+	if got := records[2][col]; got != "" {
+		t.Fatalf("missing advertising fee = %q, want empty field", got)
+	}
+	warehouseCol := -1
+	for i, heading := range records[0] {
+		if heading == "仓库操作费(最小单位)" {
+			warehouseCol = i
+			break
+		}
+	}
+	if warehouseCol < 0 || records[1][warehouseCol] != "250" {
+		t.Fatalf("existing warehouse fee column displaced or lost: %v", records[1])
 	}
 }
 

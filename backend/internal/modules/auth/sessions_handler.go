@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -113,21 +114,16 @@ func (h *SessionHandler) DeleteSession(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid session id")
 		return
 	}
-	if err := h.Sessions.RevokeSession(c.Request.Context(), sid, uid, "user_revoke"); err != nil {
+	_, err = h.revokeSessionsWithAudit(c, operationlog.WriteOpts{Action: "session_revoke", Resource: "auth_session", ResourceID: sid.String()}, func(sessions *SessionService) (int64, error) {
+		return 1, sessions.RevokeSession(c.Request.Context(), sid, uid, "user_revoke")
+	})
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, 404, response.CodeNotFound, "session not found")
 			return
 		}
 		response.HandleError(c, err)
 		return
-	}
-	if h.OpLog != nil {
-		_ = h.OpLog.Write(c, operationlog.WriteOpts{
-			Action:     "session_revoke",
-			Resource:   "auth_session",
-			ResourceID: sid.String(),
-			Status:     "success",
-		})
 	}
 	currentSID, _ := c.Get(ctxkey.SessionID)
 	if current, ok := currentSID.(string); ok && current == sid.String() {
@@ -152,18 +148,12 @@ func (h *SessionHandler) RevokeOthers(c *gin.Context) {
 	if s, ok := currentSID.(string); ok {
 		cur, _ = uuid.Parse(s)
 	}
-	n, err := h.Sessions.RevokeOtherSessions(c.Request.Context(), uid, cur)
+	n, err := h.revokeSessionsWithAudit(c, operationlog.WriteOpts{Action: "session_revoke_others", Resource: "auth_session"}, func(sessions *SessionService) (int64, error) {
+		return sessions.RevokeOtherSessions(c.Request.Context(), uid, cur)
+	})
 	if err != nil {
 		response.HandleError(c, err)
 		return
-	}
-	if h.OpLog != nil {
-		_ = h.OpLog.Write(c, operationlog.WriteOpts{
-			Action:   "session_revoke_others",
-			Resource: "auth_session",
-			Status:   "success",
-			Message:  "revoked " + string(rune('0'+min64(n, 9))),
-		})
 	}
 	response.OK(c, gin.H{"revoked": n})
 }
@@ -179,20 +169,37 @@ func (h *SessionHandler) LogoutAll(c *gin.Context) {
 		response.Fail(c, 401, response.CodeUnauthorized, ErrAuthenticationRequired)
 		return
 	}
-	n, err := h.Sessions.RevokeAllUserSessions(c.Request.Context(), uid, "logout_all")
+	n, err := h.revokeSessionsWithAudit(c, operationlog.WriteOpts{Action: "logout_all", Resource: "auth"}, func(sessions *SessionService) (int64, error) {
+		return sessions.RevokeAllUserSessions(c.Request.Context(), uid, "logout_all")
+	})
 	if err != nil {
 		response.HandleError(c, err)
 		return
 	}
 	authcookie.Clear(c, h.Cfg)
-	if h.OpLog != nil {
-		_ = h.OpLog.Write(c, operationlog.WriteOpts{
-			Action:   "logout_all",
-			Resource: "auth",
-			Status:   "success",
-		})
-	}
 	response.OK(c, gin.H{"revoked": n})
+}
+
+// Session revocation and its evidence share the session database transaction.
+// An unavailable audit store returns an error and leaves sessions unchanged.
+func (h *SessionHandler) revokeSessionsWithAudit(c *gin.Context, audit operationlog.WriteOpts, mutate func(*SessionService) (int64, error)) (int64, error) {
+	if h == nil || h.Sessions == nil || h.Sessions.DB == nil || h.OpLog == nil || h.OpLog.DB == nil {
+		return 0, fmt.Errorf("session revocation audit unavailable")
+	}
+	var count int64
+	err := h.Sessions.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		sessions := *h.Sessions
+		sessions.DB = tx
+		var err error
+		count, err = mutate(&sessions)
+		if err != nil {
+			return err
+		}
+		audit.Status = "success"
+		audit.Message = fmt.Sprintf("revoked %d", count)
+		return h.OpLog.WriteTx(c, tx, audit)
+	})
+	return count, err
 }
 
 func currentUserID(c *gin.Context) (uuid.UUID, bool) {
@@ -206,13 +213,6 @@ func currentUserID(c *gin.Context) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return uid, true
-}
-
-func min64(a, b int64) int64 {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // SetRefreshCookieResponse sets cookie when secure session mode is enabled.

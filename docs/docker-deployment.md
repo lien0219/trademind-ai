@@ -96,10 +96,28 @@ TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind@sha256:<collector-manifest-
 ```
 
 ```bash
-docker compose -f deploy/production/compose.yml config
-docker compose -f deploy/production/compose.yml pull
-docker compose -f deploy/production/compose.yml up -d
+# 在正式服务器仓库根目录准备 .env，放入同一 GitHub Release 的三个 digest。
+# 此命令只检查 Compose 与镜像引用，不拉取镜像或更改服务：
+bash deploy/scripts/deploy-production.sh --dry-run
+
+# 仅在完成独立备份、恢复演练、版本核对和上线授权后执行：
+TRADEMIND_PRODUCTION_APPROVED=yes TRADEMIND_PRODUCTION_BACKUP_CONFIRMED=yes \
+  bash deploy/scripts/deploy-production.sh
 ```
+
+部署脚本要求本机 `docker compose` 和 `python3`，强制应用镜像使用 `ghcr.io/lien0219/trademind@sha256:<64位digest>`；它不在生产构建源码、不删除数据卷、不自动放开 P10 的 L0 安全限制。两个审批环境变量仅代表操作者已在外部真实核验备份和授权，脚本无法独立证明备份可恢复。若健康检查失败，暂停发布并检查数据库迁移兼容性。在**独立确认数据库向后兼容**后可执行以下显式应用镜像回滚；三个上一版本的 Digest 必须来自同一已验证 Release，**不会恢复数据库或删除持久卷**：
+
+```bash
+export TRADEMIND_PREVIOUS_BACKEND_IMAGE='ghcr.io/lien0219/trademind@sha256:<previous-backend-digest>'
+export TRADEMIND_PREVIOUS_ADMIN_IMAGE='ghcr.io/lien0219/trademind@sha256:<previous-admin-digest>'
+export TRADEMIND_PREVIOUS_COLLECTOR_IMAGE='ghcr.io/lien0219/trademind@sha256:<previous-collector-digest>'
+TRADEMIND_PRODUCTION_ROLLBACK_APPROVED=yes bash deploy/scripts/rollback-production.sh --dry-run
+TRADEMIND_PRODUCTION_ROLLBACK_APPROVED=yes \
+  TRADEMIND_PRODUCTION_APPROVED=yes TRADEMIND_PRODUCTION_BACKUP_CONFIRMED=yes \
+  bash deploy/scripts/rollback-production.sh
+```
+
+命令中的 `<previous-...-digest>` 为示例占位符，实际执行前必须替换为 Release 中的 64 位十六进制 Digest。脚本只负责应用镜像回滚；数据库迁移是否可逆、数据恢复和真实业务验证需要单独评估。
 
 生产 Compose 的 PostgreSQL、Redis、上传目录和 Collector 浏览器 Profile 使用独立命名卷；健康检查和启动依赖继续生效。升级只替换三项镜像引用并执行 `pull`/`up -d`，不得使用 `down -v`。回滚时恢复上一份已验证的 digest 清单并重复相同命令，数据库和业务卷保持不变。
 

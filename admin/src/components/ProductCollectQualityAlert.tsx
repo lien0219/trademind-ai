@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { useMemo, useState } from 'react';
 import { Alert, Button, Space, Tag, Typography } from 'antd';
 import type { ProductDetail } from '@/services/products';
@@ -32,12 +34,12 @@ function WarningList({ items, expanded, onExpand }: { items: CollectAlertItem[];
     <>
       <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
         {visible.map((item) => (
-          <li key={item.code}>{item.message}</li>
+          <li key={item.code}>{tr(item.message)}</li>
         ))}
       </ul>
       {!expanded && hiddenCount > 0 ? (
         <Button type="link" size="small" style={{ paddingLeft: 0 }} onClick={onExpand}>
-          查看更多（还有 {hiddenCount} 条）
+          {trFormat('查看更多（还有 {count} 条）', { count: hiddenCount })}
         </Button>
       ) : null}
     </>
@@ -45,6 +47,7 @@ function WarningList({ items, expanded, onExpand }: { items: CollectAlertItem[];
 }
 
 function PinduoduoCollectAlerts({ product }: { product: ProductDetail }) {
+  useLanguage();
   const [warnExpanded, setWarnExpanded] = useState(false);
   const [errExpanded, setErrExpanded] = useState(false);
 
@@ -55,13 +58,13 @@ function PinduoduoCollectAlerts({ product }: { product: ProductDetail }) {
       <Alert
         type="info"
         showIcon
-        message={state.infoMessage}
+        message={tr(state.infoMessage)}
         description={
           state.statusTags.length > 0 ? (
             <Space size={[8, 8]} wrap style={{ marginTop: 4 }}>
               {state.statusTags.map((t) => (
                 <Tag key={t.key} color={tagColor(t.tone)}>
-                  {t.label}
+                  {tr(t.label)}
                 </Tag>
               ))}
             </Space>
@@ -73,10 +76,10 @@ function PinduoduoCollectAlerts({ product }: { product: ProductDetail }) {
         <Alert
           type="error"
           showIcon
-          message="发布前必须处理"
+          message={tr("发布前必须处理")}
           description={
             <>
-              <Typography.Text>以下问题未解决前，发布检查将无法通过。</Typography.Text>
+              <Typography.Text>{tr("以下问题未解决前，发布检查将无法通过。")}</Typography.Text>
               <WarningList items={state.errors} expanded={errExpanded} onExpand={() => setErrExpanded(true)} />
             </>
           }
@@ -87,10 +90,10 @@ function PinduoduoCollectAlerts({ product }: { product: ProductDetail }) {
         <Alert
           type="warning"
           showIcon
-          message="采集结果需要补充"
+          message={tr("采集结果需要补充")}
           description={
             <>
-              <Typography.Text>部分字段可能需要人工补充，请发布前检查。</Typography.Text>
+              <Typography.Text>{tr("部分字段可能需要人工补充，请发布前检查。")}</Typography.Text>
               <WarningList items={state.warnings} expanded={warnExpanded} onExpand={() => setWarnExpanded(true)} />
             </>
           }
@@ -101,17 +104,18 @@ function PinduoduoCollectAlerts({ product }: { product: ProductDetail }) {
 }
 
 function TaobaoTmallCollectAlerts({ product }: { product: ProductDetail }) {
+  useLanguage();
   const [warnExpanded, setWarnExpanded] = useState(false);
   const [errExpanded, setErrExpanded] = useState(false);
   const state = useMemo(() => buildTaobaoTmallCollectAlertState(product), [product]);
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%', marginBottom: 16 }}>
-      <Alert type="info" showIcon message={state.infoMessage} />
+      <Alert type="info" showIcon message={tr(state.infoMessage)} />
       {state.errors.length > 0 ? (
         <Alert
           type="error"
           showIcon
-          message="发布前必须处理"
+          message={tr("发布前必须处理")}
           description={
             <WarningList items={state.errors} expanded={errExpanded} onExpand={() => setErrExpanded(true)} />
           }
@@ -121,7 +125,7 @@ function TaobaoTmallCollectAlerts({ product }: { product: ProductDetail }) {
         <Alert
           type="warning"
           showIcon
-          message="采集结果需要补充"
+          message={tr("采集结果需要补充")}
           description={
             <WarningList items={state.warnings} expanded={warnExpanded} onExpand={() => setWarnExpanded(true)} />
           }

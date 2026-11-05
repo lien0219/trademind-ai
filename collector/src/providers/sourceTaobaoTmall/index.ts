@@ -1,7 +1,6 @@
 import type { Page } from 'playwright';
 import type { BrowserManager } from '../../browser/manager.js';
 import { getDefaultNavigationTimeoutMs } from '../../config/env.js';
-import { PAGE_EVALUATE_POLYFILL } from '../../browser/evaluate-in-page.js';
 import type { CollectInput, CollectorProvider } from '../collector-provider.js';
 import type { CollectFeature } from '../../types/provider-meta.js';
 import type { NormalizedProduct } from '../../types/product.js';
@@ -165,24 +164,14 @@ class TaobaoTmallCollectorProvider implements CollectorProvider {
       return browser.withTaobaoTmallPage(run);
     }
 
-    const browserInstance = await browser.ensureBrowser();
-    const context = await browserInstance.newContext({
+    return browser.withUnprofiledPage(run, {
       userAgent:
         process.env.COLLECTOR_USER_AGENT ??
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       locale: 'zh-CN',
       viewport: { width: 1280, height: 900 },
+      timeoutMs: gotoTimeout,
     });
-    await context.addInitScript(PAGE_EVALUATE_POLYFILL);
-    const page = await context.newPage();
-    page.setDefaultNavigationTimeout(gotoTimeout);
-    page.setDefaultTimeout(gotoTimeout);
-    try {
-      return await run(page);
-    } finally {
-      await page.close().catch(() => undefined);
-      await context.close().catch(() => undefined);
-    }
   }
 }
 

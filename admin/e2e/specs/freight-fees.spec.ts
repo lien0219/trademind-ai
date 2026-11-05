@@ -11,6 +11,7 @@ import {
 import {
   expectDrawerWithinViewport,
   expectHeaderContentAligned,
+  expectModalWithinViewport,
   expectNoRootOverflow,
 } from '../utils/assertions';
 
@@ -29,7 +30,7 @@ const csv = [
 
 test.describe('@smoke carrier freight fee ledger', () => {
   for (const viewport of viewports) {
-    test(`renders freight facts and a bounded detail drawer at ${viewport.width}x${viewport.height}`, async ({ admin, page }) => {
+    test(`renders freight facts and bounded detail/import controls at ${viewport.width}x${viewport.height}`, async ({ admin, page }) => {
       await page.setViewportSize(viewport);
       await admin.goto(`/finance/freight-fees?drawer=freight-fee&id=${E2E_FREIGHT_FEE_CHARGE_ID}`);
       await expect(page.getByText('承运商运费账单', { exact: true }).first()).toBeVisible();
@@ -39,6 +40,19 @@ test.describe('@smoke carrier freight fee ledger', () => {
       await expectHeaderContentAligned(page);
       await expect(page.getByRole('dialog')).toContainText('TRACK-E2E-FREIGHT-1');
       await expectDrawerWithinViewport(page);
+
+      await admin.goto('/finance/freight-fees');
+      await page.getByRole('button', { name: '导入账单' }).click();
+      const dialog = page.getByRole('dialog');
+      await expectModalWithinViewport(page);
+      await dialog.getByRole('combobox', { name: '选择账单所属店铺' }).click();
+      const dropdown = page.locator('.ant-select-dropdown:visible');
+      await expect.poll(async () => (await dropdown.boundingBox())?.width ?? 0).toBeGreaterThan(200);
+      await dropdown.getByText('E2E 抖店测试店铺 · douyin_shop', { exact: true }).click();
+      await expect(dialog.getByTitle('E2E 抖店测试店铺 · douyin_shop', { exact: true })).toBeVisible();
+      await dialog.getByRole('button', { name: /取\s*消/ }).click();
+      expect(admin.writeGuard.allCalls()).toHaveLength(0);
+      await expectNoRootOverflow(page);
       await admin.writeGuard.expectRequestCount('unexpected', 0);
     });
   }
@@ -70,8 +84,10 @@ test.describe('@smoke carrier freight fee ledger', () => {
     const dialog = page.getByRole('dialog').first();
     const shopSelect = dialog.getByRole('combobox');
     await shopSelect.click();
-    await shopSelect.press('ArrowDown');
-    await shopSelect.press('Enter');
+    // The fixture contains Douyin and Shopee; ArrowDown can select Shopee
+    // while the preview is correctly scoped to E2E_SHOP_ID (Douyin).
+    await page.locator('.ant-select-dropdown:visible')
+      .getByText('E2E 抖店测试店铺 · douyin_shop', { exact: true }).click();
     await dialog.locator('input[type="file"]').setInputFiles({ name: 'freight.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
     await dialog.getByRole('button', { name: '校验预览' }).click();
     await expect(dialog.getByText(/校验通过/)).toBeVisible();
@@ -84,6 +100,41 @@ test.describe('@smoke carrier freight fee ledger', () => {
     await admin.writeGuard.expectRequestCount('freight-fee-preview', 1);
     await admin.writeGuard.expectRequestCount('freight-fee-confirm', 1);
   });
+
+  for (const scenario of [
+    { name: 'a response for another shop', preview: { ...e2eFreightFeePreview, shopId: 'e2e-other-shop' } },
+    { name: 'a valid response without a calculation hash', preview: { ...e2eFreightFeePreview, calculationHash: '' } },
+  ]) {
+    test(`rejects ${scenario.name} before freight import confirmation`, async ({ admin, page }) => {
+      admin.writeGuard.allow({
+        operation: 'freight-fee-preview',
+        method: 'POST',
+        path: /^\/api\/v1\/freight-fee-imports\/preview$/,
+        response: ok(scenario.preview),
+      });
+
+      await admin.goto('/finance/freight-fees');
+      await page.getByRole('button', { name: '导入账单' }).click();
+      const dialog = page.getByRole('dialog').first();
+      const shopSelect = dialog.getByRole('combobox');
+      await shopSelect.click();
+      await expect.poll(async () => (await page.locator('.ant-select-dropdown:visible').boundingBox())?.width ?? 0).toBeGreaterThan(200);
+      await page.locator('.ant-select-dropdown:visible')
+        .getByText('E2E 抖店测试店铺 · douyin_shop', { exact: true }).click();
+      await dialog.locator('input[type="file"]').setInputFiles({
+        name: 'freight.csv',
+        mimeType: 'text/csv',
+        buffer: Buffer.from(csv),
+      });
+      await dialog.getByRole('button', { name: '校验预览' }).click();
+
+      await admin.writeGuard.expectRequestCount('freight-fee-preview', 1);
+      await expect(dialog.getByRole('button', { name: '确认导入' })).toBeDisabled();
+      await expect(dialog.getByText(/校验通过/)).toHaveCount(0);
+      await admin.writeGuard.expectRequestCount('freight-fee-confirm', 0);
+      await admin.writeGuard.expectRequestCount('unexpected', 0);
+    });
+  }
 
   test('appends a correction and one-time reversal from a deep-linked detail', async ({ admin, page }) => {
     admin.writeGuard.allow({

@@ -4,6 +4,41 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Admin interface and layout maintenance (2026-11-02)
+
+- Simplified page headings, secondary labels, settings panels and authentication screens while retaining actionable status and risk guidance; removed fabricated login metrics.
+- Reused shared spacing and form components, bounded short configuration forms, and corrected nested card padding, narrow-screen header clipping and product metadata wrapping.
+- Stopped the business settings loading indicator after a failed read and preserved retry, readonly and submission behavior. Extended existing regression coverage for responsive layouts and guarded configuration writes.
+- Audited repository entry points beyond Admin and corrected stale Collector paths, environment-variable names, command descriptions, queue and E2E guidance, and misleading provider metadata without changing runtime contracts.
+- Fixed homepage overflow at 1024px, balanced authentication screen spacing, and restored freight-page styles and full-width store selection. Removed the freight import dialog's scale transition to prevent incorrectly sized dropdowns during fast interactions; retained import validation and confirmation safeguards.
+- Let shared page titles and necessary subtitles wrap across supported viewports, with a full title row at 768px and below. Improved the customer conversation form's labels and mobile layout while preserving internal, platform and AI message distinctions and existing reply safeguards.
+- Refreshed menus, breadcrumbs and inventory run/request status options when the interface language changes without reloading authentication or discarding unsaved form values. Added route-derived locale and viewport regression coverage with initial API-read failure checks.
+- Extended the shared E2E write guard to all `/api/**` namespaces, including legacy Collector endpoints, with synthetic regressions for blocked writes, explicit mocks, request counts and read fallback.
+- Clarified Redis 7 requirements for native development and isolated tests to match Compose / CI and the existing OAuth `GETDEL` usage.
+- Centralized unprofiled Collector pages with public HTTP/WebSocket guards and blocked Service Workers. Release provider and custom-profile contexts when setup fails while preserving the original error and successful profile behavior, with 16 added browser lifecycle regression cases.
+
+### Six-language Admin localization and tenant branding (2026-10-28)
+
+- Completed the strict Admin source audit with six-locale coverage, dynamic language-switch labels, localized API error guidance, and regression checks that preserve raw business identifiers and diagnostics.
+- Connected tenant branding to the workspace header, including tenant-scoped refresh after save and restore, HTTPS-only custom logos, and responsive header coverage.
+- Hardened the existing internationalization audit and made its CI job install pinned workspace dependencies before the strict inventory and changed-line checks.
+- Local acceptance passed for 340 Admin source files with zero strict-audit candidates, Admin Vitest, TypeScript, production build, and localization browser scenarios. Umi/renderer was upgraded to `4.7.28` with exact patched dependency overrides; the production dependency audit is now 0 Critical/0 High, with 22 Moderate and 8 Low findings remaining. Full production-preview E2E and external security acceptance remain tracked in the current acceptance report.
+
+### User and permission security maintenance (2026-10-24)
+
+- Added a consistent 12–72 character ASCII password policy for new credentials, secure local password generation and explicit copying, including one-time reset credentials.
+- Added tenant-scoped user soft deletion and deletion of empty custom roles with transactional audit, credential revocation, self/last-administrator/system-role protection and regression coverage. New PostgreSQL concurrency checks await isolated CI validation.
+- Made sensitive user, role, password, shop authorization, global configuration and session-revocation audit writes transactional; added failure/denial auditing and PostgreSQL audit-chain concurrency protection.
+- Bound OAuth state to the initiating tenant, user and security version, and committed credentials, provider metadata and success evidence together.
+- Fenced refresh persistence for all five platform providers so late responses cannot restore revoked shop credentials; propagated persistence failures and audited successful background refreshes transactionally.
+- Closed public registration that previously provisioned administrators; console users are created by authorized administrators and must change temporary passwords.
+- Added tenant isolation to affected collection/runtime/file APIs and legacy browser-profile migration, plus token/session revocation and last-administrator concurrency regressions.
+- Scoped AI batches, image tasks and related product/file resources, customer-message synchronization, shop summaries and operations aggregates by tenant; quarantined legacy AI batches with conflicting or incomplete ownership evidence.
+- Extended audit hashes to actor/session/request metadata, made logout and its evidence atomic, and anchored partial-day integrity windows to verified predecessor records.
+- Removed a warehouse row-lock upgrade that could deadlock concurrent order inventory reservations; added a deterministic PostgreSQL concurrency regression.
+- Restricted global key rotation to active tenant-zero system administrators, made rotation control and audit writes atomic, serialized PostgreSQL control requests, and scoped audit-integrity checks to the authenticated tenant.
+- Completed role editing, permission preview/comparison, guarded Admin mutations and authenticated operations navigation, with mocked RBAC E2E coverage. Remote CI, full independent security review and final human acceptance remain pending; see the permission checklist.
+
 ### Container publishing and release pipeline
 
 - Unified backend, admin, and collector candidates under `ghcr.io/lien0219/trademind` with commit-scoped tags, OCI source labels, SBOM, provenance, platform checks, and Trivy gates.

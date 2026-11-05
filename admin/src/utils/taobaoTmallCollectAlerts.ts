@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import type { ProductDetail, ProductImageRow, ProductSKURow } from '@/services/products';
 
 export type CollectAlertLevel = 'error' | 'warning' | 'info';
@@ -110,22 +111,22 @@ export function buildTaobaoTmallCollectAlertState(data: ProductDetail): TaobaoTm
   const statusTags: CollectStatusTag[] = [
     {
       key: 'title',
-      label: data.title?.trim() ? '标题已识别' : '标题未填写',
+      label: data.title?.trim() ? tr('标题已识别') : tr('标题未填写'),
       tone: data.title?.trim() ? 'success' : 'warning',
     },
     {
       key: 'price',
-      label: hasProductPrice(data) ? '价格已识别' : '价格需核对',
+      label: hasProductPrice(data) ? tr('价格已识别') : tr('价格需核对'),
       tone: hasProductPrice(data) ? 'success' : 'warning',
     },
     {
       key: 'mainImages',
-      label: mainCount > 0 ? '主图已识别' : '主图缺失',
+      label: mainCount > 0 ? tr('主图已识别') : tr('主图缺失'),
       tone: mainCount > 0 ? 'success' : 'warning',
     },
     {
       key: 'skus',
-      label: skus.length > 0 ? '规格已识别' : '规格需补充',
+      label: skus.length > 0 ? tr('规格已识别') : tr('规格需补充'),
       tone: skus.length > 0 ? 'success' : 'warning',
     },
   ];

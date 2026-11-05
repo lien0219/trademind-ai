@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
@@ -65,7 +66,7 @@ func (f *skuWriteHTTPFixture) router(t *testing.T, tenantID int64, role string) 
 		})
 		c.Next()
 	})
-	Register(router.Group("/api/v1"), &Handler{Svc: &Service{DB: f.db}})
+	Register(router.Group("/api/v1"), &Handler{Svc: &Service{DB: f.db}, Files: &files.Service{DB: f.db}})
 	return router
 }
 
@@ -101,6 +102,45 @@ func TestSKUWriteRoutesRejectReadonlyPrincipal(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, recorder.Code)
 		require.Equal(t, response.CodeForbidden, envelope.Code)
 		require.Equal(t, "trace-sku-write-test", envelope.TraceID)
+	}
+}
+
+func TestProductWriteRoutesRejectReadonlyPrincipal(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := newSKUWriteHTTPFixture(t)
+	router := fixture.router(t, 1, adminperm.RoleReadonly)
+	productPath := fmt.Sprintf("/api/v1/products/%s", fixture.product.ID)
+	imageID := uuid.NewString()
+	tests := []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{http.MethodPut, productPath, `{"title":"Readonly edit"}`},
+		{http.MethodDelete, productPath, ""},
+		{http.MethodPut, productPath + "/platform-configs/douyin_shop", `{}`},
+		{http.MethodPost, productPath + "/platform-configs/douyin_shop/build-mapping", `{}`},
+		{http.MethodPut, productPath + "/platform-configs/douyin_shop/mapping", `{}`},
+		{http.MethodPost, productPath + "/platform-configs/douyin_shop/images/upload", `{}`},
+		{http.MethodPost, productPath + "/platform-configs/douyin_shop/images/" + imageID + "/retry", `{}`},
+		{http.MethodPost, productPath + "/ai/optimize-title", `{}`},
+		{http.MethodPost, productPath + "/ai/generate-description", `{}`},
+		{http.MethodPost, productPath + "/apply-ai-title", `{}`},
+		{http.MethodPost, productPath + "/apply-ai-description", `{}`},
+		{http.MethodPost, productPath + "/undo-ai-title", `{}`},
+		{http.MethodPost, productPath + "/undo-ai-description", `{}`},
+		{http.MethodPost, productPath + "/sync-images", `{}`},
+		{http.MethodPost, productPath + "/images", `{"imageType":"main","url":"https://example.test/image.png"}`},
+		{http.MethodPut, productPath + "/images/" + imageID, `{"url":"https://example.test/updated.png"}`},
+		{http.MethodDelete, productPath + "/images/" + imageID, ""},
+		{http.MethodPost, productPath + "/images/reorder", `{"imageIds":[]}`},
+	}
+	for _, test := range tests {
+		t.Run(test.method+" "+test.path, func(t *testing.T) {
+			recorder, envelope := performSKUWriteRequest(t, router, test.method, test.path, test.body)
+			require.Equal(t, http.StatusForbidden, recorder.Code)
+			require.Equal(t, response.CodeForbidden, envelope.Code)
+		})
 	}
 }
 

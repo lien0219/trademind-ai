@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
@@ -31,12 +32,14 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/procurement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/profitability"
 	"github.com/trademind-ai/trademind/backend/internal/modules/salesreturn"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settlement"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehousefee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
@@ -128,6 +131,34 @@ func backfillOrderInventoryEffectTenants(db *gorm.DB) error {
 	`).Error
 }
 
+// backfillCollectBrowserProfileTenants assigns legacy profiles to a tenant
+// only when their persisted creator identifies that tenant unambiguously.
+// Unowned legacy rows remain in tenant zero and are not exposed to tenant users.
+func backfillCollectBrowserProfileTenants(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&collectbrowserprofile.CollectBrowserProfile{}) ||
+		!db.Migrator().HasTable(&admin.AdminUser{}) ||
+		!db.Migrator().HasColumn(&collectbrowserprofile.CollectBrowserProfile{}, "tenant_id") ||
+		!db.Migrator().HasColumn(&collectbrowserprofile.CollectBrowserProfile{}, "created_by") {
+		return nil
+	}
+	return db.Exec(`
+		UPDATE collect_browser_profiles
+		SET tenant_id = (
+			SELECT admin_users.tenant_id
+			FROM admin_users
+			WHERE admin_users.id = collect_browser_profiles.created_by
+		)
+		WHERE tenant_id = 0
+		  AND created_by IS NOT NULL
+		  AND EXISTS (
+			SELECT 1
+			FROM admin_users
+			WHERE admin_users.id = collect_browser_profiles.created_by
+			  AND admin_users.tenant_id <> 0
+		  )
+	`).Error
+}
+
 // backfillOrderExceptionMarkTenants preserves existing workbench marks when
 // tenant_id is added to the overlay table. Unknown legacy sources remain at
 // tenant zero and are therefore invisible to authenticated non-zero tenants.
@@ -212,6 +243,21 @@ func AutoMigrate(db *gorm.DB) error {
 	}
 	if err := db.AutoMigrate(
 		&admin.AdminUser{},
+		&admin.AdminMutationLock{},
+		&auth.AuthEmailChallenge{},
+		&auth.AuthEmailRate{},
+		&admin.RoleDefinition{},
+		&admin.Tenant{},
+		&admin.TenantMembership{},
+		&admin.TenantInvitation{},
+		&tenantconfig.Setting{},
+		&profitability.FXRate{},
+		&profitability.FXReportSnapshot{},
+		&tenantconfig.Revision{},
+		&tenantconfig.UserPreference{},
+		&tenantconfig.ShopInventoryOverride{},
+		&admin.PlatformOperator{},
+		&admin.RootAccount{},
 		&admin.UserStorePermission{},
 		&settings.Setting{},
 		&operationlog.OperationLog{},
@@ -328,6 +374,15 @@ func AutoMigrate(db *gorm.DB) error {
 		&performance.QuotaPolicy{},
 	); err != nil {
 		return err
+	}
+	if err := backfillTenantMemberships(db); err != nil {
+		return fmt.Errorf("backfill tenant memberships: %w", err)
+	}
+	if err := migrateAIOperationBatchTenant(db); err != nil {
+		return fmt.Errorf("backfill AI operation batch tenants: %w", err)
+	}
+	if err := backfillCollectBrowserProfileTenants(db); err != nil {
+		return fmt.Errorf("backfill collect browser profile tenants: %w", err)
 	}
 	if err := migrateWarehousePlacementIndexes(db); err != nil {
 		return err

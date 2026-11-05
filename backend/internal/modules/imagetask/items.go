@@ -13,8 +13,25 @@ func (s *Service) ListTaskItems(ctx context.Context, taskID uuid.UUID) ([]ImageT
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("imagetask: no db")
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if scoped {
+		var n int64
+		taskQuery := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", taskID)
+		taskQuery = scopeImageTaskQuery(taskQuery, tenantID, true)
+		if err := taskQuery.Count(&n).Error; err != nil {
+			return nil, err
+		}
+		if n == 0 {
+			return nil, gorm.ErrRecordNotFound
+		}
+	}
 	var items []ImageTaskItem
-	if err := s.DB.WithContext(ctx).Where("task_id = ?", taskID).Order("created_at ASC").Find(&items).Error; err != nil {
+	query := s.DB.WithContext(ctx).Model(&ImageTaskItem{}).Where("task_id = ?", taskID)
+	query = scopeImageTaskItemQuery(query, tenantID, scoped)
+	if err := query.Order("created_at ASC").Find(&items).Error; err != nil {
 		return nil, err
 	}
 	return items, nil
@@ -25,7 +42,13 @@ func (s *Service) DeleteTaskItem(ctx context.Context, taskID, itemID uuid.UUID) 
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("imagetask: no db")
 	}
-	res := s.DB.WithContext(ctx).Delete(&ImageTaskItem{}, "id = ? AND task_id = ?", itemID, taskID)
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return err
+	}
+	query := s.DB.WithContext(ctx).Model(&ImageTaskItem{}).Where("id = ? AND task_id = ?", itemID, taskID)
+	query = scopeImageTaskItemQuery(query, tenantID, scoped)
+	res := query.Delete(&ImageTaskItem{})
 	if res.Error != nil {
 		return res.Error
 	}

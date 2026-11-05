@@ -7,7 +7,9 @@ TradeMind 由 Go backend、React Admin、Node collector、PostgreSQL 与 Redis �
 - Node.js 20+
 - pnpm 10.34+
 - Go 1.26+
-- Docker / Docker Compose，或与 `.env` 匹配的本机 PostgreSQL 和 Redis
+- Docker / Docker Compose，或与 `.env` 匹配的本机 PostgreSQL 和 Redis 7
+
+本机与隔离测试 Redis 均使用 Redis 7，与 Compose / CI 保持一致。OAuth 状态消费依赖 `GETDEL`；Redis 5 和 6.0 不支持该命令，会导致授权回调或相关回归失败。
 
 ## 安装与启动
 
@@ -67,7 +69,9 @@ Copy-Item .env.example .env
 - 本地默认运行与改动相关的静态检查、配置检查和必要构建；完整自动化回归交由 CI。
 - 功能、页面、文案、响应式和业务流程最终由维护者人工验收。
 - 本地不要求存在 `trademind_test`，也不会自动重建。数据库集成测试由 CI service container 提供隔离数据库。
-- 若明确要在本地运行数据库测试，必须显式提供指向隔离测试库的 `TEST_DATABASE_URL`；严禁连接开发库或生产库。
+- 若明确要在本地运行数据库测试，必须设置 `APP_ENV=test`，并显式提供指向隔离资源的 `TEST_DATABASE_URL` 与 `TEST_REDIS_URL`；数据库名须包含独立的 test/e2e 标记，Redis 使用正数测试 DB。严禁连接开发库或生产库。
+- `pnpm test:backend` 与直接运行 `go test ./...` 执行无需 PostgreSQL 的常规套件。PostgreSQL/Worker 回归通过 `integration` build tag 显式启用：使用 `pnpm test:db` 或 `pnpm test:backend:integration`；库存与并发 Race 使用 `pnpm test:db:inventory`、`pnpm test:db:inventory:race`。旧的 `inventorypostgres` tag 仍会包含共同的集成测试与辅助 fixture。
+- `Project Tests` 的 backend integration 和 code quality 作业各自提供 PostgreSQL/Redis service container；后者的 affected 检查也会调用真实数据库测试，不能只为独立集成作业配置测试资源。
 
 核心 CI 命令包括：
 
@@ -76,7 +80,9 @@ pnpm test:frontend
 pnpm test:collector
 pnpm test:contracts
 pnpm test:backend
+pnpm test:db
 pnpm test:db:inventory
+pnpm test:db:inventory:race
 pnpm test:redis
 pnpm architecture:test
 pnpm workflow:test
@@ -105,7 +111,7 @@ pnpm dev:collector
 pnpm collect:test
 ```
 
-`collect:test` 仅用于采集器测试模式，不等同于生产平台验收。
+`collect:test` 是需要显式 URL 的手动真实采集调试命令，会启动浏览器并访问目标页面；它不是 Mock/offline 测试，也不等同于生产平台验收。自动化采集回归使用 `pnpm test:collector`。
 
 ## 本地产物
 

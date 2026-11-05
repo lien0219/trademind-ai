@@ -1,3 +1,5 @@
+//go:build integration || inventorypostgres
+
 package integration
 
 import (

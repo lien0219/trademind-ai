@@ -1,6 +1,9 @@
+import { tr } from '@/i18n';
 /** 操作日志 · 资源类型中文映射（与后端 operationlog Resource 一致） */
 export const OPERATION_LOG_RESOURCE_LABEL: Record<string, string> = {
   auth: '认证',
+  admin_user: '后台用户',
+  admin_role: '后台角色',
   settings: '系统设置',
   product: '商品',
   product_sku: '商品规格',
@@ -43,6 +46,8 @@ export const OPERATION_LOG_RESOURCE_LABEL: Record<string, string> = {
 /** 操作日志 · 操作动作中文映射（与后端 operationlog Action 一致） */
 export const OPERATION_LOG_ACTION_LABEL: Record<string, string> = {
   login: '登录',
+  'user.delete': '删除用户',
+  'role.delete': '删除角色',
   logout: '登出',
   register: '注册',
   email_code: '发送邮箱验证码',
@@ -321,7 +326,7 @@ const SEGMENT_LABEL: Record<string, string> = {
   instance: '进程',
   lease: '租约',
   expired: '过期',
-  message: '消息',
+  get message() { return tr("消息"); },
   conversation: '会话',
   publish: '刊登',
   settings: '设置',
@@ -349,8 +354,8 @@ const SEGMENT_LABEL: Record<string, string> = {
   best: '最佳',
   main: '主图',
   readiness: '发布就绪',
-  title: '标题',
-  description: '描述',
+  get title() { return tr("标题"); },
+  get description() { return tr("描述"); },
   optimize: '优化',
   results: '结果',
   stock: '库存',

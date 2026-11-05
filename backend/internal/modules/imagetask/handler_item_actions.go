@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -27,6 +28,9 @@ type scoreImageBody struct {
 func (h *Handler) SaveItemToProduct(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
+		return
+	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermAIImageApply) {
 		return
 	}
 	itemID, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -75,6 +79,9 @@ func (h *Handler) SetItemAsMain(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
 		return
 	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermAIImageApply) {
+		return
+	}
 	itemID, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid item id")
@@ -117,6 +124,9 @@ func (h *Handler) SetItemAsMain(c *gin.Context) {
 func (h *Handler) ScoreImage(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
+		return
+	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermAIImageApply) {
 		return
 	}
 	var body scoreImageBody
@@ -162,6 +172,9 @@ func (h *Handler) SelectBestMainForProduct(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
 		return
 	}
+	if !requireImagePermission(c, h.Svc.DB, adminperm.PermAIImageApply) {
+		return
+	}
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -174,7 +187,13 @@ func (h *Handler) SelectBestMainForProduct(c *gin.Context) {
 		mode = "recommend"
 	}
 	var n int64
-	if err := h.Svc.DB.WithContext(c.Request.Context()).Table("products").Where("id = ?", pid).Count(&n).Error; err != nil || n == 0 {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, err.Error())
+		return
+	}
+	if err := h.Svc.DB.WithContext(c.Request.Context()).Table("products").
+		Where("id = ? AND tenant_id = ?", pid, tenantID).Count(&n).Error; err != nil || n == 0 {
 		response.Fail(c, 404, response.CodeNotFound, "product not found")
 		return
 	}

@@ -69,25 +69,29 @@ func StartAlertScanWorker(ctx context.Context, wg *sync.WaitGroup, log *slog.Log
 					log.Warn("task_alert_scan_failed", "error", err)
 				}
 				if svc.OpLog != nil {
-					_ = svc.OpLog.WriteBackground(context.Background(), operationlog.WriteOpts{
+					if auditErr := svc.OpLog.WriteBackground(context.Background(), operationlog.WriteOpts{
 						Action:     "task_center.alert.scan_worker.failed",
 						Resource:   "task_alert",
 						ResourceID: "scan",
 						Status:     "failed",
 						Message:    truncateRunes(err.Error(), 400),
-					})
+					}); auditErr != nil && log != nil {
+						log.Error("task_alert_scan_failure_audit_failed", "error", auditErr)
+					}
 				}
 				continue
 			}
 			if svc.OpLog != nil {
 				msg := truncateRunes(fmt.Sprintf("scanned=%d gen=%d up=%d skip=%d", sum.ScannedCount, sum.GeneratedCount, sum.UpdatedCount, sum.IgnoredCount), 480)
-				_ = svc.OpLog.WriteBackground(context.Background(), operationlog.WriteOpts{
+				if auditErr := svc.OpLog.WriteBackground(context.Background(), operationlog.WriteOpts{
 					Action:     "task_center.alert.scan_worker.run",
 					Resource:   "task_alert",
 					ResourceID: "scan",
 					Status:     "success",
 					Message:    msg,
-				})
+				}); auditErr != nil && log != nil {
+					log.Error("task_alert_scan_success_audit_failed", "error", auditErr)
+				}
 			}
 		}
 	}()

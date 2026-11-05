@@ -59,11 +59,13 @@ type ListFailureParams struct {
 	Limit            int
 	UseCursor        bool
 
-	FailureCategory string
-	Severity        string
-	RecoveryStatus  string
-	AllowedShopIDs  []uuid.UUID
-	TenantID        int64
+	FailureCategory   string
+	Severity          string
+	RecoveryStatus    string
+	AllowedShopIDs    []uuid.UUID
+	RestrictShopScope bool
+	TenantID          int64
+	TenantScopeSet    bool
 }
 
 func taskCursorScope(p ListFailureParams) (filterFingerprint string, shopScopeHash string) {
@@ -76,46 +78,76 @@ func taskCursorScope(p ListFailureParams) (filterFingerprint string, shopScopeHa
 	shopScopeHash = pagination.Fingerprint(map[string]any{
 		"shopId":         shopScope,
 		"allowedShopIds": allowed,
+		"restricted":     p.RestrictShopScope,
 	})
 	filterFingerprint = pagination.Fingerprint(map[string]any{
-		"tenantId":         p.TenantID,
-		"taskType":         p.TaskType,
-		"status":           p.Status,
-		"normalizedStatus": p.NormalizedStatus,
-		"platform":         p.Platform,
-		"shopId":           shopScope,
-		"keyword":          p.Keyword,
-		"includeResolved":  p.IncludeResolved,
-		"includeMarked":    p.IncludeMarked,
-		"requireIgnored":   p.RequireIgnored,
-		"requireHandled":   p.RequireHandled,
-		"start":            p.Start,
-		"end":              p.End,
-		"failureCategory":  p.FailureCategory,
-		"severity":         p.Severity,
-		"recoveryStatus":   p.RecoveryStatus,
-		"allowedShopIds":   allowed,
-		"sort":             "sort_key_desc_id_desc",
+		"tenantId":          p.TenantID,
+		"taskType":          p.TaskType,
+		"status":            p.Status,
+		"normalizedStatus":  p.NormalizedStatus,
+		"platform":          p.Platform,
+		"shopId":            shopScope,
+		"keyword":           p.Keyword,
+		"includeResolved":   p.IncludeResolved,
+		"includeMarked":     p.IncludeMarked,
+		"requireIgnored":    p.RequireIgnored,
+		"requireHandled":    p.RequireHandled,
+		"start":             p.Start,
+		"end":               p.End,
+		"failureCategory":   p.FailureCategory,
+		"severity":          p.Severity,
+		"recoveryStatus":    p.RecoveryStatus,
+		"allowedShopIds":    allowed,
+		"restrictShopScope": p.RestrictShopScope,
+		"sort":              "sort_key_desc_id_desc",
 	})
 	return filterFingerprint, shopScopeHash
 }
 
 func (s *Service) applyTenantListFilter(q *gorm.DB, p ListFailureParams) *gorm.DB {
-	if p.TenantID > 0 {
+	if p.TenantScopeSet || p.TenantID > 0 {
 		return q.Where("tenant_id = ?", p.TenantID)
 	}
 	return q
 }
 
-func (s *Service) summarizeGlobalMarks(ctx context.Context, tenantID int64) (ignored int64, handled int64, err error) {
+func (s *Service) summarizeScopedMarks(ctx context.Context, tenantID int64, tasks []UnifiedTaskDTO) (ignored int64, handled int64, err error) {
 	if s == nil || s.DB == nil {
 		return 0, 0, fmt.Errorf("taskcenter: no db")
 	}
-	if err = s.DB.WithContext(ctx).Model(&TaskFailureMark{}).Where("tenant_id = ? AND mark_type = ?", tenantID, MarkIgnored).Count(&ignored).Error; err != nil {
-		return 0, 0, err
+	idsByType := make(map[string]map[string]struct{})
+	for _, task := range tasks {
+		if task.TenantID != tenantID {
+			continue
+		}
+		taskType := strings.TrimSpace(task.TaskType)
+		sourceID := strings.TrimSpace(task.SourceID)
+		if taskType == "" || sourceID == "" {
+			continue
+		}
+		if idsByType[taskType] == nil {
+			idsByType[taskType] = make(map[string]struct{})
+		}
+		idsByType[taskType][sourceID] = struct{}{}
 	}
-	if err = s.DB.WithContext(ctx).Model(&TaskFailureMark{}).Where("tenant_id = ? AND mark_type = ?", tenantID, MarkHandled).Count(&handled).Error; err != nil {
-		return 0, 0, err
+	for taskType, sourceIDs := range idsByType {
+		ids := make([]string, 0, len(sourceIDs))
+		for sourceID := range sourceIDs {
+			ids = append(ids, sourceID)
+		}
+		marks, fetchErr := s.fetchMarks(ctx, tenantID, taskType, ids)
+		if fetchErr != nil {
+			return 0, 0, fetchErr
+		}
+		for sourceID := range sourceIDs {
+			flags := marks[markKey(taskType, sourceID)]
+			if flags.Ignored {
+				ignored++
+			}
+			if flags.Handled {
+				handled++
+			}
+		}
 	}
 	return ignored, handled, nil
 }
@@ -130,7 +162,15 @@ func (s *Service) Summary(ctx context.Context, p ListFailureParams) (FailuresSum
 		ByPlatform: map[string]int64{},
 	}
 	su.fillFromMerged(merged)
-	ig, hd, err := s.summarizeGlobalMarks(ctx, p.TenantID)
+	markParams := p
+	markParams.IncludeMarked = true
+	markParams.RequireIgnored = false
+	markParams.RequireHandled = false
+	markedTasks, err := s.collectMerged(ctx, markParams, maxMergeFetchPerTbl)
+	if err != nil {
+		return FailuresSummary{}, err
+	}
+	ig, hd, err := s.summarizeScopedMarks(ctx, p.TenantID, markedTasks)
 	if err != nil {
 		return FailuresSummary{}, err
 	}
@@ -155,7 +195,7 @@ func passesUnifiedFilters(d UnifiedTaskDTO, p ListFailureParams) bool {
 	if p.ShopID != "" && !strings.EqualFold(strings.TrimSpace(p.ShopID), strings.TrimSpace(d.ShopID)) {
 		return false
 	}
-	if len(p.AllowedShopIDs) > 0 {
+	if p.RestrictShopScope && strings.TrimSpace(d.ShopID) != "" {
 		shopRaw := strings.TrimSpace(d.ShopID)
 		if shopRaw == "" {
 			return false
@@ -197,7 +237,7 @@ func (s *Service) collectMerged(ctx context.Context, p ListFailureParams, perTyp
 	now := time.Now().UTC()
 	types := taskTypesFor(p)
 	if len(types) == 0 {
-		return nil, fmt.Errorf("invalid taskType")
+		return nil, fmt.Errorf("%w: invalid taskType", errTaskInvalidRequest)
 	}
 	var merged []UnifiedTaskDTO
 	for _, tt := range types {
@@ -434,7 +474,7 @@ func parseTaskType(s string) (string, error) {
 		TaskTypeCustomerMessageSync, TaskTypeProductPublish, TaskTypeInventorySync, TaskTypeAIText, TaskTypeAIImage, TaskTypeCustomerFailure:
 		return s, nil
 	default:
-		return "", fmt.Errorf("unknown taskType")
+		return "", fmt.Errorf("%w: unknown taskType", errTaskInvalidRequest)
 	}
 }
 
@@ -450,7 +490,7 @@ func (s *Service) ListFailures(ctx context.Context, p ListFailureParams) (ListFa
 	p.Page, p.PageSize = page, pageSize
 	types := taskTypesFor(p)
 	if len(types) == 0 {
-		return zero, fmt.Errorf("invalid taskType")
+		return zero, fmt.Errorf("%w: invalid taskType", errTaskInvalidRequest)
 	}
 
 	filterFingerprint, shopScopeHash := taskCursorScope(p)

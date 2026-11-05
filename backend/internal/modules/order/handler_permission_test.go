@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
@@ -28,7 +29,7 @@ func TestOrderWriteHandlersRejectReadonlyPrincipals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&admin.AdminUser{}, &admin.UserStorePermission{}); err != nil {
+	if err := db.AutoMigrate(&admin.AdminUser{}, &admin.UserStorePermission{}, &shop.Shop{}); err != nil {
 		t.Fatal(err)
 	}
 	actorID := uuid.New()
@@ -86,7 +87,7 @@ func TestOrderReadHandlersRequireOrderView(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&admin.AdminUser{}, &admin.UserStorePermission{}); err != nil {
+	if err := db.AutoMigrate(&admin.AdminUser{}, &admin.UserStorePermission{}, &shop.Shop{}); err != nil {
 		t.Fatal(err)
 	}
 	actorID := uuid.New()
@@ -140,7 +141,7 @@ func TestOrderCreateReturnsRecoverableConflictWhenInventoryFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := db.AutoMigrate(
-		&admin.AdminUser{}, &admin.UserStorePermission{}, &warehouse.Warehouse{}, &product.Product{}, &product.ProductSKU{},
+		&admin.AdminUser{}, &admin.UserStorePermission{}, &shop.Shop{}, &warehouse.Warehouse{}, &product.Product{}, &product.ProductSKU{},
 		&Order{}, &OrderItem{}, &OrderShipment{}, &inventory.WarehouseStockBalance{}, &inventory.InventoryMovement{},
 		&inventory.InventoryChangeLog{}, &inventory.OrderInventoryEffect{},
 	); err != nil {
@@ -231,7 +232,7 @@ func TestOrderUpdateRejectsReplacingItemsAfterInventoryEffect(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := db.AutoMigrate(
-		&admin.AdminUser{}, &admin.UserStorePermission{}, &Order{}, &OrderItem{}, &OrderShipment{}, &inventory.OrderInventoryEffect{},
+		&admin.AdminUser{}, &admin.UserStorePermission{}, &shop.Shop{}, &Order{}, &OrderItem{}, &OrderShipment{}, &inventory.OrderInventoryEffect{},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +289,7 @@ func TestOrderInventoryWritesCannotCrossTenantBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&admin.AdminUser{}, &admin.UserStorePermission{}, &Order{}, &OrderItem{}, &OrderShipment{}, &inventory.OrderInventoryEffect{}); err != nil {
+	if err := db.AutoMigrate(&admin.AdminUser{}, &admin.UserStorePermission{}, &shop.Shop{}, &Order{}, &OrderItem{}, &OrderShipment{}, &inventory.OrderInventoryEffect{}); err != nil {
 		t.Fatal(err)
 	}
 	actorID, orderID := uuid.New(), uuid.New()

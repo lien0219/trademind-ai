@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import { history } from '@umijs/max';
 import {
   DollarOutlined,
@@ -47,15 +49,15 @@ type TargetFieldMeta = {
 };
 
 const TARGET_FIELD_METAS: TargetFieldMeta[] = [
-  { value: 'title', label: '商品标题', hint: '建议勾选', Icon: FontSizeOutlined },
-  { value: 'price', label: '商品价格', hint: '建议勾选', Icon: DollarOutlined },
-  { value: 'mainImages', label: '商品主图', hint: '建议勾选', Icon: PictureOutlined },
-  { value: 'descriptionImages', label: '详情图片', hint: '建议勾选', Icon: FileImageOutlined },
-  { value: 'attributes', label: '商品参数', hint: '规格参数', Icon: UnorderedListOutlined },
+  { value: 'title', label: 'Product title', hint: 'Recommended', Icon: FontSizeOutlined },
+  { value: 'price', label: 'Product price', hint: 'Recommended', Icon: DollarOutlined },
+  { value: 'mainImages', label: 'Main images', hint: 'Recommended', Icon: PictureOutlined },
+  { value: 'descriptionImages', label: 'Detail images', hint: 'Recommended', Icon: FileImageOutlined },
+  { value: 'attributes', label: 'Attributes', hint: 'Specifications', Icon: UnorderedListOutlined },
   {
     value: 'skus',
-    label: '商品规格',
-    hint: '高级 · 不一定能识别',
+    label: 'Variants',
+    hint: 'Advanced · May not be detected',
     advanced: true,
     Icon: TagsOutlined,
   },
@@ -84,6 +86,7 @@ function toggleField(list: string[], value: string): string[] {
 }
 
 export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Props) {
+  useLanguage();
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<CollectRuleAIGenerateResult | null>(null);
@@ -138,11 +141,11 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
   const runGenerate = async () => {
     const url = formUrl.trim();
     if (!url) {
-      message.warning('请填写商品链接');
+      message.warning(tr("请填写商品链接"));
       return;
     }
     if (platformHint?.kind === 'blocked') {
-      message.warning(platformHint.message);
+      message.warning(tr(platformHint.message));
       return;
     }
     setGenerating(true);
@@ -164,12 +167,12 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
         setFormName(res.suggestedName);
       }
       if (res.qualityGate?.allowSaveEnabled) {
-        message.success('采集规则已生成，识别效果达标，可保存并启用');
+        message.success(tr("采集规则已生成，识别效果达标，可保存并启用"));
       } else {
-        message.warning('规则已生成并完成测试，但识别效果未达标，建议重新生成或保存为草稿后手动调整');
+        message.warning(tr("规则已生成并完成测试，但识别效果未达标，建议重新生成或保存为草稿后手动调整"));
       }
     } catch (e) {
-      message.error(mapCollectErrorMessage(e));
+      message.error(tr(mapCollectErrorMessage(e)));
     } finally {
       setGenerating(false);
     }
@@ -177,20 +180,20 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
 
   const handleSave = async (status: 'enabled' | 'disabled') => {
     if (status === 'enabled' && !canSaveEnabled) {
-      message.warning('当前规则识别效果较差，建议重新生成或手动调整后再启用');
+      message.warning(tr("当前规则识别效果较差，建议重新生成或手动调整后再启用"));
       return;
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(ruleJson || '{}');
     } catch {
-      message.error('采集规则内容格式不正确');
+      message.error(tr("采集规则内容格式不正确"));
       return;
     }
     const name = formName.trim() || result?.suggestedName;
     const domain = formDomain.trim() || result?.domain;
     if (!name || !domain) {
-      message.warning('请填写规则名称与适用网站');
+      message.warning(tr("请填写规则名称与适用网站"));
       return;
     }
     setSaving(true);
@@ -202,11 +205,11 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
         status,
         rule: parsed,
       });
-      message.success(status === 'enabled' ? '采集规则已保存并启用' : '采集规则已保存为草稿（停用）');
+      message.success(status === 'enabled' ? tr("采集规则已保存并启用") : tr("采集规则已保存为草稿（停用）"));
       onSaved?.();
       onClose();
     } catch (e) {
-      message.error(mapCollectErrorMessage(e));
+      message.error(tr(mapCollectErrorMessage(e)));
     } finally {
       setSaving(false);
     }
@@ -217,7 +220,7 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
       title={
         <Space size={8}>
           <RobotOutlined style={{ color: 'var(--ant-color-primary)' }} />
-          <span>AI 帮我生成规则</span>
+          <span>{tr("AI 帮我生成规则")}</span>
         </Space>
       }
       open={open}
@@ -231,30 +234,25 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
       submitter={{
         render: () => (
           <Space wrap className="tm-action-space tm-ai-rule-modal__footer">
-            <Button onClick={onClose}>关闭</Button>
+            <Button onClick={onClose}>{tr("关闭")}</Button>
             {result ? (
               <Button loading={generating} disabled={generateDisabled} onClick={() => void runGenerate()}>
-                重新生成
-              </Button>
+                {tr("重新生成")}</Button>
             ) : null}
             {!result ? (
               <Button type="primary" loading={generating} disabled={generateDisabled} onClick={() => void runGenerate()}>
-                AI 帮我生成规则
-              </Button>
+                {tr("AI 帮我生成规则")}</Button>
             ) : (
               <>
                 <Button loading={saving} onClick={() => void handleSave('disabled')}>
-                  保存为草稿
-                </Button>
+                  {tr("保存为草稿")}</Button>
                 {canSaveEnabled ? (
                   <Button type="primary" loading={saving} onClick={() => void handleSave('enabled')}>
-                    保存并启用
-                  </Button>
+                    {tr("保存并启用")}</Button>
                 ) : (
-                  <Tooltip title="识别效果未达标或缺少标题/主图规则，请先调整或重新生成">
+                  <Tooltip title={tr("识别效果未达标或缺少标题/主图规则，请先调整或重新生成")}>
                     <Button type="primary" disabled>
-                      保存并启用
-                    </Button>
+                      {tr("保存并启用")}</Button>
                   </Tooltip>
                 )}
               </>
@@ -273,31 +271,28 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
           current={stepIndex}
           className="tm-ai-rule-modal__steps"
           items={[
-            { title: '填写信息' },
-            { title: '生成采集规则' },
-            { title: '确认保存' },
+            { title: tr("填写信息") },
+            { title: tr("生成采集规则") },
+            { title: tr("确认保存") },
           ]}
         />
 
         <Typography.Paragraph type="secondary" className="tm-ai-rule-modal__hero-text" style={{ marginBottom: 0 }}>
-          请先在
-          <Typography.Link onClick={() => history.push('/settings/ai')}>设置 → AI 设置</Typography.Link>
-          配置并测试 AI 后再使用本功能。
-        </Typography.Paragraph>
+          {tr("请先在")}<Typography.Link onClick={() => history.push('/settings/ai')}>{tr("设置 → AI 设置")}</Typography.Link>
+          {tr("配置并测试 AI 后再使用本功能。")}</Typography.Paragraph>
 
         {platformHint?.kind === 'blocked' ? (
-          <Alert type="warning" showIcon className="tm-ai-rule-modal__alert" message={platformHint.message} />
+          <Alert type="warning" showIcon className="tm-ai-rule-modal__alert" message={tr(platformHint.message)} />
         ) : null}
         {platformHint?.kind === 'planned' ? (
-          <Alert type="info" showIcon className="tm-ai-rule-modal__alert" message={platformHint.message} />
+          <Alert type="info" showIcon className="tm-ai-rule-modal__alert" message={tr(platformHint.message)} />
         ) : null}
 
         <section className="tm-ai-rule-modal__section">
           <Typography.Title level={5} className="tm-ai-rule-modal__section-title">
-            商品与规则
-          </Typography.Title>
+            {tr("商品与规则")}</Typography.Title>
           <div className="tm-ai-rule-modal__field">
-            <Typography.Text className="tm-ai-rule-modal__label">商品链接</Typography.Text>
+            <Typography.Text className="tm-ai-rule-modal__label">{tr("商品链接")}</Typography.Text>
             <Input
               prefix={<LinkOutlined style={{ color: 'var(--ant-color-text-quaternary)' }} />}
               placeholder="https://example.com/product/..."
@@ -312,34 +307,32 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
           <Row gutter={12}>
             <Col xs={24} sm={12}>
               <div className="tm-ai-rule-modal__field">
-                <Typography.Text className="tm-ai-rule-modal__label">适用网站</Typography.Text>
+                <Typography.Text className="tm-ai-rule-modal__label">{tr("适用网站")}</Typography.Text>
                 <Input
                   placeholder="jd.com"
                   value={formDomain}
                   onChange={(e) => setFormDomain(e.target.value)}
                 />
                 <Typography.Text type="secondary" className="tm-ai-rule-modal__hint">
-                  仅填主机名
-                </Typography.Text>
+                  {tr("仅填主机名")}</Typography.Text>
               </div>
             </Col>
             <Col xs={24} sm={12}>
               <div className="tm-ai-rule-modal__field">
-                <Typography.Text className="tm-ai-rule-modal__label">规则名称</Typography.Text>
-                <Input placeholder="例如：京东-自定义" value={formName} onChange={(e) => setFormName(e.target.value)} />
+                <Typography.Text className="tm-ai-rule-modal__label">{tr("规则名称")}</Typography.Text>
+                <Input placeholder={tr("例如：京东-自定义")} value={formName} onChange={(e) => setFormName(e.target.value)} />
               </div>
             </Col>
           </Row>
           <div className="tm-ai-rule-modal__field tm-ai-rule-modal__field--inline">
-            <Typography.Text className="tm-ai-rule-modal__label">优先级</Typography.Text>
+            <Typography.Text className="tm-ai-rule-modal__label">{tr("优先级")}</Typography.Text>
             <InputNumber min={0} max={1_000_000} value={formPriority} onChange={(v) => setFormPriority(typeof v === 'number' ? v : 100)} />
           </div>
         </section>
 
         <section className="tm-ai-rule-modal__section">
           <Typography.Title level={5} className="tm-ai-rule-modal__section-title">
-            要采集的内容
-          </Typography.Title>
+            {tr("要采集的内容")}</Typography.Title>
           <div className="tm-ai-rule-field-grid">
             {TARGET_FIELD_METAS.map(({ value, label, hint, advanced, Icon }) => {
               const active = targetFields.includes(value);
@@ -358,10 +351,10 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
                   </span>
                   <span className="tm-ai-rule-field-card__text">
                     <span className="tm-ai-rule-field-card__title">
-                      {label}
-                      {advanced ? <Tag className="tm-ai-rule-field-card__tag">高级</Tag> : null}
+                      {tr(label)}
+                      {advanced ? <Tag className="tm-ai-rule-field-card__tag">{tr("高级")}</Tag> : null}
                     </span>
-                    <span className="tm-ai-rule-field-card__hint">{hint}</span>
+                    <span className="tm-ai-rule-field-card__hint">{tr(hint)}</span>
                   </span>
                 </button>
               );
@@ -369,7 +362,7 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
                 return (
                   <Tooltip
                     key={value}
-                    title="不同网站的规格信息结构差异很大，AI 生成的规则不一定能完整识别。建议先测试后再使用。"
+                    title={tr("不同网站的规格信息结构差异很大，AI 生成的规则不一定能完整识别。建议先测试后再使用。")}
                   >
                     <span className="tm-ai-rule-field-card-wrap">{card}</span>
                   </Tooltip>
@@ -384,11 +377,9 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
           <div className="tm-ai-rule-modal__profile-head">
             <div>
               <Typography.Title level={5} className="tm-ai-rule-modal__section-title">
-                使用已登录的采集浏览器
-              </Typography.Title>
+                {tr("使用已登录的采集浏览器")}</Typography.Title>
               <Typography.Text type="secondary" className="tm-ai-rule-modal__hint">
-                商品页需要登录时可选；系统不保存账号密码
-              </Typography.Text>
+                {tr("商品页需要登录时可选；系统不保存账号密码")}</Typography.Text>
             </div>
             <Switch checked={useBrowserProfile} onChange={setUseBrowserProfile} />
           </div>
@@ -410,15 +401,14 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
         {generating ? (
           <div className="tm-ai-rule-modal__loading">
             <Spin size="large" />
-            <Typography.Text type="secondary">正在读取商品页并生成采集规则…</Typography.Text>
+            <Typography.Text type="secondary">{tr("正在读取商品页并生成采集规则…")}</Typography.Text>
           </div>
         ) : null}
 
         {result ? (
           <section className="tm-ai-rule-modal__section tm-ai-rule-modal__section--result">
             <Typography.Title level={5} className="tm-ai-rule-modal__section-title">
-              识别效果
-            </Typography.Title>
+              {tr("识别效果")}</Typography.Title>
 
             {result.qualityGate ? (
               <RuleQualityScoreCard gate={result.qualityGate} confidence={result.confidence} />
@@ -434,7 +424,7 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
                   type="warning"
                   showIcon
                   className="tm-ai-rule-modal__alert"
-                  message="当前规则识别效果较差，建议重新生成或手动调整后再启用"
+                  message={tr("当前规则识别效果较差，建议重新生成或手动调整后再启用")}
                   description={
                     result.qualityGate?.blockReasons?.length ? (
                       <ul className="tm-ai-rule-modal__warn-list">
@@ -452,7 +442,7 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
                   type="info"
                   showIcon
                   className="tm-ai-rule-modal__alert"
-                  message="建议操作"
+                  message={tr("建议操作")}
                   description={result.qualityGate.suggestions.join(' · ')}
                 />
               ) : null}
@@ -462,7 +452,7 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
                   type="warning"
                   showIcon
                   className="tm-ai-rule-modal__alert"
-                  message="未能生成的字段"
+                  message={tr("未能生成的字段")}
                   description={result.missingGeneratedFields.join('、')}
                 />
               ) : null}
@@ -476,7 +466,7 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
                   type="warning"
                   showIcon
                   className="tm-ai-rule-modal__alert"
-                  message="注意事项"
+                  message={tr("注意事项")}
                   description={
                     <ul className="tm-ai-rule-modal__warn-list">
                       {result.warnings.slice(0, 8).map((w) => (
@@ -492,12 +482,11 @@ export function AIGenerateRuleModal({ open, onClose, initialUrl, onSaved }: Prop
               <RuleTestResultPanel result={result.testResult} showProduct={false} compact />
             ) : null}
 
-            <TechnicalDetails label="采集规则内容（高级）">
+            <TechnicalDetails label={tr("采集规则内容（高级）")}>
               <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
-                下方为采集规则 JSON，一般无需修改；格式错误会导致采集失败。
-              </Typography.Paragraph>
+                {tr("下方为采集规则 JSON，一般无需修改；格式错误会导致采集失败。")}</Typography.Paragraph>
               <ProFormTextArea
-                label="规则 JSON"
+                label={tr("规则 JSON")}
                 fieldProps={{
                   rows: 10,
                   value: ruleJson,

@@ -6,12 +6,21 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
 
 // Handler serves dashboard HTTP API.
 type Handler struct {
 	Svc *Service
+}
+
+func (h *Handler) requireProductView(c *gin.Context) bool {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "dashboard unavailable")
+		return false
+	}
+	return adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView)
 }
 
 func parseRFC3339Dashboard(s string) (*time.Time, error) {
@@ -59,8 +68,7 @@ func (e *parseTimeErr) Error() string {
 
 // ProductOperations GET /api/v1/dashboard/product-operations
 func (h *Handler) ProductOperations(c *gin.Context) {
-	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "dashboard unavailable")
+	if !h.requireProductView(c) {
 		return
 	}
 	q, err := h.bindQuery(c)
@@ -78,8 +86,7 @@ func (h *Handler) ProductOperations(c *gin.Context) {
 
 // Overview GET /api/v1/dashboard/overview
 func (h *Handler) Overview(c *gin.Context) {
-	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "dashboard unavailable")
+	if !h.requireProductView(c) {
 		return
 	}
 	q, err := h.bindQuery(c)
@@ -97,8 +104,7 @@ func (h *Handler) Overview(c *gin.Context) {
 
 // Todos GET /api/v1/dashboard/todos
 func (h *Handler) Todos(c *gin.Context) {
-	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "dashboard unavailable")
+	if !h.requireProductView(c) {
 		return
 	}
 	q, err := h.bindQuery(c)
@@ -116,8 +122,7 @@ func (h *Handler) Todos(c *gin.Context) {
 
 // Health GET /api/v1/dashboard/health
 func (h *Handler) Health(c *gin.Context) {
-	if h == nil || h.Svc == nil {
-		response.Fail(c, 500, response.CodeInternalError, "dashboard unavailable")
+	if !h.requireProductView(c) {
 		return
 	}
 	q, err := h.bindQuery(c)

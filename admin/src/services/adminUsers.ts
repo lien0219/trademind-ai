@@ -1,4 +1,4 @@
-import { getJSON, getWithParams, patchJSON, postJSON, putJSON } from '@/services/request';
+import { deleteJSON, getJSON, getWithParams, patchJSON, postJSON, putJSON } from '@/services/request';
 
 export type StorePermissionRow = {
   id?: string;
@@ -53,10 +53,55 @@ export async function updateAdminUser(id: string, body: UpdateAdminUserBody) {
   return patchJSON<AdminUserRow, UpdateAdminUserBody>(`/api/v1/admin/users/${id}`, body);
 }
 
+export async function deleteAdminUser(id: string): Promise<{ deleted: boolean }> {
+  return deleteJSON(`/api/v1/admin/users/${encodeURIComponent(id)}`);
+}
+
 export async function setAdminUserStorePermissions(id: string, items: SetStorePermissionsBody['items']) {
   const body: SetStorePermissionsBody = { items };
   return putJSON<AdminUserRow, SetStorePermissionsBody>(
     `/api/v1/admin/users/${id}/store-permissions`,
     body,
   );
+}
+
+export type AdminRoleRow = {
+  code: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  enabled: boolean;
+  system: boolean;
+  memberCount: number;
+};
+
+export async function fetchAdminRoles(): Promise<{ list: AdminRoleRow[] }> {
+  return getJSON('/api/v1/admin/roles');
+}
+
+export async function fetchRolePermissionCatalog(): Promise<{ permissions: string[] }> {
+  return getJSON('/api/v1/admin/permissions');
+}
+
+export type RoleEditorValues = {
+  name?: string;
+  description?: string;
+  permissions?: string[];
+  enabled?: boolean;
+};
+
+export async function createAdminRole(values: RoleEditorValues): Promise<AdminRoleRow> {
+  return postJSON('/api/v1/admin/roles', values);
+}
+
+export async function updateAdminRole(code: string, values: RoleEditorValues): Promise<AdminRoleRow> {
+  return patchJSON(`/api/v1/admin/roles/${encodeURIComponent(code)}`, values);
+}
+
+export async function deleteAdminRole(code: string): Promise<{ deleted: boolean }> {
+  return deleteJSON(`/api/v1/admin/roles/${encodeURIComponent(code)}`);
+}
+
+export async function resetAdminUserPassword(id: string): Promise<{ temporaryPassword: string }> {
+  return postJSON(`/api/v1/admin/users/${encodeURIComponent(id)}/reset-password`, {});
 }

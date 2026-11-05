@@ -4,6 +4,8 @@ import { MoonOutlined, SunOutlined } from "@ant-design/icons";
 import { useAntdConfigSetter } from "@umijs/max";
 import { Tooltip } from "antd";
 import type { TooltipProps } from "antd";
+import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import {
   applyThemeMode,
   createAdminThemeConfig,
@@ -37,6 +39,7 @@ export default function ThemeToggleButton({
   className,
   tooltipPlacement = "bottom",
 }: ThemeToggleButtonProps) {
+  useLanguage();
   const setAntdConfig = useAntdConfigSetter();
   const [themeMode, setThemeMode] = useState(getStoredThemeMode);
   const themeFrameRef = useRef<number>();
@@ -56,7 +59,7 @@ export default function ThemeToggleButton({
   );
 
   const nextThemeMode = themeMode === "light" ? "dark" : "light";
-  const nextThemeLabel = nextThemeMode === "dark" ? "深色模式" : "浅色模式";
+  const nextThemeLabel = nextThemeMode === "dark" ? tr('切换到深色模式') : tr('切换到浅色模式');
 
   const switchTheme = () => {
     const root = document.documentElement;
@@ -80,11 +83,11 @@ export default function ThemeToggleButton({
   };
 
   return (
-    <Tooltip title={`切换到${nextThemeLabel}`} placement={tooltipPlacement}>
+    <Tooltip title={nextThemeLabel} placement={tooltipPlacement}>
       <button
         type="button"
         className={className}
-        aria-label={`切换到${nextThemeLabel}`}
+        aria-label={nextThemeLabel}
         aria-pressed={themeMode === "dark"}
         onClick={switchTheme}
       >

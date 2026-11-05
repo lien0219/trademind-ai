@@ -9,6 +9,11 @@
 - [生产镜像发布与迁移](docker-deployment.md#旧-package-迁移清单)
 - [环境变量](env.md)
 - [API 契约](api.md)
+- [多租户架构](MULTI_TENANT_ARCHITECTURE.md)
+- [多租户安全控制](MULTI_TENANT_SECURITY.md)
+- [多租户迁移](MULTI_TENANT_MIGRATION.md)
+- [多租户运维](MULTI_TENANT_OPERATIONS.md)
+- [多租户验收状态](MULTI_TENANT_ACCEPTANCE.md)
 - [ERP 扩展架构](ERP_ARCHITECTURE.md)
 - [AI 客服回复设计](CUSTOMER_AI_REPLY_SUGGESTION_DESIGN.md)
 - [客服中心设计](CUSTOMER_SERVICE_CENTER_DESIGN.md)
@@ -33,6 +38,8 @@
 - [任务检查清单](task-checklist.md)
 - [分支与 PR](branching.md)
 - [当前维护状态](PROGRESS.md)
+- [用户与权限设计及覆盖矩阵](RBAC_PERMISSION_DESIGN.md)
+- [权限安全检查及人工验收](SECURITY_PERMISSION_CHECKLIST.md)
 
 ## 验收约定
 

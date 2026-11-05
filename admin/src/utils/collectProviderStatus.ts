@@ -5,6 +5,14 @@ export type CollectProviderStatusPresentation = {
   color: 'success' | 'processing' | 'default' | 'error' | 'blue';
 };
 
+const COLLECT_PROVIDER_STATUS_TEXT = {
+  available: '已可用',
+  customBeta: '基础可用',
+  beta: '测试中',
+  planned: '规划中',
+  disabled: '已禁用',
+} as const;
+
 /** Hub / 采集设置：按 source + status 展示采集器状态文案（custom+beta → 基础可用）。 */
 export function collectProviderStatusPresentation(
   source: string,
@@ -13,24 +21,26 @@ export function collectProviderStatusPresentation(
   const src = source.trim().toLowerCase();
   switch (status) {
     case 'available':
-      return { text: '已可用', color: 'success' };
+      return { text: COLLECT_PROVIDER_STATUS_TEXT.available, color: 'success' };
     case 'beta':
       if (src === 'custom') {
-        return { text: '基础可用', color: 'blue' };
+        return { text: COLLECT_PROVIDER_STATUS_TEXT.customBeta, color: 'blue' };
       }
-      return { text: '测试中', color: 'processing' };
+      return { text: COLLECT_PROVIDER_STATUS_TEXT.beta, color: 'processing' };
     case 'planned':
-      return { text: '规划中', color: 'default' };
+      return { text: COLLECT_PROVIDER_STATUS_TEXT.planned, color: 'default' };
     case 'disabled':
-      return { text: '已禁用', color: 'error' };
+      return { text: COLLECT_PROVIDER_STATUS_TEXT.disabled, color: 'error' };
     default:
       return { text: status, color: 'default' };
   }
 }
 
 /** 自定义链接采集器展示的能力标签（不含 SKU / 库存）。 */
+const CUSTOM_COLLECT_TITLE_LABEL = '商品标题';
+
 export const CUSTOM_COLLECT_FEATURE_LABEL: Record<string, string> = {
-  title: '商品标题',
+  title: CUSTOM_COLLECT_TITLE_LABEL,
   price: '商品价格',
   mainImages: '商品主图',
   descriptionImages: '详情图片',

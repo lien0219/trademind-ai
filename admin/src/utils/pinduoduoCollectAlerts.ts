@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import type { ProductDetail, ProductImageRow, ProductSKURow } from '@/services/products';
 
 export type CollectAlertLevel = 'error' | 'warning' | 'info';
@@ -239,38 +240,38 @@ export function buildStatusTags(data: ProductDetail): CollectStatusTag[] {
 
   tags.push({
     key: 'title',
-    label: hasTitle(data) ? '标题已识别' : '标题未填写',
+    label: hasTitle(data) ? tr('标题已识别') : tr('标题未填写'),
     tone: hasTitle(data) ? 'success' : 'warning',
   });
 
   tags.push({
     key: 'price',
-    label: hasProductPrice(data) && !hasSkuPriceGap(data) ? '价格已识别' : '价格需核对',
+    label: hasProductPrice(data) && !hasSkuPriceGap(data) ? tr('价格已识别') : tr('价格需核对'),
     tone: hasProductPrice(data) && !hasSkuPriceGap(data) ? 'success' : 'warning',
   });
 
   tags.push({
     key: 'mainImages',
-    label: mainCount > 0 ? '主图已识别' : '主图缺失',
+    label: mainCount > 0 ? tr('主图已识别') : tr('主图缺失'),
     tone: mainCount > 0 ? 'success' : 'warning',
   });
 
   tags.push({
     key: 'skus',
-    label: skus.length > 0 ? '规格已识别' : '规格需补充',
+    label: skus.length > 0 ? tr('规格已识别') : tr('规格需补充'),
     tone: skus.length > 0 ? 'success' : 'warning',
   });
 
   const stockNeedsCheck = skus.length === 0 || hasPartialUnknownStock(data);
   tags.push({
     key: 'stock',
-    label: stockNeedsCheck ? '库存需核对' : '库存已识别',
+    label: stockNeedsCheck ? tr('库存需核对') : tr('库存已识别'),
     tone: stockNeedsCheck ? 'warning' : 'success',
   });
 
   tags.push({
     key: 'description',
-    label: data.description?.trim() ? '描述已填写' : '描述未填写',
+    label: data.description?.trim() ? tr('描述已填写') : tr('描述未填写'),
     tone: data.description?.trim() ? 'success' : 'default',
   });
 

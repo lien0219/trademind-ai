@@ -153,6 +153,7 @@ func mapImageTask(row *imagetask.ImageTask, productTitles map[uuid.UUID]string, 
 		UpdatedAt:   row.UpdatedAt,
 	})
 	dto := UnifiedTaskDTO{
+		TenantID:         row.TenantID,
 		ID:               row.ID.String(),
 		TaskType:         TaskTypeImage,
 		SourceTable:      SourceTableImageTasks,

@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { Alert, Form, Input, InputNumber, Modal, Select, Typography } from 'antd';
 import { useEffect, useMemo } from 'react';
 import type {
@@ -67,6 +69,7 @@ export default function CreateDraftModal({
   onCancel,
   onSubmit,
 }: CreateDraftModalProps) {
+  useLanguage();
   const [form] = Form.useForm<DraftFormValues>();
   const supplierId = Form.useWatch('supplierId', form);
   const supplierChoices = useMemo(() => commonSuppliers(rows), [rows]);
@@ -137,12 +140,12 @@ export default function CreateDraftModal({
 
   return (
     <Modal
-      title="从补货建议创建采购草稿"
+      title={tr("从补货建议创建采购草稿")}
       open={open}
       width={880}
       confirmLoading={submitting}
-      okText="确认创建采购草稿"
-      cancelText="取消"
+      okText={tr("确认创建采购草稿")}
+      cancelText={tr("取消")}
       okButtonProps={{ disabled: supplierChoices.length === 0 }}
       style={{ top: 16 }}
       styles={{ body: { maxHeight: 'calc(100dvh - 180px)', overflowY: 'auto' } }}
@@ -154,21 +157,21 @@ export default function CreateDraftModal({
         <Alert
           type="info"
           showIcon
-          message="本次只创建一张本地采购草稿"
-          description={`收货仓库固定为 ${warehouseLabel || warehouseId}。确认后仍需进入采购单详情提交审批，审批通过并人工收货后才会增加库存。`}
+          message={tr("本次只创建一张本地采购草稿")}
+          description={trFormat("收货仓库固定为 {value0}。确认后仍需进入采购单详情提交审批，审批通过并人工收货后才会增加库存。", { value0: String(warehouseLabel || warehouseId) })}
         />
         {supplierChoices.length === 0 ? (
           <Alert
             type="warning"
             showIcon
-            message="所选规格没有共同供应商"
-            description="请取消后按供应商分批选择，系统不会拆成多次写入。"
+            message={tr("所选规格没有共同供应商")}
+            description={tr("请取消后按供应商分批选择，系统不会拆成多次写入。")}
           />
         ) : null}
-        <Form.Item label="采购供应商" name="supplierId" rules={[{ required: true, message: '请选择本次采购供应商' }]}>
+        <Form.Item label={tr("采购供应商")} name="supplierId" rules={[{ required: true, message: tr("请选择本次采购供应商") }]}>
           <Select
-            aria-label="采购供应商"
-            placeholder="请选择共同供应商"
+            aria-label={tr("采购供应商")}
+            placeholder={tr("请选择共同供应商")}
             options={supplierChoices}
             onChange={changeSupplier}
           />
@@ -180,24 +183,24 @@ export default function CreateDraftModal({
             return (
               <div className="tm-replenishment-draft-line" key={row.productSkuId}>
                 <div className="tm-replenishment-draft-line__identity">
-                  <Typography.Text strong>{row.productTitle || '未命名商品'}</Typography.Text>
+                  <Typography.Text strong>{row.productTitle || tr('未命名商品')}</Typography.Text>
                   <Typography.Text type="secondary">{row.skuCode || row.skuName || row.productSkuId}</Typography.Text>
-                  <Typography.Text type="secondary">缺口 {row.deficit}</Typography.Text>
+                  <Typography.Text type="secondary">{tr("缺口")} {row.deficit}</Typography.Text>
                 </div>
                 <Form.Item name={['items', index, 'productSkuId']} hidden><Input /></Form.Item>
                 <Form.Item name={['items', index, 'suggestionHash']} hidden><Input /></Form.Item>
                 {supplierOptions.length > 1 ? (
                   <Form.Item
-                    label={`供应商规格 ${index + 1}`}
+                    label={trFormat("供应商规格 {value0}", { value0: String(index + 1) })}
                     name={['items', index, 'supplierSkuId']}
-                    rules={[{ required: true, message: '请选择供应商规格' }]}
+                    rules={[{ required: true, message: tr("请选择供应商规格") }]}
                   >
                     <Select
-                      aria-label={`供应商规格 ${index + 1}`}
-                      placeholder="请选择供应商规格"
+                      aria-label={trFormat("供应商规格 {value0}", { value0: String(index + 1) })}
+                      placeholder={tr("请选择供应商规格")}
                       options={supplierOptions.map((item) => ({
                         value: item.supplierSkuId,
-                        label: `${formatMinorAmount(item.unitCostMinor, item.currency)} · 起订 ${Math.max(1, item.minOrderQty)} · ${item.leadTimeDays} 天`,
+                        label: trFormat("{value0} · 起订 {value1} · {value2} 天", { value0: formatMinorAmount(item.unitCostMinor, item.currency), value1: Math.max(1, item.minOrderQty), value2: item.leadTimeDays }),
                       }))}
                       onChange={(value) => changeSupplierSKU(index, value)}
                     />
@@ -206,36 +209,36 @@ export default function CreateDraftModal({
                   <>
                     <Form.Item name={['items', index, 'supplierSkuId']} hidden><Input /></Form.Item>
                     <div className="tm-replenishment-draft-line__binding">
-                      <Typography.Text type="secondary">供应条件</Typography.Text>
-                      <Typography.Text>{option ? `${formatMinorAmount(option.unitCostMinor, option.currency)} · 起订 ${Math.max(1, option.minOrderQty)} · ${option.leadTimeDays} 天` : '选择供应商后显示'}</Typography.Text>
+                      <Typography.Text type="secondary">{tr("供应条件")}</Typography.Text>
+                      <Typography.Text>{option ? trFormat("{value0} · 起订 {value1} · {value2} 天", { value0: String(formatMinorAmount(option.unitCostMinor, option.currency)), value1: String(Math.max(1, option.minOrderQty)), value2: String(option.leadTimeDays) }) : tr('选择供应商后显示')}</Typography.Text>
                     </div>
                   </>
                 )}
                 <Form.Item
-                  label={`采购数量 ${index + 1}`}
+                  label={trFormat("采购数量 {value0}", { value0: String(index + 1) })}
                   name={['items', index, 'quantity']}
                   dependencies={['supplierId', ['items', index, 'supplierSkuId']]}
                   rules={[
-                    { required: true, type: 'number', min: 1, message: '请输入采购数量' },
+                    { required: true, type: 'number', min: 1, message: tr("请输入采购数量") },
                     {
                       validator: async (_, value) => {
                         const binding = selectedOption(row, index);
-                        if (!binding) throw new Error('请先选择有效的供应商规格');
+                        if (!binding) throw new Error(tr('请先选择有效的供应商规格'));
                         const minimum = roundedQuantity(row.deficit, binding.minOrderQty);
                         if (value < minimum || value % Math.max(1, binding.minOrderQty) !== 0) {
-                          throw new Error(`数量至少为 ${minimum}，且必须是起订量 ${Math.max(1, binding.minOrderQty)} 的整数倍`);
+                          throw new Error(trFormat("数量至少为 {minimum}，且必须是起订量 {multiple} 的整数倍", { minimum, multiple: Math.max(1, binding.minOrderQty) }));
                         }
                       },
                     },
                   ]}
                 >
-                  <InputNumber aria-label={`采购数量 ${index + 1}`} min={1} max={1000000} precision={0} />
+                  <InputNumber aria-label={trFormat("采购数量 {value0}", { value0: String(index + 1) })} min={1} max={1000000} precision={0} />
                 </Form.Item>
               </div>
             );
           })}
         </div>
-        <Form.Item label="备注" name="remark"><Input.TextArea maxLength={1000} rows={3} showCount /></Form.Item>
+        <Form.Item label={tr("备注")} name="remark"><Input.TextArea maxLength={1000} rows={3} showCount /></Form.Item>
       </Form>
     </Modal>
   );

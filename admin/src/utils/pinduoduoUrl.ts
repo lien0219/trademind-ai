@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 export type PinduoduoUrlType =
   | 'goods_detail'
   | 'wholesale_detail'
@@ -57,17 +58,17 @@ export function pinduoduoUrlHint(urlStr: string): string | null {
   const t = classifyPinduoduoUrl(urlStr);
   switch (t) {
     case 'wholesale_detail':
-      return '已识别为拼多多批发商品详情页，可开始采集。';
+      return tr('已识别为拼多多批发商品详情页，可开始采集。');
     case 'goods_detail':
-      return '已识别为移动端商品页。当前版本优先支持批发详情页（pifa.pinduoduo.com/goods/detail），请换用批发链接。';
+      return tr('已识别为移动端商品页。当前版本优先支持批发详情页（pifa.pinduoduo.com/goods/detail），请换用批发链接。');
     case 'wholesale_homepage':
-      return '该链接为拼多多批发首页，请输入带 gid 的商品详情链接。';
+      return tr('该链接为拼多多批发首页，请输入带 gid 的商品详情链接。');
     case 'wechat_auth':
-      return '该链接为微信授权页，请在采集浏览器中完成扫码后再采集。';
+      return tr('该链接为微信授权页，请在采集浏览器中完成扫码后再采集。');
     case 'login_page':
     case 'app_redirect':
     case 'unknown':
-      return '请输入拼多多批发商品详情链接（pifa.pinduoduo.com/goods/detail/?gid=）。';
+      return tr('请输入拼多多批发商品详情链接（pifa.pinduoduo.com/goods/detail/?gid=）。');
     default:
       return null;
   }

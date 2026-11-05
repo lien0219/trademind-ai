@@ -208,6 +208,7 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 	}
 
 	sum := ExceptionSummaryDTO{}
+	rows = filterAllowedShopRows(rows, req.AllowedShopIDs)
 	for _, r := range rows {
 		mp := marks[markKey(r.exceptionType, r.sourceType, r.sourceID.String())]
 		if mp.handled || mp.ignored {
@@ -279,6 +280,9 @@ func filterAggRows(rows []aggRow, marks map[string]markPair, req ListOrderExcept
 	defaultOpen := !(showHandled || showIgnored)
 
 	for _, r := range rows {
+		if !shopAllowed(r.shopID, req.AllowedShopIDs) {
+			continue
+		}
 		mp := marks[markKey(r.exceptionType, r.sourceType, r.sourceID.String())]
 		if defaultOpen && (mp.handled || mp.ignored) {
 			continue
@@ -329,6 +333,34 @@ func filterAggRows(rows []aggRow, marks map[string]markPair, req ListOrderExcept
 		out = append(out, r)
 	}
 	return out
+}
+
+func filterAllowedShopRows(rows []aggRow, allowed []uuid.UUID) []aggRow {
+	if allowed == nil {
+		return rows
+	}
+	out := make([]aggRow, 0, len(rows))
+	for _, r := range rows {
+		if shopAllowed(r.shopID, allowed) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func shopAllowed(shopID *uuid.UUID, allowed []uuid.UUID) bool {
+	if allowed == nil {
+		return true
+	}
+	if shopID == nil || *shopID == uuid.Nil {
+		return false
+	}
+	for _, id := range allowed {
+		if id == *shopID {
+			return true
+		}
+	}
+	return false
 }
 
 func sortAggRows(rows []aggRow) {

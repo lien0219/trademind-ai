@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { layoutTokens } from '../../src/constants/layoutTokens';
 import { expect, test } from '../fixtures/admin.fixture';
 import { ok } from '../mocks/envelope';
 import { expectNoRootOverflow } from '../utils/assertions';
@@ -163,6 +164,20 @@ test.describe('@smoke @collect-hub-responsive 采集中心长文本', () => {
       const recentUrl = page.locator('.tm-collect-hub-task-list__url');
       await expect(recentUrl).toHaveText(longSourceUrl);
       await expect(page.getByText(longProfileDomain, { exact: true })).toBeVisible();
+      const sourceCard = page.locator('.tm-section-card').filter({
+        has: page.getByText('采集来源', { exact: true }),
+      });
+      const relatedEntriesCard = page.locator('.tm-section-card').filter({
+        has: page.locator('.tm-collect-hub-links'),
+      });
+      await expect(sourceCard.locator(':scope > .ant-pro-card-body')).toHaveCSS(
+        'padding',
+        `${layoutTokens.cardPadding}px`,
+      );
+      await expect(relatedEntriesCard.locator(':scope > .ant-pro-card-body')).toHaveCSS(
+        'padding',
+        `${layoutTokens.cardPaddingCompact}px`,
+      );
       await expectNoRootOverflow(page);
       await admin.writeGuard.expectRequestCount('unexpected', 0);
     });

@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -153,8 +154,13 @@ func (s *Service) BuildDouyinDraftMapping(ctx context.Context, productID uuid.UU
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	tenant, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var p Product
-	if err := s.DB.WithContext(ctx).
+	productQuery := s.DB.WithContext(ctx).Where("tenant_id = ?", tenant.TenantID)
+	if err := productQuery.
 		Preload("Images", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).
 		Preload("SKUs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
 		First(&p, "id = ?", productID).Error; err != nil {
@@ -175,6 +181,13 @@ func (s *Service) BuildDouyinDraftMapping(ctx context.Context, productID uuid.UU
 	}
 	if m.ShopID == "" && cfg.ShopID != nil {
 		m.ShopID = cfg.ShopID.String()
+	}
+	selectedShopID, err := parseOptionalUUID(m.ShopID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureDouyinShopVisible(ctx, tenant.TenantID, selectedShopID); err != nil {
+		return nil, err
 	}
 	m.Title = cleanDouyinTitle(firstNonEmpty(p.AITitle, p.Title, p.OriginalTitle))
 	m.Description = cleanDouyinDescription(firstNonEmpty(p.AIDescription, p.Description))
@@ -204,6 +217,15 @@ func (s *Service) SaveDouyinDraftMapping(ctx context.Context, productID uuid.UUI
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	tenant, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return err
+	}
+	productQuery := s.DB.WithContext(ctx).Select("id").Where("tenant_id = ?", tenant.TenantID)
+	var product Product
+	if err := productQuery.First(&product, "id = ?", productID).Error; err != nil {
+		return err
+	}
 	mapping.Platform = "douyin_shop"
 	mapping.ProductID = productID.String()
 	now := time.Now().UTC()
@@ -213,6 +235,11 @@ func (s *Service) SaveDouyinDraftMapping(ctx context.Context, productID uuid.UUI
 	shopID, err := parseOptionalUUID(mapping.ShopID)
 	if err != nil {
 		return err
+	}
+	if shopID != nil {
+		if err := s.ensureDouyinShopVisible(ctx, tenant.TenantID, shopID); err != nil {
+			return err
+		}
 	}
 	attrs := attrsArrayToObject(mapping.Attributes)
 	attrJSON, err := json.Marshal(attrs)
@@ -279,16 +306,56 @@ func (s *Service) GetDouyinDraftMapping(ctx context.Context, productID uuid.UUID
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	tenant, err := security.RequireTenantContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	productQuery := s.DB.WithContext(ctx).Select("id, source").Where("tenant_id = ?", tenant.TenantID)
+	var p Product
+	if err := productQuery.First(&p, "id = ?", productID).Error; err != nil {
+		return nil, err
+	}
 	var row ProductPlatformPublishConfig
 	if err := s.DB.WithContext(ctx).Where("product_id = ? AND platform = ?", productID, "douyin_shop").First(&row).Error; err != nil {
 		return nil, err
 	}
-	out := DouyinDraftMappingFromConfig(row)
-	var p Product
-	if err := s.DB.WithContext(ctx).Select("source").First(&p, "id = ?", productID).Error; err == nil {
-		out.Source = strings.TrimSpace(p.Source)
+	var shopID *uuid.UUID
+	if row.ShopID != nil {
+		shopID = row.ShopID
 	}
+	if err := s.ensureDouyinShopVisible(ctx, tenant.TenantID, shopID); err != nil {
+		return nil, err
+	}
+	out := DouyinDraftMappingFromConfig(row)
+	out.Source = strings.TrimSpace(p.Source)
 	return out, nil
+}
+
+func (s *Service) ensureDouyinShopVisible(ctx context.Context, tenantID int64, shopID *uuid.UUID) error {
+	if shopID == nil || *shopID == uuid.Nil {
+		return nil
+	}
+	tenant := security.FromContext(ctx)
+	if tenant == nil || tenant.TenantID != tenantID {
+		return security.ErrTenantContextMissing
+	}
+	if tenant.ShopScope != nil {
+		allowed := false
+		for _, allowedID := range tenant.ShopScope {
+			if allowedID == *shopID {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return gorm.ErrRecordNotFound
+		}
+	}
+	var tenantShop shop.Shop
+	return s.DB.WithContext(ctx).
+		Select("id").
+		Where("id = ? AND tenant_id = ? AND platform = ?", *shopID, tenantID, "douyin_shop").
+		First(&tenantShop).Error
 }
 
 func (s *Service) ValidateDouyinDraftMapping(ctx context.Context, mapping *DouyinDraftMapping) (*DouyinMappingValidationResult, error) {

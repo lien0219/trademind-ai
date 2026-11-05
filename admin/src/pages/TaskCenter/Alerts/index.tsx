@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import { Result, Tabs } from 'antd';
 import { useEffect, type ReactNode } from 'react';
 import { TmPageContainer } from '@/components/ui';
@@ -11,6 +13,7 @@ import SystemAlertsPanel from './SystemAlertsPanel';
 const ALERT_SOURCE_QUERY_KEYS = ['source'] as const;
 
 export default function AlertCenterPage() {
+  useLanguage();
   const { can } = usePermission();
   const { state, setState } = useUrlQueryState<{ source?: string }>(ALERT_SOURCE_QUERY_KEYS);
   const access = {
@@ -25,23 +28,23 @@ export default function AlertCenterPage() {
   }, [access.business, access.system, activeSource, setState, state.source]);
   const items = [
     access.business
-      ? { key: 'business', label: '业务告警', children: <BusinessAlertsPanel /> }
+      ? { key: 'business', label: tr("业务告警"), children: <BusinessAlertsPanel /> }
       : null,
     access.system
-      ? { key: 'system', label: '系统告警', children: <SystemAlertsPanel /> }
+      ? { key: 'system', label: tr("系统告警"), children: <SystemAlertsPanel /> }
       : null,
   ].filter(Boolean) as { key: AlertSource; label: string; children: ReactNode }[];
 
   if (!items.length) {
     return (
-      <TmPageContainer title="告警中心">
-        <Result status="403" title="无权限" subTitle="当前账号无权限访问告警中心" />
+      <TmPageContainer title={tr("告警中心")}>
+        <Result status="403" title={tr("无权限")} subTitle={tr("当前账号无权限访问告警中心")} />
       </TmPageContainer>
     );
   }
 
   return (
-    <TmPageContainer title="告警中心">
+    <TmPageContainer title={tr("告警中心")}>
       <Tabs
         activeKey={activeSource}
         items={items}

@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { useCallback, useEffect, useState } from 'react';
 import type { ImageProviderCapability } from '@/constants/imageProviders';
 import { isProviderSelectable, providersForTask } from '@/constants/imageProviders';
@@ -32,7 +33,7 @@ export function useImageProviders() {
         disabled: !isProviderSelectable(c),
       }));
       if (includeDefault) {
-        return [{ value: '', label: '默认（跟随「图片 AI」设置）' }, ...base];
+        return [{ value: '', label: tr("默认（跟随「图片 AI」设置）") }, ...base];
       }
       return base;
     },

@@ -27,6 +27,10 @@ func (s *Service) prepareGenerateSceneHints(ctx context.Context, task *ImageTask
 	if task != nil {
 		srcURL = strings.TrimSpace(task.SourceImageURL)
 	}
+	tenantID, scoped, scopeErr := imageTaskTenantScope(ctx)
+	if scopeErr != nil {
+		return next
+	}
 
 	var b strings.Builder
 	b.WriteString("Create a clean ecommerce-style product showcase image suitable for online marketplaces. ")
@@ -38,7 +42,9 @@ func (s *Service) prepareGenerateSceneHints(ctx context.Context, task *ImageTask
 
 	if s != nil && s.DB != nil && task != nil && task.ProductID != nil && *task.ProductID != uuid.Nil {
 		var prod product.Product
-		if err := s.DB.WithContext(ctx).First(&prod, "id = ?", task.ProductID).Error; err == nil {
+		query := s.DB.WithContext(ctx).Model(&product.Product{}).Where("id = ?", *task.ProductID)
+		query = scopeProductQuery(query, tenantID, scoped)
+		if err := query.First(&prod).Error; err == nil {
 			if t := strings.TrimSpace(prod.Title); t != "" {
 				next["productTitle"] = t
 				fmt.Fprintf(&b, "Product title: %s. ", t)

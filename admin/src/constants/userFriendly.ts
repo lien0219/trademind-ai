@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 /** 管理端通用用户文案（避免直接展示英文技术词） */
 
 /** 菜单、标题中完整写法 */
@@ -78,7 +79,7 @@ export const PLATFORM_LABEL: Record<string, string> = {
 export function platformLabel(platform?: string): string {
   const k = (platform || '').trim().toLowerCase();
   if (!k) return '—';
-  return PLATFORM_LABEL[k] || platform || '—';
+  return PLATFORM_LABEL[k] ? tr(PLATFORM_LABEL[k]) : platform || '—';
 }
 
 /** 商品草稿来源（products.source）显示名 */
@@ -98,10 +99,11 @@ export function productSourceLabel(source?: string): string {
   const raw = (source || '').trim();
   if (!raw) return '—';
   const k = raw.toLowerCase();
-  return PRODUCT_SOURCE_LABEL[k] ?? PRODUCT_SOURCE_LABEL[raw] ?? raw;
+  const label = PRODUCT_SOURCE_LABEL[k] ?? PRODUCT_SOURCE_LABEL[raw];
+  return label ? tr(label) : raw;
 }
 
 export const PLATFORM_OPTIONS = Object.entries(PLATFORM_LABEL).map(([value, label]) => ({
   value,
-  label,
+  get label() { return tr(label); },
 }));

@@ -28,8 +28,14 @@ func (s *Service) ApplyTaskResult(ctx context.Context, opts ApplyItemOpts) (*pro
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("imagetask: no db")
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var task ImageTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", opts.TaskID).Error; err != nil {
+	taskQuery := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", opts.TaskID)
+	taskQuery = scopeImageTaskQuery(taskQuery, tenantID, scoped)
+	if err := taskQuery.First(&task).Error; err != nil {
 		return nil, err
 	}
 	if task.Status != StatusSuccess && task.Status != StatusSuccessWithWarnings && task.Status != StatusSuccessWithReview && task.Status != StatusLowQuality {
@@ -37,6 +43,12 @@ func (s *Service) ApplyTaskResult(ctx context.Context, opts ApplyItemOpts) (*pro
 	}
 	if task.ProductID == nil || *task.ProductID != opts.ProductID {
 		return nil, fmt.Errorf("productId mismatch")
+	}
+	var target product.Product
+	productQuery := s.DB.WithContext(ctx).Model(&product.Product{}).Where("id = ?", opts.ProductID)
+	productQuery = scopeProductQuery(productQuery, tenantID, scoped)
+	if err := productQuery.First(&target).Error; err != nil {
+		return nil, err
 	}
 
 	imgType := imageTypeFromApplyMode(opts.ApplyMode)
@@ -51,7 +63,9 @@ func (s *Service) ApplyTaskResult(ctx context.Context, opts ApplyItemOpts) (*pro
 
 	if opts.ItemID != nil && *opts.ItemID != uuid.Nil {
 		var item ImageTaskItem
-		if err := s.DB.WithContext(ctx).First(&item, "id = ? AND task_id = ?", *opts.ItemID, opts.TaskID).Error; err != nil {
+		itemQuery := s.DB.WithContext(ctx).Model(&ImageTaskItem{}).Where("id = ? AND task_id = ?", *opts.ItemID, opts.TaskID)
+		itemQuery = scopeImageTaskItemQuery(itemQuery, tenantID, scoped)
+		if err := itemQuery.First(&item).Error; err != nil {
 			return nil, err
 		}
 		if item.Status != ItemStatusSuccess {
@@ -86,14 +100,18 @@ func (s *Service) ApplyTaskResult(ctx context.Context, opts ApplyItemOpts) (*pro
 	}
 	if storageKey == "" && fileID != nil && s.Files != nil {
 		var fr files.FileRecord
-		if err := s.DB.WithContext(ctx).Where("id = ?", *fileID).First(&fr).Error; err == nil {
+		fileQuery := s.DB.WithContext(ctx).Model(&files.FileRecord{}).Where("id = ?", *fileID)
+		fileQuery = scopeFileRecordQuery(fileQuery, tenantID, scoped)
+		if err := fileQuery.First(&fr).Error; err == nil {
 			storageKey = strings.TrimSpace(fr.ObjectKey)
 		}
 	}
 
 	var maxOrder int
-	_ = s.DB.WithContext(ctx).Model(&product.ProductImage{}).
-		Where("product_id = ?", opts.ProductID).
+	orderQuery := s.DB.WithContext(ctx).Model(&product.ProductImage{}).
+		Where("product_id = ?", opts.ProductID)
+	orderQuery = scopeProductImageQuery(orderQuery, tenantID, scoped)
+	_ = orderQuery.
 		Select("COALESCE(MAX(sort_order), -1)").
 		Scan(&maxOrder).Error
 
@@ -114,9 +132,10 @@ func (s *Service) ApplyTaskResult(ctx context.Context, opts ApplyItemOpts) (*pro
 		row.IsBestMain = opts.SetBest || imgType == product.ImageTypeMain
 	}
 
-	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		productImages := scopeProductImageQuery(tx.Model(&product.ProductImage{}), tenantID, scoped)
 		if row.IsBestMain {
-			if err := tx.Model(&product.ProductImage{}).
+			if err := productImages.
 				Where("product_id = ?", opts.ProductID).
 				Update("is_best_main", false).Error; err != nil {
 				return err
@@ -126,7 +145,7 @@ func (s *Service) ApplyTaskResult(ctx context.Context, opts ApplyItemOpts) (*pro
 			return err
 		}
 		if imgType == product.ImageTypeMain {
-			if err := tx.Model(&product.ProductImage{}).
+			if err := scopeProductImageQuery(tx.Model(&product.ProductImage{}), tenantID, scoped).
 				Where("id = ? AND product_id = ?", row.ID, opts.ProductID).
 				Update("sort_order", 0).Error; err != nil {
 				return err

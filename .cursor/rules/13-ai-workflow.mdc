@@ -5,6 +5,9 @@ alwaysApply: true
 
 # AI 工作流规则
 
+- 每次修改必须同时改善用户体验、开发体验和 AI Agent 的使用体验，三者都要有具体收益且不能破坏现有功能；按 `docs/ai-coding-rules.md` 分别说明改善与验证依据。
+- 界面精简与布局重设计按 `.agents/skills/frontend-design/SKILL.md` 的文案规范执行：删去冗余文案后仍难理解时必须重新设计，保留必要业务信息和可访问性支持。
+- UI 首次交付前按 `.agents/skills/frontend-design/SKILL.md` 第 3.1 节自检布局、宽度、间距和操作层级，主动修正明显问题；未查看实际渲染结果不得宣称视觉通过。
 - 开始任务前先读 `AGENTS.md`、`docs/ai-workflow.md` 和 `docs/module-map.md` 中与当前任务相关的部分。
 - 先把用户需求改写为短执行提示词：目标、任务类型、范围边界、事实确认、实现策略、验证和沉淀。
 - 先形成最小上下文包：任务目标、改动类型、关联入口、已有实现、验证方式、风险。

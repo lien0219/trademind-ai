@@ -1,47 +1,46 @@
 export type LocalizedLabel = {
-  zhCN: string;
-  enUS: string;
+  source: string;
   color?: 'default' | 'processing' | 'success' | 'error' | 'warning' | 'blue' | 'cyan' | 'gold' | 'purple' | 'orange' | 'red';
-  description?: string;
+  descriptionSource?: string;
 };
 
 export const OPERATION_TASK_STATUS_LABELS: Record<string, LocalizedLabel> = {
-  suggested: { zhCN: '待处理建议', enUS: 'Suggested', color: 'default', description: '任务已创建，等待准备草稿。' },
-  draft_preparing: { zhCN: '草稿准备中', enUS: 'Draft preparing', color: 'processing', description: '正在冻结待审核的草稿内容。' },
-  pending_review: { zhCN: '待审核', enUS: 'Pending review', color: 'warning', description: '需要人工审核最新草稿。' },
-  approved: { zhCN: '已批准', enUS: 'Approved', color: 'success', description: '最新草稿已获人工批准，可进行受控草稿生成。' },
-  rejected: { zhCN: '已拒绝', enUS: 'Rejected', color: 'error', description: '审核已拒绝，任务不会继续执行。' },
-  execution_queued: { zhCN: '等待执行', enUS: 'Execution queued', color: 'processing', description: '执行请求已排队，不代表真实发布。' },
-  executing: { zhCN: '执行中', enUS: 'Executing', color: 'processing', description: '正在执行已批准的草稿请求。' },
-  draft_written: { zhCN: '草稿已创建', enUS: 'Draft written', color: 'success', description: '草稿创建完成，不代表商品发布或上架。' },
-  result_unknown: { zhCN: '结果待核对', enUS: 'Result unknown', color: 'warning', description: '平台结果不明确，必须人工核对，禁止直接重试。' },
-  execution_failed: { zhCN: '执行失败', enUS: 'Execution failed', color: 'error', description: '执行失败，可按后端允许状态人工重试。' },
-  cancelled: { zhCN: '已取消', enUS: 'Cancelled', color: 'default', description: '任务已取消。' },
+  suggested: { source: '待处理建议', color: 'default', descriptionSource: '任务已创建，等待准备草稿。' },
+  draft_preparing: { source: '草稿准备中', color: 'processing', descriptionSource: '正在冻结待审核的草稿内容。' },
+  pending_review: { source: '待审核', color: 'warning', descriptionSource: '需要人工审核最新草稿。' },
+  approved: { source: '已批准', color: 'success', descriptionSource: '最新草稿已获人工批准，可进行受控草稿生成。' },
+  rejected: { source: '已拒绝', color: 'error', descriptionSource: '审核已拒绝，任务不会继续执行。' },
+  execution_queued: { source: '等待执行', color: 'processing', descriptionSource: '执行请求已排队，不代表真实发布。' },
+  executing: { source: '执行中', color: 'processing', descriptionSource: '正在执行已批准的草稿请求。' },
+  draft_written: { source: '草稿已创建', color: 'success', descriptionSource: '草稿创建完成，不代表商品发布或上架。' },
+  result_unknown: { source: '结果待核对', color: 'warning', descriptionSource: '平台结果不明确，必须人工核对，禁止直接重试。' },
+  execution_failed: { source: '执行失败', color: 'error', descriptionSource: '执行失败，可按后端允许状态人工重试。' },
+  cancelled: { source: '已取消', color: 'default', descriptionSource: '任务已取消。' },
 };
 
 export const OPERATION_DRAFT_STATUS_LABELS: Record<string, LocalizedLabel> = {
-  editable: { zhCN: '可编辑', enUS: 'Editable', color: 'processing' },
-  pending_review: { zhCN: '待审核', enUS: 'Pending review', color: 'warning' },
-  approved: { zhCN: '已批准', enUS: 'Approved', color: 'success' },
-  superseded: { zhCN: '历史版本', enUS: 'Superseded', color: 'default' },
-  written: { zhCN: '草稿已生成', enUS: 'Written', color: 'success' },
-  failed: { zhCN: '失败', enUS: 'Failed', color: 'error' },
-  result_unknown: { zhCN: '结果待核对', enUS: 'Result unknown', color: 'warning' },
+  editable: { source: '可编辑', color: 'processing' },
+  pending_review: { source: '待审核', color: 'warning' },
+  approved: { source: '已批准', color: 'success' },
+  superseded: { source: '历史版本', color: 'default' },
+  written: { source: '草稿已生成', color: 'success' },
+  failed: { source: '失败', color: 'error' },
+  result_unknown: { source: '结果待核对', color: 'warning' },
 };
 
 export const OPERATION_ATTEMPT_STATUS_LABELS: Record<string, LocalizedLabel> = {
-  queued: { zhCN: '排队中', enUS: 'Queued', color: 'processing' },
-  running: { zhCN: '运行中', enUS: 'Running', color: 'processing' },
-  succeeded: { zhCN: '已完成', enUS: 'Succeeded', color: 'success' },
-  failed: { zhCN: '失败', enUS: 'Failed', color: 'error' },
-  cancelled: { zhCN: '已取消', enUS: 'Cancelled', color: 'default' },
+  queued: { source: '排队中', color: 'processing' },
+  running: { source: '运行中', color: 'processing' },
+  succeeded: { source: '已完成', color: 'success' },
+  failed: { source: '失败', color: 'error' },
+  cancelled: { source: '已取消', color: 'default' },
 };
 
 export const OPERATION_PRIORITY_LABELS: Record<string, LocalizedLabel> = {
-  low: { zhCN: '低', enUS: 'Low', color: 'default' },
-  normal: { zhCN: '普通', enUS: 'Normal', color: 'blue' },
-  high: { zhCN: '高', enUS: 'High', color: 'orange' },
-  urgent: { zhCN: '紧急', enUS: 'Urgent', color: 'red' },
+  low: { source: '低', color: 'default' },
+  normal: { source: '普通', color: 'blue' },
+  high: { source: '高', color: 'orange' },
+  urgent: { source: '紧急', color: 'red' },
 };
 
 export const OPERATION_TASK_TYPE_LABELS: Record<string, string> = {
@@ -90,21 +89,21 @@ export const OPERATION_RESULT_TYPE_LABELS: Record<string, string> = {
 };
 
 export const OPERATION_EVENT_TYPE_LABELS: Record<string, LocalizedLabel> = {
-  task_created: { zhCN: '任务已创建', enUS: 'Task created' },
-  draft_generated: { zhCN: '草稿已生成', enUS: 'Draft generated' },
-  draft_updated: { zhCN: '草稿已更新', enUS: 'Draft updated' },
-  review_requested: { zhCN: '请求审核', enUS: 'Review requested' },
-  approved: { zhCN: '已批准', enUS: 'Approved' },
-  rejected: { zhCN: '已拒绝', enUS: 'Rejected' },
-  execution_queued: { zhCN: '执行已排队', enUS: 'Execution queued' },
-  execution_started: { zhCN: '执行已开始', enUS: 'Execution started' },
-  draft_written: { zhCN: '草稿已生成', enUS: 'Draft written' },
-  execution_failed: { zhCN: '执行失败', enUS: 'Execution failed' },
-  result_unknown: { zhCN: '结果待核对', enUS: 'Result unknown' },
-  retry_requested: { zhCN: '请求人工重试', enUS: 'Retry requested' },
-  cancelled: { zhCN: '已取消', enUS: 'Cancelled' },
-  permission_denied: { zhCN: '权限被拒绝', enUS: 'Permission denied' },
-  production_capability_blocked: { zhCN: '生产能力已拦截', enUS: 'Production capability blocked' },
+  task_created: { source: '任务已创建' },
+  draft_generated: { source: '草稿已生成' },
+  draft_updated: { source: '草稿已更新' },
+  review_requested: { source: '请求审核' },
+  approved: { source: '已批准' },
+  rejected: { source: '已拒绝' },
+  execution_queued: { source: '执行已排队' },
+  execution_started: { source: '执行已开始' },
+  draft_written: { source: '草稿已生成' },
+  execution_failed: { source: '执行失败' },
+  result_unknown: { source: '结果待核对' },
+  retry_requested: { source: '请求人工重试' },
+  cancelled: { source: '已取消' },
+  permission_denied: { source: '权限被拒绝' },
+  production_capability_blocked: { source: '生产能力已拦截' },
 };
 
 export const OPERATION_ACTOR_TYPE_LABELS: Record<string, string> = {
@@ -147,8 +146,8 @@ export const OPERATION_METADATA_ALLOWLIST = new Set([
 ]);
 
 export const NON_PRODUCTION_BOUNDARY_COPY = {
-  title: '非生产边界',
-  description: '当前仅允许生成本地、模拟或沙箱草稿，不会调用真实平台发布或上架能力。',
+  titleSource: '非生产边界',
+  descriptionSource: '当前仅允许生成本地、模拟或沙箱草稿，不会调用真实平台发布或上架能力。',
   realWriteDisabled: '真实平台写入：未启用',
   autoPublishDisabled: '自动发布：未启用',
   autoListingDisabled: '自动上架：未启用',
@@ -156,7 +155,7 @@ export const NON_PRODUCTION_BOUNDARY_COPY = {
 
 export function operationLabel(map: Record<string, LocalizedLabel>, value?: string | null) {
   const key = (value ?? '').trim();
-  return key ? map[key]?.zhCN ?? key : '—';
+  return key ? map[key]?.source ?? key : '—';
 }
 
 export function operationLabelColor(map: Record<string, LocalizedLabel>, value?: string | null) {

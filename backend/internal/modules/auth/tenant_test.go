@@ -1,0 +1,307 @@
+package auth
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"github.com/trademind-ai/trademind/backend/internal/config"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
+)
+
+func TestResolveLoginTenantRestoresLastActiveMembershipThenFallsBack(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:auth_tenant_login_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.Tenant{}, &admin.TenantMembership{}))
+	u := admin.AdminUser{Base: model.Base{ID: uuid.New()}, Username: "multi-tenant-user", PasswordHash: "test-only", Role: admin.RoleAdmin, Status: admin.StatusActive, TenantID: 1, LastTenantID: 22, TokenVersion: 1}
+	require.NoError(t, db.Create(&u).Error)
+	for _, tenant := range []admin.Tenant{{ID: 11, Code: "tenant-a", Name: "A", Status: admin.TenantActive}, {ID: 22, Code: "tenant-b", Name: "B", Status: admin.TenantActive}} {
+		require.NoError(t, db.Create(&tenant).Error)
+	}
+	for _, membership := range []admin.TenantMembership{{TenantID: 11, UserID: u.ID, Role: "operator", Status: admin.MembershipActive}, {TenantID: 22, UserID: u.ID, Role: "readonly", Status: admin.MembershipActive}} {
+		require.NoError(t, db.Create(&membership).Error)
+	}
+	tenantID, err := resolveLoginTenant(context.Background(), db, &u)
+	require.NoError(t, err)
+	require.EqualValues(t, 22, tenantID)
+	require.NoError(t, db.Model(&admin.Tenant{}).Where("id = ?", 22).Update("status", admin.TenantSuspended).Error)
+	tenantID, err = resolveLoginTenant(context.Background(), db, &u)
+	require.NoError(t, err)
+	require.EqualValues(t, 11, tenantID)
+}
+
+func TestSwitchTenantRevokesOldSessionAndIssuesTenantBoundPair(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:auth_tenant_switch_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.Tenant{}, &admin.TenantMembership{}, &admin.AdminMutationLock{}, &AuthSession{}, &AuthRefreshToken{}, &AuthLoginAttempt{}, &operationlog.OperationLog{}))
+	uid := uuid.New()
+	email := "switch-" + uuid.NewString() + "@example.test"
+	password := "valid-password-123"
+	passwordHashBytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
+	require.NoError(t, err)
+	passwordHash := string(passwordHashBytes)
+	u := admin.AdminUser{Base: model.Base{ID: uid}, TenantID: 11, LastTenantID: 11, Username: "switch-" + uuid.NewString(), Email: email, PasswordHash: passwordHash, Role: "admin", Status: "active", TokenVersion: 3}
+	require.NoError(t, db.Create(&u).Error)
+	for _, tenant := range []admin.Tenant{{ID: 11, Code: "switch-a", Name: "A", Status: admin.TenantActive}, {ID: 22, Code: "switch-b", Name: "B", Status: admin.TenantActive}} {
+		require.NoError(t, db.Create(&tenant).Error)
+	}
+	require.NoError(t, db.Create(&admin.TenantMembership{TenantID: 11, UserID: uid, Role: "admin", Status: admin.MembershipActive}).Error)
+	require.NoError(t, db.Create(&admin.TenantMembership{TenantID: 22, UserID: uid, Role: "readonly", Status: admin.MembershipActive}).Error)
+	cfg := &config.Config{JWTSecret: "switch-tenant-test-secret-at-least-thirty-two-bytes", Auth: config.AuthConfig{SessionMode: config.AuthSessionModeSecure, AccessTokenTTLMinutes: 15, RefreshTokenTTLDays: 7}}
+	sessions := &SessionService{Cfg: cfg, DB: db, Admins: &admin.Store{DB: db}, OpLog: &operationlog.Service{DB: db}}
+	old, err := sessions.CreateSession(context.Background(), email, password, "127.0.0.1", "test")
+	require.NoError(t, err)
+	oldClaims, err := ParseAccessToken(cfg, nil, old.AccessToken)
+	require.NoError(t, err)
+	result, err := sessions.SwitchTenant(context.Background(), uid, old.SessionID, oldClaims.TokenVersion, 22, "127.0.0.1", "test")
+	require.NoError(t, err)
+	newClaims, err := ParseAccessToken(cfg, nil, result.AccessToken)
+	require.NoError(t, err)
+	require.EqualValues(t, 22, newClaims.TenantID)
+	require.NotEqual(t, old.SessionID, result.SessionID)
+	require.Error(t, sessions.ValidateSessionAccess(context.Background(), old.SessionID, uid, oldClaims.TokenVersion))
+	var oldSession AuthSession
+	require.NoError(t, db.First(&oldSession, "id = ?", old.SessionID).Error)
+	require.Equal(t, SessionStatusRevoked, oldSession.Status)
+	var newRefresh AuthRefreshToken
+	require.NoError(t, db.Where("session_id = ? AND status = ?", result.SessionID, RefreshStatusActive).First(&newRefresh).Error)
+	require.EqualValues(t, 22, newRefresh.TenantID)
+	var auditCount int64
+	require.NoError(t, db.Model(&operationlog.OperationLog{}).Where("action = ? AND resource_id = ?", "auth.tenant.switch", result.SessionID.String()).Count(&auditCount).Error)
+	require.EqualValues(t, 1, auditCount)
+}
+
+func TestSwitchTenantRejectsMissingMembershipWithoutRevokingCurrentSession(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:auth_tenant_switch_denied_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.Tenant{}, &admin.TenantMembership{}, &admin.AdminMutationLock{}, &AuthSession{}, &AuthRefreshToken{}, &AuthLoginAttempt{}, &operationlog.OperationLog{}))
+	uid := uuid.New()
+	email := fmt.Sprintf("denied-%s@example.test", uuid.NewString())
+	hashBytes, err := bcrypt.GenerateFromPassword([]byte("valid-password-123"), bcrypt.MinCost)
+	require.NoError(t, err)
+	hash := string(hashBytes)
+	u := admin.AdminUser{Base: model.Base{ID: uid}, TenantID: 11, Username: "denied-" + uuid.NewString(), Email: email, PasswordHash: hash, Role: "admin", Status: "active", TokenVersion: 3}
+	require.NoError(t, db.Create(&u).Error)
+	for _, tenant := range []admin.Tenant{{ID: 11, Code: "denied-a", Name: "A", Status: admin.TenantActive}, {ID: 22, Code: "denied-b", Name: "B", Status: admin.TenantActive}} {
+		require.NoError(t, db.Create(&tenant).Error)
+	}
+	require.NoError(t, db.Create(&admin.TenantMembership{TenantID: 11, UserID: uid, Role: "admin", Status: admin.MembershipActive}).Error)
+	cfg := &config.Config{JWTSecret: "switch-tenant-test-secret-at-least-thirty-two-bytes", Auth: config.AuthConfig{SessionMode: config.AuthSessionModeSecure, AccessTokenTTLMinutes: 15, RefreshTokenTTLDays: 7}}
+	sessions := &SessionService{Cfg: cfg, DB: db, Admins: &admin.Store{DB: db}, OpLog: &operationlog.Service{DB: db}}
+	old, err := sessions.CreateSession(context.Background(), email, "valid-password-123", "127.0.0.1", "test")
+	require.NoError(t, err)
+	claims, err := ParseAccessToken(cfg, nil, old.AccessToken)
+	require.NoError(t, err)
+	_, err = sessions.SwitchTenant(context.Background(), uid, old.SessionID, claims.TokenVersion, 22, "127.0.0.1", "test")
+	require.Error(t, err)
+	require.NoError(t, sessions.ValidateSessionAccess(context.Background(), old.SessionID, uid, claims.TokenVersion))
+}
+
+func TestResolveLoginTenantDoesNotFallbackToLegacyTenantWhenMembershipsExist(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:auth_tenant_orphan_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.Tenant{}, &admin.TenantMembership{}))
+	u := admin.AdminUser{Base: model.Base{ID: uuid.New()}, Username: "orphaned-identity", PasswordHash: "test-only", Role: admin.RoleAdmin, Status: admin.StatusActive, TenantID: 11, TokenVersion: 1}
+	require.NoError(t, db.Create(&u).Error)
+	tenantID, err := resolveLoginTenant(context.Background(), db, &u)
+	require.NoError(t, err)
+	require.Zero(t, tenantID)
+}
+
+func TestTenantsListsOnlySwitchableActiveMemberships(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:auth_tenant_list_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.Tenant{}, &admin.TenantMembership{}))
+
+	uid := uuid.New()
+	require.NoError(t, db.Create(&admin.AdminUser{Base: model.Base{ID: uid}, TenantID: 11, Username: admin.NewInternalUsername(), Role: "readonly", Status: admin.StatusActive, PasswordHash: "test-only"}).Error)
+	for _, tenant := range []admin.Tenant{
+		{ID: 11, Code: "active-member", Name: "Active Member", Status: admin.TenantActive},
+		{ID: 22, Code: "disabled-member", Name: "Disabled Member", Status: admin.TenantActive},
+		{ID: 33, Code: "suspended-tenant", Name: "Suspended Tenant", Status: admin.TenantSuspended},
+	} {
+		require.NoError(t, db.Create(&tenant).Error)
+	}
+	for _, membership := range []admin.TenantMembership{
+		{TenantID: 11, UserID: uid, Role: "admin", Status: admin.MembershipActive},
+		{TenantID: 22, UserID: uid, Role: "operator", Status: admin.MembershipDisabled},
+		{TenantID: 33, UserID: uid, Role: "admin", Status: admin.MembershipActive},
+	} {
+		require.NoError(t, db.Create(&membership).Error)
+	}
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		c.Set(ctxkey.AdminID, uid.String())
+		c.Next()
+	})
+	engine.GET("/auth/tenants", (&Handler{DB: db}).Tenants)
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/auth/tenants", nil))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID int64 `json:"id"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	var tenantIDs []int64
+	for _, item := range envelope.Data.Items {
+		tenantIDs = append(tenantIDs, item.ID)
+	}
+	require.Equal(t, []int64{11}, tenantIDs)
+}
+
+func TestRootTenantsListHasSingleProtectedWorkspace(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:root_workspace_options_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.Tenant{}, &admin.TenantMembership{}, &admin.RootAccount{}))
+
+	uid := uuid.New()
+	require.NoError(t, db.Create(&admin.AdminUser{Base: model.Base{ID: uid}, TenantID: 0, Username: admin.NewInternalUsername(),
+		Role: admin.RoleAdmin, Status: admin.StatusActive, PasswordHash: "test-only"}).Error)
+	require.NoError(t, db.Create(&admin.RootAccount{ID: 1, UserID: uid}).Error)
+	for _, tenant := range []admin.Tenant{
+		{ID: 7, Code: admin.RootWorkspaceCode, Name: admin.RootWorkspaceName, Status: admin.TenantActive},
+		{ID: 21, Code: "customer-a", Name: "企业 A", Status: admin.TenantActive},
+	} {
+		require.NoError(t, db.Create(&tenant).Error)
+	}
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		c.Set(ctxkey.AdminID, uid.String())
+		c.Set(ctxkey.TenantID, int64(7))
+		c.Next()
+	})
+	engine.GET("/auth/tenants", (&Handler{DB: db}).Tenants)
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/auth/tenants", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID   int64  `json:"id"`
+				Code string `json:"code"`
+				Name string `json:"name"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
+	require.Len(t, envelope.Data.Items, 2)
+	require.EqualValues(t, 7, envelope.Data.Items[0].ID)
+	require.Equal(t, admin.RootWorkspaceCode, envelope.Data.Items[0].Code)
+	require.Equal(t, "Root 工作台", envelope.Data.Items[0].Name)
+	require.EqualValues(t, 21, envelope.Data.Items[1].ID)
+	for _, option := range envelope.Data.Items {
+		require.NotZero(t, option.ID, "Root must not see tenant-zero system as a duplicate workspace")
+	}
+}
+
+func TestRootWorkspaceDelegatedOperatorUsesActiveMembershipNotRootRights(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:root_delegate_"+uuid.NewString()+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+	require.NoError(t, db.AutoMigrate(&admin.AdminUser{}, &admin.Tenant{}, &admin.TenantMembership{}, &admin.RootAccount{}))
+
+	root := admin.AdminUser{Username: admin.NewInternalUsername(), TenantID: 0, Role: adminperm.RoleAdmin, Status: admin.StatusActive}
+	worker := admin.AdminUser{Username: admin.NewInternalUsername(), TenantID: 11, LastTenantID: 11, Role: adminperm.RoleOperator, Status: admin.StatusActive}
+	outsider := admin.AdminUser{Username: admin.NewInternalUsername(), TenantID: 22, Role: adminperm.RoleAdmin, Status: admin.StatusActive}
+	for _, user := range []*admin.AdminUser{&root, &worker, &outsider} {
+		require.NoError(t, db.Create(user).Error)
+	}
+	require.NoError(t, db.Create(&admin.RootAccount{ID: 1, UserID: root.ID}).Error)
+	for _, tenant := range []admin.Tenant{
+		{ID: 11, Code: admin.RootWorkspaceCode, Name: admin.RootWorkspaceName, Status: admin.TenantActive},
+		{ID: 22, Code: "external", Name: "Other", Status: admin.TenantActive},
+	} {
+		require.NoError(t, db.Create(&tenant).Error)
+	}
+	member := admin.TenantMembership{TenantID: 11, UserID: worker.ID, Role: adminperm.RoleOperator, Status: admin.MembershipActive}
+	require.NoError(t, db.Create(&member).Error)
+	ctx := context.Background()
+	identityIsRoot, err := adminperm.IsRoot(ctx, db, worker.ID)
+	require.NoError(t, err)
+	require.False(t, identityIsRoot)
+
+	selected, err := resolveLoginTenant(ctx, db, &worker)
+	require.NoError(t, err)
+	require.EqualValues(t, 11, selected)
+	access, err := adminperm.ResolveTenantAccess(ctx, db, worker.ID, 11)
+	require.NoError(t, err)
+	require.True(t, access.Allowed)
+	require.Equal(t, adminperm.RoleOperator, access.Membership.Role)
+	require.NoError(t, adminperm.CheckTenantPermission(ctx, db, 11, worker.ID, adminperm.PermProductView))
+	require.Error(t, adminperm.CheckTenantPermission(ctx, db, 11, worker.ID, adminperm.PermUserManage))
+	require.Error(t, adminperm.CheckTenantPermission(ctx, db, 11, worker.ID, adminperm.PermSettingsManage))
+
+	foreign, err := adminperm.ResolveTenantAccess(ctx, db, outsider.ID, 11)
+	require.NoError(t, err)
+	require.False(t, foreign.Allowed)
+	otherTenant, err := adminperm.ResolveTenantAccess(ctx, db, worker.ID, 22)
+	require.NoError(t, err)
+	require.False(t, otherTenant.Allowed)
+
+	for _, disabledStatus := range []string{admin.MembershipDisabled, admin.MembershipRemoved} {
+		require.NoError(t, db.Model(&member).Update("status", disabledStatus).Error)
+		revoked, err := adminperm.ResolveTenantAccess(ctx, db, worker.ID, 11)
+		require.NoError(t, err)
+		require.False(t, revoked.Allowed)
+		require.Error(t, validateTenantSession(ctx, db, worker.ID, 11))
+		nextTenant, err := resolveLoginTenant(ctx, db, &worker)
+		require.NoError(t, err)
+		require.Zero(t, nextTenant)
+	}
+	require.NoError(t, db.Model(&member).Update("status", admin.MembershipActive).Error)
+	require.NoError(t, db.Model(&admin.Tenant{}).Where("id = ?", 11).Update("status", admin.TenantSuspended).Error)
+	suspended, err := adminperm.ResolveTenantAccess(ctx, db, worker.ID, 11)
+	require.NoError(t, err)
+	require.False(t, suspended.Allowed)
+
+	rootAccess, err := adminperm.ResolveTenantAccess(ctx, db, root.ID, 22)
+	require.NoError(t, err)
+	require.True(t, rootAccess.Allowed)
+}

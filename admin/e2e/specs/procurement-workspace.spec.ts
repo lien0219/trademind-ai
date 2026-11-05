@@ -18,6 +18,7 @@ import {
   e2eReceivedPurchaseOrder,
   e2eReturnableReceiptItem,
   e2eSupplier,
+  e2eSupplierSKU,
 } from '../mocks/procurement';
 import {
   expectHeaderContentAligned,
@@ -144,6 +145,42 @@ test.describe('@smoke procurement workspace', () => {
     expect(String(payload.idempotencyKey)).toMatch(/^admin-purchase-order-/);
   });
 
+  test('ignores a late supplier binding response after switching suppliers', async ({ admin, page }) => {
+    const otherSupplier = { ...e2eSupplier, id: 'e2e-supplier-secondary', code: 'SUP-002', name: 'E2E 次选供应商' };
+    await page.route((url) => url.pathname === '/api/v1/suppliers', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [e2eSupplier, otherSupplier] })) });
+    });
+    let releasePrimary: (() => void) | undefined;
+    const primaryStarted = new Promise<void>((resolve) => {
+      void page.route((url) => url.pathname === `/api/v1/suppliers/${E2E_SUPPLIER_ID}/skus`, async (route) => {
+        resolve();
+        await new Promise<void>((done) => { releasePrimary = done; });
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [e2eSupplierSKU] })) });
+      });
+    });
+    await page.route('**/api/v1/suppliers/e2e-supplier-secondary/skus', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [] })) });
+    });
+
+    try {
+      await admin.goto('/procurement/purchase-orders');
+      await page.getByRole('button', { name: '新建采购单' }).click();
+      await primaryStarted;
+      const dialog = page.getByRole('dialog', { name: '新建采购单' });
+      // The selected value overlays rc-select's search input; keyboard focus avoids a blocked pointer click.
+      await dialog.getByRole('combobox', { name: '供应商' }).press('ArrowDown');
+      await page.getByText('SUP-002 · E2E 次选供应商', { exact: true }).click();
+      await expect(dialog.getByRole('button', { name: '创建采购单草稿' })).toBeEnabled();
+      releasePrimary?.();
+      // Ant Design also renders an aria-live announcement with the selected label.
+      // Assert the actual selected option, not both matching text nodes.
+      await expect(dialog.locator('.ant-select-selection-item[title="SUP-002 · E2E 次选供应商"]')).toHaveText('SUP-002 · E2E 次选供应商');
+      await admin.writeGuard.expectRequestCount('unexpected', 0);
+    } finally {
+      releasePrimary?.();
+    }
+  });
+
   test('requires a target warehouse and keeps replenishment suggestions read-only before confirmation', async ({ admin, page }) => {
     await admin.goto('/procurement/replenishment-suggestions');
     await expect(page.getByText('必须选择目标仓库后才会加载建议。')).toBeVisible();
@@ -160,6 +197,39 @@ test.describe('@smoke procurement workspace', () => {
     await page.getByRole('button', { name: '导出筛选结果' }).click();
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe('replenishment-suggestions.csv');
+    await admin.writeGuard.expectRequestCount('unexpected', 0);
+  });
+
+  test('clears selected replenishment rows when changing the target warehouse', async ({ admin, page }) => {
+    const secondaryWarehouse = { id: 'e2e-warehouse-secondary', code: 'SECOND', name: 'E2E 备用仓', status: 'active', isDefault: false };
+    await page.route((url) => url.pathname === '/api/v1/warehouses', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [
+        { id: E2E_WAREHOUSE_ID, code: 'MAIN', name: 'E2E 华东主仓', status: 'active', isDefault: true },
+        secondaryWarehouse,
+      ] })) });
+    });
+    await page.route((url) => url.pathname === '/api/v1/procurement/replenishment-suggestions'
+      && url.searchParams.get('warehouseId') === secondaryWarehouse.id, async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({
+        warehouseId: secondaryWarehouse.id, list: [], page: 1, pageSize: 20, total: 0, totalPages: 0,
+      })) });
+    });
+
+    await admin.goto('/procurement/replenishment-suggestions');
+    await page.getByRole('combobox', { name: '目标仓库' }).click();
+    await page.getByText('MAIN · E2E 华东主仓', { exact: true }).click();
+    await expect(page.getByText('E2E 补货耳机')).toBeVisible();
+    await page.getByRole('checkbox', { name: '选择 BLUE-01' }).check();
+    await expect(page.getByRole('button', { name: '创建采购草稿（1）' })).toBeEnabled();
+
+    await page.getByRole('combobox', { name: '目标仓库' }).press('ArrowDown');
+    await page.locator('.ant-select-dropdown:visible').getByText('SECOND · E2E 备用仓', { exact: true }).click();
+    // The Ant Design icon contributes a "plus " prefix to the accessible name.
+    // Match the actual button while checking its label has no stale selection count.
+    const createDraftButton = page.getByRole('button', { name: /创建采购草稿/ });
+    await expect(createDraftButton).toHaveAccessibleName(/创建采购草稿$/);
+    await expect(createDraftButton).toBeDisabled();
+    await expect(page.getByText('E2E 补货耳机')).toHaveCount(0);
     await admin.writeGuard.expectRequestCount('unexpected', 0);
   });
 
@@ -259,6 +329,33 @@ test.describe('@smoke procurement workspace', () => {
       name: 'E2E 核心供应商（更新）',
       status: 'active',
       contactName: '测试联系人',
+    });
+  });
+
+  test('cancels a purchase-order transition without writing and submits once with the current revision', async ({ admin, page }) => {
+    admin.writeGuard.allow({
+      operation: 'cancel-purchase-order',
+      method: 'POST',
+      path: new RegExp(`^/api/v1/purchase-orders/${E2E_REPLENISHMENT_DRAFT_ID}/cancel$`),
+      response: ok({ ...e2eReplenishmentDraft, status: 'cancelled', revision: 2 }),
+    });
+
+    await admin.goto(`/procurement/purchase-orders/${E2E_REPLENISHMENT_DRAFT_ID}`);
+    await page.getByRole('button', { name: '取消采购单' }).click();
+    let dialog = page.getByRole('dialog', { name: '取消采购单' });
+    // Ant Design may render the cancel button as “取 消” (with spacing).
+    // Match only the cancel action, not the separate “取消采购单” confirm button.
+    await dialog.getByRole('button', { name: /^取\s*消$/ }).click();
+    await admin.writeGuard.expectRequestCount('cancel-purchase-order', 0);
+
+    await page.getByRole('button', { name: '取消采购单' }).click();
+    dialog = page.getByRole('dialog', { name: '取消采购单' });
+    await dialog.getByLabel('操作说明').fill('人工确认取消');
+    await dialog.getByRole('button', { name: '取消采购单' }).click();
+    await admin.writeGuard.expectRequestCount('cancel-purchase-order', 1);
+    expect(admin.writeGuard.calls('cancel-purchase-order')[0]?.postDataJSON).toEqual({
+      expectedRevision: 1,
+      reason: '人工确认取消',
     });
   });
 
@@ -400,7 +497,11 @@ test.describe('@smoke procurement workspace', () => {
     await page.route('**/api/v1/suppliers', async (route) => {
       await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 50000, message: 'supplier unavailable', data: null }) });
     });
-    await page.route('**/api/v1/purchase-returns', async (route) => {
+    // List requests include page/pageSize query parameters; match the pathname,
+    // while leaving the purchase-return detail failure mock independent.
+    let purchaseReturnListRequests = 0;
+    await page.route((url) => url.pathname === '/api/v1/purchase-returns', async (route) => {
+      purchaseReturnListRequests += 1;
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ok({ list: [], page: 1, pageSize: 20, total: 0, totalPages: 0 })) });
     });
     await page.route(`**/api/v1/purchase-returns/${E2E_PURCHASE_RETURN_ID}`, async (route) => {
@@ -419,6 +520,9 @@ test.describe('@smoke procurement workspace', () => {
 
     await admin.goto('/procurement/purchase-returns');
     await expect(page.getByText('暂无采购退货记录。')).toBeVisible();
+    // ProTable renders the empty placeholder before its async list request settles.
+    // Wait until the intended API route has actually been intercepted.
+    await expect.poll(() => purchaseReturnListRequests).toBeGreaterThan(0);
     await expect(page.getByRole('button', { name: '选择采购单' })).toBeDisabled();
     await expect(page.getByText(/只读模式/)).toBeVisible();
 

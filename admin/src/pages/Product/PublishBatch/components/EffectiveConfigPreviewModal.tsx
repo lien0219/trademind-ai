@@ -1,3 +1,5 @@
+import { tr } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import type { PublishConfigLayer } from '@/constants/publishConfig';
 import { flattenEffectiveForDisplay, mergeEffectiveConfig } from '@/utils/publishConfigMerge';
 import type { PublishConfigOverrides } from '@/services/productPublish';
@@ -22,6 +24,7 @@ type Props = {
 };
 
 export default function EffectiveConfigPreviewModal({ open, onClose, cells, commonConfig, overrides }: Props) {
+  useLanguage();
   const rows = cells.flatMap((cell) => {
     const eff = mergeEffectiveConfig(commonConfig, overrides, cell.productId, cell.platform, cell.shopId);
     return flattenEffectiveForDisplay(eff).map((r) => ({
@@ -36,7 +39,7 @@ export default function EffectiveConfigPreviewModal({ open, onClose, cells, comm
   });
 
   return (
-    <Modal title="查看生效配置" open={open} onCancel={onClose} footer={null} width={900} destroyOnHidden>
+    <Modal title={tr("查看生效配置")} open={open} onCancel={onClose} footer={null} width={900} destroyOnHidden>
       <Table
         rowKey="key"
         size="small"
@@ -44,14 +47,14 @@ export default function EffectiveConfigPreviewModal({ open, onClose, cells, comm
         scroll={{ x: 800 }}
         dataSource={rows}
         columns={[
-          { title: '商品', dataIndex: 'productTitle', width: 140, ellipsis: true },
-          { title: '刊登目标', dataIndex: 'target', width: 140, ellipsis: true },
-          { title: '配置项', dataIndex: 'fieldLabel', width: 140 },
-          { title: '生效值', dataIndex: 'value', ellipsis: true },
-          { title: '来源', dataIndex: 'source', width: 110 },
+          { title: tr("商品"), dataIndex: 'productTitle', width: 140, ellipsis: true },
+          { title: tr("刊登目标"), dataIndex: 'target', width: 140, ellipsis: true },
+          { title: tr("配置项"), dataIndex: 'fieldLabel', width: 140 },
+          { title: tr("生效值"), dataIndex: 'value', ellipsis: true },
+          { title: tr("来源"), dataIndex: 'source', width: 110 },
         ]}
       />
-      <TechnicalDetails label="技术详情">
+      <TechnicalDetails label={tr("技术详情")}>
         <Descriptions size="small" column={1} bordered>
           {rows.slice(0, 20).map((r) => (
             <Descriptions.Item key={r.key} label={r.technicalField}>

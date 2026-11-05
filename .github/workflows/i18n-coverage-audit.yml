@@ -1,0 +1,57 @@
+name: Internationalization Coverage Audit
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ (github.event_name == 'push' || github.event_name == 'pull_request') && github.ref != 'refs/heads/main' }}
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'admin/src/**'
+      - 'admin/scripts/i18n-audit*'
+      - '.github/workflows/i18n-coverage-audit.yml'
+  pull_request:
+    branches: [dev]
+    paths:
+      - 'admin/src/**'
+      - 'admin/scripts/i18n-audit*'
+      - '.github/workflows/i18n-coverage-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.34.6
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install audit dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Validate i18n audit parser
+        run: node --test admin/scripts/i18n-audit.test.mjs
+      - name: Strict whole-site internationalization audit
+        working-directory: admin
+        run: node scripts/i18n-audit.mjs --strict --details
+      - name: Check changed UI strings for localization regressions
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA=HEAD~1
+          fi
+          node admin/scripts/i18n-audit.mjs --diff-base="$BASE_SHA"

@@ -449,6 +449,11 @@ export default [
         component: './Finance/OrderProfits',
       },
       {
+        path: '/finance/currency-report',
+        name: '跨币种利润报表',
+        component: './Finance/CurrencyReport',
+      },
+      {
         path: '/finance/settlement-reconciliation',
         name: '平台结算对账',
         component: './Finance/SettlementReconciliation',
@@ -621,6 +626,72 @@ export default [
         path: '/customer/auto-reply-settings',
         name: 'AI 自动回复',
         component: './Customer/AutoReplySettings',
+      },
+    ],
+  },
+  {
+    path: '/tenant',
+    name: '企业工作台',
+    icon: 'ApartmentOutlined',
+    routes: [
+      {
+        path: '/tenant',
+        redirect: '/tenant/settings',
+        hideInMenu: true,
+      },
+      {
+        path: '/tenant/settings',
+        name: '企业信息与设置',
+        icon: 'SettingOutlined',
+        component: './Tenant/Settings',
+      },
+      {
+        path: '/tenant/business-settings',
+        name: '企业业务配置',
+        icon: 'SlidersOutlined',
+        component: './Tenant/BusinessSettings',
+      },
+      {
+        path: '/tenant/preferences',
+        name: '个人偏好',
+        icon: 'UserOutlined',
+        component: './Tenant/PersonalPreferences',
+      },
+      {
+        path: '/tenant/members',
+        name: '企业成员与邀请',
+        icon: 'TeamOutlined',
+        component: './Tenant/Members',
+      },
+      {
+        path: '/tenant/invitations/accept',
+        name: '接受企业邀请',
+        component: './Tenant/AcceptInvitation',
+        hideInMenu: true,
+      },
+    ],
+  },
+  {
+    path: '/platform',
+    name: '平台管理',
+    icon: 'AppstoreOutlined',
+    routes: [
+      {
+        path: '/platform',
+        redirect: '/platform/tenants',
+        hideInMenu: true,
+      },
+      {
+        path: '/platform/tenants',
+        name: '租户管理',
+        icon: 'ApartmentOutlined',
+        component: './Platform/Tenants',
+      },
+      {
+        path: '/platform/tenants/:id',
+        name: '租户详情',
+        component: './Platform/Tenants/Detail',
+        hideInMenu: true,
       },
     ],
   },

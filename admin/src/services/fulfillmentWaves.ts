@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 import { getJSON, getWithParams, postJSON } from "@/services/request";
 
 export type FulfillmentWaveStatus =
@@ -487,15 +488,15 @@ export function buildFulfillmentWavePickCSV(wave: FulfillmentWave) {
     (wave.orders ?? []).map((order) => [order.orderId, order.orderNo]),
   );
   const header = [
-    "波次号",
-    "仓库",
-    "订单号",
-    "商品",
-    "规格编码",
-    "规格名称",
-    "需求数量",
-    "已拣数量",
-    "缺货数量",
+    tr("波次号"),
+    tr("仓库"),
+    tr("订单号"),
+    tr("商品"),
+    tr("规格编码"),
+    tr("规格名称"),
+    tr("需求数量"),
+    tr("已拣数量"),
+    tr("缺货数量"),
   ];
   const rows = (wave.lines ?? []).map((line) => [
     wave.waveNo,
@@ -519,7 +520,7 @@ export function downloadFulfillmentWavePickCSV(wave: FulfillmentWave) {
   const objectURL = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = objectURL;
-  anchor.download = `${wave.waveNo}-拣货单.csv`;
+  anchor.download = trFormat('{waveNo}-拣货单.csv', { waveNo: wave.waveNo });
   anchor.rel = "noopener";
   document.body.appendChild(anchor);
   anchor.click();

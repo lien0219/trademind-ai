@@ -57,9 +57,10 @@ describe('AppGlobalSearch', () => {
       </ConfigProvider>,
     );
 
-    await interaction.click(
-      screen.getByRole('button', { name: '搜索功能或页面' }),
-    );
+    const trigger = screen.getByRole('button', { name: '搜索功能或页面' });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await interaction.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
     await interaction.type(
       screen.getByRole('textbox', { name: '搜索功能或页面' }),
       '订单异常',
@@ -69,6 +70,7 @@ describe('AppGlobalSearch', () => {
     );
 
     expect(onNavigate).toHaveBeenCalledWith('/orders/exceptions');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(
       screen.queryByRole('dialog', { name: '搜索功能' }),
     ).not.toBeInTheDocument();

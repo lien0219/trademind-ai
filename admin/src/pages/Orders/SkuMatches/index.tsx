@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import { tr } from '@/i18n';
 import { type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { Button, Space } from 'antd';
@@ -7,12 +9,13 @@ import { formatDateTime } from '@/utils/formatTime';
 import { queryShops } from '@/services/shops';
 
 export default function OrderSkuMatchesPage() {
+  useLanguage();
   const [searchParams] = useSearchParams();
   const presetOrderId = searchParams.get('orderId')?.trim() ?? '';
 
   const columns: ProColumns<OrderSkuMatchListRow>[] = [
     {
-      title: '创建时间',
+      title: tr("创建时间"),
       dataIndex: 'createdAt',
       valueType: 'dateTime',
       width: 170,
@@ -21,7 +24,7 @@ export default function OrderSkuMatchesPage() {
       render: (_, row) => formatDateTime(row.createdAt),
     },
     {
-      title: '平台',
+      title: tr("平台"),
       dataIndex: 'platform',
       width: 90,
       valueType: 'select',
@@ -34,7 +37,7 @@ export default function OrderSkuMatchesPage() {
       },
     },
     {
-      title: '店铺',
+      title: tr("店铺"),
       dataIndex: 'shopId',
       hideInTable: true,
       valueType: 'select',
@@ -44,48 +47,48 @@ export default function OrderSkuMatchesPage() {
       },
     },
     {
-      title: '店铺',
+      title: tr("店铺"),
       dataIndex: 'shopName',
       width: 130,
       ellipsis: true,
       hideInSearch: true,
     },
     {
-      title: '订单号',
+      title: tr("订单号"),
       dataIndex: 'orderNo',
       width: 120,
       ellipsis: true,
       hideInSearch: true,
     },
     {
-      title: '外部订单',
+      title: tr("外部订单"),
       dataIndex: 'externalOrderId',
       width: 120,
       ellipsis: true,
       hideInSearch: true,
     },
     {
-      title: '订单 ID',
+      title: tr("订单 ID"),
       dataIndex: 'orderId',
       hideInTable: true,
       initialValue: presetOrderId || undefined,
     },
     {
-      title: '平台规格编码',
+      title: tr("平台规格编码"),
       dataIndex: 'externalSkuId',
       width: 110,
       hideInSearch: true,
       ellipsis: true,
     },
     {
-      title: '规格编码',
+      title: tr("规格编码"),
       dataIndex: 'skuCode',
       width: 96,
       hideInSearch: true,
       ellipsis: true,
     },
     {
-      title: '匹配状态',
+      title: tr("匹配状态"),
       dataIndex: 'matchStatus',
       width: 110,
       valueType: 'select',
@@ -98,37 +101,37 @@ export default function OrderSkuMatchesPage() {
       },
     },
     {
-      title: '匹配类型',
+      title: tr("匹配类型"),
       dataIndex: 'matchType',
       width: 150,
       ellipsis: true,
     },
     {
-      title: '置信度',
+      title: tr("置信度"),
       dataIndex: 'confidence',
       width: 72,
       hideInSearch: true,
     },
     {
-      title: '商品标题',
+      title: tr("商品标题"),
       dataIndex: 'productTitle',
       ellipsis: true,
       hideInSearch: true,
     },
     {
-      title: '本地商品规格',
+      title: tr("本地商品规格"),
       dataIndex: 'localSkuCode',
       width: 96,
       hideInSearch: true,
     },
     {
-      title: '本地规格 ID',
+      title: tr("本地规格 ID"),
       dataIndex: 'productSkuId',
       hideInTable: true,
       valueType: 'text',
     },
     {
-      title: '操作',
+      title: tr("操作"),
       valueType: 'option',
       width: 120,
       render: (_, row) => (
@@ -141,7 +144,7 @@ export default function OrderSkuMatchesPage() {
               if (row.orderId) history.push(`/orders?jumpOrder=${encodeURIComponent(row.orderId)}`);
             }}
           >
-            查看订单
+            {tr("查看订单")}
           </Button>
         </Space>
       ),
@@ -150,8 +153,8 @@ export default function OrderSkuMatchesPage() {
 
   return (
     <TmPageContainer
-      title="规格绑定"
-      subTitle="将平台订单中的规格与本地商品规格建立对应关系。"
+      title={tr("规格绑定")}
+      subTitle={tr("将平台订单中的规格与本地商品规格建立对应关系。")}
     >
       <ProTable<OrderSkuMatchListRow>
         rowKey="id"

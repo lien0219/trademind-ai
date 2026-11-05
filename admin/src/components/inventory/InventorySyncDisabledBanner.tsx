@@ -1,3 +1,4 @@
+import { tr } from '@/i18n';
 import { Alert, Button, Space } from 'antd';
 import { history } from '@umijs/max';
 import { INVENTORY_SYNC_DISABLED_MESSAGE } from '@/constants/inventoryLabels';
@@ -16,16 +17,16 @@ export default function InventorySyncDisabledBanner({ dismissible, onDismiss }: 
       closable={dismissible}
       onClose={onDismiss}
       style={{ marginBottom: 16 }}
-      message="平台库存同步未开启"
+      message={tr("平台库存同步未开启")}
       description={
         <Space direction="vertical" size={4}>
-          <span>{INVENTORY_SYNC_DISABLED_MESSAGE}</span>
+          <span>{tr(INVENTORY_SYNC_DISABLED_MESSAGE)}</span>
           <Space wrap>
             <Button type="link" size="small" style={{ padding: 0 }} onClick={() => history.push('/settings/platforms')}>
-              去配置
+              {tr('去配置')}
             </Button>
             <Button type="link" size="small" style={{ padding: 0 }} onClick={() => history.push('/settings/inventory')}>
-              查看说明
+              {tr('查看说明')}
             </Button>
           </Space>
         </Space>

@@ -1,3 +1,5 @@
+import { tr, trFormat } from '@/i18n';
+import { useLanguage } from '@/i18n/useLanguage';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history, useParams } from '@umijs/max';
@@ -46,6 +48,7 @@ type ActionState = { action: ReturnAction; label: string; danger?: boolean };
 type ActionValues = { reason: string };
 
 export default function SalesReturnDetailPage() {
+  const language = useLanguage();
   const { id = '' } = useParams<{ id: string }>();
   const { can, readonly } = usePermission();
   const canManage = !readonly && can(PERMISSIONS.SALES_RETURN_MANAGE);
@@ -113,11 +116,11 @@ export default function SalesReturnDetailPage() {
       });
       setRow(updated);
       setAction(undefined);
-      message.success(`${action.label}成功`);
+      message.success(trFormat("{value0}成功", { value0: tr(action.label) }));
     } catch (nextError) {
       const apiError = extractSalesReturnAPIError(nextError);
       message.error(
-        salesReturnErrorMessage(apiError, `${action.label}失败，请稍后重试。`),
+        tr(salesReturnErrorMessage(apiError, trFormat("{value0}失败，请稍后重试。", { value0: tr(action.label) }))),
       );
       if (apiError.message.toLowerCase().includes('revision conflict'))
         await load();
@@ -137,12 +140,12 @@ export default function SalesReturnDetailPage() {
       });
       setRefundExecution(execution);
       setRefundCreateOpen(false);
-      message.success('退款执行单已创建');
+      message.success(tr("退款执行单已创建"));
       history.push(`/orders/refund-executions/${execution.id}`);
     } catch (nextError) {
       const apiError = extractSalesReturnAPIError(nextError);
       message.error(
-        salesReturnErrorMessage(apiError, '退款执行单创建失败，请稍后重试。'),
+        tr(salesReturnErrorMessage(apiError, tr('退款执行单创建失败，请稍后重试。'))),
       );
       if (apiError.message.toLowerCase().includes('already exists')) {
         history.push(`/orders/refund-executions?salesReturnId=${encodeURIComponent(row.id)}`);
@@ -155,39 +158,39 @@ export default function SalesReturnDetailPage() {
 
   const columns: ProColumns<SalesReturnItem>[] = [
     {
-      title: '商品',
+      title: tr("商品"),
       dataIndex: 'productTitle',
       minWidth: 180,
       ellipsis: true,
-      render: (_, item) => item.productTitle || '商品信息不可用',
+      render: (_, item) => item.productTitle || tr("商品信息不可用"),
     },
     {
-      title: '本地规格',
+      title: tr("本地规格"),
       dataIndex: 'skuName',
       minWidth: 170,
       ellipsis: true,
       render: (_, item) => item.skuName || item.skuCode || item.productSkuId,
     },
     {
-      title: '原扣减数量',
+      title: tr("原扣减数量"),
       dataIndex: 'deductedQuantity',
       width: 120,
       align: 'right',
     },
-    { title: '本次数量', dataIndex: 'quantity', width: 110, align: 'right' },
+    { title: tr("本次数量"), dataIndex: 'quantity', width: 110, align: 'right' },
     {
-      title: '入库处置',
+      title: tr("入库处置"),
       dataIndex: 'disposition',
       width: 110,
       render: (_, item) =>
         row?.type === 'refund_only'
-          ? '不入库'
+          ? tr("不入库")
           : item.disposition === 'damaged'
-            ? '残次品'
-            : '良品',
+            ? tr("残次品")
+            : tr("良品"),
     },
     {
-      title: '退款金额',
+      title: tr("退款金额"),
       dataIndex: 'refundAmountMinor',
       width: 140,
       align: 'right',
@@ -199,29 +202,29 @@ export default function SalesReturnDetailPage() {
   const actions = useMemo(() => {
     if (!row) return null;
     const completeLabel =
-      row.type === 'refund_only' ? '确认售后完成' : '确认退货收货';
+      row.type === 'refund_only' ? tr('确认售后完成') : tr('确认退货收货');
     return (
       <Space wrap>
         <Button
           icon={<ArrowLeftOutlined />}
           onClick={() => history.push('/orders/sales-returns')}
         >
-          返回列表
+          {tr("返回列表")}
         </Button>
         {row.status === 'draft' && canManage ? (
           <Button
             type="primary"
-            onClick={() => openAction({ action: 'submit', label: '提交审批' })}
+            onClick={() => openAction({ action: 'submit', label: tr("提交审批") })}
           >
-            提交审批
+            {tr("提交审批")}
           </Button>
         ) : null}
         {row.status === 'pending_approval' && canApprove ? (
           <Button
             type="primary"
-            onClick={() => openAction({ action: 'approve', label: '审批通过' })}
+            onClick={() => openAction({ action: 'approve', label: tr("审批通过") })}
           >
-            审批通过
+            {tr("审批通过")}
           </Button>
         ) : null}
         {row.status === 'approved' && canReceive ? (
@@ -241,19 +244,19 @@ export default function SalesReturnDetailPage() {
             onClick={() =>
               openAction({
                 action: 'cancel',
-                label: '取消售后单',
+                label: tr("取消售后单"),
                 danger: true,
               })
             }
           >
-            取消售后单
+            {tr("取消售后单")}
           </Button>
         ) : null}
         {row.status === 'completed' && refundExecution ? (
           <Button
             onClick={() => history.push(`/orders/refund-executions/${refundExecution.id}`)}
           >
-            查看退款执行
+            {tr("查看退款执行")}
           </Button>
         ) : null}
         {row.status === 'completed' && !refundExecution && canRefund ? (
@@ -267,12 +270,12 @@ export default function SalesReturnDetailPage() {
               setRefundCreateOpen(true);
             }}
           >
-            创建退款执行单
+            {tr("创建退款执行单")}
           </Button>
         ) : null}
       </Space>
     );
-  }, [canApprove, canManage, canReceive, canRefund, creatingRefund, refundExecution, row]);
+  }, [canApprove, canManage, canReceive, canRefund, creatingRefund, language, refundExecution, row]);
 
   const statusMeta = row
     ? SALES_RETURN_STATUS[row.status] || { text: row.status, color: 'default' }
@@ -282,47 +285,47 @@ export default function SalesReturnDetailPage() {
     : undefined;
   const completeHint =
     row?.type === 'refund_only'
-      ? '确认后仅完成本地售后流程，不代表资金已退款；请随后创建退款执行单登记真实资金结果。'
-      : '确认后将按明细处置结果收货到原订单仓库；审批人与收货人必须为不同账号。资金退款仍需在退款执行单中登记。';
+      ? tr('确认后仅完成本地售后流程，不代表资金已退款；请随后创建退款执行单登记真实资金结果。')
+      : tr('确认后将按明细处置结果收货到原订单仓库；审批人与收货人必须为不同账号。资金退款仍需在退款执行单中登记。');
 
   return (
     <PermissionGuard require={PERMISSIONS.SALES_RETURN_VIEW} showForbiddenPage>
       <TmPageContainer
         className="tm-sales-return-page"
-        title={row?.returnNo || '售后详情'}
-        subTitle="退货退款处理记录"
+        title={row?.returnNo || tr('售后详情')}
+        subTitle={tr("退货退款处理记录")}
         extra={<TmPageHeaderExtra>{actions}</TmPageHeaderExtra>}
       >
         {loading ? (
-          <Alert type="info" showIcon message="正在加载售后详情…" />
+          <Alert type="info" showIcon message={tr("正在加载售后详情…")} />
         ) : null}
         {error ? (
           <ErrorAlert
-            title={error}
-            actionHint={<Button onClick={() => void load()}>重新加载</Button>}
+            title={tr(error)}
+            actionHint={<Button onClick={() => void load()}>{tr("重新加载")}</Button>}
           />
         ) : null}
         {readonly ? (
           <Alert
             type="info"
             showIcon
-            message="当前账号为只读模式，不能提交、审批、完成或取消售后单。"
+            message={tr("当前账号为只读模式，不能提交、审批、完成或取消售后单。")}
           />
         ) : null}
         {row ? (
           <>
-            <SectionCard title="售后单信息">
+            <SectionCard title={tr("售后单信息")}>
               <Descriptions column={{ xs: 1, sm: 2, lg: 3 }}>
-                <Descriptions.Item label="售后单号">
+                <Descriptions.Item label={tr("售后单号")}>
                   <Typography.Text copyable>{row.returnNo}</Typography.Text>
                 </Descriptions.Item>
-                <Descriptions.Item label="类型">
+                <Descriptions.Item label={tr("类型")}>
                   <Tag color={typeMeta?.color}>{typeMeta?.text}</Tag>
                 </Descriptions.Item>
-                <Descriptions.Item label="状态">
+                <Descriptions.Item label={tr("状态")}>
                   <Tag color={statusMeta?.color}>{statusMeta?.text}</Tag>
                 </Descriptions.Item>
-                <Descriptions.Item label="订单">
+                <Descriptions.Item label={tr("订单")}>
                   <Button
                     type="link"
                     size="small"
@@ -331,30 +334,30 @@ export default function SalesReturnDetailPage() {
                     {row.orderNo || row.orderId}
                   </Button>
                 </Descriptions.Item>
-                <Descriptions.Item label="原订单仓库">
+                <Descriptions.Item label={tr("原订单仓库")}>
                   {row.warehouseName || row.warehouseId}
                 </Descriptions.Item>
-                <Descriptions.Item label="退款金额">
+                <Descriptions.Item label={tr("退款金额")}>
                   {formatSalesReturnAmount(row.refundAmountMinor, row.currency)}
                 </Descriptions.Item>
-                <Descriptions.Item label="版本">
+                <Descriptions.Item label={tr("版本")}>
                   {row.revision}
                 </Descriptions.Item>
-                <Descriptions.Item label="售后原因">
+                <Descriptions.Item label={tr("售后原因")}>
                   {row.reason}
                 </Descriptions.Item>
-                <Descriptions.Item label="创建时间">
+                <Descriptions.Item label={tr("创建时间")}>
                   {formatDateTime(row.createdAt)}
                 </Descriptions.Item>
-                <Descriptions.Item label="完成时间">
+                <Descriptions.Item label={tr("完成时间")}>
                   {row.completedAt ? formatDateTime(row.completedAt) : '—'}
                 </Descriptions.Item>
-                <Descriptions.Item label="备注">
+                <Descriptions.Item label={tr("备注")}>
                   {row.remark || '—'}
                 </Descriptions.Item>
               </Descriptions>
             </SectionCard>
-            <SectionCard title="售后明细">
+            <SectionCard title={tr("售后明细")}>
               <TmProTable<SalesReturnItem>
                 rowKey="id"
                 columns={columns}
@@ -364,19 +367,19 @@ export default function SalesReturnDetailPage() {
                 pagination={false}
                 cardBordered={false}
                 scroll={{ x: 940 }}
-                locale={{ emptyText: '售后单没有明细。' }}
+                locale={{ emptyText: tr('售后单没有明细。') }}
               />
             </SectionCard>
           </>
         ) : null}
 
         <Modal
-          title={action?.label || '售后操作'}
+          title={action?.label || tr('售后操作')}
           open={Boolean(action)}
           confirmLoading={submitting}
-          okText={action?.label || '确认'}
+          okText={action?.label || tr('确认')}
           okButtonProps={{ danger: action?.danger }}
-          cancelText="取消"
+          cancelText={tr("取消")}
           onCancel={() => !submitting && setAction(undefined)}
           onOk={() => form.submit()}
           forceRender
@@ -393,31 +396,31 @@ export default function SalesReturnDetailPage() {
               message={
                 action?.action === 'complete'
                   ? completeHint
-                  : `本次操作基于版本 ${row?.revision || '—'}。`
+                  : trFormat('本次操作基于版本 {value0}。', { value0: row?.revision || '—' })
               }
             />
             <Form.Item
-              label="操作说明"
+              label={tr("操作说明")}
               name="reason"
-              rules={[{ max: 128, message: '操作说明不能超过 128 个字符' }]}
+              rules={[{ max: 128, message: tr("操作说明不能超过 128 个字符") }]}
             >
               <Input.TextArea rows={3} maxLength={128} showCount />
             </Form.Item>
           </Form>
         </Modal>
         <Modal
-          title="创建退款执行单"
+          title={tr("创建退款执行单")}
           open={refundCreateOpen}
           confirmLoading={creatingRefund}
-          okText="确认创建"
-          cancelText="取消"
+          okText={tr("确认创建")}
+          cancelText={tr("取消")}
           onCancel={() => !creatingRefund && setRefundCreateOpen(false)}
           onOk={() => void startRefundExecution()}
         >
           <Alert
             type="info"
             showIcon
-            message="创建后将进入待登记状态；本操作不会向平台或支付渠道发起退款。"
+            message={tr("创建后将进入待登记状态；本操作不会向平台或支付渠道发起退款。")}
           />
         </Modal>
       </TmPageContainer>

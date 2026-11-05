@@ -17,6 +17,14 @@ type Handler struct {
 	Svc *Service
 }
 
+func handleMutationError(c *gin.Context, err error) {
+	if errors.Is(err, errCollectRuleAuditUnavailable) {
+		response.Fail(c, 500, response.CodeInternalError, "审计记录暂时无法保存，请稍后重试")
+		return
+	}
+	response.HandleError(c, err)
+}
+
 func adminUUID(c *gin.Context) *uuid.UUID {
 	if v, ok := c.Get(ctxkey.AdminID); ok {
 		if s, ok := v.(string); ok {
@@ -80,6 +88,10 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 	out, err := h.Svc.Create(c, body, adminUUID(c))
 	if err != nil {
+		if errors.Is(err, errCollectRuleAuditUnavailable) {
+			handleMutationError(c, err)
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -129,6 +141,10 @@ func (h *Handler) Update(c *gin.Context) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
+		if errors.Is(err, errCollectRuleAuditUnavailable) {
+			handleMutationError(c, err)
+			return
+		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -150,7 +166,7 @@ func (h *Handler) Delete(c *gin.Context) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
-		response.HandleError(c, err)
+		handleMutationError(c, err)
 		return
 	}
 	response.OK(c, gin.H{"ok": true})
@@ -178,6 +194,10 @@ func (h *Handler) setStatus(c *gin.Context, status string) {
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
+			return
+		}
+		if errors.Is(err, errCollectRuleAuditUnavailable) {
+			handleMutationError(c, err)
 			return
 		}
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

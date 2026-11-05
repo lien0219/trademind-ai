@@ -70,13 +70,17 @@ func seedShop(t *testing.T, db *gorm.DB, name string) uuid.UUID {
 	return s.ID
 }
 
+func newShopService(db *gorm.DB) *shop.Service {
+	return &shop.Service{DB: db, OpLog: &operationlog.Service{DB: db}}
+}
+
 func TestShopScope_OperatorCannotReadOtherShop(t *testing.T) {
 	db := openDB(t)
 	shopA := seedShop(t, db, "A")
 	shopB := seedShop(t, db, "B")
 	user := uuid.New()
 	c := ginCtx(tenantID, user, adminperm.RoleOperator, []uuid.UUID{shopA})
-	svc := &shop.Service{DB: db}
+	svc := newShopService(db)
 	_, err := svc.GetDetail(c, shopB)
 	if err == nil {
 		t.Fatal("operator A must not read shop B")
@@ -88,7 +92,7 @@ func TestShopScope_OperatorCannotUpdateOtherShop(t *testing.T) {
 	shopA := seedShop(t, db, "A")
 	shopB := seedShop(t, db, "B")
 	c := ginCtx(tenantID, uuid.New(), adminperm.RoleOperator, []uuid.UUID{shopA})
-	svc := &shop.Service{DB: db}
+	svc := newShopService(db)
 	name := "hacked"
 	_, err := svc.Update(c, shopB, shop.UpdateBody{ShopName: name}, nil)
 	if err == nil {
@@ -103,7 +107,7 @@ func TestShopScope_OperatorListOnlyOwnShops(t *testing.T) {
 	c := ginCtx(tenantID, uuid.New(), adminperm.RoleOperator, []uuid.UUID{shopA})
 	// List is tenant-scoped; operator still sees both shops at tenant level unless store scope applied to shop list
 	// Shop list uses tenant only; store scope for the shop module is tenant-level, while Get/Update enforce operator shop denial.
-	svc := &shop.Service{DB: db}
+	svc := newShopService(db)
 	_, err := svc.GetDetail(c, shopA)
 	if err != nil {
 		t.Fatalf("operator should access shop A: %v", err)
@@ -114,7 +118,7 @@ func TestShopScope_ReadonlyCannotUpdateShop(t *testing.T) {
 	db := openDB(t)
 	shopA := seedShop(t, db, "A")
 	c := ginCtx(tenantID, uuid.New(), adminperm.RoleReadonly, []uuid.UUID{shopA})
-	svc := &shop.Service{DB: db}
+	svc := newShopService(db)
 	_, err := svc.Update(c, shopA, shop.UpdateBody{ShopName: "x"}, nil)
 	if err == nil {
 		t.Fatal("readonly must not update")
@@ -125,7 +129,7 @@ func TestShopScope_AdminCanAccessAllShopsInTenant(t *testing.T) {
 	db := openDB(t)
 	shopB := seedShop(t, db, "B")
 	c := ginCtx(tenantID, uuid.New(), adminperm.RoleAdmin, nil)
-	svc := &shop.Service{DB: db}
+	svc := newShopService(db)
 	_, err := svc.GetDetail(c, shopB)
 	if err != nil {
 		t.Fatal(err)

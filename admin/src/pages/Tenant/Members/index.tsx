@@ -1,0 +1,492 @@
+import { useLanguage } from '@/i18n/useLanguage';
+import {
+  CopyOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  MailOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  UserAddOutlined,
+} from '@ant-design/icons';
+import {
+  Alert,
+  Button,
+  Form,
+  Input,
+  Modal,
+  Select,
+  Space,
+  Table,
+  Tabs,
+  Tag,
+  message,
+  Result,
+} from 'antd';
+import type { TableColumnsType } from 'antd';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { EmptyState, ErrorAlert, SectionCard, StatusTag, TmPageContainer } from '@/components/ui';
+import { usePermission } from '@/hooks/usePermission';
+import {
+  cancelTenantInvitation,
+  createTenantInvitation,
+  getTenantInvitations,
+  getTenantMembers,
+  leaveTenant,
+  updateTenantMember,
+  type TenantInvitation,
+  type TenantMember,
+  type TenantMemberStorePermission,
+} from '@/services/tenants';
+import { fetchAdminRoles, type AdminRoleRow } from '@/services/adminUsers';
+import { queryShops, type ShopListRow } from '@/services/shops';
+import { confirmSensitiveAction } from '@/utils/sensitiveConfirm';
+import { formatDateTime } from '@/utils/formatTime';
+import { PERMISSIONS } from '@/utils/permission';
+import { roleLabel as localizedRoleLabel } from '@/constants/permissionLabels';
+import { useTenantLeaveEligibility } from '@/hooks/useTenantLeaveEligibility';
+import { tr } from '@/i18n';
+import { captureTenantContext, isTenantContextCurrent } from '@/utils/tenantContext';
+import './index.less';
+
+const MEMBER_STATUS_OPTIONS = [
+  { get label() { return tr("正常"); }, value: 'active' },
+  { get label() { return tr("禁用"); }, value: 'disabled' },
+  { get label() { return tr("移除"); }, value: 'removed' },
+];
+
+const INVITATION_EXPIRY_OPTIONS = [
+  { get label() { return tr("24 小时"); }, value: 24 },
+  { get label() { return tr("3 天"); }, value: 72 },
+  { get label() { return tr("7 天"); }, value: 168 },
+  { get label() { return tr("14 天"); }, value: 336 },
+  { get label() { return tr("30 天"); }, value: 720 },
+];
+
+const SCOPE_OPTIONS = [
+  { get label() { return tr("只读"); }, value: 'view' },
+  { get label() { return tr("运营"); }, value: 'operate' },
+  { get label() { return tr("管理"); }, value: 'manage' },
+];
+
+function memberRoleLabel(role: string, roles: AdminRoleRow[]) {
+  // Built-in role names supplied by the API are codes, not user-facing copy.
+  return localizedRoleLabel(role, roles.find((item) => item.code === role)?.name);
+}
+
+function memberName(member: TenantMember) {
+  return member.displayName?.trim() || member.email || member.userId;
+}
+
+type StorePermissionFormValue = {
+  storeId: string;
+  permissionScope: string;
+};
+
+type InviteFormValues = {
+  email: string;
+  role: string;
+  storePermissions?: StorePermissionFormValue[];
+  expiresInHours: number;
+};
+
+type MemberFormValues = {
+  role: string;
+  status: string;
+  storePermissions?: StorePermissionFormValue[];
+};
+
+function storesToPayload(items: StorePermissionFormValue[] | undefined, shops: ShopListRow[]): TenantMemberStorePermission[] {
+  return (items || []).filter((item) => item.storeId).map(({ storeId, permissionScope }) => {
+    const shop = shops.find((item) => item.id === storeId);
+    return { storeId, platform: shop?.platform, permissionScope: permissionScope || 'operate' };
+  });
+}
+
+function StorePermissionList({ shops }: { shops: ShopListRow[] }) {
+  useLanguage();
+  return (
+    <Form.List
+      name="storePermissions"
+      rules={[{
+        validator: async (_rule, value: StorePermissionFormValue[] | undefined) => {
+          const ids = (value || []).map((item) => item?.storeId).filter(Boolean);
+          if (new Set(ids).size !== ids.length) throw new Error(tr('同一家店铺只能配置一次权限'));
+        },
+      }]}
+    >
+      {(fields, { add, remove }, { errors }) => (
+        <>
+          {fields.map((field) => (
+            <div key={field.key} className="tm-tenant-member__store-row">
+              <Form.Item
+                name={[field.name, 'storeId']}
+                style={{ marginBottom: 0, minWidth: 0 }}
+                rules={[{ required: true, message: tr('请选择店铺') }]}
+              >
+                <Select
+                  style={{ width: '100%' }}
+                  placeholder={tr("选择店铺")}
+                  aria-label={`${tr('店铺授权')} ${Number(field.name) + 1}`}
+                  options={shops.map((shop) => ({
+                    label: `${shop.shopName}（${shop.platform}）`,
+                    value: shop.id,
+                  }))}
+                />
+              </Form.Item>
+              <Form.Item
+                name={[field.name, 'permissionScope']}
+                style={{ marginBottom: 0, minWidth: 0 }}
+                rules={[{ required: true, message: tr('请选择权限级别') }]}
+              >
+                <Select style={{ width: '100%' }} options={SCOPE_OPTIONS.map(item => ({...item,label:tr(item.label)}))} aria-label={`${tr('店铺权限级别')} ${Number(field.name) + 1}`} />
+              </Form.Item>
+              <Button type="text" danger icon={<DeleteOutlined />} aria-label={tr("移除店铺权限")} title={tr("移除店铺权限")} onClick={() => remove(field.name)} />
+            </div>
+          ))}
+          <Form.ErrorList errors={errors} />
+          <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ permissionScope: 'operate' })} block>
+            {tr("添加店铺权限")}
+          </Button>
+        </>
+      )}
+    </Form.List>
+  );
+}
+
+export default function TenantMembersPage() {
+  const language = useLanguage();
+  const { can, user } = usePermission();
+  const canManage = can(PERMISSIONS.USER_MANAGE);
+  const canLeave = useTenantLeaveEligibility(user);
+  const [activeTab, setActiveTab] = useState('members');
+  const [members, setMembers] = useState<TenantMember[]>([]);
+  const [invitations, setInvitations] = useState<TenantInvitation[]>([]);
+  const [shops, setShops] = useState<ShopListRow[]>([]);
+  const [roles, setRoles] = useState<AdminRoleRow[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(true);
+  const [rolesError, setRolesError] = useState<string | null>(null);
+  const [shopsLoading, setShopsLoading] = useState(true);
+  const [shopsError, setShopsError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [memberOpen, setMemberOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<TenantMember | null>(null);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [inviteForm] = Form.useForm<InviteFormValues>();
+  const [memberForm] = Form.useForm<MemberFormValues>();
+  const membersRead = useRef(0);
+  const directoriesRead = useRef(0);
+
+  const load = useCallback(async () => {
+    if (!canManage) return;
+    const sequence = ++membersRead.current;
+    const context = captureTenantContext();
+    setLoading(true);
+    setError(null);
+    try {
+      const [memberResult, invitationResult] = await Promise.all([getTenantMembers(), getTenantInvitations()]);
+      if (sequence !== membersRead.current || !isTenantContextCurrent(context)) return;
+      setMembers(memberResult.items || []);
+      setInvitations(invitationResult.items || []);
+    } catch (requestError) {
+      if (sequence === membersRead.current && isTenantContextCurrent(context))
+        setError((requestError as Error)?.message || tr('企业成员数据加载失败，请重试'));
+    } finally {
+      if (sequence === membersRead.current) setLoading(false);
+    }
+  }, [canManage]);
+
+  const loadDirectories = useCallback(async () => {
+    if (!canManage) return;
+    const sequence = ++directoriesRead.current;
+    const context = captureTenantContext();
+    const isCurrent = () => sequence === directoriesRead.current && isTenantContextCurrent(context);
+    setRolesLoading(true);
+    setShopsLoading(true);
+    setRolesError(null);
+    setShopsError(null);
+    const roleResult = fetchAdminRoles()
+      .then((result) => { if (isCurrent()) setRoles(result.list || []); })
+      .catch((requestError) => {
+        if (!isCurrent()) return;
+        setRoles([]);
+        setRolesError((requestError as Error)?.message || tr('企业角色加载失败'));
+      })
+      .finally(() => { if (isCurrent()) setRolesLoading(false); });
+    const shopResult = queryShops({ page: 1, pageSize: 200 })
+      .then((result) => { if (isCurrent()) setShops(result.list || []); })
+      .catch((requestError) => {
+        if (!isCurrent()) return;
+        setShops([]);
+        setShopsError((requestError as Error)?.message || tr('企业店铺加载失败'));
+      })
+      .finally(() => { if (isCurrent()) setShopsLoading(false); });
+    await Promise.all([roleResult, shopResult]);
+  }, [canManage]);
+
+  useEffect(() => {
+    if (!canManage) return;
+    void load();
+    void loadDirectories();
+    return () => {
+      ++membersRead.current;
+      ++directoriesRead.current;
+    };
+  }, [canManage, load, loadDirectories]);
+
+  const roleOptions = useMemo(() => {
+    return roles.filter((role) => role.enabled).map((role) => ({ label: memberRoleLabel(role.code, roles), value: role.code }));
+  }, [roles, language]);
+  const directoryReady = !rolesLoading && !shopsLoading && !rolesError && !shopsError && roleOptions.length > 0;
+
+  const runMutation = async (
+    mutate: () => Promise<void>,
+    successMessage: string,
+    allowWithoutManage = false,
+    refreshAfterMutation = true,
+  ): Promise<boolean> => {
+    if ((!canManage && !allowWithoutManage) || submittingRef.current) return false;
+    submittingRef.current = true;
+    setSubmitting(true);
+    const context = captureTenantContext();
+    try {
+      await mutate();
+      if (!isTenantContextCurrent(context)) return false;
+      // Leaving an organization revokes its read access immediately. Never
+      // re-fetch the departed tenant before navigating away.
+      if (refreshAfterMutation) await load();
+      if (!isTenantContextCurrent(context)) return false;
+      message.success(successMessage);
+      return true;
+    } catch (requestError) {
+      if (isTenantContextCurrent(context)) message.error((requestError as Error)?.message || tr('操作失败，请重试'));
+      return false;
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
+
+  const openMember = (member: TenantMember) => {
+    if (!canManage || !directoryReady) return;
+    setSelectedMember(member);
+    setMemberOpen(true);
+  };
+
+  const submitMember = async (values: MemberFormValues) => {
+    if (!selectedMember || !directoryReady) return;
+    const succeeded = await runMutation(
+      () => updateTenantMember(selectedMember.id, {
+        role: values.role,
+        status: values.status,
+        storePermissions: values.role === 'admin' ? [] : storesToPayload(values.storePermissions, shops),
+      }).then(() => undefined),
+      tr('成员信息已更新'),
+    );
+    if (succeeded) setMemberOpen(false);
+  };
+
+  const confirmMemberStatus = (member: TenantMember, status: 'disabled' | 'removed') => {
+    const label = status === 'removed' ? tr('移除成员') : tr('禁用成员');
+    confirmSensitiveAction({
+      title: `${tr(label)}「${memberName(member)}」？`,
+      content: status === 'removed' ? tr('移除后成员将失去当前企业访问权，历史审计记录会保留。') : tr('禁用后成员暂时不能访问当前企业。'),
+      impacts: [`${tr('成员：')}${memberName(member)}`, `${tr('状态：')}${tr(status === 'removed' ? '移除' : '禁用')}`],
+      reversible: status !== 'removed',
+      onOk: async () => {
+        await runMutation(
+          () => updateTenantMember(member.id, { role: member.role, status, storePermissions: member.storePermissions || [] }).then(() => undefined),
+          status === 'removed' ? tr('成员已移除') : tr('成员已禁用'),
+        );
+      },
+    });
+  };
+
+  const submitInvite = async (values: InviteFormValues) => {
+    if (!directoryReady) return;
+    const succeeded = await runMutation(
+      async () => {
+        const result = await createTenantInvitation({
+          email: values.email.trim(),
+          role: values.role,
+          storePermissions: values.role === 'admin' ? [] : storesToPayload(values.storePermissions, shops),
+          expiresInHours: values.expiresInHours,
+        });
+        setInviteToken(result.token);
+        setInviteOpen(false);
+      },
+      tr('邀请已创建，请复制一次性邀请 Token'),
+    );
+    if (succeeded) inviteForm.resetFields();
+  };
+
+  const copyToken = async () => {
+    if (!inviteToken) return;
+    try {
+      await navigator.clipboard.writeText(inviteToken);
+      message.success(tr('邀请 Token 已复制'));
+    } catch {
+      message.error(tr('复制失败，请手动复制'));
+    }
+  };
+
+  const cancelInvitation = (invitation: TenantInvitation) => {
+    confirmSensitiveAction({
+      title: tr('取消这条邀请？'),
+      content: tr('取消后该邀请 Token 将不能再用于接受企业邀请。'),
+      impacts: [`${tr('受邀邮箱：')}${invitation.email}`],
+      reversible: false,
+      onOk: async () => {
+        await runMutation(
+          () => cancelTenantInvitation(invitation.id).then(() => undefined),
+          tr('邀请已取消'),
+        );
+      },
+    });
+  };
+
+  const leave = () => {
+    if (!canLeave) return;
+    confirmSensitiveAction({
+      title: tr('退出当前企业？'),
+      content: tr('退出后将立即失去当前企业访问权，需要重新获得邀请才能加入。'),
+      impacts: [tr('当前会话将刷新'), tr('未保存的表单内容会丢失')],
+      reversible: true,
+      onOk: async () => {
+        const succeeded = await runMutation(() => leaveTenant().then(() => undefined), tr('已退出企业'), true, false);
+        if (succeeded) window.location.reload();
+      },
+    });
+  };
+
+  const openInvite = () => {
+    if (!canManage || !directoryReady) return;
+    setInviteOpen(true);
+  };
+
+  const memberColumns = useMemo<TableColumnsType<TenantMember>>(() => [
+    { title: tr('成员'), key: 'member', width: 220, render: (_value, row) => <Space direction="vertical" size={0}><strong>{memberName(row)}</strong><span style={{ color: 'var(--ant-color-text-tertiary)', fontSize: 12 }}>{row.email || row.userId}</span></Space> },
+    { title: tr('角色'), dataIndex: 'role', width: 110, render: (value: string) => <Tag>{memberRoleLabel(value, roles)}</Tag> },
+    { title: tr('状态'), dataIndex: 'status', width: 100, render: (value: string) => <StatusTag status={value} text={tr(({ active: tr('正常'), disabled: tr('禁用'), removed: tr('已移除'), invited: tr('待接受') } as Record<string,string>)[value] || value)} /> },
+    { title: tr('店铺权限'), key: 'stores', ellipsis: true, render: (_value, row) => row.role === 'admin' ? tr('全部店铺') : row.storePermissions?.map((item) => shops.find((shop) => shop.id === item.storeId)?.shopName || item.storeId).join('、') || tr('未分配') },
+    { title: tr('操作'), key: 'actions', width: 250, render: (_value, row) => <Space wrap size={4}><Button type="link" size="small" icon={<EditOutlined />} disabled={!canManage || !directoryReady || submitting || row.status === 'removed'} onClick={() => openMember(row)}>{tr("编辑")}</Button>{row.status === 'active' ? <Button type="link" size="small" danger disabled={!canManage || submitting || row.userId === user?.id} onClick={() => confirmMemberStatus(row, 'disabled')}>{tr("禁用")}</Button> : null}{row.status !== 'removed' ? <Button type="link" size="small" danger disabled={!canManage || submitting || row.userId === user?.id} onClick={() => confirmMemberStatus(row, 'removed')}>{tr("移除")}</Button> : null}</Space> },
+  ], [canManage, directoryReady, roles, shops, submitting, user?.id, language]);
+
+  const invitationColumns = useMemo<TableColumnsType<TenantInvitation>>(() => [
+    { title: tr('受邀邮箱'), dataIndex: 'email', width: 260, ellipsis: true },
+    { title: tr('角色'), dataIndex: 'role', width: 120, render: (value: string) => <Tag>{memberRoleLabel(value, roles)}</Tag> },
+    { title: tr('状态'), dataIndex: 'status', width: 110, render: (value: string) => <StatusTag status={value} text={tr(({ pending: tr('待接受'), accepted: tr('已接受'), cancelled: tr('已取消'), expired: tr('已过期') } as Record<string,string>)[value] || value)} /> },
+    { title: tr('有效期至'), dataIndex: 'expiresAt', width: 180, render: (value: string) => formatDateTime(value) },
+    { title: tr('创建时间'), dataIndex: 'createdAt', width: 180, render: (value: string) => formatDateTime(value) },
+    { title: tr('操作'), key: 'actions', width: 110, render: (_value, row) => row.status === 'pending' ? <Button type="link" danger size="small" icon={<DeleteOutlined />} disabled={!canManage || submitting} onClick={() => cancelInvitation(row)}>{tr("取消邀请")}</Button> : null },
+  ], [canManage, directoryReady, roles, submitting, language]);
+
+  if (!canManage) {
+    return (
+      <TmPageContainer title={tr("企业成员与邀请")}>
+        <Result
+          status="403"
+          title={tr("无权访问")}
+          subTitle={tr("企业成员和邀请管理仅对拥有 user.manage 权限的成员开放。")}
+          extra={canLeave ? <Button danger icon={<DeleteOutlined />} disabled={submitting} onClick={leave}>{tr("退出当前企业")}</Button> : undefined}
+        />
+      </TmPageContainer>
+    );
+  }
+
+  return (
+    <TmPageContainer
+      title={tr("企业成员与邀请")}
+
+      extra={[
+        <Button key="refresh" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>,
+        <Button key="invite" type="primary" icon={<UserAddOutlined />} disabled={!directoryReady} onClick={openInvite}>{tr("邀请成员")}</Button>,
+      ]}
+    >
+      {error ? <ErrorAlert title={tr("成员数据加载失败")} actionHint={error} action={<Button type="link" onClick={() => void load()}>{tr("重试")}</Button>} style={{ marginBottom: 16 }} /> : null}
+      {rolesError || shopsError ? <Alert type="error" showIcon message={tr("角色或店铺授权数据加载失败")} description={[rolesError, shopsError].filter(Boolean).join('；')} action={<Button type="link" onClick={() => void loadDirectories()}>{tr("重试")}</Button>} style={{ marginBottom: 16 }} /> : null}
+      {!rolesError && !shopsError && !rolesLoading && !shopsLoading && roleOptions.length === 0 ? <Alert type="error" showIcon message={tr("当前企业没有可分配角色")} description={tr("请在现有角色管理中启用至少一个角色后再邀请或编辑成员。")} style={{ marginBottom: 16 }} /> : null}
+      <SectionCard>
+        <Tabs activeKey={activeTab} onChange={setActiveTab} items={[{ key: 'members', label: `${tr('成员（')}${members.length}${tr('）')}`, children: !loading && !error && members.length === 0 ? <EmptyState title={tr("暂无企业成员")} actionLabel={tr("邀请成员")} onAction={openInvite} /> : <Table rowKey="id" loading={loading} columns={memberColumns} dataSource={members} pagination={false} scroll={{ x: 960 }} /> }, { key: 'invitations', label: `${tr('邀请（')}${invitations.length}${tr('）')}`, children: !loading && !error && invitations.length === 0 ? <EmptyState title={tr("暂无邀请记录")} actionLabel={tr("邀请成员")} onAction={openInvite} /> : <Table rowKey="id" loading={loading} columns={invitationColumns} dataSource={invitations} pagination={false} scroll={{ x: 900 }} /> }]} />
+      </SectionCard>
+
+      {canLeave ? (
+        <div
+          role="region"
+          aria-label={tr("退出当前企业")}
+          style={{
+            marginTop: 16,
+            padding: '14px 16px',
+            border: '1px solid var(--ant-color-border-secondary)',
+            borderRadius: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 16,
+            background: 'var(--ant-color-bg-container)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flex: '1 1 280px' }}>
+            <span style={{
+              display: 'inline-flex', padding: 9, borderRadius: 10,
+              background: 'var(--ant-color-warning-bg)',
+              color: 'var(--ant-color-warning)',
+            }}>
+              <DeleteOutlined aria-hidden="true" />
+            </span>
+            <div>
+              <strong style={{ display: 'block', marginBottom: 4 }}>{tr("退出当前企业")}</strong>
+              <span style={{ color: 'var(--ant-color-text-secondary)', fontSize: 13 }}>
+                {tr("退出后将失去此企业的访问权限，需重新接受邀请才能加入。")}
+              </span>
+            </div>
+          </div>
+          <Button danger icon={<DeleteOutlined />} disabled={submitting} onClick={leave}>
+            {tr("退出企业")}
+          </Button>
+        </div>
+      ) : null}
+
+      <Modal open={inviteOpen} title={tr("邀请成员")} destroyOnHidden width={560} confirmLoading={submitting} okButtonProps={{ disabled: !directoryReady }} okText={tr("创建邀请")} cancelText={tr("取消")} onCancel={() => { if (!submitting) setInviteOpen(false); }} onOk={() => { void inviteForm.submit(); }}>
+        <Form key="invite" form={inviteForm} layout="vertical" onFinish={submitInvite} preserve={false} initialValues={{ role: 'operator', expiresInHours: 168 }}>
+          <Form.Item name="email" label={tr("成员邮箱")} rules={[{ required: true, message: tr('请输入成员邮箱') }, { type: 'email', message: tr('请输入有效邮箱') }]}><Input prefix={<MailOutlined />} autoComplete="off" /></Form.Item>
+          <Form.Item name="role" label={tr("企业角色")} rules={[{ required: true, message: tr('请选择企业角色') }]}><Select options={roleOptions} /></Form.Item>
+          <Form.Item name="expiresInHours" label={tr("邀请有效期")} rules={[{ required: true, message: tr('请选择邀请有效期') }]}><Select options={INVITATION_EXPIRY_OPTIONS.map(item => ({...item,label:tr(item.label)}))} /></Form.Item>
+          <Form.Item noStyle shouldUpdate={(previous, current) => previous.role !== current.role}>{({ getFieldValue }) => getFieldValue('role') === 'admin' ? <Alert type="info" showIcon message={tr("管理员默认拥有当前企业全部店铺范围。")} /> : <Form.Item label={tr("店铺授权")}><StorePermissionList shops={shops} /></Form.Item>}</Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal open={memberOpen} title={selectedMember ? `${tr('编辑成员：')}${memberName(selectedMember)}` : tr('编辑成员')} destroyOnHidden width={560} confirmLoading={submitting} okButtonProps={{ disabled: !directoryReady }} okText={tr("保存")} cancelText={tr("取消")} onCancel={() => { if (!submitting) setMemberOpen(false); }} onOk={() => { void memberForm.submit(); }}>
+        <Form
+          key={selectedMember?.id ?? 'member'}
+          form={memberForm}
+          layout="vertical"
+          onFinish={submitMember}
+          preserve={false}
+          initialValues={selectedMember ? {
+            role: selectedMember.role,
+            status: selectedMember.status,
+            storePermissions: selectedMember.storePermissions?.map((item) => ({
+              storeId: item.storeId,
+              permissionScope: item.permissionScope || 'operate',
+            })) || [],
+          } : undefined}
+        >
+          <Form.Item name="role" label={tr("企业角色")} rules={[{ required: true, message: tr('请选择企业角色') }]}><Select options={roleOptions} /></Form.Item>
+          <Form.Item name="status" label={tr("成员状态")} rules={[{ required: true, message: tr('请选择成员状态') }]}><Select options={MEMBER_STATUS_OPTIONS.map(item => ({...item,label:tr(item.label)}))} /></Form.Item>
+          <Form.Item noStyle shouldUpdate={(previous, current) => previous.role !== current.role}>{({ getFieldValue }) => getFieldValue('role') === 'admin' ? <Alert type="info" showIcon message={tr("管理员默认拥有当前企业全部店铺范围。")} /> : <Form.Item label={tr("店铺授权")}><StorePermissionList shops={shops} /></Form.Item>}</Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal open={Boolean(inviteToken)} title={tr("邀请已创建")} footer={<Button onClick={() => setInviteToken(null)}>{tr("关闭")}</Button>} onCancel={() => setInviteToken(null)}>
+        <Alert type="warning" showIcon message={tr("Token 只在本次显示，请通过安全渠道发送给受邀成员。")} description={tr("系统不会代发邮件，也不会再次展示完整 Token。")} />
+        <Input.TextArea value={inviteToken || ''} readOnly autoSize={{ minRows: 3, maxRows: 6 }} style={{ marginTop: 16 }} aria-label={tr("一次性邀请 Token")} />
+        <Button icon={<CopyOutlined />} style={{ marginTop: 12 }} onClick={() => void copyToken()}>{tr("复制 Token")}</Button>
+      </Modal>
+    </TmPageContainer>
+  );
+}

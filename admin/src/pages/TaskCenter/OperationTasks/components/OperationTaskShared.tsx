@@ -1,3 +1,4 @@
+import { tr, trFormat } from '@/i18n';
 import { Alert, Descriptions, Tag, Tooltip, Typography } from 'antd';
 import { TaskJsonBlock } from '@/components/ui';
 import {
@@ -27,13 +28,13 @@ const SENSITIVE_KEY = /(token|secret|credential|password|cookie|authorization|oa
 
 export function labelFromRecord(map: Record<string, string>, value?: string | null) {
   const key = (value ?? '').trim();
-  return key ? map[key] ?? key : '—';
+  return key ? tr(map[key] ?? key) : '—';
 }
 
 function statusTag(map: Record<string, LocalizedLabel>, status?: string | null) {
-  const label = operationLabel(map, status);
+  const label = tr(operationLabel(map, status));
   const color = operationLabelColor(map, status);
-  const description = status ? map[status]?.description : undefined;
+  const description = status && map[status]?.descriptionSource ? tr(map[status].descriptionSource) : undefined;
   const tag = <Tag color={color as never}>{label}</Tag>;
   return description ? <Tooltip title={description}>{tag}</Tooltip> : tag;
 }
@@ -77,7 +78,7 @@ export function resultTypeLabel(value?: string | null) {
 export function eventTypeLabel(value?: string | null) {
   const key = (value ?? '').trim();
   if (!key) return '—';
-  return OPERATION_EVENT_TYPE_LABELS[key]?.zhCN ?? `未知事件（${key}）`;
+  return OPERATION_EVENT_TYPE_LABELS[key]?.source ? tr(OPERATION_EVENT_TYPE_LABELS[key].source) : trFormat('未知事件（{key}）', { key });
 }
 
 export function actorTypeLabel(value?: string | null) {
@@ -93,13 +94,13 @@ export function normalizeOperationTaskTab(value?: string | null) {
 
 export function operationErrorMessage(error?: OperationTaskAPIError | null) {
   if (!error) return undefined;
-  if (error.errorCode && OPERATION_ERROR_LABELS[error.errorCode]) return OPERATION_ERROR_LABELS[error.errorCode];
-  return error.message || '操作失败，请稍后重试。';
+  if (error.errorCode && OPERATION_ERROR_LABELS[error.errorCode]) return tr(OPERATION_ERROR_LABELS[error.errorCode]);
+  return error.message || tr('操作失败，请稍后重试。');
 }
 
 export function renderOperationError(error?: OperationTaskAPIError | null) {
   if (!error) return null;
-  const detail = [error.errorCode ? `错误码：${error.errorCode}` : undefined, error.traceId ? `排查编号：${error.traceId}` : undefined]
+  const detail = [error.errorCode ? trFormat('错误码：{code}', { code: error.errorCode }) : undefined, error.traceId ? trFormat('排查编号：{traceId}', { traceId: error.traceId }) : undefined]
     .filter(Boolean)
     .join('；');
   return <Alert type="error" showIcon message={operationErrorMessage(error)} description={detail || undefined} />;
@@ -126,7 +127,7 @@ export function safeMetadata(metadata: unknown) {
 }
 
 export function jsonPreview(value: unknown) {
-  return <TaskJsonBlock title="安全 JSON" value={redactSensitiveValue(value)} maxHeight={320} />;
+  return <TaskJsonBlock title={tr("安全 JSON")} value={redactSensitiveValue(value)} maxHeight={320} />;
 }
 
 export function NonProductionBoundary() {
@@ -134,14 +135,14 @@ export function NonProductionBoundary() {
     <Alert
       type="warning"
       showIcon
-      message={NON_PRODUCTION_BOUNDARY_COPY.title}
+      message={tr(NON_PRODUCTION_BOUNDARY_COPY.titleSource)}
       description={
         <div>
-          <Typography.Paragraph style={{ marginBottom: 8 }}>{NON_PRODUCTION_BOUNDARY_COPY.description}</Typography.Paragraph>
+          <Typography.Paragraph style={{ marginBottom: 8 }}>{tr(NON_PRODUCTION_BOUNDARY_COPY.descriptionSource)}</Typography.Paragraph>
           <Descriptions size="small" column={{ xs: 1, sm: 3 }}>
-            <Descriptions.Item label="真实平台写入">未启用</Descriptions.Item>
-            <Descriptions.Item label="自动发布">未启用</Descriptions.Item>
-            <Descriptions.Item label="自动上架">未启用</Descriptions.Item>
+            <Descriptions.Item label={tr("真实平台写入")}>{tr("未启用")}</Descriptions.Item>
+            <Descriptions.Item label={tr("自动发布")}>{tr("未启用")}</Descriptions.Item>
+            <Descriptions.Item label={tr("自动上架")}>{tr("未启用")}</Descriptions.Item>
           </Descriptions>
         </div>
       }
@@ -164,18 +165,18 @@ export function ProductionRuntimeBoundary({
     <Alert
       type={ready ? 'success' : 'warning'}
       showIcon
-      message={ready ? '平台草稿写入已受控启用' : '平台草稿写入未就绪'}
+      message={ready ? tr('平台草稿写入已受控启用') : tr('平台草稿写入未就绪')}
       description={(
         <div>
           <Typography.Paragraph style={{ marginBottom: 8 }}>
             {loading
-              ? '正在核对实时运行控制，核对完成前禁止真实平台写入。'
-              : error || blockedReason || '仅允许对人工审核冻结快照执行创建平台草稿，不会发布或上架。'}
+              ? tr('正在核对实时运行控制，核对完成前禁止真实平台写入。')
+              : error || blockedReason || tr('仅允许对人工审核冻结快照执行创建平台草稿，不会发布或上架。')}
           </Typography.Paragraph>
           <Descriptions size="small" column={{ xs: 1, sm: 3 }}>
-            <Descriptions.Item label="能力级别">{status?.currentAllowedLevel || '未确认'}</Descriptions.Item>
-            <Descriptions.Item label="允许店铺">{status?.allowlist?.enabled ? copyableText(status.allowlist.shopId, 12) : '无'}</Descriptions.Item>
-            <Descriptions.Item label="执行边界">仅创建平台草稿</Descriptions.Item>
+            <Descriptions.Item label={tr("能力级别")}>{status?.currentAllowedLevel || tr("未确认")}</Descriptions.Item>
+            <Descriptions.Item label={tr("允许店铺")}>{status?.allowlist?.enabled ? copyableText(status.allowlist.shopId, 12) : tr("无")}</Descriptions.Item>
+            <Descriptions.Item label={tr("执行边界")}>{tr("仅创建平台草稿")}</Descriptions.Item>
           </Descriptions>
         </div>
       )}
@@ -194,7 +195,7 @@ export function parseJSONInput(raw: string) {
   try {
     return { ok: true as const, value: JSON.parse(raw) };
   } catch (error) {
-    return { ok: false as const, message: error instanceof Error ? error.message : 'JSON 格式不正确' };
+    return { ok: false as const, message: error instanceof Error ? error.message : tr('JSON 格式不正确') };
   }
 }
 

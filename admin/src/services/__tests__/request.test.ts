@@ -1,10 +1,22 @@
 import { request } from '@umijs/max';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiRequestError, getJSON, getWithParams, postJSON } from '../request';
+import { setLanguage } from '@/i18n';
 
 const requestMock = vi.mocked(request);
 
 describe('request helpers', () => {
+  it('localizes API errors while preserving the technical envelope', () => {
+    setLanguage('en-US');
+    try {
+      const error = new ApiRequestError({ code: 40901, message: 'settings version conflict; reload', data: { version: 4 }, traceId: 'test-trace' });
+      expect(error.message).toBe('Data has changed. Refresh and retry.');
+      expect(error.rawMessage).toBe('settings version conflict; reload');
+      expect(error.code).toBe(40901);
+      expect(error.traceId).toBe('test-trace');
+      expect(error.data).toEqual({ version: 4 });
+    } finally { setLanguage('zh-CN'); localStorage.clear(); }
+  });
   it('unwraps successful GET envelopes', async () => {
     requestMock.mockResolvedValueOnce({ code: 0, message: 'ok', data: { id: 'p1' } });
 

@@ -31,7 +31,10 @@ func (s *Service) StartRotation(ctx context.Context, startedBy uuid.UUID, dryRun
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
-	total, _ := s.countPendingReencrypt(ctx)
+	total, err := s.countPendingReencrypt(ctx)
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now().UTC()
 	status := RotationPrepared
 	if dryRun {
@@ -71,16 +74,36 @@ func (s *Service) RotationProgress(ctx context.Context, id uuid.UUID) (*KeyRotat
 
 // PauseRotation marks job paused.
 func (s *Service) PauseRotation(ctx context.Context, id uuid.UUID) error {
-	return s.DB.WithContext(ctx).Model(&KeyRotationJob{}).
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("security: unavailable")
+	}
+	result := s.DB.WithContext(ctx).Model(&KeyRotationJob{}).
 		Where("id = ? AND status = ?", id, RotationRunning).
-		Update("status", RotationPaused).Error
+		Update("status", RotationPaused)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ResumeRotation resumes paused job.
 func (s *Service) ResumeRotation(ctx context.Context, id uuid.UUID) error {
-	return s.DB.WithContext(ctx).Model(&KeyRotationJob{}).
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("security: unavailable")
+	}
+	result := s.DB.WithContext(ctx).Model(&KeyRotationJob{}).
 		Where("id = ? AND status = ?", id, RotationPaused).
-		Update("status", RotationRunning).Error
+		Update("status", RotationRunning)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // CountSecretReferencesByKeyID aggregates old-key and legacy references across all secret targets.
@@ -125,10 +148,12 @@ func (s *Service) VerifyRotation(ctx context.Context, id uuid.UUID) (bool, []Sec
 	if ok {
 		status = RotationVerified
 	}
-	_ = s.DB.WithContext(ctx).Model(job).Updates(map[string]any{
+	if err := s.DB.WithContext(ctx).Model(job).Updates(map[string]any{
 		"verification_status": status,
 		"status":              ternaryStatus(ok, RotationVerified, RotationCompletedWithWarn),
-	}).Error
+	}).Error; err != nil {
+		return false, nil, fmt.Errorf("persist key rotation verification: %w", err)
+	}
 	return ok, counts, nil
 }
 

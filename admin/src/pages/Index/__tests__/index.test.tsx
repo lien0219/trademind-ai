@@ -1,10 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
+import { setLanguage } from "@/i18n";
 import { THEME_MODE_STORAGE_KEY } from "@/theme";
 import IndexPage from "../index";
 
 beforeEach(() => {
+  setLanguage("zh-CN");
   window.localStorage.removeItem(THEME_MODE_STORAGE_KEY);
   delete document.documentElement.dataset.theme;
   document.documentElement.style.removeProperty("color-scheme");
@@ -16,7 +18,7 @@ describe("IndexPage", () => {
     render(<IndexPage />);
 
     expect(
-      screen.getByRole("heading", { name: "让商品运营，从采集到刊登更顺畅" }),
+      screen.getByRole("heading", { name: "AI 跨境电商运营平台" }),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "登录" })[0]).toHaveAttribute(
       "href",
@@ -50,5 +52,20 @@ describe("IndexPage", () => {
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(document.documentElement.style.colorScheme).toBe("dark");
     expect(window.localStorage.getItem(THEME_MODE_STORAGE_KEY)).toBe("dark");
+  });
+
+  it("updates translated homepage copy without replacing the page", () => {
+    const { container } = render(<IndexPage />);
+    const page = container.firstElementChild;
+
+    act(() => setLanguage("en-US"));
+
+    expect(
+      screen.getByRole("heading", { name: "Multi-platform publishing collaboration" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Sign in to workspace" }),
+    ).toHaveAttribute("href", "/user/login");
+    expect(container.firstElementChild).toBe(page);
   });
 });

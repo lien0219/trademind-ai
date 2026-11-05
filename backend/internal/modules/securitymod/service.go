@@ -9,6 +9,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/crypto"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/gorm"
 )
 
@@ -39,7 +40,10 @@ func (s *Service) PrepareRotation(ctx context.Context) (*RotationStatus, error) 
 	if err != nil {
 		return nil, err
 	}
-	pending, _ := s.countPendingReencrypt(ctx)
+	pending, err := s.countPendingReencrypt(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return &RotationStatus{
 		ActiveKeyID:      kr.ActiveID,
 		PendingReencrypt: pending,
@@ -47,18 +51,22 @@ func (s *Service) PrepareRotation(ctx context.Context) (*RotationStatus, error) 
 	}, nil
 }
 
-// VerifyAuditIntegrity checks recent audit hash chain for tenant 0.
+// VerifyAuditIntegrity checks only the authenticated tenant's audit hash chain.
 func (s *Service) VerifyAuditIntegrity(ctx context.Context, days int) (int, error) {
 	if s == nil || s.OpLogs == nil {
 		return 0, fmt.Errorf("security: unavailable")
+	}
+	tenant := security.FromContext(ctx)
+	if tenant == nil || tenant.TenantID < 0 {
+		return 0, security.ErrTenantContextMissing
 	}
 	if days <= 0 {
 		days = 7
 	}
 	to := time.Now().UTC()
 	from := to.Add(-time.Duration(days) * 24 * time.Hour)
-	n, _, err := s.OpLogs.VerifyChain(ctx, 0, from, to)
-	if err != nil || n > 0 {
+	n, _, err := s.OpLogs.VerifyChain(ctx, tenant.TenantID, from, to)
+	if err != nil {
 		s.ObserveSecurity("operationlog", "audit_chain_mismatch", "failure", "critical")
 	}
 	return n, err

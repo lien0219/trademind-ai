@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 )
 
@@ -50,6 +51,7 @@ func (s *Service) persistProviderResult(ctx context.Context, task *ImageTask, re
 		ObjectKey:    objKey,
 		Data:         data,
 		ContentType:  ct,
+		TenantID:     task.TenantID,
 		CreatedBy:    task.CreatedBy,
 	})
 	if saveErr != nil {
@@ -93,8 +95,14 @@ func (s *Service) upsertPrimaryTaskItem(ctx context.Context, task *ImageTask, fi
 	if s == nil || s.DB == nil || task == nil {
 		return nil
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return err
+	}
 	var existing ImageTaskItem
-	err := s.DB.WithContext(ctx).Where("task_id = ?", task.ID).Order("created_at ASC").First(&existing).Error
+	query := s.DB.WithContext(ctx).Model(&ImageTaskItem{}).Where("task_id = ?", task.ID)
+	query = scopeImageTaskItemQuery(query, tenantID, scoped)
+	err = query.Order("created_at ASC").First(&existing).Error
 	if err != nil {
 		item := &ImageTaskItem{
 			TaskID:           task.ID,
@@ -123,7 +131,9 @@ func (s *Service) upsertPrimaryTaskItem(ctx context.Context, task *ImageTask, fi
 	if len(scoreJSON) > 0 {
 		updates["score_json"] = scoreJSON
 	}
-	return s.DB.WithContext(ctx).Model(&ImageTaskItem{}).Where("id = ?", existing.ID).Updates(updates).Error
+	update := s.DB.WithContext(ctx).Model(&ImageTaskItem{}).Where("id = ?", existing.ID)
+	update = scopeImageTaskItemQuery(update, tenantID, scoped)
+	return update.Updates(updates).Error
 }
 
 func (s *Service) finalizeTaskSuccess(ctx context.Context, _ interface{}, task *ImageTask, finalURL string, fileID *uuid.UUID, storageKey string, outObj map[string]any, scoreJSON []byte, selectedBest bool) error {
@@ -164,12 +174,15 @@ func (s *Service) finalizeTaskSuccessWithStatus(ctx context.Context, task *Image
 	if fileID != nil {
 		updates["result_file_id"] = fileID
 	}
-	workerID, claim := imageLeaseFrom(ctx)
-	if claim != nil && strings.TrimSpace(workerID) != "" {
-		if err := s.finishImageTask(ctx, task.ID, workerID, claim, updates); err != nil {
-			return err
-		}
-	} else if err := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(updates).Error; err != nil {
+	if err := s.updateTaskWithAudit(ctx, nil, task, updates, operationlog.WriteOpts{
+		TenantID:    task.TenantID,
+		AdminUserID: task.CreatedBy,
+		Action:      "image.task.success",
+		Resource:    "image_task",
+		Status:      "success",
+		Message: fmt.Sprintf("taskType=%s provider=%s productId=%s",
+			task.TaskType, task.Provider, ptrUUIDStr(task.ProductID)),
+	}); err != nil {
 		return err
 	}
 	_ = s.upsertPrimaryTaskItem(ctx, task, finalURL, storageKey, fileID, scoreJSON, selectedBest)
@@ -205,9 +218,14 @@ func (s *Service) createTaskItemPending(ctx context.Context, taskID uuid.UUID, p
 }
 
 func (s *Service) markTaskItemFailed(ctx context.Context, taskID uuid.UUID, msg string) {
-	_ = s.DB.WithContext(ctx).Model(&ImageTaskItem{}).
-		Where("task_id = ? AND status IN ?", taskID, []string{ItemStatusPending, ItemStatusRunning}).
-		Updates(map[string]any{"status": ItemStatusFailed, "error_message": truncateRunes(msg, 4000)}).Error
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return
+	}
+	query := s.DB.WithContext(ctx).Model(&ImageTaskItem{}).
+		Where("task_id = ? AND status IN ?", taskID, []string{ItemStatusPending, ItemStatusRunning})
+	query = scopeImageTaskItemQuery(query, tenantID, scoped)
+	_ = query.Updates(map[string]any{"status": ItemStatusFailed, "error_message": truncateRunes(msg, 4000)}).Error
 }
 
 // resolveOpenAIEditSource resolves bytes for openai edit operations.

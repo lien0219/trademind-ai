@@ -3,6 +3,7 @@ package collect
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"gorm.io/gorm"
 )
 
 // Register mounts authenticated collect routes on g (already under /api/v1).
@@ -54,4 +55,35 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.POST("/collect/providers/taobao_tmall/check-login", viewProduct, h.CheckTaobaoTmallLogin)
 	g.POST("/collector/providers/taobao_tmall/open-login-browser", writeProduct, h.OpenTaobaoTmallLoginBrowser)
 	g.POST("/collect/providers/taobao_tmall/open-login-browser", writeProduct, h.OpenTaobaoTmallLoginBrowser)
+}
+
+// RegisterAliases mounts legacy /api/collector paths with the same permission
+// gates as their canonical /api/v1/collector counterparts.
+func RegisterAliases(r gin.IRouter, h *Handler, db *gorm.DB, auth gin.HandlerFunc) {
+	if r == nil || h == nil || db == nil || auth == nil {
+		return
+	}
+	g := r.Group("/api/collector")
+	g.Use(auth)
+	view := func(c *gin.Context) {
+		if !adminperm.RequirePermission(c, db, adminperm.PermProductView) {
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+	write := func(c *gin.Context) {
+		if !adminperm.RequireWrite(c, db, adminperm.PermProductWrite) {
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+	g.GET("/providers/1688/auth-status", view, h.Get1688AuthStatus)
+	g.POST("/providers/1688/open-login-browser", write, h.Open1688LoginBrowser)
+	g.GET("/providers/pinduoduo/auth-status", view, h.GetPinduoduoAuthStatus)
+	g.POST("/providers/pinduoduo/check-login", view, h.CheckPinduoduoLogin)
+	g.POST("/providers/pinduoduo/open-login-browser", write, h.OpenPinduoduoLoginBrowser)
+	g.POST("/providers/taobao_tmall/check-login", view, h.CheckTaobaoTmallLogin)
+	g.POST("/providers/taobao_tmall/open-login-browser", write, h.OpenTaobaoTmallLoginBrowser)
 }

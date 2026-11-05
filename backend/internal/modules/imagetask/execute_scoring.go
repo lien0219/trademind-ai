@@ -14,13 +14,21 @@ func (s *Service) executeScoringTask(ctx context.Context, task *ImageTask, hints
 	if s == nil || task == nil {
 		return fmt.Errorf("imagetask: invalid scoring task")
 	}
+	tenantID, scoped, err := imageTaskTenantScope(ctx)
+	if err != nil {
+		return err
+	}
 	tt := strings.TrimSpace(strings.ToLower(task.TaskType))
 
 	productTitle := ""
 	if task.ProductID != nil {
 		var p product.Product
-		if err := s.DB.WithContext(ctx).Select("title").First(&p, "id = ?", *task.ProductID).Error; err == nil {
+		query := s.DB.WithContext(ctx).Model(&product.Product{}).Select("title").Where("id = ?", *task.ProductID)
+		query = scopeProductQuery(query, tenantID, scoped)
+		if err := query.First(&p).Error; err == nil {
 			productTitle = strings.TrimSpace(p.Title)
+		} else if scoped {
+			return err
 		}
 	}
 
@@ -41,9 +49,10 @@ func (s *Service) executeScoringTask(ctx context.Context, task *ImageTask, hints
 		raw, _ := scoreJSONFromScore(score)
 		if task.SourceImageID != nil {
 			v := score.OverallScore
-			_ = s.DB.WithContext(ctx).Model(&product.ProductImage{}).
-				Where("id = ?", *task.SourceImageID).
-				Update("score", v).Error
+			query := s.DB.WithContext(ctx).Model(&product.ProductImage{}).
+				Where("id = ?", *task.SourceImageID)
+			query = scopeProductImageQuery(query, tenantID, scoped)
+			_ = query.Update("score", v).Error
 		}
 		outObj := map[string]any{
 			"provider": task.Provider,
@@ -57,8 +66,10 @@ func (s *Service) executeScoringTask(ctx context.Context, task *ImageTask, hints
 			return fmt.Errorf("productId required for select_best_main")
 		}
 		var images []product.ProductImage
-		if err := s.DB.WithContext(ctx).
-			Where("product_id = ?", *task.ProductID).
+		imageQuery := s.DB.WithContext(ctx).Model(&product.ProductImage{}).
+			Where("product_id = ?", *task.ProductID)
+		imageQuery = scopeProductImageQuery(imageQuery, tenantID, scoped)
+		if err := imageQuery.
 			Order("sort_order ASC, created_at ASC").
 			Find(&images).Error; err != nil {
 			return err
@@ -112,9 +123,10 @@ func (s *Service) executeScoringTask(ctx context.Context, task *ImageTask, hints
 				IsSelectedBest: i == bestIdx,
 			}
 			_ = s.DB.WithContext(ctx).Create(item).Error
-			_ = s.DB.WithContext(ctx).Model(&product.ProductImage{}).
-				Where("id = ?", r.img.ID).
-				Updates(map[string]any{"score": r.score.OverallScore}).Error
+			imageUpdate := s.DB.WithContext(ctx).Model(&product.ProductImage{}).
+				Where("id = ?", r.img.ID)
+			imageUpdate = scopeProductImageQuery(imageUpdate, tenantID, scoped)
+			_ = imageUpdate.Updates(map[string]any{"score": r.score.OverallScore}).Error
 		}
 
 		outObj := map[string]any{
@@ -129,12 +141,14 @@ func (s *Service) executeScoringTask(ctx context.Context, task *ImageTask, hints
 			return err
 		}
 		if mode == "auto_set" {
-			_ = s.DB.WithContext(ctx).Model(&product.ProductImage{}).
-				Where("product_id = ?", *task.ProductID).
-				Update("is_best_main", false).Error
-			_ = s.DB.WithContext(ctx).Model(&product.ProductImage{}).
-				Where("id = ? AND product_id = ?", best.img.ID, *task.ProductID).
-				Updates(map[string]any{"is_best_main": true, "image_type": product.ImageTypeMain, "sort_order": 0}).Error
+			clearBest := s.DB.WithContext(ctx).Model(&product.ProductImage{}).
+				Where("product_id = ?", *task.ProductID)
+			clearBest = scopeProductImageQuery(clearBest, tenantID, scoped)
+			_ = clearBest.Update("is_best_main", false).Error
+			setBest := s.DB.WithContext(ctx).Model(&product.ProductImage{}).
+				Where("id = ? AND product_id = ?", best.img.ID, *task.ProductID)
+			setBest = scopeProductImageQuery(setBest, tenantID, scoped)
+			_ = setBest.Updates(map[string]any{"is_best_main": true, "image_type": product.ImageTypeMain, "sort_order": 0}).Error
 		}
 		return nil
 	default:

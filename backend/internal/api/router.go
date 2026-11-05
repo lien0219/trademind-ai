@@ -65,6 +65,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/storagepublic"
 	"github.com/trademind-ai/trademind/backend/internal/modules/supplier"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantconfig"
+	"github.com/trademind-ai/trademind/backend/internal/modules/tenantmgmt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehousefee"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
@@ -310,13 +312,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	if dep.Obs != nil {
 		metricCatalog = dep.Obs.Catalog
 	}
-	sessionSvc := &auth.SessionService{Cfg: dep.Config, DB: dep.DB, Admins: adminStore, Metrics: metricCatalog}
-	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore, Sessions: sessionSvc, Metrics: metricCatalog}
-	settingsSvc := &settings.Service{DB: dep.DB, Encrypter: dep.Encrypter}
 	opLogSvc := dep.OpLog
 	if opLogSvc == nil {
 		opLogSvc = &operationlog.Service{DB: dep.DB}
 	}
+	sessionSvc := &auth.SessionService{Cfg: dep.Config, DB: dep.DB, Admins: adminStore, Metrics: metricCatalog, OpLog: opLogSvc}
+	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore, Sessions: sessionSvc, Metrics: metricCatalog}
+	settingsSvc := &settings.Service{DB: dep.DB, Encrypter: dep.Encrypter}
 	idempotencySvc := &idempotency.Service{DB: dep.DB}
 
 	aiGateway := &aigate.Gateway{Settings: settingsSvc}
@@ -432,7 +434,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	aiProductImageH := &aiproductimage.Handler{Svc: aiProductImageSvc}
 
-	promptH := &aiprompt.Handler{Svc: promptSvc}
+	promptH := &aiprompt.Handler{Svc: promptSvc, OpLog: opLogSvc}
 	aiTaskH := &aitask.Handler{Svc: aiTaskSvc}
 
 	collectSvc := &collect.Service{
@@ -560,7 +562,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	freightFeeSvc := &freightfee.Service{DB: dep.DB}
 	freightFeeH := &freightfee.Handler{Svc: freightFeeSvc, OpLog: opLogSvc}
 	profitabilitySvc := &profitability.Service{DB: dep.DB, PlatformFees: settlementProfitabilityAdapter{svc: settlementSvc}, AdvertisingFees: advertisingFeeProfitabilityAdapter{svc: advertisingFeeSvc}, WarehouseFees: warehouseFeeProfitabilityAdapter{svc: warehouseFeeSvc}, FreightFees: freightFeeProfitabilityAdapter{svc: freightFeeSvc}}
-	profitabilityH := &profitability.Handler{Svc: profitabilitySvc}
+	profitabilityH := &profitability.Handler{Svc: profitabilitySvc, Audit: opLogSvc}
 
 	orderSyncSvc := &ordersync.Service{
 		DB:          dep.DB,
@@ -728,18 +730,23 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 
 	v1 := r.Group("/api/v1")
 	v1.POST("/auth/login", authH.Login)
-	v1.POST("/auth/register", authH.Register)
-	v1.POST("/auth/send-email-code", authH.SendEmailCode)
+	v1.POST("/auth/change-required-password", authH.ChangeRequiredPassword)
+	v1.GET("/auth/registration-policy", authH.PublicRegistrationPolicy)
+	v1.POST("/auth/register", opLogSvc.AuditFailures("register", "auth", ""), authH.Register)
+	v1.POST("/auth/send-email-code", opLogSvc.AuditFailures("email_code.send", "auth", ""), authH.SendEmailCode)
+	v1.POST("/auth/reset-password", opLogSvc.AuditFailures("password_reset", "auth", ""), authH.ResetPasswordWithEmail)
 	v1.POST("/auth/refresh", sessionH.Refresh)
 
 	authed := v1.Group("")
 	authed.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
+	authH.RegisterTenantRoutes(authed)
 	authed.GET("/auth/profile", authH.Profile)
 	authed.POST("/auth/logout", authH.Logout)
 	authed.GET("/auth/sessions", sessionH.ListSessions)
-	authed.DELETE("/auth/sessions/:id", sessionH.DeleteSession)
-	authed.POST("/auth/sessions/revoke-others", sessionH.RevokeOthers)
-	authed.POST("/auth/logout-all", sessionH.LogoutAll)
+	authed.DELETE("/auth/sessions/:id", opLogSvc.AuditFailures("session_revoke", "auth_session", "id"), sessionH.DeleteSession)
+	authed.POST("/auth/sessions/revoke-others", opLogSvc.AuditFailures("session_revoke_others", "auth_session", ""), sessionH.RevokeOthers)
+	authed.POST("/auth/logout-all", opLogSvc.AuditFailures("logout_all", "auth", ""), sessionH.LogoutAll)
+	tenantconfig.Register(authed, &tenantconfig.Handler{DB: dep.DB, Audit: opLogSvc})
 	authed.GET("/settings", setH.List)
 	authed.PUT("/settings", setH.Put)
 	authed.GET("/settings/integration-schemas", setH.IntegrationSchemas)
@@ -750,6 +757,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.POST("/settings/test-storage", setH.TestStorage)
 	authed.POST("/settings/test-platform-tiktok", setH.TestPlatformTikTok)
 	authed.POST("/settings/test-email", setH.TestEmail)
+	authed.GET("/settings/registration-policy", setH.GetRegistrationPolicy)
+	authed.PUT("/settings/registration-policy", setH.PutRegistrationPolicy)
+	authed.GET("/settings/mail-templates/options", setH.MailTemplateOptions)
+	authed.GET("/settings/mail-templates", setH.MailTemplateGet)
+	authed.POST("/settings/mail-templates/preview", setH.MailTemplatePreview)
+	authed.PUT("/settings/mail-templates", setH.MailTemplateSave)
+	authed.POST("/settings/mail-templates/restore", setH.MailTemplateRestore)
 
 	authed.GET("/operation-logs", opLogH.List)
 	authed.POST("/files/upload", fileH.Upload)
@@ -785,15 +799,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	collectbrowserprofile.Register(authed, profileH)
 
 	// 1688 采集浏览器登录态（与 /api/v1/collector/... 等价，便于前端与文档引用）
-	collectorAlias := r.Group("/api/collector")
-	collectorAlias.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
-	collectorAlias.GET("/providers/1688/auth-status", collectH.Get1688AuthStatus)
-	collectorAlias.POST("/providers/1688/open-login-browser", collectH.Open1688LoginBrowser)
-	collectorAlias.GET("/providers/pinduoduo/auth-status", collectH.GetPinduoduoAuthStatus)
-	collectorAlias.POST("/providers/pinduoduo/check-login", collectH.CheckPinduoduoLogin)
-	collectorAlias.POST("/providers/pinduoduo/open-login-browser", collectH.OpenPinduoduoLoginBrowser)
-	collectorAlias.POST("/providers/taobao_tmall/check-login", collectH.CheckTaobaoTmallLogin)
-	collectorAlias.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
+	registerCollectorAliases(r, collectH, dep.DB, middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
 	profitability.Register(authed, profitabilityH)
@@ -934,6 +940,11 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	adminUserSvc := &adminuser.Service{DB: dep.DB, OpLog: opLogSvc}
 	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
 	adminuser.Register(authed, adminUserH)
+	tenantmgmt.Register(authed, &tenantmgmt.Handler{
+		Service:        &tenantmgmt.Service{DB: dep.DB, Audit: opLogSvc},
+		Mail:           settingsSvc,
+		AdminPublicURL: dep.Config.AdminPublicURL,
+	})
 
 	secSvc := &securitymod.Service{DB: dep.DB, Cfg: dep.Config, OpLogs: opLogSvc, Metrics: metricCatalog}
 	secH := &securitymod.Handler{Svc: secSvc, DB: dep.DB}
