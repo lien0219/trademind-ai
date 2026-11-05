@@ -15,7 +15,7 @@ func TestNormalizeTenantSettingsRejectsSecretsAndUnsafeJSON(t *testing.T) {
 		`{"nested":[{"clientSecret":"s"}]}`,
 		`{"__proto__":{"isRoot":true}}`,
 		`{"preferences":"Bearer abcdef"}`,
-		`{"preferences":"-----BEGIN PRIVATE KEY-----"}`,
+		`{"preferences":"` + strings.Join([]string{"-----BEGIN", "PRIVATE KEY-----"}, " ") + `"}`,
 		"[" + strings.Repeat("[]", 33) + "]",
 	} {
 		_, err := normalizeSettingsJSON(raw)

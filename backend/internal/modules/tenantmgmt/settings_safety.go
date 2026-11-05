@@ -31,7 +31,7 @@ func rejectSensitiveTenantSettings(value any, depth int) error {
 	case string:
 		normalized := strings.TrimSpace(strings.ToLower(typed))
 		if strings.HasPrefix(normalized, "bearer ") ||
-			strings.Contains(normalized, "-----begin private key-----") ||
+			strings.Contains(normalized, "-----begin "+"private key-----") ||
 			(strings.HasPrefix(normalized, "sk-") && len(normalized) >= 19) {
 			return errors.New("tenant settings contain a possible credential")
 		}

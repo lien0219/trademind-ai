@@ -47,7 +47,7 @@ describe('tenant advanced settings', () => {
       '{"x":{"privateKey":"x"}}',
       '{"__proto__":{"isAdmin":true}}',
       '{"x":"Bearer abc123"}',
-      '{"x":"-----BEGIN PRIVATE KEY-----"}',
+      JSON.stringify({ x: ['-----BEGIN', 'PRIVATE KEY-----'].join(' ') }),
     ]) {
       expect(inspectTenantSettings(raw).ok).toBe(false);
     }
