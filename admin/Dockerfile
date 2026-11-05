@@ -14,7 +14,7 @@ RUN pnpm install --frozen-lockfile
 
 RUN pnpm --filter @trademind/admin build
 
-FROM nginx:1.31.7-alpine AS runtime
+FROM nginx:1.31.8-alpine AS runtime
 
 # Apply upstream Alpine security updates before serving the static admin bundle.
 # Fail the build if the repository lacks the fixes required by the image gate.
