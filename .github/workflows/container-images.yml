@@ -201,7 +201,7 @@ jobs:
 
       - name: Build and push candidate image
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: https://github.com/${{ github.repository }}.git#${{ needs.image_metadata.outputs.commit }}${{ matrix.git_context_suffix }}
           file: ${{ matrix.dockerfile }}
