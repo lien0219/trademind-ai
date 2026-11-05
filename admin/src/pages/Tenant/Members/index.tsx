@@ -400,7 +400,7 @@ export default function TenantMembersPage() {
   return (
     <TmPageContainer
       title={tr("企业成员与邀请")}
-      
+
       extra={[
         <Button key="refresh" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>,
         <Button key="invite" type="primary" icon={<UserAddOutlined />} disabled={!directoryReady} onClick={openInvite}>{tr("邀请成员")}</Button>,

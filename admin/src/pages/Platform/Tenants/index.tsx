@@ -372,8 +372,8 @@ export default function PlatformTenantsPage() {
     >
       <SectionCard
         title={tr("企业列表")}
-        
-        
+
+
       >
         <Space wrap size={[8, 8]} style={{ marginBottom: 16 }}>
           <Input.Search
