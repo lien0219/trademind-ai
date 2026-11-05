@@ -16,7 +16,14 @@ RUN pnpm --filter @trademind/admin build
 
 FROM nginx:1.31.7-alpine AS runtime
 
-RUN apk add --no-cache --upgrade libexpat libx11
+# Apply upstream Alpine security updates before serving the static admin bundle.
+# Fail the build if the repository lacks the fixes required by the image gate.
+RUN apk upgrade --no-cache \
+    && apk add --no-cache --upgrade \
+        'brotli-libs>=1.2.1-r0' \
+        'curl>=8.23.0-r0' \
+        'libcurl>=8.23.0-r0' \
+        libexpat libx11
 
 COPY admin/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /workspace/admin/dist /usr/share/nginx/html
