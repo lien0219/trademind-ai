@@ -1,5 +1,5 @@
 # Admin — build with pnpm workspace, serve dist with nginx (proxies /api /static to backend).
-FROM node:24-bookworm AS builder
+FROM node:25-bookworm AS builder
 
 WORKDIR /workspace
 
