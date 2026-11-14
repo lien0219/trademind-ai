@@ -4,6 +4,10 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Backend dependency security (2026-11-14)
+
+- Upgraded `golang.org/x/net` to `v0.62.0` and its required Go dependencies to remediate `CVE-2026-78661`, which blocked both AMD64 and ARM64 backend image vulnerability scans.
+
 ### Admin interface and layout maintenance (2026-11-02)
 
 - Simplified page headings, secondary labels, settings panels and authentication screens while retaining actionable status and risk guidance; removed fabricated login metrics.
