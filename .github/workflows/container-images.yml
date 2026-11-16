@@ -269,7 +269,7 @@ jobs:
           ref: ${{ needs.image_metadata.outputs.commit }}
 
       - name: Download candidate image digest
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: image-${{ matrix.service }}-${{ needs.image_metadata.outputs.commit }}
           path: image-metadata
@@ -498,7 +498,7 @@ jobs:
       collector_digest: ${{ steps.collect.outputs.collector_digest }}
     steps:
       - name: Download image digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: image-*-${{ needs.image_metadata.outputs.commit }}
           path: image-metadata
