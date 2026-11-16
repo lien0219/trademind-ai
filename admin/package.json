@@ -19,12 +19,12 @@
     "@umijs/renderer-react": "^4.7.28",
     "antd": "^5.24.0",
     "dayjs": "^1.11.13",
-    "react": "18.2.0",
+    "react": "19.3.1",
     "react-dom": "18.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
-    "@types/react": "^18.3.18",
+    "@types/react": "^19.3.0",
     "@types/react-dom": "^18.3.5",
     "typescript": "^5.7.3"
   }
