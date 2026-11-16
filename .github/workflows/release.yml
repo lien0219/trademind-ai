@@ -230,7 +230,7 @@ jobs:
           } > release-body.md
 
       - name: Create or update GitHub Release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           RELEASE_TAG: v${{ env.RELEASE_VERSION }}
           RELEASE_COMMIT: ${{ env.RELEASE_COMMIT }}
