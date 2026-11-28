@@ -108,7 +108,7 @@ func collectFailureHint(code, source string, sameURLSucceeded bool) string {
 	switch code {
 	case "LOGIN_REQUIRED":
 		if isPdd {
-			return "该页面需要登录后才能采集。请打开采集浏览器登录拼多多后重试，或换用公开商品详情页链接。"
+			return "该批发详情页需要登录后才能采集。请打开采集浏览器登录拼多多后重试；未登录时仅可尝试公开可访问的批发商品详情页。"
 		}
 		if isTb {
 			return "该淘宝/天猫商品页需要登录后才能采集。请打开淘宝/天猫采集浏览器完成登录后重试。"
@@ -136,7 +136,7 @@ func collectFailureHint(code, source string, sameURLSucceeded bool) string {
 		return "页面访问被拒绝，请确认链接是否有效或是否需登录。"
 	case "UNSUPPORTED_PINDUODUO_URL":
 		if isPdd {
-			return "当前链接不是拼多多批发商品详情页。请使用 pifa.pinduoduo.com/goods/detail/?gid= 链接；移动端商品页暂未完整支持。"
+			return "当前链接类型不是已支持的拼多多批发商品详情页。请使用 pifa.pinduoduo.com/goods/detail/?gid= 链接；普通移动端商品页当前不支持。"
 		}
 		return "当前链接类型暂未支持。"
 	case "UNSUPPORTED_TAOBAO_URL":

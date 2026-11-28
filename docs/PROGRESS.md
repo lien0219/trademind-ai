@@ -1,5 +1,16 @@
 # TradeMind 当前维护状态
 
+## 采集源目录、Pinduoduo URL 边界与解析回归基线（2026-11-28）
+
+统一 Collector Registry 与 Go 离线 Provider 目录：拼多多商品采集范围明确为 Pifa 批发详情 URL，AliExpress beta 的风控/字段限制说明保持一致，SHEIN/Temu 继续标为 planned 且无能力声明。修正 Admin 两个拼多多单条采集入口对移动端消费商品 URL 的误放行；PDD 登录与失败恢复建议统一推荐受支持的批发详情页。AliExpress 在解析结果标记为拦截/验证页时，无论页面是否带非空标题都失败关闭，不再作为商品成功返回。
+
+新增 Provider 元数据跨 Node/Go 契约及 1688、Pinduoduo Pifa、Taobao/Tmall、AliExpress 的 deterministic parser 回归。解析测试使用内联合成 payload，不是实时平台快照；它们只验证解析器和错误边界，不代表真实站点准确率、匿名成功率或生产验收。
+
+- 用户体验改善：Pinduoduo 输入边界、URL 示例、提交按钮与错误恢复建议一致；当前不支持的移动端 URL 不再引导创建已知会失败的任务。
+- 开发体验改善：Provider 目录漂移有共享 JSON 契约回归；已支持来源有明确价格/SKU/图片/部分结果断言；校验失败可定位到平台与字段。
+- AI Agent 使用体验改善：模块地图与 Provider 文档明确来源/URL/登录边界；合成 fixture 与受控样本验收明确区分，减少把 `available` 或静态解析测试误当生产证据的风险。
+
+本地通过：Collector 50 项单元测试与构建；Go `collect`、`taskcenter`、`failureclassifier` 包测试；Admin Pinduoduo URL 与多语言组件相关 8 项测试、严格 UI 文案检查和构建；API 契约测试 26 项；架构边界检查无新增违规；TypeScript baseline 无新增诊断；敏感信息检查 0 个发现。Pinduoduo 五档 viewport 持久 E2E 用例已加入 smoke CI 并通过 test discovery，但本地未运行浏览器 E2E。所有来源的受控真实链接核对、匿名/Profile 对比、预发布人工验收、远端 CI 与发布签收仍未完成，因此本轮不宣称所有采集器达到生产可用。
 ## 独立预生产部署与恢复演练（2026-11-28）
 
 在 `22a60408` 基线上接入 Collector，使用独立浏览器数据卷和服务令牌。Admin 对宿主机开放回环端口，API 与数据服务留在内部网络。统一部署、迁移和回滚的三镜像版本校验，在容器内检查 Admin 转发和 Collector 鉴权。恢复脚本在创建新库前校验实际选中的备份文件，支持将备份迁移到其它目录再恢复。

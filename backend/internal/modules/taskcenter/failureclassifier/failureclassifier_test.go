@@ -68,4 +68,11 @@ func TestClassify_pinduoduoLoginRequired(t *testing.T) {
 	if !strings.Contains(r.SuggestedAction, "拼多多") {
 		t.Fatalf("want pinduoduo-specific suggest, got %q", r.SuggestedAction)
 	}
+	if strings.Contains(r.SuggestedAction, "\u666e\u901a\u5546\u54c1") || strings.Contains(r.SuggestedAction, "\u516c\u5f00\u5546\u54c1\u8be6\u60c5\u9875") {
+		t.Fatalf("login recovery must not recommend an unsupported consumer page, got %q", r.SuggestedAction)
+	}
+	if !strings.Contains(r.SuggestedAction, "\u6279\u53d1") {
+		t.Fatalf("login recovery should keep the supported wholesale scope, got %q", r.SuggestedAction)
+	}
+
 }

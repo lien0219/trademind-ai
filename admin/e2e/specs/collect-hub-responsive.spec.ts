@@ -20,6 +20,10 @@ const collectTaskId = 'e2e-collect-task-long-url';
 
 async function routeLongCollectContent(page: Page) {
   await page.route('**/api/v1/collect/**', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
     const url = new URL(route.request().url());
     const pagination = { page: 1, pageSize: 20, total: 1, totalPages: 1 };
 
@@ -29,6 +33,16 @@ async function routeLongCollectContent(page: Page) {
         contentType: 'application/json',
         body: JSON.stringify(
           ok([
+            {
+              source: 'pinduoduo',
+              name: '拼多多采集器',
+              description: '采集拼多多批发商品详情。',
+              status: 'available',
+              batchSupported: true,
+              urlPatterns: ['https://pifa.pinduoduo.com/goods/detail/?gid=*'],
+              features: ['title', 'price', 'mainImages', 'descriptionImages', 'attributes', 'skus'],
+              notes: '',
+            },
             {
               source: 'custom',
               name: longProviderName,
@@ -184,6 +198,42 @@ test.describe('@smoke @collect-hub-responsive 采集中心长文本', () => {
   }
 });
 
+test.describe('@smoke @collect-pinduoduo-url-boundary', () => {
+  for (const viewport of viewports) {
+    test(`prevents unsupported consumer URLs from creating collection tasks at ${viewport.width}x${viewport.height}`, async ({ admin, page }) => {
+      await page.setViewportSize(viewport);
+      await routeLongCollectContent(page);
+      admin.writeGuard.allow({
+        operation: 'pinduoduo-login-check',
+        method: 'POST',
+        path: /^\/api\/collector\/providers\/pinduoduo\/check-login$/,
+        response: ok({}),
+      });
+      await admin.goto('/collect/hub');
+
+      const providerCard = page.locator('.tm-collect-source-card').filter({ hasText: '拼多多采集器' });
+      await providerCard.getByRole('button', { name: '开始采集' }).click();
+      const modal = page.getByRole('dialog', { name: '拼多多采集' });
+      const modalUrl = modal.getByLabel('商品链接');
+      await modalUrl.fill('https://mobile.yangkeduo.com/goods.html?goods_id=123');
+      await expect(modal.getByRole('button', { name: '开始采集' })).toBeDisabled();
+      await expect(modal.getByText(/当前版本暂不支持该页面/)).toBeVisible();
+      await expectNoRootOverflow(page);
+      await modalUrl.fill('https://pifa.pinduoduo.com/goods/detail/?gid=123');
+      await expect(modal.getByRole('button', { name: '开始采集' })).toBeEnabled();
+
+      await admin.goto('/collect/tasks?source=pinduoduo');
+      const taskUrl = page.getByLabel('链接');
+      await expect(taskUrl).toHaveAttribute('placeholder', /pifa\.pinduoduo\.com\/goods\/detail/);
+      await taskUrl.fill('https://mobile.yangkeduo.com/goods.html?goods_id=123');
+      await expect(page.getByRole('button', { name: '提交' })).toBeDisabled();
+      await taskUrl.fill('https://pifa.pinduoduo.com/goods/detail/?gid=123');
+      await expect(page.getByRole('button', { name: '提交' })).toBeEnabled();
+      await expectNoRootOverflow(page);
+      await admin.writeGuard.expectRequestCount('unexpected', 0);
+    });
+  }
+});
 test.describe('@smoke @collect-drawer-responsive 采集任务抽屉', () => {
   for (const viewport of viewports) {
     test(`uses the responsive project width at ${viewport.width}x${viewport.height}`, async ({

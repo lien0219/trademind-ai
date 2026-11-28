@@ -227,7 +227,7 @@ var rules = []rule{
 		category:  CategoryCollectorInvalidURL,
 		severity:  SeverityMedium,
 		reason:    "链接不是拼多多批发商品详情页，或当前版本暂未支持该链接类型。",
-		suggest:   "请使用 pifa.pinduoduo.com/goods/detail/?gid= 链接；移动端商品页暂未完整支持。",
+		suggest:   "请使用 pifa.pinduoduo.com/goods/detail/?gid= 链接；普通移动端商品页当前不支持。",
 		taskTypes: []string{taskTypeCollect},
 	},
 	// 采集任务 — 需要登录（全平台；优先于 unknown）
@@ -241,7 +241,7 @@ var rules = []rule{
 		category:  CategoryLoginRequired,
 		severity:  SeverityMedium,
 		reason:    "页面需要登录后才能访问。",
-		suggest:   "该页面需要登录后才能访问。请打开采集浏览器登录对应平台后重试，或换用公开商品详情页链接。",
+		suggest:   "该页面需要登录后才能访问。请打开采集浏览器登录对应平台后重试，或使用该平台当前已实现的公开详情页链接。",
 		taskTypes: []string{taskTypeCollect},
 	},
 	// 自定义采集 — LOGIN_REQUIRED 错误码（非 1688 专属检测）
@@ -569,7 +569,7 @@ func pinduoduoLoginSuggest(in Input) string {
 		strings.Contains(text, "微信扫码") {
 		return "请打开拼多多采集浏览器，在弹出的微信授权页面完成扫码登录后，再重试采集任务。"
 	}
-	return "该页面需要登录后才能采集。请打开采集浏览器登录拼多多后重试，或换用普通商品详情页链接。"
+	return "该批发详情页需要登录后才能采集。请打开采集浏览器登录拼多多后重试；未登录时仅可尝试公开可访问的批发商品详情页。"
 }
 
 func skipCollectFailureRule(rID string, in Input) bool {

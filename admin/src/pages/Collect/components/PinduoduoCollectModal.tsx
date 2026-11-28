@@ -9,6 +9,7 @@ import { COLLECT_SUCCESS_SHOP_HINT } from '@/constants/copywriting';
 import { mapCollectErrorMessage } from '@/constants/collectErrors';
 import {
   classifyPinduoduoUrl,
+  isPinduoduoCollectSupportedUrl,
   hasPinduoduoLoginContext,
   pinduoduoUrlHint,
 } from '@/utils/pinduoduoUrl';
@@ -42,8 +43,7 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
   }, [url]);
 
   const urlType = useMemo(() => classifyPinduoduoUrl(url?.trim() ?? ''), [url]);
-  const canSubmit =
-    urlType === 'goods_detail' || urlType === 'wholesale_detail';
+  const canSubmit = isPinduoduoCollectSupportedUrl(url?.trim() ?? '');
 
   useEffect(() => {
     if (urlType === 'wholesale_detail') {
@@ -104,20 +104,18 @@ export function PinduoduoCollectModal({ open, onClose, onSubmitted }: Props) {
         </Space>
       }
     >
-      <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        {tr("第一版优先支持普通商品详情页。拼多多批发页（pifa.pinduoduo.com）通常需要登录后才能采集。")}</Typography.Paragraph>
       <Form form={form} layout="vertical">
         <Form.Item
           label={tr("商品链接")}
           name="url"
           rules={[{ required: true, message: tr("请填写拼多多商品链接") }]}
         >
-          <Input placeholder="https://mobile.yangkeduo.com/goods.html?goods_id=..." />
+          <Input placeholder={tr("请输入拼多多批发商品详情链接（pifa.pinduoduo.com/goods/detail/?gid=）。")} />
         </Form.Item>
       </Form>
       {urlHint ? (
         <Alert
-          type={urlType === 'goods_detail' ? 'success' : urlType === 'wholesale_detail' ? 'warning' : 'info'}
+          type={urlType === 'wholesale_detail' ? 'warning' : 'info'}
           showIcon
           message={urlHint}
           style={{ marginBottom: 12 }}

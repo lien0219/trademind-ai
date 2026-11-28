@@ -116,15 +116,24 @@ This repository-side implementation is not activated. `currentAllowedLevel=L0`, 
 
 ## Collector Provider
 
-用于接入商品采集来源。
+用于接入商品采集来源。来源目录由 Collector `/v1/providers` 提供；Collector 不可用时，Go 后端使用同一份字段约定的内置目录。对应契约 fixture 为 `tests/contracts/collector-providers.json`，由 Collector 与 Go 测试共同校验。
 
-当前重点：
+### 当前注册来源
 
-- 1688
-- AliExpress beta
-- 自定义规则采集 beta
+- **1688（available 元数据）**：仅 `detail.1688.com/offer/*.html`；声明标题、主图、详情图、属性与 SKU。适配器使用持久化浏览器上下文；公开匿名页面能否提供目标字段需按商品实测。
+- **拼多多批发（available 元数据）**：仅 `pifa.pinduoduo.com/goods/detail` 商品详情；声明标题、价格、主图、详情图、属性与 SKU。普通 `mobile.yangkeduo.com/goods.html` 消费商品页当前未实现采集；匿名临时上下文和可选持久化登录 Profile 不代表免登录保证。
+- **淘宝 / 天猫（available 元数据）**：支持目录列出的淘宝 / 天猫商品详情 URL；声明标题、价格、主图、详情图、属性与 SKU。默认匿名临时上下文，可选择专用持久化 Profile；部分字段可能要求登录或人工完成验证。
+- **AliExpress（beta 元数据）**：支持目录列出的商品详情 URL，单条采集；SKU 与详情图可能不完整，受平台验证或访问限制时返回受限结果。
+- **自定义链接（beta 元数据）**：依赖用户维护的页面规则抽取标题、价格、图片和参数；批量、SKU、库存与动态价格不保证完整。
+- **SHEIN / Temu（planned）**：当前仅是 Provider 占位入口，无采集实现、能力字段或批量支持；需分别评估后再实施。
 
-采集服务必须输出统一商品结构，包括标题、图片、属性、SKU、描述图与 raw 原始数据。
+`available` / `beta` / `planned` 和能力标签是目录元数据，不等于已验证成功率、字段准确率或生产 SLA。现有 deterministic parser fixtures 用于防止解析回归，不是实时平台快照，也不能替代受控 URL 与可见商品页的人工核对。真实商品页面样本必须在隔离预生产环境逐来源验收：明确 URL/字段范围，匿名与 Profile 分开验证，检查过期登录/验证页/部分结果/失败恢复，并以同一版本 CI 和人工验收签收。采集会在 TradeMind 内创建任务及 raw 结果，因此生产环境只执行经批准的服务健康/就绪检查，不用于创建商品采集任务或采集样本。
+
+### 访问边界
+
+“免登录采集”仅指从干净的匿名会话读取公开商品页实际展示的信息。不可绕过登录、验证码、反爬、访问控制或平台限制；字段不可见或无法确认时须保留缺失状态并提示，不得用猜测值补全。使用浏览器登录态时需通过受控 Profile 流程，不记录或输出 Cookie、Token 和账号凭据。
+
+采集结果保留统一商品结构与 `raw` 诊断数据；平台特有字段只能由相应 Provider 解析，统一字段质量/来源可信度若要扩展公共 payload，需另行设计 DTO 与 API 契约。
 
 ## 扩展建议
 

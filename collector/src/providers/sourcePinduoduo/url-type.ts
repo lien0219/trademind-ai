@@ -95,7 +95,7 @@ export function pinduoduoUrlTypeLabel(urlType: PinduoduoUrlType): string {
 export function unsupportedPinduoduoUrlMessage(urlType: PinduoduoUrlType): string {
   switch (urlType) {
     case 'goods_detail':
-      return '当前版本优先支持拼多多批发详情页（pifa.pinduoduo.com/goods/detail）。移动端商品页暂未完整支持，请换用批发详情链接。';
+      return '普通移动端商品页当前未支持，请换用拼多多批发商品详情链接。';
     case 'wholesale_homepage':
       return '该链接为拼多多批发首页，不是商品详情页。请输入带 gid 的商品详情链接。';
     case 'login_page':
@@ -110,7 +110,7 @@ export function unsupportedPinduoduoUrlMessage(urlType: PinduoduoUrlType): strin
 }
 
 export function wholesaleLoginSuggestion(): string {
-  return '该链接属于拼多多批发页，可能需要登录后才能采集。建议先使用公开商品详情页链接，或打开采集浏览器登录后重试。';
+  return '该链接属于拼多多批发页，可能需要登录后才能采集。请确认批发商品详情页可访问；如需登录，请打开采集浏览器登录后重试。';
 }
 
 export function goodsDetailReadyHint(): string {
@@ -118,7 +118,7 @@ export function goodsDetailReadyHint(): string {
 }
 
 export function wholesaleUrlHint(): string {
-  return '该链接属于拼多多批发页，可能需要登录后才能采集。建议优先使用普通商品详情页链接；如需采集该链接，请先使用采集浏览器登录拼多多。';
+  return '该链接属于拼多多批发页，可能需要登录后才能采集。请使用拼多多批发商品详情链接；如需登录，请先使用采集浏览器登录拼多多。';
 }
 
 export function invalidPinduoduoUrlHint(): string {

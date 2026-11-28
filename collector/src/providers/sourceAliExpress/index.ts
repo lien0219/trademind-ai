@@ -92,8 +92,10 @@ export const aliExpressCollectorProvider: CollectorProvider = new (class AE impl
       const title = assembled.title.trim();
 
       /** 优先级：人机验证且无标题先于「结构化失败」分类 */
+      if (assembled.blocked) {
+        throw new Error('PAGE_BLOCKED_OR_VERIFY_REQUIRED:verification_or_login_challenge');
+      }
       if (!title.length) {
-        if (assembled.blocked) throw new Error('PAGE_BLOCKED_OR_VERIFY_REQUIRED:verification_or_login_challenge');
         throw new Error('COLLECT_FAILED:missing_product_title');
       }
 

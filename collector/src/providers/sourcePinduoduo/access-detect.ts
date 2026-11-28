@@ -53,7 +53,7 @@ function loginSuggestionForUrlType(urlType: PinduoduoUrlType, finalUrl?: string)
   if (urlType === 'wholesale_detail') {
     return wholesaleLoginSuggestion();
   }
-  return '该页面需要登录后才能采集。请打开采集浏览器登录拼多多后重试，或换用公开商品详情页链接。';
+  return '该页面需要登录后才能采集。请打开采集浏览器登录拼多多后重试；未登录时仅可尝试公开可访问的批发商品详情页。';
 }
 
 function toAccessStatus(status: PinduoduoAccessStatus): CustomAccessReport['accessStatus'] {

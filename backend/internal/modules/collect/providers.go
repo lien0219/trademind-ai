@@ -46,7 +46,6 @@ func defaultCollectProvidersFallback() []CollectProviderDTO {
 			BatchSupported: true,
 			URLPatterns: []string{
 				"https://pifa.pinduoduo.com/goods/detail/?gid=*",
-				"https://mobile.yangkeduo.com/goods.html?goods_id=*",
 			},
 			Features: []string{"title", "price", "mainImages", "descriptionImages", "attributes", "skus"},
 			Notes:    "批量采集默认限速，建议先少量测试。",
@@ -79,7 +78,7 @@ func defaultCollectProvidersFallback() []CollectProviderDTO {
 				"https://*.aliexpress.com/item/*.html",
 			},
 			Features: []string{"title", "mainImages", "descriptionImages", "attributes", "skus"},
-			Notes:    "",
+			Notes:    "部分页面受风控影响，SKU/详情图抽取可能不完整；批量采集暂不开放。",
 		},
 		{
 			Source:         "shein_temu",
@@ -87,8 +86,8 @@ func defaultCollectProvidersFallback() []CollectProviderDTO {
 			Description:    "采集 SHEIN、Temu 等平台商品详情（规划中）。",
 			Status:         "planned",
 			BatchSupported: false,
-			URLPatterns:    []string{"https://www.shein.com/…", "https://www.temu.com/…"},
-			Features:       nil,
+			URLPatterns:    []string{"https://www.shein.com/...", "https://www.temu.com/..."},
+			Features:       []string{},
 			Notes:          "",
 		},
 		{

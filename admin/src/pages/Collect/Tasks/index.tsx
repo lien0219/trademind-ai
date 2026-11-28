@@ -55,7 +55,11 @@ import {
   suggestRuleDomainForHost,
 } from '@/utils/collectRuleMatch';
 import { PinduoduoLoginPanel } from '@/pages/Collect/components/PinduoduoLoginPanel';
-import { classifyPinduoduoUrl, pinduoduoUrlHint } from '@/utils/pinduoduoUrl';
+import {
+  classifyPinduoduoUrl,
+  isPinduoduoCollectSupportedUrl,
+  pinduoduoUrlHint,
+} from '@/utils/pinduoduoUrl';
 
 function providerAllowsSingleCollect(status: CollectProviderStatus) {
   return status === 'available' || status === 'beta';
@@ -126,6 +130,8 @@ export default function CollectTasksPage() {
     () => (isPddSource ? classifyPinduoduoUrl(formUrl?.trim() ?? '') : 'unknown'),
     [formUrl, isPddSource],
   );
+  const pddUrlSupported =
+    !isPddSource || isPinduoduoCollectSupportedUrl(formUrl?.trim() ?? '');
 
   useEffect(() => {
     const sync = () => setPolling(document.visibilityState === 'hidden' ? undefined : 4000);
@@ -462,6 +468,13 @@ export default function CollectTasksPage() {
               message.warning(tr("请填写商品链接"));
               return;
             }
+            if (isPddSource && !isPinduoduoCollectSupportedUrl(url)) {
+              message.warning(
+                pinduoduoUrlHint(url) ??
+                  tr("请输入拼多多批发商品详情链接（pifa.pinduoduo.com/goods/detail/?gid=）。"),
+              );
+              return;
+            }
             if (src === 'custom') {
               if (!mayManagePlatform) {
                 message.error(tr("当前账号无权使用平台级自定义采集规则"));
@@ -547,7 +560,7 @@ export default function CollectTasksPage() {
             </Col>
             <Col xs={24} sm="auto">
               <Form.Item label=" ">
-                <Button type="primary" htmlType="submit" loading={submitting} disabled={!canCollect}>
+                <Button type="primary" htmlType="submit" loading={submitting} disabled={!canCollect || (isPddSource && !pddUrlSupported)}>
                   {tr("提交")}</Button>
               </Form.Item>
             </Col>
@@ -555,11 +568,7 @@ export default function CollectTasksPage() {
           {isPddSource && pddUrlHint ? (
             <Alert
               type={
-                pddUrlType === 'goods_detail'
-                  ? 'success'
-                  : pddUrlType === 'wholesale_detail'
-                    ? 'warning'
-                    : 'info'
+                pddUrlType === 'wholesale_detail' ? 'warning' : 'info'
               }
               showIcon
               message={pddUrlHint}

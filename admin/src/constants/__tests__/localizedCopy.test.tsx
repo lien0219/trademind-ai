@@ -91,7 +91,7 @@ describe('shared display labels', () => {
       expect(imageSubServiceStatusLabel(false, 'key')).toBe(translateMessage(language, '未填密钥'));
       expect(COLLECT_HUB_TYPE_HINT.dedicated.title).toBe(translateMessage(language, '专用采集器'));
       expect(COLLECT_HUB_TYPE_HINT.custom.summary).toBe(translateMessage(language, '适合采集页面基础信息（标题、价格、图片、参数）；SKU / 库存 / 动态价格不保证完整。'));
-      expect(pinduoduoUrlHint('https://mobile.yangkeduo.com/goods.html?goods_id=1')).toBe(translateMessage(language, '已识别为移动端商品页。当前版本优先支持批发详情页（pifa.pinduoduo.com/goods/detail），请换用批发链接。'));
+      expect(pinduoduoUrlHint('https://mobile.yangkeduo.com/goods.html?goods_id=1')).toBe(translateMessage(language, '已识别为移动端商品页。当前版本暂不支持该页面，请改用拼多多批发商品详情链接（pifa.pinduoduo.com/goods/detail）。'));
       expect(taobaoTmallUrlHint('https://item.taobao.com/item.htm?id=1')).toBe(translateMessage(language, '已识别为淘宝商品详情页'));
       expect(platformDisplayLabel('vendor_platform')).toBe('vendor_platform');
       expect(productSourceLabel('supplier_value')).toBe('supplier_value');

@@ -78,7 +78,7 @@ func collectFailureContextExtras(sourceURL, errMsg, failureCategory, classifierS
 		accessStatus == "需要微信扫码授权" {
 		suggested = "请打开拼多多采集浏览器，在弹出的微信授权页面完成扫码登录后，再重试采集任务。"
 	} else if urlType == "拼多多批发页" && accessStatus == "需要登录" {
-		suggested = "请打开采集浏览器登录拼多多后重试，或换用普通商品详情页链接。"
+		suggested = "请打开采集浏览器登录拼多多后重试；未登录时仅可尝试公开可访问的批发商品详情页。"
 	} else if urlType == "淘宝商品页" && accessStatus == "需要登录" {
 		suggested = "请打开淘宝/天猫采集浏览器完成登录后重试采集任务。"
 	} else if accessStatus == "需要验证" && strings.Contains(strings.ToLower(errMsg), "taobao") {
