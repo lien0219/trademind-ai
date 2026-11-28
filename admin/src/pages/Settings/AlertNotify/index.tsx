@@ -1,6 +1,6 @@
 import { tr } from '@/i18n';
 import { useLanguage } from '@/i18n/useLanguage';
-import { BellOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
 import {
@@ -12,7 +12,6 @@ import {
   InputNumber,
   Row,
   Select,
-  Space,
   Switch,
   Typography,
   message,
@@ -29,7 +28,7 @@ import {
 import { fetchSettingsList, saveSettingsItems, type SettingPutItem } from '@/services/settings';
 import { pickGroup } from '@/utils/settingsForm';
 
-const { Paragraph, Text } = Typography;
+const { Text } = Typography;
 
 const GROUP_TC = 'taskcenter';
 const GROUP_AN = 'alert_notify';
@@ -164,14 +163,12 @@ function buildAlertNotifyItems(values: Record<string, unknown>): SettingPutItem[
 
 function ChannelPanel({
   title,
-  desc,
   switchName,
   enabled,
   groupEnabled,
   children,
 }: {
   title: string;
-  desc: string;
   switchName: string;
   enabled: boolean;
   groupEnabled: boolean;
@@ -182,16 +179,9 @@ function ChannelPanel({
   return (
     <div className="tm-alert-notify__channel-panel">
       <div className="tm-alert-notify__channel-head">
-        <div>
-          <Space size={8} wrap>
-            <Text className="tm-alert-notify__channel-title">{title}</Text>
-          </Space>
-          <Text type="secondary" className="tm-alert-notify__channel-desc">
-            {desc}
-          </Text>
-        </div>
+        <Text className="tm-alert-notify__channel-title">{title}</Text>
         <Form.Item name={switchName} valuePropName="checked" style={{ marginBottom: 0, flexShrink: 0 }}>
-          <Switch disabled={!groupEnabled} />
+          <Switch aria-label={title} disabled={!groupEnabled} />
         </Form.Item>
       </div>
       <div className={active ? undefined : 'tm-alert-notify__channel-fields--dim'}>{children}</div>
@@ -250,20 +240,8 @@ export default function AlertNotifySettingsPage() {
   }, [load]);
 
   return (
-    <TmPageContainer title={tr("告警通知配置")} subTitle={tr("配置任务失败与异常时的通知方式，包括邮件与消息推送")}>
+    <TmPageContainer title={tr("告警通知配置")}>
       <div className="tm-system-settings">
-        <ProCard variant="outlined" className="tm-system-settings__hero">
-          <div className="tm-system-settings__hero-inner">
-            <div className="tm-system-settings__hero-icon">
-              <BellOutlined />
-            </div>
-            <div className="tm-system-settings__hero-body">
-              <Typography.Title level={5} className="tm-system-settings__hero-title">{tr("出站告警通知")}</Typography.Title>
-              <Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("站内告警生成规则在「系统设置」中配置；SMTP 发信服务器在「邮箱设置」中配置。本页负责选择通知通道、触发条件，以及各通道的收件人 / 回调通知参数。敏感信息加密存库，接口脱敏展示。")}</Paragraph>
-            </div>
-          </div>
-        </ProCard>
-
         <Form
           form={form}
           layout="vertical"
@@ -394,7 +372,6 @@ export default function AlertNotifySettingsPage() {
                     <Col xs={24} lg={12}>
                       <ChannelPanel
                         title={tr(NOTIFICATION_CHANNEL_META.mail.label ?? '')}
-                        desc={tr(NOTIFICATION_CHANNEL_META.mail.desc ?? '')}
                         switchName="mail_enabled"
                         enabled={!!getFieldValue('mail_enabled')}
                         groupEnabled={groupEnabled}
@@ -413,7 +390,6 @@ export default function AlertNotifySettingsPage() {
                     <Col xs={24} lg={12}>
                       <ChannelPanel
                         title={tr(NOTIFICATION_CHANNEL_META.webhook.label ?? '')}
-                        desc={tr(NOTIFICATION_CHANNEL_META.webhook.desc ?? '')}
                         switchName="webhook_enabled"
                         enabled={!!getFieldValue('webhook_enabled')}
                         groupEnabled={groupEnabled}
@@ -445,7 +421,6 @@ export default function AlertNotifySettingsPage() {
                     <Col xs={24} lg={12}>
                       <ChannelPanel
                         title={tr(NOTIFICATION_CHANNEL_META.feishu.label ?? '')}
-                        desc={tr(NOTIFICATION_CHANNEL_META.feishu.desc ?? '')}
                         switchName="feishu_enabled"
                         enabled={!!getFieldValue('feishu_enabled')}
                         groupEnabled={groupEnabled}
@@ -471,7 +446,6 @@ export default function AlertNotifySettingsPage() {
                     <Col xs={24} lg={12}>
                       <ChannelPanel
                         title={tr(NOTIFICATION_CHANNEL_META.wecom.label ?? '')}
-                        desc={tr(NOTIFICATION_CHANNEL_META.wecom.desc ?? '')}
                         switchName="wecom_enabled"
                         enabled={!!getFieldValue('wecom_enabled')}
                         groupEnabled={groupEnabled}

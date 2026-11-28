@@ -217,7 +217,7 @@ export default function CollectMonitorPage() {
   const batchTotal = batches ? sumBatches(batches) : 0;
 
   return (
-    <TmPageContainer title={tr("采集监控")} subTitle={tr("查看采集任务排队情况、后台进程与采集服务状态（约每 5 秒刷新）")}>
+    <TmPageContainer title={tr("采集监控")}>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} lg={6}>
           <Card size="small" variant="outlined">

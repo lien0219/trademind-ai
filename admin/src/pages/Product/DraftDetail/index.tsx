@@ -768,7 +768,6 @@ function OperationProgressPanel({
     return (
       <SectionCard
         title={tr("商品运营进度")}
-        description={tr("根据商品内容、图片、价格和发布检查实时计算。")}
         className="product-draft-progress product-draft-progress--loading"
       >
         <Spin spinning={loading}>
@@ -795,7 +794,6 @@ function OperationProgressPanel({
           </Tag>
         </div>
       }
-      description={tr("根据商品内容、图片、价格和发布检查实时计算。")}
       className={`product-draft-progress product-draft-progress--${priorityTone}`}
       headerExtra={
         <OperationToolbar>
@@ -2688,7 +2686,6 @@ export default function ProductDraftDetailPage() {
 
                   <SectionCard
                     title={tr("商品来源与采集信息")}
-                    description={tr("这些信息用于追溯采集入口；来源链接和采集原始数据不在本页编辑。")}
                     className="product-draft-basic__section product-draft-basic__source"
                   >
                     <div className="product-draft-basic__source-title-block">
@@ -2762,7 +2759,6 @@ export default function ProductDraftDetailPage() {
 
                   <SectionCard
                     title={tr("商品核心信息")}
-                    description={tr("保存会提交本表单当前字段；图片、SKU、库存和刊登配置仍在对应 Tab 处理。")}
                     className="product-draft-basic__section product-draft-basic__form-section"
                   >
                     {missingBasicFields.length > 0 ? (
@@ -2839,19 +2835,16 @@ export default function ProductDraftDetailPage() {
                         label={tr("主标题")}
                         rules={[{ required: true, message: tr("必填") }]}
                         colProps={{ xs: 24 }}
-                        extra={tr("发布和运营默认使用的商品标题。")}
                       />
                       <ProFormTextArea
                         name="originalTitle"
                         label={tr("原始标题")}
                         fieldProps={{ rows: 2 }}
-                        extra={tr("采集时带回的原始标题，用于对照来源内容。")}
                       />
                       <ProFormTextArea
                         name="aiTitle"
                         label={tr("AI 标题")}
                         fieldProps={{ rows: 2 }}
-                        extra={tr("AI 生成结果应用后会写入这里；本页保存只保存当前字段值。")}
                       />
                       <div id="description" className="product-draft-basic__anchor" />
                       <div className="product-draft-basic__form-group-title">{tr("标题与描述")}</div>
@@ -2867,7 +2860,6 @@ export default function ProductDraftDetailPage() {
                         label={tr("AI 描述")}
                         fieldProps={{ rows: 5 }}
                         colProps={{ xs: 24, lg: 12 }}
-                        extra={tr("AI 生成结果应用后会写入这里，可与主描述对照。")}
                       />
                       <div className="product-draft-basic__form-group-title">{tr("流转属性")}</div>
                       <ProFormText name="currency" label={tr("币种")} extra={tr("仅保存商品基础币种展示，不会重新计算 SKU 价格。")} />
@@ -2879,7 +2871,6 @@ export default function ProductDraftDetailPage() {
                   {collectedAttrRows.length > 0 ? (
                     <SectionCard
                       title={tr("采集扩展属性")}
-                      description={tr("从采集原始数据中提取，仅用于核对和后续平台映射参考。")}
                       className="product-draft-basic__section product-draft-basic__attributes"
                     >
                       <Table
@@ -3351,7 +3342,6 @@ export default function ProductDraftDetailPage() {
 
                   <SectionCard
                     title={tr("页面操作")}
-                    description={tr("添加、排序和同步都需要手动触发，不会在页面加载时自动写入。")}
                     className="product-draft-images__operations-section"
                   >
                     {imageSyncError ? (
@@ -4594,7 +4584,6 @@ export default function ProductDraftDetailPage() {
                     </SectionCard>
                     <SectionCard
                       title={tr("阻断项和待完善项")}
-                      description={tr("阻断项需要先处理；待确认项不会被本页自动修复。")}
                       className="product-draft-publish__issues-card"
                     >
                       <Space direction="vertical" style={{ width: '100%' }} size="small">
@@ -4613,7 +4602,6 @@ export default function ProductDraftDetailPage() {
                     </SectionCard>
                     <SectionCard
                       title={tr("刊登路径选择")}
-                      description={tr("三条路径适用的场景不同；本页只整理入口，不自动触发任何写操作。")}
                       className="product-draft-publish__paths"
                     >
                       <div className="product-draft-publish__path-grid">
@@ -5276,9 +5264,6 @@ export default function ProductDraftDetailPage() {
                                   <div className="product-draft-douyin-bind__brief">
                                     <div className="product-draft-douyin-bind__brief-text">
                                       <Typography.Text strong>{tr("抖店规格映射")}</Typography.Text>
-                                      <Typography.Paragraph type="secondary">
-                                        {tr("候选规格来自当前抖店商品详情。手动绑定只建立本地规格与已有抖店规格的映射，不创建新的平台 SKU，也不会自动同步库存。")}
-                                      </Typography.Paragraph>
                                     </div>
                                     <div className="product-draft-douyin-bind__context">
                                       <span>{tr("平台：抖店")}</span>
@@ -5354,7 +5339,6 @@ export default function ProductDraftDetailPage() {
                             <div className="product-draft-douyin-flow__panel-head">
                               <div>
                                 <Typography.Text strong>{tr("5. 抖店商品草稿预览")}</Typography.Text>
-                                <Typography.Paragraph type="secondary">{tr("这里展示即将提交给抖店草稿创建接口的数据映射，不代表这些字段已经写入抖店平台。")}</Typography.Paragraph>
                               </div>
                             </div>
                             {!douyinMapping ? (
@@ -5883,7 +5867,6 @@ export default function ProductDraftDetailPage() {
             <div className="product-draft-ai-modal__result-head">
               <div>
                 <Typography.Text strong>{tr("标题建议结果")}</Typography.Text>
-                <Typography.Paragraph type="secondary">{tr("当前内容尚未应用到商品，可在下方微调后应用。")}</Typography.Paragraph>
               </div>
               <Tag color="processing">{tr("AI 建议未应用")}</Tag>
             </div>
@@ -6054,7 +6037,6 @@ export default function ProductDraftDetailPage() {
             <div className="product-draft-ai-modal__result-head">
               <div>
                 <Typography.Text strong>{tr("描述建议结果")}</Typography.Text>
-                <Typography.Paragraph type="secondary">{tr("当前内容尚未应用到商品，可在下方微调后应用。")}</Typography.Paragraph>
               </div>
               <Tag color="processing">{tr("AI 建议未应用")}</Tag>
             </div>

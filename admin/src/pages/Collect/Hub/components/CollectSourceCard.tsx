@@ -5,10 +5,9 @@ import type { ReactNode } from 'react';
 import type { CollectProviderRow } from '@/services/collectProviders';
 import type { CollectProviderStatusPresentation } from '@/utils/collectProviderStatus';
 
-const { Paragraph, Text, Title } = Typography;
+const { Text, Title } = Typography;
 
 export type CollectSourceCardCopy = {
-  description: string;
   notes: string;
   typeLabel: string;
   typeHint: string;
@@ -74,9 +73,6 @@ export default function CollectSourceCard({
         </Text>
       ) : null}
 
-      <Paragraph type="secondary" className="tm-collect-source-card__desc">
-        {tr(copy.description)}
-      </Paragraph>
 
       <div className="tm-collect-source-card__meta">
         <Text strong>{tr("URL 示例")}</Text>

@@ -21,13 +21,6 @@ export const tenantInvitationTranslations: Record<string,[string,string,string,s
     "조직 초대 수락",
     "รับคำเชิญองค์กร"
   ],
-  "使用企业管理员提供的一次性邀请令牌加入企业。": [
-    "Join with the one-time invitation token from an administrator.",
-    "管理者から受け取ったワンタイム招待トークンで組織に参加します。",
-    "使用管理員提供的一次性邀請權杖加入企業。",
-    "관리자의 일회용 초대 토큰으로 조직에 참여하세요.",
-    "เข้าร่วมองค์กรด้วยโทเคนคำเชิญครั้งเดียวจากผู้ดูแล"
-  ],
   "邀请已接受": [
     "Invitation accepted",
     "招待を承諾しました",

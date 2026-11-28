@@ -236,8 +236,3 @@ export function platformPublishFieldPlaceholder(field: AppConfigFieldDTO): strin
 export function isFullWidthPublishField(f: AppConfigFieldDTO): boolean {
   return f.type === 'textarea' || f.name === 'amazon_attributes' || f.name === 'default_tags';
 }
-
-/** 配置分组标识的用户友好说明 */
-export function publishGroupKeyHint(groupKey: string): string {
-  return `系统内配置标识：${groupKey}`;
-}

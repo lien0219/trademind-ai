@@ -69,7 +69,6 @@ export default function CustomerHubPage() {
         showIcon
         style={{ marginBottom: 16 }}
         message={tr("默认人工确认，自动回复需显式启用")}
-        description={tr("默认仅生成 AI 建议；管理员可按店铺启用低风险自动回复，高风险内容始终转人工。")}
       />
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap>

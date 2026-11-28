@@ -668,7 +668,6 @@ export default function WarehouseFeesPage() {
       <TmPageContainer
         className="tm-warehouse-fee-page"
         title={tr("仓库操作费台账")}
-        subTitle={tr("按已完成履约事实确认出库、拣货和打包费用")}
         extra={<TmPageHeaderExtra><Button icon={<ReloadOutlined />} onClick={() => { void loadWarehouses(); void candidateActionRef.current?.reload(); void ledgerActionRef.current?.reload(); void rateActionRef.current?.reload(); }}>{tr('刷新')} </Button></TmPageHeaderExtra>}
       >
         {warehouseError ? <Alert type="warning" showIcon message={warehouseError} /> : null}

@@ -293,7 +293,6 @@ export default function SalesReturnDetailPage() {
       <TmPageContainer
         className="tm-sales-return-page"
         title={row?.returnNo || tr('售后详情')}
-        subTitle={tr("退货退款处理记录")}
         extra={<TmPageHeaderExtra>{actions}</TmPageHeaderExtra>}
       >
         {loading ? (

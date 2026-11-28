@@ -214,7 +214,6 @@ export default function InventorySyncDashboardPage() {
   return (
     <TmPageContainer
       title={tr("库存同步与绑定中心")}
-      subTitle={tr("夹具库存同步运行、SKU 校准、人工绑定和审计查看")}
       extra={
         <Space wrap>
           <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>

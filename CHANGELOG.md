@@ -4,6 +4,10 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Admin copy cleanup
+
+- Remove redundant page introductions, form notes, and email preview copy. Surface related settings links in page headers and keep actionable feedback close to controls.
+
 ### Backend dependency security (2026-11-14)
 
 - Upgraded `golang.org/x/net` to `v0.62.0` and its required Go dependencies to remediate `CVE-2026-78661`, which blocked both AMD64 and ARM64 backend image vulnerability scans.

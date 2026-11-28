@@ -366,7 +366,6 @@ function DouyinPreflightPanel() {
   return (
     <SectionCard title={tr("抖店生产预检")} extra={result?.checkedAt ? trFormat("最近：{value0}", { value0: result.checkedAt }) : undefined}>
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
-        <Paragraph type="secondary" style={{ marginBottom: 0 }}>{tr("上线前检查应用配置、店铺授权、功能开关、存储公网访问与基础数据状态；不包含自动写操作。")}</Paragraph>
         <DouyinE2EPrecheckBanner blockedByCredentials={result?.blockedByRealCredentials ?? true} compact />
         <StoragePublicUrlBanner
           missing={
@@ -386,7 +385,6 @@ function DouyinPreflightPanel() {
             showIcon
             type="info"
             message={tr("当前未配置抖店真实凭证，只能完成本地配置检查，不能调用真实平台。")}
-            description={tr("凭证缺失不是系统失败，属于需真实环境凭证的前置检查项。抖店仍为发布候选。")}
           />
         ) : null}
         {result ? (
@@ -687,15 +685,12 @@ export default function PlatformSettingsPage() {
   });
 
   return (
-    <TmPageContainer title={PAGE_COPY.platformSettings.title} subTitle={PAGE_COPY.platformSettings.description}>
+    <TmPageContainer title={PAGE_COPY.platformSettings.title}>
       <div className="tm-settings-stack">
-        <SectionCard
-          title={PAGE_COPY.platformSettings.heroTitle}
-          description={PAGE_COPY.platformSettings.heroDescription}
-        >
-          <Paragraph type="secondary" style={{ marginBottom: 0 }}>{tr("开发者门户：")}{PLATFORM_DEV_PORTALS.map((p, i) => (
+        <SectionCard title={tr("开发者门户")}>
+          <Paragraph type="secondary" style={{ marginBottom: 0 }}>{PLATFORM_DEV_PORTALS.map((p, i) => (
               <span key={p.url}>
-                {i > 0 ? ' · ' : ' '}
+                {i > 0 ? ' · ' : null}
                 <Typography.Link href={p.url} target="_blank" rel="noreferrer">
                   {p.name}
                 </Typography.Link>

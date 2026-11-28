@@ -130,8 +130,6 @@ export function detectCustomCollectPlatform(urlStr: string): CustomCollectPlatfo
   return null;
 }
 
-export const CUSTOM_COLLECT_CARD_DESCRIPTION =
-  '适合采集没有专用采集器的网站商品页，可采集商品标题、价格、图片、参数等基础信息。';
 
 export const CUSTOM_COLLECT_CARD_NOTES =
   '商品规格、库存、动态价格不保证完整。使用前建议先测试采集规则。已支持的平台请优先使用专用采集器；自定义链接批量采集暂未开放。';

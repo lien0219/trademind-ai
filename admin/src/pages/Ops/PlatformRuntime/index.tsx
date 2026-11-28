@@ -100,7 +100,6 @@ export default function PlatformRuntimePage() {
   return (
     <TmPageContainer
       title={tr("平台运行状态")}
-      subTitle={tr("按平台查看健康检查、运行指标、运行控制与发布门禁；未接入运行时的平台仅展示说明，不可操作。")}
       className={styles.page}
     >
       {providersError ? (

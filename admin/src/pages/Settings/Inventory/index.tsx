@@ -1,9 +1,9 @@
 import { tr, trFormat } from '@/i18n';
 import { useLanguage } from '@/i18n/useLanguage';
 ﻿import { Link } from '@umijs/renderer-react';
-import { InboxOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { TmPageContainer, TmPageHeaderExtra } from '@/components/ui';
 import { Button, Col, Divider, Form, InputNumber, Row, Switch, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -15,7 +15,7 @@ import { INVENTORY_SYNC_BATCH_MAX_SIZE_LABEL } from '@/constants/userFriendly';
 import { fetchSettingsList, saveSettingsItems, type SettingPutItem } from '@/services/settings';
 import { pickGroup } from '@/utils/settingsForm';
 
-const { Paragraph, Text } = Typography;
+const { Text } = Typography;
 
 const GROUP = 'inventory';
 
@@ -251,23 +251,17 @@ export default function InventorySettingsPage() {
   };
 
   return (
-    <TmPageContainer title={tr("库存与订单")} subTitle={tr("配置本地库存预警、订单扣减与平台库存同步策略。")}>
+    <TmPageContainer
+      title={tr("库存与订单")}
+      extra={
+        <TmPageHeaderExtra>
+          <Link to="/inventory/effects">{tr("订单库存影响")}</Link>
+          <Link to="/inventory/logs">{tr("库存流水")}</Link>
+          <Link to="/inventory/alerts">{tr("库存预警")}</Link>
+        </TmPageHeaderExtra>
+      }
+    >
       <div className="tm-system-settings">
-        <ProCard variant="outlined" className="tm-system-settings__hero">
-          <div className="tm-system-settings__hero-inner">
-            <div className="tm-system-settings__hero-icon">
-              <InboxOutlined />
-            </div>
-            <div className="tm-system-settings__hero-body">
-              <Typography.Title level={5} className="tm-system-settings__hero-title">{tr("本地库存与订单联动")}</Typography.Title>
-              <Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("策略仅影响本地商品规格库存。平台订单同步后再按规则尝试扣减；扣库失败或跳过不会自动回滚平台侧数据。相关审计：")}<Link to="/inventory/effects">{tr("订单库存影响")}</Link>、
-                <Link to="/inventory/logs">{tr("库存流水")}</Link>、
-                <Link to="/inventory/alerts">{tr("库存预警")}</Link>。
-              </Paragraph>
-            </div>
-          </div>
-        </ProCard>
-
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <ProCard
             variant="outlined"
@@ -279,7 +273,7 @@ export default function InventorySettingsPage() {
           >
             <Row gutter={[24, 0]}>
               <Col xs={24} md={12} lg={8}>
-                <Form.Item label={tr("新建规格默认预警线")} name="default_warning_stock" extra={tr("库存低于此值触发预警")}>
+                <Form.Item label={tr("新建规格默认预警线")} name="default_warning_stock">
                   <InputNumber min={0} style={{ width: '100%' }} placeholder="5" />
                 </Form.Item>
               </Col>
@@ -324,7 +318,6 @@ export default function InventorySettingsPage() {
           </ProCard>
 
           <ProCard variant="outlined" title={tr("批量同步与限流")} className="tm-system-settings__panel">
-            <Paragraph type="secondary" style={{ marginBottom: 16 }}>{tr("控制单次批量任务数量与各平台每分钟请求上限；超限时任务会稍后自动重试。")}</Paragraph>
             <Row gutter={[24, 0]}>
               <Col xs={24} md={12}>
                 <Form.Item label={INVENTORY_SYNC_BATCH_MAX_SIZE_LABEL} name="inventory_sync_batch_max_size">
@@ -335,7 +328,6 @@ export default function InventorySettingsPage() {
                 <Form.Item
                   label={tr("单次批量设置预警线上限")}
                   name="inventory_stock_settings_batch_max_size"
-                  extra={tr("仅限制批量修改预警线 / 安全线，与上方库存同步批量无关")}
                 >
                   <InputNumber min={1} max={5000} style={{ width: '100%' }} placeholder="500" />
                 </Form.Item>

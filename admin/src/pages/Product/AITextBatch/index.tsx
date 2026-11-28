@@ -184,7 +184,7 @@ export default function AITextBatchWizardPage() {
   }
 
   return (
-    <TmPageContainer title={tr("批量 AI 优化")} subTitle={tr("生成后需人工复核，不会自动覆盖商品内容")}>
+    <TmPageContainer title={tr("批量 AI 优化")}>
       <Steps current={step} items={stepItems} style={{ marginBottom: 24 }} />
 
       {step === 0 && (

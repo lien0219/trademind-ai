@@ -8,7 +8,6 @@ import {
   DatabaseOutlined,
   FolderOpenOutlined,
   GlobalOutlined,
-  HddOutlined,
   ReloadOutlined,
   SaveOutlined,
   ThunderboltOutlined,
@@ -478,21 +477,11 @@ export default function StorageSettingsPage() {
   }, [kind, form]);
 
   return (
-    <TmPageContainer title={PAGE_COPY.storageSettings.title} subTitle={PAGE_COPY.storageSettings.description}>
+    <TmPageContainer
+      title={PAGE_COPY.storageSettings.title}
+      extra={<Link to="/settings/integrations">{tr("第三方集成总览")}</Link>}
+    >
       <div className="tm-storage-settings">
-        <ProCard variant="outlined" className="tm-system-settings__hero">
-          <div className="tm-system-settings__hero-inner">
-            <div className="tm-system-settings__hero-icon">
-              <HddOutlined />
-            </div>
-            <div className="tm-system-settings__hero-body">
-              <Typography.Title level={5} className="tm-system-settings__hero-title">{tr("自备云存储与访问域名")}</Typography.Title>
-              <Typography.Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("请在 AWS、Cloudflare R2、MinIO、腾讯云 COS、阿里云 OSS 等开通存储桶与密钥；密钥仅在后端加密保存，浏览器不直连对象存储。上传走服务端接口，可在本页或「文件管理」中测试。总览见")}<Link to="/settings/integrations">{tr("第三方集成总览")}</Link>。
-              </Typography.Paragraph>
-            </div>
-          </div>
-        </ProCard>
-
         <Form
           form={form}
           layout="vertical"
@@ -797,7 +786,6 @@ export default function StorageSettingsPage() {
         </Form>
 
         <ProCard variant="outlined" title={tr("上传测试")} className="tm-system-settings__panel">
-          <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>{tr("保存配置后，可选择图片验证上传与访问是否正常。")}</Typography.Paragraph>
           <Space align="start" wrap size="large">
             <Upload
               maxCount={1}

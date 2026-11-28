@@ -444,9 +444,6 @@ export function CreateImageTaskModal({
         }
       }}
     >
-      <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        {tr("处理结果会自动保存到「设置 → 存储设置」当前启用的存储位置。")}
-      </Typography.Paragraph>
 
       {showMoreTaskTypes ? (
         <ProFormSelect
@@ -576,7 +573,6 @@ export function CreateImageTaskModal({
                             <InboxOutlined />
                           </p>
                           <p className="ant-upload-text">{tr("点击或拖拽图片到此处上传")}</p>
-                          <p className="ant-upload-hint">{tr("上传后将使用系统存储中的图片作为源图")}</p>
                         </Upload.Dragger>
                         {uploadedSource ? (
                           <div style={{ marginTop: 12 }}>
@@ -762,14 +758,10 @@ export function CreateImageTaskModal({
               label: tr("开发参数"),
               children: (
                 <>
-                  <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-                    {tr("仅用于开发环境验证内部图片标识和任务参数覆盖。")}
-                  </Typography.Paragraph>
                   <ProFormText
                     name="sourceImageId"
                     label={tr("商品图片 ID")}
                     placeholder={tr("系统内部 UUID")}
-                    extra={tr("系统内部图片 ID；一般应直接选择商品图片。")}
                   />
                   <ProFormText
                     name="sourceImageUrl"

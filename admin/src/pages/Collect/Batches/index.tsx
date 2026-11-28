@@ -452,7 +452,6 @@ export default function CollectBatchesPage() {
   return (
     <TmPageContainer
       title={tr("批量采集")}
-      subTitle={tr("一次提交多条商品链接，批量采集并生成商品草稿。")}
     >
       <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
         {sourceFromQuery &&

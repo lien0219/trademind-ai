@@ -154,7 +154,6 @@ export default function OrderSkuMatchesPage() {
   return (
     <TmPageContainer
       title={tr("规格绑定")}
-      subTitle={tr("将平台订单中的规格与本地商品规格建立对应关系。")}
     >
       <ProTable<OrderSkuMatchListRow>
         rowKey="id"

@@ -67,7 +67,6 @@ export default function PurchaseReturnsPage() {
       <TmPageContainer
         className="tm-procurement-page"
         title={tr("采购退货")}
-        subTitle={tr("从原收货记录发起供应商退货，审批后由独立执行岗扣减仓库库存。")}
         extra={<TmPageHeaderExtra><Button type="primary" icon={<PlusOutlined />} disabled={!canManage} onClick={() => history.push('/procurement/purchase-orders')}>{tr("选择采购单")}</Button></TmPageHeaderExtra>}
       >
         {readonly ? <Alert type="info" showIcon message={tr("当前账号为只读模式，可查看采购退货记录但不能发起或执行操作。")} /> : null}

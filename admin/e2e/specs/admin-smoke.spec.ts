@@ -1019,6 +1019,8 @@ test.describe("@smoke Admin route smoke", () => {
     const avatar = page.locator(".tm-app-top-nav__avatar");
 
     await expect(sendTestButton).toBeVisible();
+    await expect(page.getByText("测试邮件 - TradeMind", { exact: true })).toBeVisible();
+    await expect(page.getByText("预览使用安全沙箱，不会发送邮件。模板修改需要单独保存。", { exact: true })).toHaveCount(0);
     await expect(avatar).toBeVisible();
     await expect(avatar).toHaveText("E");
 

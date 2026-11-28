@@ -98,7 +98,6 @@ export default function WarehouseLedgerPage() {
   return (
     <TmPageContainer
       title={tr("仓库库存账")}
-      subTitle={tr("迁移历史兼容库存，并核对仓库可售合计与商品规格库存投影。")}
       extra={[
         <Button key="migrate" type="primary" disabled={!canOperate} loading={migrating} onClick={runMigration}>
           {tr("迁移一批历史库存")}

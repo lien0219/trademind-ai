@@ -11,9 +11,6 @@ import { mapErrorCodeToUserMessage } from '@/constants/errorMessages';
 export const PAGE_COPY = {
   platformSettings: {
     get title() { return tr('平台接入设置'); },
-    get description() { return tr('配置需要连接的电商平台，完成应用信息填写后即可授权店铺。'); },
-    get heroTitle() { return tr('如何开始？'); },
-    get heroDescription() { return tr('先在平台开放中心创建应用，再将应用信息填写到这里。保存后，前往「店铺管理」完成店铺授权。'); },
   },
   shops: {
     get title() { return tr('店铺管理'); },
@@ -65,11 +62,9 @@ export const PAGE_COPY = {
   },
   systemSettings: {
     get title() { return tr('系统设置'); },
-    get description() { return tr('配置站点基础信息与任务中心站内告警策略。'); },
   },
   storageSettings: {
     get title() { return tr('存储设置'); },
-    get description() { return tr('配置商品图片与附件的存储方式，支持本地磁盘与主流对象存储。'); },
   },
   aiSettings: {
     get title() { return tr('AI 设置'); },
@@ -77,22 +72,18 @@ export const PAGE_COPY = {
   },
   collectorSettings: {
     get title() { return tr('采集设置'); },
-    get description() { return tr('配置采集服务连接与各平台登录状态。'); },
   },
   integrations: {
     get title() { return tr('第三方集成总览'); },
-    get description() { return tr('查看 AI、存储、采集与平台接入的整体配置状态。'); },
   },
   configStatus: {
     get title() { return tr('配置状态中心'); },
-    get description() { return tr('聚合 AI / OCR / 存储 / 平台凭证 / 后台任务进程 等配置健康状态（不含密钥明文）。'); },
     get snapshotAt() { return tr('快照时间'); },
     get nextStep() { return tr('下一步'); },
     get goConfigure() { return tr('前往配置'); },
   },
   usersSettings: {
     get title() { return tr('用户与权限'); },
-    get description() { return tr('管理员可管理后台账号、角色与店铺授权。'); },
   },
 } as const;
 

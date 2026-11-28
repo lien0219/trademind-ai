@@ -1,9 +1,8 @@
 import { tr } from '@/i18n';
 /** 邮件服务提供商（存库 provider 字段） */
-export const MAIL_PROVIDER_META: Record<string, { label: string; desc: string }> = {
+export const MAIL_PROVIDER_META: Record<string, { label: string }> = {
   smtp: {
     get label() { return tr("邮件（SMTP）"); },
-    desc: '企业邮箱、QQ/网易授权码、SendGrid / Mailgun 等标准邮件协议',
   },
 };
 

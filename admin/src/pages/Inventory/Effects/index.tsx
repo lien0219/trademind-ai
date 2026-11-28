@@ -83,7 +83,6 @@ export default function InventoryEffectsPage() {
   return (
     <TmPageContainer
       title={tr("订单库存影响")}
-      subTitle={tr("查看订单库存的预占、出库、释放与回补记录。")}
     >
       <ProTable<OrderInventoryEffectRow>
         rowKey="id"

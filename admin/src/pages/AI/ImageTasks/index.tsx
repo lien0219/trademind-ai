@@ -302,9 +302,6 @@ function TranslateResultPanel({ output, taskStatus }: { output: unknown; taskSta
       {(parsed.debugOriginalUrl || parsed.debugMaskUrl || parsed.debugErasedUrl || parsed.debugFinalUrl) ? (
         <div style={{ marginTop: 16 }}>
           <Typography.Text strong>{tr("查看修图过程")}</Typography.Text>
-          <Typography.Paragraph type="secondary" style={{ marginTop: 4, marginBottom: 8 }}>
-            {tr("对比原图、文字 mask、擦除后背景与最终成图，定位 mask、擦除、背景或重绘问题。")}
-          </Typography.Paragraph>
           <Space wrap size="middle">
             {parsed.debugOriginalUrl ? (
               <div>
@@ -925,9 +922,6 @@ export default function ImageTasksPage() {
             </Button>
           ))}
         </Space>
-        <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
-          {tr("所有 AI 结果图会自动上传到「设置 → 存储设置」当前启用的存储位置，不会直接使用第三方临时链接。")}
-        </Typography.Paragraph>
       </Card>
       <ProTable<ImageTaskListRow>
         rowKey="id"

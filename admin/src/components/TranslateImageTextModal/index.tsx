@@ -358,7 +358,6 @@ export function TranslateImageTextModal({
               label={tr("目标语言")}
               options={TRANSLATE_IMAGE_TEXT_TARGET_LANG_OPTIONS}
               rules={[{ required: true, message: tr("请选择目标语言") }]}
-              extra={tr("生成的新图片会使用该语言绘制译文。")}
             />
           </div>
 
@@ -425,7 +424,6 @@ export function TranslateImageTextModal({
                           name="provider"
                           label={tr("覆盖图片 AI 服务")}
                           options={providerOptions}
-                          extra={tr("仅在 AI 编辑实验模式下生效")}
                         />
                       );
                     }}

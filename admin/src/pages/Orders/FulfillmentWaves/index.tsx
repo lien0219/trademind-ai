@@ -490,7 +490,6 @@ export default function FulfillmentWavesPage() {
     <PermissionGuard require={PERMISSIONS.ORDER_VIEW} showForbiddenPage>
       <TmPageContainer
         title={tr("拣货波次")}
-        subTitle={tr("先按预占快照拣货，再逐单打包复核；只有人工确认完成后才写入本地出库和发货事实。")}
       >
         {!canOperate ? (
           <Alert

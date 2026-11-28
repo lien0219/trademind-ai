@@ -4,7 +4,7 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 import { ModalForm, ProFormDependency, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
-import { Alert, Button, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { Alert, Button, Popconfirm, Space, Tag, message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CollectRuleRow, CollectRuleTestResult } from '@/services/collectRules';
 import { BrowserProfileLoginPanel } from '@/pages/Collect/components/BrowserProfileLoginPanel';
@@ -389,8 +389,6 @@ export default function CollectRulesPage() {
             >
               {tr("复制高级模板")}</Button>
           </Space>
-          <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-            {tr("普通用户建议使用「AI 帮我生成规则」。只有需要精细调整时，才需要修改下方采集规则内容。")}</Typography.Paragraph>
         </div>
         <TechnicalDetails label={tr("采集规则内容（高级）")}>
           <ProFormDependency name={['ruleJson']}>

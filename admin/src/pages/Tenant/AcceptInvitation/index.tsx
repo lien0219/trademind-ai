@@ -72,7 +72,7 @@ export default function AcceptInvitationPage() {
   };
 
   return (
-    <TmPageContainer title={tr("接受企业邀请")} subTitle={tr("使用企业管理员提供的一次性邀请令牌加入企业。")}>
+    <TmPageContainer title={tr("接受企业邀请")}>
       <SectionCard>
         {success ? (
           <Result

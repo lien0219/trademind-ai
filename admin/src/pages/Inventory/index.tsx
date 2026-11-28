@@ -306,7 +306,6 @@ export default function InventoryCenterPage() {
   return (
     <TmPageContainer
       title={tr("库存中心")}
-      subTitle={tr("按仓库查看可用库存与兼容投影对账；不自动同步、不自动补货。")}
     >
       <InventorySyncDisabledBanner />
       <Alert

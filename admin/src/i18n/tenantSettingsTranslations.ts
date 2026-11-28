@@ -28,13 +28,6 @@ export const tenantSettingsTranslations: Record<string,[string,string,string,str
     "조직 정보 및 설정",
     "ข้อมูลและการตั้งค่าองค์กร"
   ],
-  "系统自动维护的业务工作空间，不等同于平台全局配置。": [
-    "A system-managed workspace, separate from global platform settings.",
-    "システム管理のワークスペースです。全体設定とは異なります。",
-    "系統自動管理的工作區，與平台全域設定不同。",
-    "시스템이 관리하는 작업 공간이며 전체 플랫폼 설정과는 다릅니다.",
-    "พื้นที่ทำงานที่ระบบจัดการ แยกจากการตั้งค่าทั่วทั้งแพลตฟอร์ม"
-  ],
   "查看当前企业的资料、成员与店铺统计，并管理企业级扩展选项。": [
     "View organization details, members and stores, and manage extensions.",
     "組織情報、メンバー、店舗統計を表示し、拡張設定を管理します。",
@@ -224,13 +217,6 @@ export const tenantSettingsTranslations: Record<string,[string,string,string,str
     "AI 콘텐츠, 수집 소스 및 작업 한도 규칙을 관리합니다.",
     "จัดการเนื้อหา AI แหล่งเก็บข้อมูล และขีดจำกัดงาน"
   ],
-  "新建业务任务会根据当前企业的有效规则执行；企业资料与全局平台配置互不影响。": [
-    "New tasks use this organization's rules. Organization and platform settings remain separate.",
-    "新規タスクにはこの組織のルールが適用されます。組織設定と全体設定は独立しています。",
-    "新任務依目前企業規則執行；企業與平台全域設定互不影響。",
-    "새 작업에는 이 조직의 규칙이 적용되며 전역 설정과 독립적입니다.",
-    "งานใหม่ใช้กฎขององค์กรนี้ โดยแยกจากการตั้งค่าทั้งแพลตฟอร์ม"
-  ],
   "进入企业业务配置": [
     "Open organization business settings",
     "組織の業務設定を開く",
@@ -384,13 +370,6 @@ export const tenantSettingsTranslations: Record<string,[string,string,string,str
     "填入範例",
     "예제 채우기",
     "ใส่ตัวอย่าง"
-  ],
-  "示例中的 custom、department、remark、labels 仅为元数据，不会改变系统功能、权限、语言或业务规则。": [
-    "The example fields custom, department, remark and labels are metadata only; they do not change features, permissions, language or business rules.",
-    "例の custom、department、remark、labels はメタデータのみで、機能・権限・言語・業務ルールは変更しません。",
-    "範例中的 custom、department、remark、labels 僅為中繼資料，不會變更功能、權限、語言或業務規則。",
-    "예시의 custom, department, remark, labels는 메타데이터로 기능, 권한, 언어 및 업무 규칙을 변경하지 않습니다.",
-    "custom, department, remark และ labels ในตัวอย่างเป็นเพียงเมทาดาทา ไม่เปลี่ยนฟีเจอร์ สิทธิ์ ภาษา หรือกฎธุรกิจ"
   ],
   "企业扩展设置 JSON": [
     "Organization extension settings JSON",

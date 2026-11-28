@@ -4,7 +4,7 @@ import { CodeOutlined, ReloadOutlined, SaveOutlined, QuestionCircleOutlined } fr
 import { Link } from '@umijs/max';
 import { Alert, Button, Descriptions, Form, Input, Modal, Popconfirm, Space, Spin, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActionBar, ErrorAlert, FormGrid, FormGridFull, FormGridItem, SectionCard, StatusTag, TmPageContainer } from '@/components/ui';
+import { ActionBar, ErrorAlert, FormGrid, FormGridFull, FormGridItem, SectionCard, StatusTag, TmPageContainer, TmPageHeaderExtra } from '@/components/ui';
 import { usePermission } from '@/hooks/usePermission';
 import { getCurrentTenant, updateCurrentTenant, type TenantDetail, type TenantMetadataBody } from '@/services/tenants';
 import { getBusinessSettings } from '@/services/tenantBusinessSettings';
@@ -202,8 +202,12 @@ export default function TenantSettingsPage() {
   return (
     <TmPageContainer
       title={rootWorkspace ? tr("Root 工作台信息") : tr("企业信息与设置")}
-      subTitle={rootWorkspace ? tr("系统自动维护的业务工作空间，不等同于平台全局配置。") : undefined}
-      extra={[<Button key="refresh" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>]}
+      extra={
+        <TmPageHeaderExtra>
+          {canEdit && detail && <Link to="/tenant/business-settings">{tr("进入企业业务配置")}</Link>}
+          <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>
+        </TmPageHeaderExtra>
+      }
     >
       {error ? <ErrorAlert title={tr("企业资料加载失败")} actionHint={error} action={<Button type="link" onClick={() => void load()}>{tr("重试")}</Button>} /> : null}
       {loading && !detail ? (
@@ -268,9 +272,6 @@ export default function TenantSettingsPage() {
             </Form>
           </SectionCard>
 
-          <SectionCard title={tr("企业业务配置")} headerExtra={<Link to="/tenant/business-settings">{tr("进入企业业务配置")}</Link>}>
-              <Typography.Text type="secondary">{tr("新建业务任务会根据当前企业的有效规则执行；企业资料与全局平台配置互不影响。")}</Typography.Text>
-          </SectionCard>
           <SectionCard
             title={tr("开发者扩展元数据")}
             description={tr("仅存储兼容性扩展 JSON；不再作为业务配置入口。")}
@@ -356,9 +357,6 @@ export default function TenantSettingsPage() {
                       fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
                     }}
                   >{TENANT_SETTINGS_EXAMPLE}</pre>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {tr('示例中的 custom、department、remark、labels 仅为元数据，不会改变系统功能、权限、语言或业务规则。')}
-                  </Text>
                 </div>
               ) : null}
               <Input.TextArea

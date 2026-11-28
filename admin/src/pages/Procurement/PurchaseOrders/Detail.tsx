@@ -362,7 +362,6 @@ export default function PurchaseOrderDetailPage() {
       <TmPageContainer
         className="tm-procurement-page"
         title={order?.purchaseOrderNo || tr('采购单详情')}
-        subTitle={tr("核对采购明细、版本和收货进度。审批与执行权限分离，过期版本会被拒绝。")}
         extra={<TmPageHeaderExtra>{actionButtons}</TmPageHeaderExtra>}
       >
         {loading ? <Alert type="info" showIcon message={tr("正在加载采购单详情…")} /> : null}
@@ -370,7 +369,7 @@ export default function PurchaseOrderDetailPage() {
         {order ? (
           <>
             {readonly ? <Alert type="info" showIcon message={tr("当前账号为只读模式，不能提交、审批、确认收货或发起退货。")} /> : null}
-            <SectionCard title={tr("采购单信息")} description={tr("状态变更使用当前版本号提交，避免覆盖他人已完成的操作。")}>
+            <SectionCard title={tr("采购单信息")}>
               <Descriptions column={{ xs: 1, sm: 2, lg: 3 }}>
                 <Descriptions.Item label={tr("采购单号")}><Typography.Text copyable>{order.purchaseOrderNo}</Typography.Text></Descriptions.Item>
                 <Descriptions.Item label={tr("状态")}>{statusTag(order.status)}</Descriptions.Item>
@@ -383,7 +382,7 @@ export default function PurchaseOrderDetailPage() {
                 <Descriptions.Item label={tr("备注")}>{order.remark || '—'}</Descriptions.Item>
               </Descriptions>
             </SectionCard>
-            <SectionCard title={tr("采购明细")} description={tr("已收数量来自不可重复记账的收货事务；未收数量不能小于零。")}>
+            <SectionCard title={tr("采购明细")}>
               <TmProTable<PurchaseOrderItem>
                 rowKey="id" columns={itemColumns} dataSource={order.items || []} search={false} options={false}
                 pagination={false} cardBordered={false} scroll={{ x: 980 }} locale={{ emptyText: tr('采购单没有明细。') }}

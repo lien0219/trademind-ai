@@ -2,7 +2,6 @@ import { tr, trFormat } from '@/i18n';
 import { useLanguage } from '@/i18n/useLanguage';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
-import { PAGE_COPY } from '@/constants/copywriting';
 import { formatDateTime } from '@/utils/formatTime';
 import { history, useLocation } from '@umijs/max';
 import {
@@ -371,11 +370,6 @@ function CollectorCustomSection({ providerRow }: { providerRow?: CollectProvider
             </Space>
           </div>
         ) : null}
-        <Alert
-          type="info"
-          showIcon
-          message={tr("用于采集没有专用采集器的网站商品页")}
-        />
         <Space wrap className="tm-action-space">
           <Button type="primary" onClick={() => history.push('/collect/browser-profiles')}>{tr("管理登录状态")}</Button>
           <Button onClick={() => history.push('/collect/rules')}>{tr("采集规则")}</Button>
@@ -1066,7 +1060,7 @@ export default function CollectorSettingsPage() {
   ) : null;
 
   return (
-    <TmPageContainer title={tr("采集设置")} subTitle={PAGE_COPY.collectorSettings.description}>
+    <TmPageContainer title={tr("采集设置")}>
       <div className="tm-collector-settings">
         <ProCard variant="outlined" className="tm-collector-settings__selector" title={tr("采集器类型")}>
           <CollectorProviderSelector

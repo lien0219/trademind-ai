@@ -1,7 +1,7 @@
 import { tr } from '@/i18n';
 import { useLanguage } from '@/i18n/useLanguage';
 import { ProCard } from '@ant-design/pro-components';
-import { Alert, Button, Form, Input, Select, Space, Switch, Typography, message } from 'antd';
+import { Button, Form, Input, Select, Space, Switch, Typography, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import {
   getMailTemplate, getMailTemplateOptions, previewMailTemplate, restoreMailTemplate,
@@ -110,12 +110,13 @@ export default function EmailTemplateCenter() {
     } finally { setBusy(false); }
   };
 
-  const selected = events.find((v) => v.key === eventKey);
+  const placeholders = events.find((event) => event.key === eventKey)?.placeholders ?? [];
   const actualPreview = preview || { subject: '', html: '' };
 
   return (
     <ProCard
-      title={tr('邮件模板中心')}
+      title={<span style={{ whiteSpace: 'nowrap' }}>{tr('邮件模板中心')}</span>}
+      headStyle={{ flexWrap: 'wrap', gap: 12 }}
       variant="outlined"
       className="tm-system-settings__panel"
       extra={
@@ -140,15 +141,16 @@ export default function EmailTemplateCenter() {
           options={locales.map((v) => ({ value: v, label: LANGUAGE_NAMES[v] || v }))}
           onChange={(next) => { setLocale(next); setChanged(false); }} style={{ minWidth: 155 }} />
       </Space>
-      {selected ? (
-        <Alert
-          type="info" showIcon style={{ marginBottom: 16 }}
-          message={tr(selected.description)}
-          description={tr('可用占位符') + ': ' + selected.placeholders.map((p) => '{{' + p + '}}').join('  ')}
-        />
-      ) : null}
+      {placeholders.length > 0 && (
+        <Space wrap size={[8, 4]} style={{ display: 'flex', marginBottom: 16 }}>
+          <Typography.Text type="secondary">{tr('可用占位符')}</Typography.Text>
+          {placeholders.map((placeholder) => (
+            <Typography.Text code key={placeholder}>{'{{' + placeholder + '}}'}</Typography.Text>
+          ))}
+        </Space>
+      )}
       <Space wrap style={{ marginBottom: 12 }}>
-        <Switch checked={autoPreview} onChange={setAutoPreview} />
+        <Switch aria-label={tr('实时预览')} checked={autoPreview} onChange={setAutoPreview} />
         <Typography.Text>{tr('实时预览')}</Typography.Text>
         {template?.customized ? <Typography.Text type="secondary">{tr('已自定义')}</Typography.Text> : null}
       </Space>
@@ -161,7 +163,7 @@ export default function EmailTemplateCenter() {
             <Input.TextArea rows={19} style={{ fontFamily: 'monospace', fontSize: 12 }} maxLength={100000} />
           </Form.Item>
         </Form>
-        <div>
+        <div aria-busy={previewLoading} style={{ minWidth: 0 }}>
           <Typography.Text strong>{tr('邮件实时预览')}</Typography.Text>
           <div style={{ marginTop: 8, padding: '8px 12px', background: 'var(--tm-surface-muted, #f7f8fa)', borderRadius: 8, overflowWrap: 'anywhere' }}>
             {actualPreview.subject || tr('点击预览查看邮件主题')}
@@ -174,14 +176,7 @@ export default function EmailTemplateCenter() {
               srcDoc={actualPreview.html}
               style={{ display: 'block', marginTop: 10, width: '100%', minHeight: 430, border: '1px solid var(--tm-border, #e5e7eb)', borderRadius: 10 }}
             />
-          ) : (
-            <div style={{ marginTop: 10, minHeight: 140, border: '1px solid var(--tm-border, #e5e7eb)', borderRadius: 10, padding: 16 }}>
-              <Typography.Text type="secondary">{tr('点击预览查看邮件主题')}</Typography.Text>
-            </div>
-          )}
-          <Typography.Paragraph type="secondary" style={{ marginTop: 10 }}>
-            {tr('预览使用安全沙箱，不会发送邮件。模板修改需要单独保存。')}
-          </Typography.Paragraph>
+          ) : null}
         </div>
       </div>
     </ProCard>

@@ -1,6 +1,6 @@
 import { tr, trFormat } from '@/i18n';
 import { useLanguage } from '@/i18n/useLanguage';
-import { ReloadOutlined, SaveOutlined, SettingOutlined } from '@ant-design/icons';
+import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
 import { Button, Col, Divider, Form, Input, InputNumber, Row, Select, Switch, Typography, message } from 'antd';
@@ -14,7 +14,7 @@ import {
 import { fetchSettingsList, saveSettingsItems, type SettingPutItem } from '@/services/settings';
 import { pickGroup } from '@/utils/settingsForm';
 
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 const GROUP_SYSTEM = 'system';
 const GROUP_TC = 'taskcenter';
@@ -193,20 +193,8 @@ export default function SystemSettingsPage() {
   };
 
   return (
-    <TmPageContainer title={PAGE_COPY.systemSettings.title} subTitle={PAGE_COPY.systemSettings.description}>
+    <TmPageContainer title={PAGE_COPY.systemSettings.title}>
       <div className="tm-system-settings">
-        <ProCard variant="outlined" className="tm-system-settings__hero">
-          <div className="tm-system-settings__hero-inner">
-            <div className="tm-system-settings__hero-icon">
-              <SettingOutlined />
-            </div>
-            <div className="tm-system-settings__hero-body">
-              <Typography.Title level={5} className="tm-system-settings__hero-title">{tr("全局运行参数")}</Typography.Title>
-              <Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("站点名称与时区用于后台展示与时间计算；任务中心告警策略决定哪些失败会自动写入站内告警列表。外部邮件 / 回调通知请在「告警通知配置」中单独设置。")}</Paragraph>
-            </div>
-          </div>
-        </ProCard>
-
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <ProCard
             variant="outlined"
@@ -227,7 +215,6 @@ export default function SystemSettingsPage() {
                   label={tr("时区")}
                   name="timezone"
                   rules={[{ required: true, message: tr("请选择时区") }]}
-                  extra={tr("用于任务时间、日志与告警展示；存库为 IANA 时区标识")}
                 >
                   <Select
                     showSearch

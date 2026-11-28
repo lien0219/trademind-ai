@@ -242,7 +242,6 @@ export default function InventorySyncManualBindingsPage() {
   return (
     <TmPageContainer
       title={tr("人工绑定工作台")}
-      subTitle={tr("处理库存同步生成的 SKU 绑定人工确认请求")}
       extra={<Button icon={<ReloadOutlined />} onClick={() => void Promise.all([loadList(), loadDetail()])} loading={loading || detailLoading}>{tr("刷新")}</Button>}
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>

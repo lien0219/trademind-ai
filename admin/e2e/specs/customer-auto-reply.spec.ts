@@ -55,7 +55,7 @@ test.describe('@smoke customer AI auto reply', () => {
 
     await admin.goto('/customer/auto-reply-settings');
 
-    await expect(page.getByText('在页面管理消息同步、自动回复总开关和店铺策略；默认关闭，保存后动态生效。')).toBeVisible();
+    await expect(page.getByText('运行设置', { exact: true })).toBeVisible();
     await expect(page.getByText('AI 自动回复后台任务未启用')).toBeVisible();
     await expect(page.getByText('当前不会自动向买家发送消息')).toBeVisible();
     await expect(page.getByText('暂无自动回复记录')).toBeVisible();

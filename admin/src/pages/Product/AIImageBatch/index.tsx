@@ -166,7 +166,7 @@ export default function AIImageBatchWizardPage() {
   };
 
   return (
-    <TmPageContainer title={tr("批量 AI 图片处理")} subTitle={tr("选择图片 → 处理方式 → 确认后开始（结果需人工复核后再应用）")}>
+    <TmPageContainer title={tr("批量 AI 图片处理")}>
       <Steps
         current={step}
         style={{ marginBottom: 24, maxWidth: 900 }}
@@ -255,12 +255,6 @@ export default function AIImageBatchWizardPage() {
 
           {step === 2 && (
             <Card title={tr("选择处理方式")}>
-              <Alert
-                type="info"
-                showIcon
-                style={{ marginBottom: 12 }}
-                message={tr("部分处理方式可能耗时较长，结果生成后不会自动替换原图，需要人工复核后再应用。")}
-              />
               <Checkbox.Group
                 options={AI_IMAGE_OPERATION_OPTIONS}
                 value={selectedOps}

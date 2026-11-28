@@ -199,7 +199,6 @@ export default function IntegrationsHubPage() {
   return (
     <TmPageContainer
       title={PAGE_COPY.integrations.title}
-      subTitle={PAGE_COPY.integrations.description}
     >
       <Spin spinning={loading}>
         {data ? (

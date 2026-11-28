@@ -348,7 +348,6 @@ export default function MultiPlatformPublishCenter({
           <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
             {tr("统一标题、描述、价格与图片策略可在各平台单独配置区覆盖。单独配置会优先生效，不会影响其他平台或店铺。")}
           </Typography.Paragraph>
-          <Typography.Text type="secondary">{tr("请在下方对应平台区域完成刊登配置。")}</Typography.Text>
         </Card>
 
         <Card size="small" title={tr("发布检查结果")} variant="borderless">

@@ -207,7 +207,6 @@ export default function ReplenishmentSuggestionsPage() {
     <TmPageContainer
       className="tm-procurement-page"
       title={tr("补货建议")}
-      subTitle={tr("选择目标仓库并复核缺口、供应商和数量后，可创建本地采购草稿；后续提交、审批和收货仍需人工完成。")}
           extra={<TmPageHeaderExtra><Button icon={<DownloadOutlined />} disabled={!warehouseId} onClick={async () => { try { await downloadReplenishmentSuggestions({ warehouseId, keyword, status }); message.success(tr("已开始下载筛选结果")); } catch (error) { message.error(tr((error as Error)?.message || tr('导出失败，请稍后重试。'))); } }}>{tr("导出筛选结果")}</Button><Button type="primary" icon={<PlusOutlined />} disabled={!canManage || !warehouseId || selectedRows.length === 0} onClick={openDraftModal}>{tr("创建采购草稿")}{selectedRows.length ? `（${selectedRows.length}）` : ''}</Button></TmPageHeaderExtra>}
     >
       {warehouseError ? <ErrorAlert title={tr(warehouseError)} actionHint={<Button icon={<ReloadOutlined />} onClick={() => void loadWarehouses()}>{tr("重试")}</Button>} /> : null}

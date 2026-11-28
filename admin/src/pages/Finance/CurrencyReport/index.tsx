@@ -232,7 +232,6 @@ export default function CurrencyReportPage() {
     <PermissionGuard require={PERMISSIONS.ORDER_PROFIT_VIEW} showForbiddenPage>
       <TmPageContainer
         title={tr('跨币种利润报表')}
-        subTitle={tr('仅汇总来源完整且有有效历史汇率的订单，原始金额不变')}
         extra={
           <Space wrap>
             <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr('重新加载')}</Button>

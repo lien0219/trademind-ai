@@ -678,8 +678,8 @@ export default function ShopsPage() {
           ]}
           rules={[{ required: true }]}
         />
-        <ProFormText name="start" label={tr("开始时间（可选）")} placeholder="2026-05-01T00:00:00Z" extra={tr("ISO 8601 格式")} />
-        <ProFormText name="end" label={tr("结束时间（可选）")} placeholder="2026-05-16T23:59:59Z" extra={tr("ISO 8601 格式")} />
+        <ProFormText name="start" label={tr("开始时间（可选）")} placeholder="2026-05-01T00:00:00Z" />
+        <ProFormText name="end" label={tr("结束时间（可选）")} placeholder="2026-05-16T23:59:59Z" />
         <ProFormText name="cursor" label={tr("游标（可选）")} />
         <ProFormDigit name="limit" label={tr("每页条数")} min={1} max={200} fieldProps={{ precision: 0 }} />
       </ModalForm>
@@ -725,8 +725,8 @@ export default function ShopsPage() {
           ]}
           rules={[{ required: true }]}
         />
-        <ProFormText name="start" label={tr("开始时间（可选）")} placeholder="2026-05-01T00:00:00Z" extra={tr("ISO 8601 格式")} />
-        <ProFormText name="end" label={tr("结束时间（可选）")} placeholder="2026-05-16T23:59:59Z" extra={tr("ISO 8601 格式")} />
+        <ProFormText name="start" label={tr("开始时间（可选）")} placeholder="2026-05-01T00:00:00Z" />
+        <ProFormText name="end" label={tr("结束时间（可选）")} placeholder="2026-05-16T23:59:59Z" />
         <ProFormText name="cursor" label={tr("游标（可选）")} />
         <ProFormDigit name="limit" label={tr("每页条数")} min={1} max={200} fieldProps={{ precision: 0 }} />
       </ModalForm>

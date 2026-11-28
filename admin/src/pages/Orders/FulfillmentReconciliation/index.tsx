@@ -297,7 +297,6 @@ export default function FulfillmentReconciliationPage() {
     <PermissionGuard require={PERMISSIONS.ORDER_VIEW} showForbiddenPage>
       <TmPageContainer
         title={tr("履约库存对账")}
-        subTitle={tr("订单生命周期事实与库存 effect、流水和发货单的只读核对")}
       >
         {readonly ? (
           <Alert type="info" showIcon message={tr("当前账号为只读模式")} description={tr("本工作台仅提供查询、筛选和详情查看，不提供修复或重试操作。")} style={{ marginBottom: 16 }} />

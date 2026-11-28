@@ -569,7 +569,7 @@ export default function OperationTaskDetailPage() {
         ) : null}
 
         {detail ? (
-          <SectionCard title={tr("可用操作")} description={tr("操作可用性由当前账号权限和任务状态共同决定。")} compact>
+          <SectionCard title={tr("可用操作")} compact>
             <OperationToolbar className="operation-task-detail__actions">
               {!isProductionDraft ? <Button disabled={!detail.allowedActions.canEditDraft || !!currentDraft} onClick={() => openModal('draft')}>{tr("创建首版草稿")}</Button> : null}
               <Button type="primary" disabled={!detail.allowedActions.canApprove || !currentDraft} onClick={() => openModal('approve')}>{tr("确认批准")}</Button>
@@ -669,7 +669,7 @@ export default function OperationTaskDetailPage() {
                     ) : null}
                     <Table rowKey="draftId" columns={draftColumns} dataSource={drafts} pagination={false} loading={auxiliaryLoading} scroll={{ x: 900 }} locale={{ emptyText: tr('暂无草稿版本') }} />
                     {!isProductionDraft ? (
-                      <SectionCard title={tr("任务载荷预览")} description={tr("这里展示任务原始载荷；草稿版本列表仅提供摘要。")}>
+                      <SectionCard title={tr("任务载荷预览")}>
                         {jsonPreview(detail.payload)}
                       </SectionCard>
                     ) : null}

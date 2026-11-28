@@ -1,4 +1,4 @@
-import { tr, trFormat } from '@/i18n';
+import { trFormat } from '@/i18n';
 import { useLanguage } from '@/i18n/useLanguage';
 import { Button, Card, Col, Row, Tag, Typography } from 'antd';
 import { history } from '@umijs/max';
@@ -66,7 +66,6 @@ export default function ConfigStatusPage() {
     <PermissionGuard require={PERMISSIONS.SETTINGS_MANAGE} showForbiddenPage>
       <TmPageContainer
         title={PAGE_COPY.configStatus.title}
-        subTitle={PAGE_COPY.configStatus.description}
       >
         <DouyinE2EPrecheckBanner
           blockedByCredentials={douyinCred?.status?.includes('待') || douyinCred?.status?.includes('未配置')}

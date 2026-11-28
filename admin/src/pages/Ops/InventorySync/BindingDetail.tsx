@@ -114,7 +114,7 @@ export default function InventorySyncBindingDetailPage() {
             <Text type="secondary">{binding.calibrationReason || tr("暂无校准说明")}</Text>
           </SectionCard>
         ) : <Text type="secondary">{tr("暂无绑定详情。")}</Text>}
-        <SectionCard title={tr("历史时间线")} description={tr("只展示结构化、脱敏的校准和人工决策记录。")}>
+        <SectionCard title={tr("历史时间线")}>
           <Timeline
             items={[
               ...(historyDetail?.calibrations || []).map((item) => ({

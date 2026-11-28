@@ -854,7 +854,6 @@ export default function ImageSettingsPage() {
           <ProCard
             variant="outlined"
             title={tr("局部擦除")}
-            subTitle={tr("用于图片文字翻译前去除原文字")}
             className="tm-image-settings__panel"
           >
           <Row gutter={16}>

@@ -340,7 +340,7 @@ export default function SettingsUsersPage() {
 
   return (
     <PermissionGuard require={PERMISSIONS.USER_MANAGE} showForbiddenPage>
-      <TmPageContainer title={PAGE_COPY.usersSettings.title} subTitle={PAGE_COPY.usersSettings.description}>
+      <TmPageContainer title={PAGE_COPY.usersSettings.title}>
         <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
           { key: 'users', label: tr("用户管理") },
           { key: 'roles', label: tr("角色与权限矩阵") },
@@ -454,7 +454,7 @@ export default function SettingsUsersPage() {
             <Form.Item label={tr("角色描述")} name="description">
               <Input.TextArea maxLength={400} rows={2} showCount placeholder={tr("说明此角色适用的岗位和职责（选填）")} />
             </Form.Item>
-            <Form.Item name="permissions" label={tr("权限范围")} extra={tr("所选权限决定可访问的页面与操作；未选择的功能不授予权限。")}>
+            <Form.Item name="permissions" label={tr("权限范围")}>
               <RolePermissionPicker catalog={permissionCatalog} disabled={submitting || !roleDirectoryReady} />
             </Form.Item>
           </Form>

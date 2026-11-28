@@ -5,7 +5,6 @@ import { Link } from '@umijs/renderer-react';
 import { history } from '@umijs/max';
 import {
   CheckCircleOutlined,
-  LockOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   SaveOutlined,
@@ -73,7 +72,7 @@ import {
 import { pickGroup, toPutItems, type FieldSpec } from '@/utils/settingsForm';
 import { formatDateTime } from '@/utils/formatTime';
 
-const { Paragraph, Text, Title } = Typography;
+const { Paragraph, Text } = Typography;
 
 const GROUP = 'security';
 
@@ -470,22 +469,9 @@ export default function SecuritySettingsPage() {
   return (
     <TmPageContainer
       title={tr("安全设置")}
-      subTitle={tr("认证会话、租户隔离、密钥轮换、文件安全与审计完整性")}
+      extra={<Button icon={<ReloadOutlined />} onClick={() => void loadSecurityCenter()} loading={centerLoading}>{tr("刷新安全中心")}</Button>}
     >
       <div className="tm-system-settings">
-        <ProCard variant="outlined" className="tm-system-settings__hero">
-          <div className="tm-system-settings__hero-inner">
-            <div className="tm-system-settings__hero-icon">
-              <LockOutlined />
-            </div>
-            <div className="tm-system-settings__hero-body">
-              <Title level={5} className="tm-system-settings__hero-title">{tr("安全中心")}</Title>
-              <Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("查看认证与会话状态、租户隔离就绪项、主密钥轮换进度、上传文件安全扫描统计，以及操作审计链完整性。 基础策略（空闲超时、HTTPS、回调签名）可在下方配置区保存。")}</Paragraph>
-            </div>
-            <Button icon={<ReloadOutlined />} onClick={() => void loadSecurityCenter()} loading={centerLoading}>{tr("刷新安全中心")}</Button>
-          </div>
-        </ProCard>
-
         {overview ? (
           <ProCard variant="outlined" title={tr("运行概览")} loading={centerLoading}>
             <Row gutter={[16, 16]}>

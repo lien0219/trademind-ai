@@ -183,14 +183,13 @@ export default function PurchaseReturnDetailPage() {
       <TmPageContainer
         className="tm-procurement-page"
         title={row?.returnNo || tr('采购退货详情')}
-        subTitle={tr("核对原收货事实、审批状态和库存执行结果；完成后的退货单不可修改。")}
         extra={<TmPageHeaderExtra>{actions}</TmPageHeaderExtra>}
       >
         {loading ? <Alert type="info" showIcon message={tr("正在加载采购退货详情…")} /> : null}
         {error ? <ErrorAlert title={tr(error)} actionHint={<Button onClick={() => void load()}>{tr("重新加载")}</Button>} /> : null}
         {readonly ? <Alert type="info" showIcon message={tr("当前账号为只读模式，不能提交、审批、执行或取消采购退货。")} /> : null}
         {row ? <>
-          <SectionCard title={tr("退货单信息")} description={tr("所有状态写入均提交当前版本号和稳定操作编号，重复请求不会重复扣减库存。")}>
+          <SectionCard title={tr("退货单信息")}>
             <Descriptions column={{ xs: 1, sm: 2, lg: 3 }}>
               <Descriptions.Item label={tr("退货单号")}><Typography.Text copyable>{row.returnNo}</Typography.Text></Descriptions.Item>
               <Descriptions.Item label={tr("状态")}><Tag color={meta?.color}>{meta ? tr(meta.source) : null}</Tag></Descriptions.Item>

@@ -32,7 +32,6 @@ import { formatDateTime } from '@/utils/formatTime';
 import {
   COLLECT_HUB_TYPE_HINT,
   CUSTOM_BATCH_DISABLED_TOOLTIP,
-  CUSTOM_COLLECT_CARD_DESCRIPTION,
   CUSTOM_COLLECT_CARD_NOTES,
 } from '@/utils/customCollectPlatform';
 import {
@@ -51,7 +50,7 @@ import CollectSourceCard, {
 } from './components/CollectSourceCard';
 import './index.less';
 
-const { Paragraph, Text } = Typography;
+const { Text } = Typography;
 
 const DEDICATED_FEATURE_LABEL: Record<string, string> = {
   title: 'Product title',
@@ -64,17 +63,6 @@ const DEDICATED_FEATURE_LABEL: Record<string, string> = {
 };
 
 const SOURCE_ORDER = ['1688', 'pinduoduo', 'pdd', 'taobao_tmall', 'taobao', 'aliexpress', 'shein_temu', 'custom'];
-
-const DEDICATED_HUB_DESCRIPTION: Record<string, string> = {
-  '1688': '采集 1688 商品详情，支持标题、主图、详情图、属性与 SKU。',
-  pinduoduo: '采集拼多多批发商品详情，支持标题、价格、主图、规格等；发布前请核对。',
-  pdd: '采集拼多多批发商品详情，支持标题、价格、主图、规格等；发布前请核对。',
-  taobao_tmall:
-    '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数和商品规格。部分商品可能需要登录或人工确认。',
-  taobao:
-    '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数和商品规格。部分商品可能需要登录或人工确认。',
-  aliexpress: '采集速卖通商品详情，支持标题、图片、属性与 SKU（测试中）。',
-};
 
 type LoadState<T> = {
   loading: boolean;
@@ -134,17 +122,13 @@ function featureLabelForProvider(p: CollectProviderRow, feature: string): string
 function providerCardCopy(p: CollectProviderRow): CollectSourceCardCopy {
   if (p.source === 'custom') {
     return {
-      description: tr(CUSTOM_COLLECT_CARD_DESCRIPTION),
       notes: tr(CUSTOM_COLLECT_CARD_NOTES),
       typeLabel: tr(COLLECT_HUB_TYPE_HINT.custom.title),
       typeHint: tr(COLLECT_HUB_TYPE_HINT.custom.summary),
     };
   }
-  const key = p.source.toLowerCase();
-  const description = DEDICATED_HUB_DESCRIPTION[key] ?? p.description?.trim() ?? '';
   const notes = p.notes?.trim() ?? '';
   return {
-    description: tr(description),
     notes: tr(notes),
     typeLabel: tr(COLLECT_HUB_TYPE_HINT.dedicated.title),
     typeHint: '',
@@ -459,8 +443,6 @@ export default function CollectHubPage() {
       <div className="tm-collect-hub">
         <section className="tm-collect-hub-overview">
           <div className="tm-collect-hub-overview__actions">
-            <Paragraph className="tm-collect-hub-overview__hint">
-              {tr("采集任务会进入队列处理。遇到登录、验证码或平台限制时，请先完成采集浏览器登录状态检测，再重试或批量恢复失败任务。")}</Paragraph>
             <OperationToolbar>
               <Button
                 type="primary"
@@ -509,7 +491,6 @@ export default function CollectHubPage() {
           <Col xs={24} lg={16}>
             <SectionCard
               title={tr("采集来源")}
-              description={tr("专用采集器优先用于已适配平台；自定义采集器适合未适配网站，使用前建议先测试规则。")}
               headerExtra={
                 <Button
                   icon={<ReloadOutlined />}

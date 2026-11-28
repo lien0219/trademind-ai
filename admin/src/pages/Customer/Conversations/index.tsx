@@ -328,7 +328,7 @@ export default function CustomerConversationsPage() {
   );
 
   return (
-    <TmPageContainer title={tr("会话列表")} subTitle={tr("所有回复需人工确认；系统不会自动发送消息。")}>
+    <TmPageContainer title={tr("会话列表")}>
       <KeywordSafetyHint visible={showSensitiveHint} />
       <ProTable<ConversationRow>
         rowKey="id"

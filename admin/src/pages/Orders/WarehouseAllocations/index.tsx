@@ -383,7 +383,6 @@ export default function WarehouseAllocationsPage() {
     <PermissionGuard require={PERMISSIONS.ORDER_VIEW} showForbiddenPage>
       <TmPageContainer
         title={tr("履约分仓")}
-        subTitle={tr("按整单规格可用库存计算单仓候选；人工确认并预占后，可将同仓订单组织为持久化拣货波次。")}
       >
         {!canOperate ? (
           <Alert

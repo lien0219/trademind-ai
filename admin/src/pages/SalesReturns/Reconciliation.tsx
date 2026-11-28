@@ -126,7 +126,6 @@ export default function PlatformAfterSaleReconciliationPage() {
       <TmPageContainer
         className="tm-sales-return-page"
         title={tr("平台售后对账")}
-        subTitle={tr("平台退款事实与本地售后记录的只读核对")}
         extra={
           <TmPageHeaderExtra>
             <Button icon={<AuditOutlined />} onClick={() => history.push('/orders/sales-returns')}>

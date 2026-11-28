@@ -168,7 +168,7 @@ export default function StocktakesPage() {
   const hasUnsavedCounts = items.some((item) => (countDrafts[item.id] ?? null) !== (item.countedOnHand ?? null));
 
   return <PermissionGuard require={PERMISSIONS.INVENTORY_VIEW} showForbiddenPage>
-    <TmPageContainer title={tr("库存盘点")} subTitle={tr("记录仓库实盘数量，审核后过账差异并保留不可变库存流水。")} extra={<TmPageHeaderExtra><Button type="primary" icon={<PlusOutlined />} disabled={!canOperate} onClick={openCreate}>{tr("新建盘点")}</Button></TmPageHeaderExtra>}>
+    <TmPageContainer title={tr("库存盘点")} extra={<TmPageHeaderExtra><Button type="primary" icon={<PlusOutlined />} disabled={!canOperate} onClick={openCreate}>{tr("新建盘点")}</Button></TmPageHeaderExtra>}>
       {!canOperate ? <Alert type="info" showIcon message={tr("当前账号为只读模式，可查看盘点记录但不能创建或修改盘点。")} style={{ marginBottom: 16 }} /> : null}
       {error ? <ErrorAlert title={error} /> : null}
       <TmProTable<InventoryStocktake> rowKey="id" actionRef={actionRef} columns={columns} search={false} scroll={{ x: 1120 }} cardBordered locale={{ emptyText: tr("暂无库存盘点记录") }} filterBar={<Select aria-label={tr("盘点状态")} allowClear placeholder={tr("全部状态")} value={status} style={{ width: 140 }} options={Object.entries(STATUS_META).map(([value, meta]) => ({ value, label: meta.label() }))} onChange={setStatus} />} request={async (params) => {

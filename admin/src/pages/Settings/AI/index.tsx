@@ -233,7 +233,6 @@ export default function AISettingsPage() {
               </Space>
             }
           >
-            <Typography.Paragraph type="secondary">{tr("在 OpenAI、DeepSeek、通义千问、Ollama 等渠道申请接口密钥。各服务商可分别保存配置；下方选择「当前默认使用」的服务商，保存时仅更新该服务商连接信息，不会影响其他已保存密钥。")}</Typography.Paragraph>
             <Form.Item name="provider" rules={[{ required: true }]} style={{ marginBottom: 0 }}>
               <Radio.Group
                 className="tm-ai-provider-group"
@@ -349,7 +348,6 @@ export default function AISettingsPage() {
             <div className="tm-ai-settings__batch-switch">
               <div>
                 <Typography.Text strong>{tr("启用批量 AI 接口")}</Typography.Text>
-                <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>{tr("开启后管理端可创建批量任务；关闭后接口拒绝执行")}</Typography.Paragraph>
               </div>
               <Form.Item name="ai_batch_enabled" valuePropName="checked" noStyle>
                 <Switch />

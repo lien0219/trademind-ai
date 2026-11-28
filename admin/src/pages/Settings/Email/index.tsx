@@ -3,23 +3,20 @@ import EmailTemplateCenter from './EmailTemplateCenter';
 import RegistrationPolicySettings from './RegistrationPolicySettings';
 import { useLanguage } from '@/i18n/useLanguage';
 import { Link } from '@umijs/renderer-react';
-import { MailOutlined, ReloadOutlined, SaveOutlined, SendOutlined } from '@ant-design/icons';
+import { ReloadOutlined, SaveOutlined, SendOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
 import { layoutTokens } from '@/constants/layoutTokens';
-import { Alert, Button, Col, Form, Input, InputNumber, Radio, Row, Switch, Typography, message } from 'antd';
+import { Alert, Button, Col, Form, Input, InputNumber, Radio, Row, Switch, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import {
   MAIL_FIELD_LABEL,
   MAIL_FIELD_PLACEHOLDER,
-  MAIL_PROVIDER_META,
   MAIL_PROVIDER_OPTIONS,
   smtpPortHint,
 } from '@/constants/emailSettings';
 import { fetchSettingsList, saveSettingsItems, testEmailConnection, type SettingPutItem } from '@/services/settings';
 import { mergeSettingsPrimaryFallback } from '@/utils/settingsForm';
-
-const { Paragraph, Text } = Typography;
 
 /** Primary settings group for SMTP (legacy `email` group merged on load for backward compatibility). */
 const GROUP = 'mail';
@@ -105,20 +102,11 @@ export default function EmailSettingsPage() {
   };
 
   return (
-    <TmPageContainer title={tr("邮箱设置")} subTitle={tr("配置系统发信邮箱，用于告警通知与系统邮件")}>
+    <TmPageContainer
+      title={tr("邮箱设置")}
+      extra={<Link to="/settings/alert-notify">{tr("告警通知配置")}</Link>}
+    >
       <div className="tm-system-settings">
-        <ProCard variant="outlined" className="tm-system-settings__hero">
-          <div className="tm-system-settings__hero-inner">
-            <div className="tm-system-settings__hero-icon">
-              <MailOutlined />
-            </div>
-            <div className="tm-system-settings__hero-body">
-              <Typography.Title level={5} className="tm-system-settings__hero-title">{tr("自备 SMTP 服务")}</Typography.Title>
-              <Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("贸灵不提供邮件代发账号。请使用企业邮箱、QQ/网易客户端授权码、云邮件推送或 SendGrid / Mailgun 等 SMTP。密码加密存库、接口脱敏，日志不记录明文密码。告警收件人请在")}<Link to="/settings/alert-notify">{tr("告警通知配置")}</Link>{tr("中设置。")}</Paragraph>
-            </div>
-          </div>
-        </ProCard>
-
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <ProCard
             variant="outlined"
@@ -137,9 +125,6 @@ export default function EmailSettingsPage() {
                 ))}
               </Radio.Group>
             </Form.Item>
-            <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
-              {tr(MAIL_PROVIDER_META.smtp.desc)}
-            </Text>
           </ProCard>
 
           <ProCard variant="outlined" title={tr("SMTP 连接")} className="tm-system-settings__panel">
@@ -224,7 +209,6 @@ export default function EmailSettingsPage() {
           </ProCard>
 
           <ProCard variant="outlined" title={tr("发送测试")} className="tm-system-settings__panel">
-            <Paragraph type="secondary" style={{ marginBottom: 12 }}>{tr("保存 SMTP 配置后，可向指定邮箱发送测试邮件以验证连通性。")}</Paragraph>
             <Form form={testForm} component={false} layout="vertical">
               <Row gutter={[16, layoutTokens.fieldGroupGap]} align="bottom">
                 <Col xs={24} md={12} lg={10}>

@@ -315,7 +315,6 @@ export default function OrderTrackingTab({ orderId, readOnly = false }: Props) {
             name="eventKey"
             label={tr("事件键")}
             rules={[{ required: true, message: tr("请填写事件键") }]}
-            extra={tr("同一包裹使用相同事件键重试时会幂等返回。")}
           >
             <Input maxLength={128} placeholder={tr("例如：manual-20260823-001")} />
           </Form.Item>

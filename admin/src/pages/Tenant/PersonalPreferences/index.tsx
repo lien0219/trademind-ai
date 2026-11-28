@@ -72,7 +72,6 @@ export default function PersonalPreferencesPage(){
   }finally{mutationPending.current=false;setSaving(false)}};
   return <TmPageContainer
     title={tr("个人偏好")}
-    subTitle={tr("仅对当前企业的当前账号有效，不改变其他成员、店铺或企业的业务规则。")}
     contentMaxWidth={960}
     fluid={false}
   >
@@ -82,7 +81,6 @@ export default function PersonalPreferencesPage(){
         <Form.Item className="tm-personal-preferences__row" name="language" label={<span className="tm-personal-preferences__label"><GlobalOutlined aria-hidden/>{tr("首选语言")}</span>} rules={[{required:true}]}><Select options={supportedLanguages.map(value=>({value,label:languageNames[value]}))}/></Form.Item>
         <Form.Item className="tm-personal-preferences__row" name="theme" label={<span className="tm-personal-preferences__label"><BgColorsOutlined aria-hidden/>{tr("界面主题")}</span>} rules={[{required:true}]}><Select options={[{value:'light',label:tr('浅色模式')},{value:'dark',label:tr('深色模式')}]}/></Form.Item>
         <Form.Item className="tm-personal-preferences__row" name="dateFormat" label={<span className="tm-personal-preferences__label"><CalendarOutlined aria-hidden/>{tr('首选日期格式')}</span>} rules={[{required:true}]}><Select options={[{value:'YYYY-MM-DD',label:'2026-10-27'},{value:'DD/MM/YYYY',label:'27/10/2026'},{value:'MM/DD/YYYY',label:'10/27/2026'}]}/></Form.Item>
-        <Alert className="tm-personal-preferences__hint" type="info" showIcon message={tr("语言和主题立即生效；日期格式适用于已接入统一日期组件的页面。")}/>
         <ActionBar align="right"><Button type="primary" icon={<SaveOutlined aria-hidden/>} loading={saving} onClick={()=>void save()}>{tr("保存个人偏好")}</Button><Button icon={<UndoOutlined aria-hidden/>} disabled={saving} onClick={restore}>{tr("还原")}</Button></ActionBar>
       </Form>:null}
     </SectionCard>

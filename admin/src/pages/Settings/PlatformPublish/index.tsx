@@ -1,8 +1,8 @@
 import { tr, trFormat } from '@/i18n';
 import { useLanguage } from '@/i18n/useLanguage';
-import { CloudUploadOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { TmPageContainer, TmPageHeaderExtra } from '@/components/ui';
 import {
   Alert,
   Button,
@@ -30,7 +30,6 @@ import {
   platformPublishFieldHelp,
   platformPublishFieldLabel,
   platformPublishFieldPlaceholder,
-  publishGroupKeyHint,
   publishSwitchFields,
 } from '@/constants/platformPublishConfig';
 import { PLATFORM_STATUS_META } from '@/constants/platformAppConfig';
@@ -45,7 +44,7 @@ import {
 } from '@/services/platformPublish';
 import { queryPlatformProviders } from '@/services/shops';
 
-const { Paragraph, Text, Title } = Typography;
+const { Paragraph, Text } = Typography;
 
 function valuesToFormFields(fields: AppConfigFieldDTO[], values: Record<string, string>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -165,7 +164,6 @@ function PublishPanel({ meta }: { meta: PlatformProviderMeta }) {
   const schema = meta.publishConfigSchema;
   const fields = schema?.fields ?? [];
   const st = PLATFORM_STATUS_META[meta.status] ?? { label: meta.status, color: 'default' };
-  const groupKey = meta.publishSettingsGroupKey || schema?.groupKey || '';
 
   const fieldSections = useMemo(() => groupPublishFields(fields), [fields, language]);
   const switchFields = useMemo(() => publishSwitchFields(fields), [fields, language]);
@@ -207,12 +205,6 @@ function PublishPanel({ meta }: { meta: PlatformProviderMeta }) {
         <Space wrap size={[8, 4]}>
           <Text type="secondary">{tr("接入状态")}</Text>
           <Tag color={st.color}>{st.label}</Tag>
-          {groupKey ? (
-            <>
-              <Text type="secondary">·</Text>
-              <Text type="secondary">{publishGroupKeyHint(groupKey)}</Text>
-            </>
-          ) : null}
         </Space>
 
         <Form
@@ -343,22 +335,14 @@ export default function PlatformPublishSettingsPage() {
   return (
     <TmPageContainer
       title={tr("刊登设置")}
-      subTitle={tr("配置各平台商品刊登时的默认字段与规则。")}
+      extra={
+        <TmPageHeaderExtra>
+          <Link to="/settings/platforms">{tr("平台接入设置")}</Link>
+          <Link to="/product/publish-tasks">{tr("商品 · 刊登任务")}</Link>
+        </TmPageHeaderExtra>
+      }
     >
       <div className="tm-system-settings tm-platform-publish">
-        <ProCard variant="outlined" className="tm-system-settings__hero">
-          <div className="tm-system-settings__hero-inner">
-            <div className="tm-system-settings__hero-icon">
-              <CloudUploadOutlined />
-            </div>
-            <div className="tm-system-settings__hero-body">
-              <Title level={5} className="tm-system-settings__hero-title">{tr("刊登默认参数")}</Title>
-              <Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("此处保存各平台刊登时的默认类目、物流、包裹尺寸等参数，写入系统配置并加密敏感项。与")}<Link to="/settings/platforms">{tr("平台接入设置")}</Link>{tr("分开：接入设置填应用 Key / Secret，此处填刊登业务参数。 在商品草稿详情选择店铺提交刊登时，可覆盖单次任务参数。查看进度请前往")}<Link to="/product/publish-tasks">{tr("商品 · 刊登任务")}</Link>。
-              </Paragraph>
-            </div>
-          </div>
-        </ProCard>
-
         <ProCard variant="outlined" title={tr("选择平台")} className="tm-system-settings__panel">
           <Spin spinning={loadingProviders}>
             {items.length === 0 ? (

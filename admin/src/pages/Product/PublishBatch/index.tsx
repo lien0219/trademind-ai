@@ -490,7 +490,7 @@ export default function PublishBatchWizardPage() {
 
   if (!canCreatePublishDraft) {
     return (
-      <TmPageContainer title={tr("批量刊登")} subTitle={tr("批量创建本地刊登草稿。")}>
+      <TmPageContainer title={tr("批量刊登")}>
         <Alert
           type="info"
           showIcon
@@ -504,7 +504,6 @@ export default function PublishBatchWizardPage() {
   return (
     <TmPageContainer
       title={tr("批量创建刊登草稿")}
-      subTitle={tr("为多个商品同时创建平台草稿或本地刊登草稿（不直接上架）")}
       onBack={handleBack}
     >
       <Steps current={step} items={stepItems} style={{ marginBottom: 24 }} />

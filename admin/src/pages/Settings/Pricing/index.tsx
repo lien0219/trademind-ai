@@ -1,9 +1,9 @@
 import { tr } from '@/i18n';
 import { useLanguage } from '@/i18n/useLanguage';
-import { DollarOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
-import { Button, Col, Divider, Form, InputNumber, Row, Select, Switch, Typography, message } from 'antd';
+import { Button, Col, Divider, Form, InputNumber, Row, Select, Switch, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import {
   MARKUP_TYPE_OPTIONS,
@@ -13,8 +13,6 @@ import {
 } from '@/constants/pricingSettings';
 import { fetchSettingsList, saveSettingsItems, type SettingPutItem } from '@/services/settings';
 import { pickGroup } from '@/utils/settingsForm';
-
-const { Paragraph } = Typography;
 
 const GROUP = 'pricing';
 
@@ -104,20 +102,8 @@ export default function PricingSettingsPage() {
   }, [load]);
 
   return (
-    <TmPageContainer title={tr("商品定价")} subTitle={tr("配置默认加价、尾数与平台覆盖规则，用于本地销售价计算。")}>
+    <TmPageContainer title={tr("商品定价")}>
       <div className="tm-system-settings">
-        <ProCard variant="outlined" className="tm-system-settings__hero">
-          <div className="tm-system-settings__hero-inner">
-            <div className="tm-system-settings__hero-icon">
-              <DollarOutlined />
-            </div>
-            <div className="tm-system-settings__hero-body">
-              <Typography.Title level={5} className="tm-system-settings__hero-title">{tr("成本价 → 发布价")}</Typography.Title>
-              <Paragraph type="secondary" className="tm-system-settings__hero-desc">{tr("采集价通常是成本价，不建议直接作为发布价。在此配置默认加价与尾数规则；在商品详情或列表「应用定价规则」后，仅更新本地商品规格的销售价，不会自动发布到平台店铺。")}</Paragraph>
-            </div>
-          </div>
-        </ProCard>
-
         <Form
           form={form}
           layout="vertical"
@@ -166,7 +152,6 @@ export default function PricingSettingsPage() {
                       <Form.Item
                         label={tr("加价比例（%）")}
                         name="default_markup_percent"
-                        extra={markupType === 'percent' ? tr("在成本价基础上按百分比加价") : tr("仅「百分比加价」时生效")}
                       >
                         <InputNumber
                           min={0}
@@ -181,7 +166,6 @@ export default function PricingSettingsPage() {
                       <Form.Item
                         label={tr("固定加价金额")}
                         name="default_markup_amount"
-                        extra={markupType === 'fixed' ? tr("在成本价基础上加固定金额") : tr("仅「固定金额加价」时生效")}
                       >
                         <InputNumber
                           min={0}
@@ -255,7 +239,6 @@ export default function PricingSettingsPage() {
               label={tr("启用平台覆盖")}
               name="enable_platform_pricing_rules"
               valuePropName="checked"
-              extra={tr("开启后，各平台可单独设置加价比例，覆盖默认定价")}
             >
               <Switch />
             </Form.Item>
@@ -294,7 +277,6 @@ export default function PricingSettingsPage() {
                 <Form.Item
                   label={tr("单次批量定价上限")}
                   name="batch_max_size"
-                  extra={tr("商品列表批量「应用定价规则」时，单次最多处理的规格数量")}
                 >
                   <InputNumber min={1} max={5000} style={{ width: '100%' }} placeholder="500" />
                 </Form.Item>

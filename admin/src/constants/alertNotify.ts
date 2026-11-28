@@ -6,12 +6,12 @@ export { ALERT_SEVERITY_OPTIONS as NOTIFICATION_SEVERITY_OPTIONS };
 /** 通知通道（存库 JSON 数组元素） */
 export const NOTIFICATION_CHANNEL_META: Record<
   string,
-  { label: string; desc: string }
+  { label: string }
 > = {
-  mail: { get label() { return tr("邮件"); }, desc: '经邮件服务器发送；发信配置请在「邮箱设置」中完成' },
-  webhook: { get label() { return tr("回调通知"); }, desc: '推送到自定义 HTTPS 地址' },
-  feishu: { get label() { return tr("飞书"); }, desc: '通过飞书群自定义机器人发送文本告警，支持签名校验' },
-  wecom: { get label() { return tr("企业微信"); }, desc: '通过企业微信群机器人发送文本告警' },
+  mail: { get label() { return tr("邮件"); } },
+  webhook: { get label() { return tr("回调通知"); } },
+  feishu: { get label() { return tr("飞书"); } },
+  wecom: { get label() { return tr("企业微信"); } },
 };
 
 export const NOTIFICATION_CHANNEL_OPTIONS = Object.entries(NOTIFICATION_CHANNEL_META).map(

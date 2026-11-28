@@ -55,7 +55,6 @@ export default function PlatformAfterSaleReconciliationDetailPage() {
       <TmPageContainer
         className="tm-sales-return-page"
         title={row?.externalAfterSaleId || tr('平台售后事实详情')}
-        subTitle={tr("只读平台售后与本地记录核对结果")}
         extra={
           <TmPageHeaderExtra>
             <Button icon={<ArrowLeftOutlined />} onClick={() => history.push('/orders/sales-return-reconciliation')}>

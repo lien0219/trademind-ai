@@ -189,9 +189,6 @@ export default function WorkersMonitorPage() {
     <TmPageContainer
       title={tr('后台任务监控')}
     >
-      <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-        {trFormat('展示各类型后台任务进程状态与正在执行中的任务（每 {value0} 秒刷新；页面隐藏时暂停）。', { value0: POLL_MS / 1000 })}
-      </Typography.Paragraph>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} xl={14}>

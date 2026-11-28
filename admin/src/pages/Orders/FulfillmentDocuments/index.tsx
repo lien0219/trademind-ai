@@ -498,7 +498,6 @@ export default function FulfillmentDocumentsPage() {
             <Col xs={24} xl={7}>
               <SectionCard
                 title={tr("快照版本")}
-                description={tr("每个版本固定保存当时的波次、订单、SKU、库位与包裹信息。")}
                 headerExtra={
                   <Button
                     type="primary"

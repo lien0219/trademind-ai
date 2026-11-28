@@ -148,7 +148,6 @@ export default function InventorySyncCalibrationPage() {
   return (
     <TmPageContainer
       title={tr("SKU 校准工作台")}
-      subTitle={tr("按快照查看候选校准并发起受控 fixture recalibrate")}
       extra={
         <Space wrap>
           <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>{tr("刷新")}</Button>

@@ -144,7 +144,7 @@ export default function InventoryDeductionsPage() {
   );
 
   return (
-    <TmPageContainer title={tr("库存扣减记录")} subTitle={tr("订单扣减必须可追溯到订单详情；失败记录进入失败任务中心。")}>
+    <TmPageContainer title={tr("库存扣减记录")}>
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         {tr("来源包括订单同步扣减、人工修正与系统回滚。不允许静默扣减失败。")}
       </Typography.Paragraph>

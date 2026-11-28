@@ -416,7 +416,6 @@ export default function AdvertisingFeesPage() {
       <TmPageContainer
         className="tm-advertising-fee-page"
         title={tr("广告费用归属")}
-        subTitle={tr("按店铺当地日将广告费用确定性归属到已支付且未取消的订单")}
         extra={<TmPageHeaderExtra>
           <Button icon={<DownloadOutlined />} onClick={downloadAdvertisingFeeCSVTemplate}>{tr('下载模板')} </Button>
           <Tooltip title={canImport ? tr('导入广告费用 CSV') : tr('当前账号无导入权限')}>

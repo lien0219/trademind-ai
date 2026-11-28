@@ -255,7 +255,6 @@ export default function PurchaseOrdersPage() {
       <TmPageContainer
         className="tm-procurement-page"
         title={tr("采购单")}
-        subTitle={tr("创建采购草稿并按权限完成提交、审批和分批收货；所有状态写入都使用版本号防止并发覆盖。")}
         extra={<TmPageHeaderExtra><Button type="primary" icon={<PlusOutlined />} disabled={!canManage || missingMasterData || masterLoading} onClick={openCreate}>{tr("新建采购单")}</Button></TmPageHeaderExtra>}
       >
         {!canManage ? <Alert type="info" showIcon message={tr("当前账号可以查看采购单；提交、审批和收货按钮将按职责权限分别显示。")} /> : null}

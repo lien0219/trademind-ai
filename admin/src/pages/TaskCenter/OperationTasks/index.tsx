@@ -510,7 +510,6 @@ export default function OperationTasksPage() {
               headerTitle={(
                 <div className="operation-tasks-page__table-heading">
                   <Text strong className="operation-tasks-page__table-title">{tr("任务列表")}</Text>
-                  <Text type="secondary">{tr("查看任务状态、草稿进度和最近执行结果。")}</Text>
                 </div>
               )}
               toolBarRender={() => [

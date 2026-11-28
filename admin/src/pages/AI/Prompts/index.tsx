@@ -224,12 +224,7 @@ export default function AIPromptsPage() {
   return (
     <TmPageContainer
       title={tr("AI 技能模板")}
-      subTitle={
-        <>
-          {tr('配置标题优化、描述生成、客服建议等场景的提示词模板；未单独指定 AI 服务商或模型时，将使用')}{' '}
-          <Link to="/settings/ai">{tr('AI 设置')}</Link>{tr(' 中的默认配置。')}
-        </>
-      }
+      extra={<Link to="/settings/ai">{tr("AI 设置")}</Link>}
     >
       <ProTable<AIPromptRow>
         headerTitle={false}

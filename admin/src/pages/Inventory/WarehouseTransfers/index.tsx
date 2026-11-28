@@ -126,7 +126,7 @@ export default function WarehouseTransfersPage() {
   const skuOptions = useMemo(() => skuRows.map((row) => ({ value: row.productSkuId, label: trFormat("{value0} · {value1}", { value0: row.skuCode || row.productSkuId, value1: row.productTitle || tr('未命名商品') }), search: `${row.skuCode} ${row.skuName} ${row.productTitle} ${row.productSkuId}` })), [skuRows, language]);
 
   return <PermissionGuard require={PERMISSIONS.INVENTORY_VIEW} showForbiddenPage>
-    <TmPageContainer title={tr("仓库调拨")} subTitle={tr("在租户仓库之间移动库存，发出和收货均记录不可变库存流水。")} extra={<TmPageHeaderExtra><Button type="primary" icon={<PlusOutlined />} disabled={!canOperate} onClick={openCreate}>{tr("新建调拨")}</Button></TmPageHeaderExtra>}>
+    <TmPageContainer title={tr("仓库调拨")} extra={<TmPageHeaderExtra><Button type="primary" icon={<PlusOutlined />} disabled={!canOperate} onClick={openCreate}>{tr("新建调拨")}</Button></TmPageHeaderExtra>}>
       {!canOperate ? <Alert type="info" showIcon message={tr("当前账号为只读模式，可查看调拨记录但不能执行调拨动作。")} style={{ marginBottom: 16 }} /> : null}
       {error ? <ErrorAlert title={error} /> : null}
       <TmProTable<WarehouseTransfer> rowKey="id" actionRef={actionRef} columns={columns} search={false} scroll={{ x: 1120 }} cardBordered locale={{ emptyText: tr('暂无仓库调拨记录') }} filterBar={<Select aria-label={tr("调拨状态")} allowClear placeholder={tr("全部状态")} value={status} style={{ width: 140 }} options={Object.entries(STATUS_META).map(([value, meta]) => ({ value, label: meta.label() }))} onChange={setStatus} />} request={async (params) => {

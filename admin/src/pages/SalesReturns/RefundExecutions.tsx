@@ -164,7 +164,6 @@ export default function RefundExecutionsPage() {
       <TmPageContainer
         className="tm-sales-return-page"
         title={tr("退款执行")}
-        subTitle={tr("记录外部退款结果并用平台只读事实复核，不会向平台发起退款")}
         extra={
           <TmPageHeaderExtra>
             <Button

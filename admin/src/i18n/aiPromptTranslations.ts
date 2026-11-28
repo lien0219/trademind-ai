@@ -287,13 +287,6 @@ export const aiPromptTranslations: Record<string,[string,string,string,string,st
     "아니요",
     "ไม่"
   ],
-  "配置标题优化、描述生成、客服建议等场景的提示词模板；未单独指定 AI 服务商或模型时，将使用": [
-    "Configure prompt templates for title optimization, description generation and customer support. When no provider or model is selected, use",
-    "タイトル最適化、説明文生成、顧客対応などのプロンプトを設定します。プロバイダーやモデルを指定しない場合は",
-    "設定標題優化、描述生成與客服建議等範本；未指定 AI 服務商或模型時，將使用",
-    "제목 최적화, 설명 생성, 고객 지원 프롬프트를 설정합니다. 제공업체 또는 모델을 지정하지 않으면",
-    "ตั้งค่าพรอมป์สำหรับปรับชื่อ สร้างคำอธิบาย และแนะนำบริการลูกค้า หากไม่ระบุผู้ให้บริการหรือโมเดล จะใช้"
-  ],
   "AI 设置": [
     "AI settings",
     "AI設定",

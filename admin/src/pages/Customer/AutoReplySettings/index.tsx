@@ -263,7 +263,6 @@ export default function CustomerAutoReplySettingsPage() {
   return (
     <TmPageContainer
       title={tr("AI 自动回复")}
-      subTitle={tr("在页面管理消息同步、自动回复总开关和店铺策略；默认关闭，保存后动态生效。")}
     >
       <Card title={tr("运行设置")} variant="borderless" style={{ marginBottom: 16 }}>
         {settingLoadError ? (

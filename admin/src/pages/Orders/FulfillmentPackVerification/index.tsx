@@ -381,7 +381,6 @@ export default function FulfillmentPackVerificationPage() {
           ) : null}
           <SectionCard
             title={tr("波次概览")}
-            description={tr("每次成功提交只复核一个订单，波次版本随事务原子递增。")}
           >
             <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small">
               <Descriptions.Item label={tr("波次号")}>
