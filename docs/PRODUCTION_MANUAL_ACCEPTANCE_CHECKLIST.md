@@ -71,9 +71,9 @@ Automated regression is owned by GitHub Actions and does not complete this manua
 
 ## G. Recovery and Operations
 
-- [ ] Review `backup-preproduction.sh` artifact, checksum, metadata, retention configuration and environment guard.
+- [ ] Use `backup-preproduction.sh` and confirm restore with the dump and checksum copied to a different path. Confirm that a corrupted copy fails before any database is created.
 - [ ] Review `restore-preproduction.sh` explicit isolated target identity and production-restore denial.
-- [ ] Review `rollback-preproduction.sh` previous immutable image selection, readiness check and non-implicit database restore.
+- [ ] Use `rollback-preproduction.sh` to roll back all three application images to one compatible previous release. Verify service readiness and confirm that the database and volumes retain their contents.
 - [ ] Execute timed backup/restore/rollback and five kill-switch drills only after independent pre-production exists.
 - [ ] Record measured RPO/RTO, alert fire/recovery and dedicated-host performance evidence; do not infer these from code/build checks.
 
@@ -119,7 +119,7 @@ No schema migration is introduced by the localization changes. Rolling back code
 
 Use an isolated target with a fresh database and a representative upgraded database. Record the tested source or image revision and the results in the release work order.
 
-- [ ] Deploy the three images from one Release. Confirm readiness with PostgreSQL and Redis, fail startup with Redis absent, and observe readiness failure and recovery during a Redis interruption. Verify that production starts with performance test mode disabled and creates no performance accounts. Exercise each Admin/API/Collector path through the target ingress or internal service network.
+- [ ] Deploy the three images from one Release. Confirm readiness with PostgreSQL and Redis, fail startup with Redis absent, and observe readiness failure and recovery during a Redis interruption. Verify that production starts with performance test mode disabled and creates no performance accounts. Exercise Admin and its API proxy through the HTTPS ingress, then verify the authenticated Collector probe and Chromium in the isolated network.
 - [ ] Run two concurrent PostgreSQL startups and verify migration serialization. Restore the verified off-host backup to an isolated target and confirm application rollback compatibility and the measured recovery objectives.
 - [ ] Exercise collection through draft and AI review/apply/undo, including expired browser sessions, provider errors, and on-screen recovery. Run each approved provider with revocable credentials and a controlled sample.
 - [ ] Exercise registration, invitation, password reset and task notification through a controlled SMTP mailbox. Verify language, delivery, expiry, session revocation and failed delivery feedback.

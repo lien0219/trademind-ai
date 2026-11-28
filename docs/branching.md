@@ -40,7 +40,7 @@ Admin 可见文案和国际化变更还必须通过 `pnpm check:ui-copy --strict
 
 `Project Tests` 的 code quality 与 backend integration 作业各自注入 `APP_ENV=test`、`TEST_DATABASE_URL`、`TEST_REDIS_URL` 并运行独立 PostgreSQL/Redis 服务。常规 Go 单元任务不启用 `integration` build tag；数据库、租户和 Worker 回归由显式集成命令执行，库存任务同时启用 `inventorypostgres`。不得通过移除集成命令或缺失环境后的 skip 让 CI 变绿。
 
-`Docker Config CI` 使用隔离配置运行生产部署脚本的 `--dry-run`。正式镜像的服务名称、提交和版本在目标环境拉取后核对。
+`Docker Config CI` 使用合成配置分别运行生产与独立预生产部署脚本的 `--dry-run`。实际部署在拉取镜像后核对服务名称、源码提交和版本。
 
 ## 发布流程
 

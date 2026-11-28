@@ -33,6 +33,40 @@ services:
       timeout: 3s
       retries: 12
 
+  collector:
+    image: ${P10_COLLECTOR_IMAGE:?an immutable preproduction Collector image is required}
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      COLLECTOR_HTTP_ADDR: ":3001"
+      COLLECTOR_SERVICE_TOKEN: ${PREPRODUCTION_COLLECTOR_SERVICE_TOKEN:?inject the preproduction Collector service token at runtime}
+      COLLECTOR_MAX_REQUEST_BODY_BYTES: ${COLLECTOR_MAX_REQUEST_BODY_BYTES:-1048576}
+      COLLECTOR_REQUEST_TIMEOUT_MS: ${COLLECTOR_REQUEST_TIMEOUT_MS:-15000}
+      COLLECTOR_HEADERS_TIMEOUT_MS: ${COLLECTOR_HEADERS_TIMEOUT_MS:-10000}
+      COLLECTOR_BROWSER_PROFILE_DIR: /workspace/data/browser-profiles
+      COLLECTOR_STORAGE_STATE_DIR: /workspace/data/storage-states
+      NODE_ENV: production
+    expose:
+      - "3001"
+    volumes:
+      - preproduction_collector_profiles:/workspace/data/browser-profiles
+      - preproduction_collector_storage_states:/workspace/data/storage-states
+    networks: [preproduction]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('node:http').get('http://127.0.0.1:3001/health', (response) => { response.resume(); if (response.statusCode >= 400) process.exitCode = 1; }).on('error', () => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
   backend:
     image: ${P10_API_IMAGE:?an immutable preproduction API image is required}
     restart: unless-stopped
@@ -40,22 +74,28 @@ services:
       - ../../.env
     environment:
       APP_ENV: staging
+      APP_HTTP_ADDR: ":8080"
+      GIN_MODE: release
       P10_ENVIRONMENT_PURPOSE: preproduction
+      DB_DRIVER: postgres
       DB_HOST: postgres
       DB_PORT: 5432
+      DB_NAME: ${DB_NAME:?preproduction DB_NAME is required}
+      DB_USER: ${DB_USER:?preproduction DB_USER is required}
       DB_PASSWORD: ${PREPRODUCTION_DB_PASSWORD:?inject the preproduction database password at runtime}
       REDIS_ADDR: redis:6379
+      COLLECTOR_BASE_URL: http://collector:3001
+      COLLECTOR_SERVICE_TOKEN: ${PREPRODUCTION_COLLECTOR_SERVICE_TOKEN:?inject the preproduction Collector service token at runtime}
       REDIS_PASSWORD: ${PREPRODUCTION_REDIS_PASSWORD:?inject the preproduction Redis password at runtime}
       APP_MASTER_KEY: ${PREPRODUCTION_APP_MASTER_KEY:?inject the preproduction master key at runtime}
       JWT_SECRET: ${PREPRODUCTION_JWT_SECRET:?inject the preproduction JWT secret at runtime}
-    ports:
-      - "127.0.0.1:${P10_BACKEND_BIND_PORT:-18080}:8080"
     volumes:
       - preproduction_uploads:/app/data/uploads
     networks: [preproduction]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
+      collector: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health/ready"]
       interval: 10s
@@ -68,14 +108,21 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:${P10_ADMIN_BIND_PORT:-18000}:80"
-    networks: [preproduction]
+    networks: [preproduction, admin_ingress]
     depends_on:
       backend: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   preproduction:
     name: trademind-preproduction
     internal: true
+  admin_ingress:
+    name: trademind-preproduction-ingress
 
 volumes:
   preproduction_postgres_data:
@@ -84,3 +131,7 @@ volumes:
     name: trademind-preproduction-redis
   preproduction_uploads:
     name: trademind-preproduction-uploads
+  preproduction_collector_profiles:
+    name: trademind-preproduction-collector-profiles
+  preproduction_collector_storage_states:
+    name: trademind-preproduction-collector-storage-states

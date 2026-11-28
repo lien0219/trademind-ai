@@ -30,7 +30,7 @@ git switch -c feat/your-feature-name
 
 - 说明变更、影响范围、风险、本地实际检查、交由 CI 的测试和人工验收。
 - Go 改动执行 `gofmt`；前端/Collector 改动完成相关构建或说明未执行原因。
-- 生产部署和回滚脚本由 `Docker Config CI` 触发配置预检查。PR 中分别记录预检查与实际发布就绪验证。
+- 生产与独立预生产部署脚本通过 `Docker Config CI` 执行配置预检查。PR 中记录预检查、目标环境就绪验证和适用的回滚演练。
 - API、部署、环境变量、配置或 Provider 变更同步相关文档。
 - 正式版本由 `deploy/IMAGE_VERSION` 管理；发布新版本仍需主动更新该文件，使用不含 `+build` 元数据、最长 48 字符的 Docker tag 安全 SemVer，并同步 Changelog、部署说明和回滚引用。
 - 不提交 `.env`、密钥、Token、Cookie、真实平台凭据或生产数据。

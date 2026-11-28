@@ -76,11 +76,12 @@ TRADEMIND_ADMIN_IMAGE=ghcr.io/lien0219/trademind@sha256:<admin-manifest-digest>
 TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind@sha256:<collector-manifest-digest>
 ```
 
-P10 预生产使用同一组 backend/Admin digest：
+P10 预生产使用同一份 Release 的三个应用镜像摘要。
 
 ```env
 P10_API_IMAGE=ghcr.io/lien0219/trademind@sha256:<backend-manifest-digest>
 P10_ADMIN_IMAGE=ghcr.io/lien0219/trademind@sha256:<admin-manifest-digest>
+P10_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind@sha256:<collector-manifest-digest>
 ```
 
 公开仓库首次生成统一 Package 后，维护者需要在该 Package 的设置中确认可见性为 Public；工作流只使用仓库自带的 `GITHUB_TOKEN` 写入 GHCR，不保存 PAT 或镜像仓库密码。若 Package 仍为私有，拉取前使用具有 `read:packages` 权限的凭据登录 `ghcr.io`。迁移前的三个旧 Package 不会被工作流自动删除，确认不再被部署引用后再由维护者在 GitHub Package 设置中清理。
@@ -255,19 +256,18 @@ docker compose -f docker-compose.full.yml config
 
 P10 maps pre-production to the existing `staging` profile and uses the separate `trademind-preproduction` Compose project. It does not reuse `docker-compose.yml`, `docker-compose.full.yml`, or production resources.
 
+On first setup, copy `.env.example` to `.env` on the target host. Set `APP_ENV=staging` and fill the host, database, Redis and recovery identities from [the pre-production configuration contract](env.md#p10-pre-production-contract). Use the backend, Admin and Collector digests from one Release. Set the `PREPRODUCTION_*` secrets through the host's secret source.
+
 ```bash
-cp .env.example .env
-# edit .env: APP_ENV=staging and fill this host's non-secret identifiers
 node scripts/preproduction-preflight.mjs --mode config
-deploy/scripts/deploy-preproduction.sh
+bash deploy/scripts/deploy-preproduction.sh --dry-run
+bash deploy/scripts/deploy-preproduction.sh
 ```
 
-Inject `PREPRODUCTION_DB_PASSWORD`, `PREPRODUCTION_REDIS_PASSWORD`, `PREPRODUCTION_APP_MASTER_KEY`, `PREPRODUCTION_JWT_SECRET`, `P10_API_IMAGE`, and `P10_ADMIN_IMAGE` from the target host or managed secret source. The repository contains references and placeholders only.
+The dry run checks the configuration Compose will inject. Deployment verifies the role, revision and version of each pulled image before starting services. The readiness check verifies `/health/ready`, Admin's proxy to the API and the authenticated Collector connection. Only Admin exposes a host port. Point the pre-production HTTPS reverse proxy at `127.0.0.1:${P10_ADMIN_BIND_PORT:-18000}` and use the same HTTPS origin for `ADMIN_PUBLIC_URL` and `API_PUBLIC_URL` with that proxy. The `/api/` prefix goes through the Admin image's built-in proxy.
 
-The deployment waits for PostgreSQL and Redis health, starts the backend migration path with its advisory lock, and accepts the deployment only after `/health/ready` reports database, Redis, migrations, and `staging` as ready. Backup, isolated restore, application rollback, and non-destructive teardown entry points are under `deploy/scripts/*-preproduction.sh`.
-
-External infrastructure status must be supplied at runtime to `node scripts/preproduction-preflight.mjs --mode external`; generated evidence JSON is not retained in the working tree. Until host, PostgreSQL, Redis, domain, credential availability, deployment rehearsal, and teardown rehearsal are all proven, pre-production remains blocked.
+Use the [manual acceptance checklist](PRODUCTION_MANUAL_ACCEPTANCE_CHECKLIST.md) to record the independent host, TLS ingress, operational credentials, service checks, deployment and teardown in the release work order.
 
 The full-stack development Compose explicitly passes the P10 L0 variables listed in [`env.md`](env.md). It rejects non-L0 and all real Provider/network/credential/read, mutation, Worker, and automatic-retry flags. It is only suitable for repository-side/manual fixture checks and must not be treated as the independent pre-production environment.
 
-P10 reuses the existing recovery foundations instead of creating parallel mechanisms: `deploy/scripts/backup-preproduction.sh` creates a PostgreSQL custom-format artifact, SHA-256 checksum and metadata; `restore-preproduction.sh` restores only into an explicit isolated database identity; `rollback-preproduction.sh` restores previous immutable application images and performs readiness checks without an implicit database restore. Production restore remains disabled by default.
+`bash deploy/scripts/backup-preproduction.sh` writes a PostgreSQL custom-format dump, a SHA-256 sidecar and metadata. Copy the three files together for recovery. `bash deploy/scripts/restore-preproduction.sh <verified.dump>` verifies the selected dump and restores it into an explicitly named new pre-production database. For application rollback, set all three `P10_PREVIOUS_*_IMAGE` references and confirm database compatibility with `P10_ROLLBACK_MIGRATION_COMPATIBLE=true`. `bash deploy/scripts/rollback-preproduction.sh --dry-run` validates the references. `bash deploy/scripts/rollback-preproduction.sh` starts the previous application images and retains the database and data volumes.

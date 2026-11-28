@@ -207,7 +207,7 @@ docker compose -f docker-compose.full.yml up -d --build
 
 P10 reuses `APP_ENV=staging` as the only pre-production profile. Do not introduce a second `preproduction` runtime value. `.env.example` is the canonical non-secret contract; the target host copies it to `.env`, while database, Redis, application-key, JWT, and immutable-image values are injected externally.
 
-For pre-production, copy `.env.example` to `.env`, set `APP_ENV=staging`, and fill the target host's non-secret identities. The P10 preflight requires explicit, pairwise-distinct identities for development/test, pre-production, and production database and Redis resources. It also requires a distinct session namespace, non-overlapping cookie domains, distinct Admin/API endpoints, a non-local staging storage mode, a matching credentialed CORS origin, explicit migration/backup/restore targets, previous immutable images, and external secret references. Inline secret values, missing or unknown environments, and production targets fail closed.
+For pre-production, copy `.env.example` to `.env`, set `APP_ENV=staging`, and fill the target host's non-secret identities. The P10 preflight requires explicit, pairwise-distinct identities for development/test, pre-production, and production database and Redis resources. It also requires a distinct session namespace, non-overlapping cookie domains, distinct Admin/API endpoints, a non-local staging storage mode, a matching credentialed CORS origin, explicit migration, backup and restore targets, three immutable application images, and external secret references. The first deployment needs the current images. Rollback additionally needs the previous image set and a compatibility confirmation.
 
 `P10_PRODUCTION_RESTORE_ENABLED` must remain `false`. All real Provider/network/read/write, mutation, queue/worker, and automatic business retry flags remain disabled at L0. L3 exists only as an externally approved single-tenant, single-allowlisted-shop Douyin platform-draft write profile; it does not allow publishing online, inventory mutation, automatic business retry, unreviewed execution, or multi-shop expansion. Run the non-secret contract check with:
 
@@ -215,7 +215,9 @@ For pre-production, copy `.env.example` to `.env`, set `APP_ENV=staging`, and fi
 node scripts/preproduction-preflight.mjs --mode config
 ```
 
-Operational values must be supplied by the target host or managed secret system and must never be committed or printed in evidence.
+Set `PREPRODUCTION_DB_PASSWORD`, `PREPRODUCTION_REDIS_PASSWORD`, `PREPRODUCTION_APP_MASTER_KEY`, `PREPRODUCTION_JWT_SECRET` and `PREPRODUCTION_COLLECTOR_SERVICE_TOKEN` through the target host's managed secret source. The Collector token must contain at least 32 printable non-space ASCII characters, and Compose shares it only with the backend and Collector. Set `P10_COLLECTOR_SERVICE_TOKEN_REF` to the managed reference. Keep the general `COLLECTOR_SERVICE_TOKEN` empty for this environment.
+
+`P10_API_IMAGE`, `P10_ADMIN_IMAGE` and `P10_COLLECTOR_IMAGE` select the current release. `P10_PREVIOUS_API_IMAGE`, `P10_PREVIOUS_ADMIN_IMAGE` and `P10_PREVIOUS_COLLECTOR_IMAGE` select the rollback release. The host HTTPS reverse proxy reaches Admin at `127.0.0.1:18000` by default. `P10_ADMIN_BIND_PORT` changes this loopback port.
 
 历史阶段报告与冻结证据已从当前工作树清理；需要追溯时使用 Git 历史。当前运行说明只以 `.env`、`.env.example` 和本文件为准。
 

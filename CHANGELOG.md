@@ -4,6 +4,11 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Independent pre-production deployment
+
+- Deploy Admin, API and Collector from one immutable release. Check application paths inside the isolated stack and expose the Admin proxy on host loopback.
+- Validate three-image rollback and verify relocated backup dumps before restoring to a separate database.
+
 ### Production readiness and order recovery
 
 - Gate deployment on API readiness and compatible Backend, Admin and Collector images from the same release. Publish copy-ready digest references in Release notes.

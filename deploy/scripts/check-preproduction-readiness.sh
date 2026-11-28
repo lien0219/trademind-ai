@@ -1,29 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-ENV_FILE="$ROOT/.env"
-source "$ROOT/deploy/scripts/load-env-defaults.sh"
-load_env_defaults "$ENV_FILE"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+COMPOSE=(docker compose --project-name trademind-preproduction --env-file "$ROOT/.env" -f "$ROOT/deploy/preproduction/compose.yml")
+BACKEND_ONLY=false
+case "${1:-}" in
+  --backend-only) BACKEND_ONLY=true ;;
+  "") ;;
+  *) echo "Usage: $0 [--backend-only]" >&2; exit 2 ;;
+esac
+
 node "$ROOT/scripts/preproduction-preflight.mjs" --mode startup >/dev/null
-
-BASE_URL="http://127.0.0.1:${P10_BACKEND_BIND_PORT:-18080}"
-BODY="$(mktemp)"
-trap 'rm -f "$BODY"' EXIT
-
-for attempt in $(seq 1 30); do
-  code="$(curl -sS -o "$BODY" -w '%{http_code}' --max-time 5 "$BASE_URL/health/ready" || true)"
-  if [[ "$code" == "200" ]] && node -e '
-    const fs = require("node:fs");
-    const payload = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+if ! "${COMPOSE[@]}" exec -T backend curl -qfsS --noproxy '*' --max-time 5 http://127.0.0.1:8080/health/ready | node -e '
+  try {
+    const payload = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
     const checks = payload.data?.checks || {};
-    if (checks.database !== "ok" || checks.redis !== "ok" || checks.migrations !== "ok" || checks.appEnv !== "staging") process.exit(1);
-  ' "$BODY"; then
-    echo "[preproduction-readiness] database, redis, migrations, and staging profile are ready"
-    exit 0
-  fi
-  if [[ "$attempt" -lt 30 ]]; then sleep 2; fi
-done
+    if (checks.database !== "ok" || checks.redis !== "ok" || checks.migrations !== "ok" || checks.appEnv !== "staging") process.exitCode = 1;
+  } catch { process.exitCode = 1; }
+'; then
+  echo "[preproduction-readiness] API readiness failed" >&2
+  exit 1
+fi
 
-echo "[preproduction-readiness] readiness failed without printing response content" >&2
-exit 1
+# Send the shared token on stdin. This keeps the credential out of argv and logs.
+if ! "${COMPOSE[@]}" exec -T backend sh -ec '
+  endpoint="${COLLECTOR_BASE_URL}/v1/providers"
+  status=$(curl -q -sS --noproxy "*" --max-time 5 -o /dev/null -w "%{http_code}" "$endpoint")
+  [ "$status" = 401 ]
+  printf "Authorization: Bearer %s\n" "$COLLECTOR_SERVICE_TOKEN" |
+    curl -qfsS --noproxy "*" --max-time 5 --header @- -o /dev/null "$endpoint"
+'; then
+  echo "[preproduction-readiness] Collector reachability or service authentication failed" >&2
+  exit 1
+fi
+
+if ! $BACKEND_ONLY; then
+  if ! "${COMPOSE[@]}" exec -T admin sh -ec '
+    wget -q -T 5 -O /dev/null http://127.0.0.1/
+    wget -q -T 5 -O /dev/null http://127.0.0.1/api/v1/health
+  '; then
+    echo "[preproduction-readiness] Admin or API proxy check failed" >&2
+    exit 1
+  fi
+  echo "[preproduction-readiness] Admin and API proxy are ready"
+fi
+echo "[preproduction-readiness] API dependencies, staging profile, and Collector authentication are ready"

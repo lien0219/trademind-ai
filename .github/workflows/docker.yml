@@ -15,6 +15,12 @@ on:
       - "docker-compose*.yml"
       - "deploy/production/compose.yml"
       - "deploy/scripts/*-production.sh"
+      - "deploy/preproduction/compose.yml"
+      - "deploy/scripts/*-preproduction.sh"
+      - "deploy/scripts/verify-application-images.sh"
+      - "deploy/scripts/load-env-defaults.sh"
+      - "scripts/preproduction-*.mjs"
+      - "tests/workflow/fixtures/preproduction.env"
       - ".env.example"
       - "**/Dockerfile"
       - "**/.dockerignore"
@@ -37,6 +43,12 @@ on:
       - "docker-compose*.yml"
       - "deploy/production/compose.yml"
       - "deploy/scripts/*-production.sh"
+      - "deploy/preproduction/compose.yml"
+      - "deploy/scripts/*-preproduction.sh"
+      - "deploy/scripts/verify-application-images.sh"
+      - "deploy/scripts/load-env-defaults.sh"
+      - "scripts/preproduction-*.mjs"
+      - "tests/workflow/fixtures/preproduction.env"
       - ".env.example"
       - "**/Dockerfile"
       - "**/.dockerignore"
@@ -91,3 +103,39 @@ jobs:
           TRADEMIND_ADMIN_IMAGE: ghcr.io/lien0219/trademind@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
           TRADEMIND_COLLECTOR_IMAGE: ghcr.io/lien0219/trademind@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         run: bash deploy/scripts/deploy-production.sh --dry-run
+
+      - name: Set up Node.js for preproduction preflight
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Validate independent preproduction deployment configuration
+        env:
+          # Synthetic values for interpolation only. No containers start in this job.
+          PREPRODUCTION_DB_PASSWORD: ci-preproduction-db-placeholder
+          PREPRODUCTION_REDIS_PASSWORD: ci-preproduction-redis-placeholder
+          PREPRODUCTION_APP_MASTER_KEY: ci-preproduction-master-placeholder
+          PREPRODUCTION_JWT_SECRET: ci-preproduction-jwt-placeholder
+          PREPRODUCTION_COLLECTOR_SERVICE_TOKEN: ci-preproduction-collector-placeholder-0123456789
+        run: |
+          set -euo pipefail
+          printf '\n' >> .env
+          cat tests/workflow/fixtures/preproduction.env >> .env
+          bash deploy/scripts/deploy-preproduction.sh --dry-run
+
+      - name: Reject a damaged backup before creating a restore database
+        run: |
+          set -euo pipefail
+          dump="$(mktemp)"
+          trap 'rm -f -- "$dump" "$dump.sha256" "$dump.original"' EXIT
+          printf 'original backup bytes' > "$dump.original"
+          sha256sum "$dump.original" > "$dump.sha256"
+          printf 'damaged copy' > "$dump"
+          docker() { printf 'unexpected Docker access\n' >&2; return 1; }
+          export -f docker
+          export P10_RESTORE_DATABASE_NAME=trademind_preproduction_restore_ci
+          if output="$(bash deploy/scripts/restore-preproduction.sh "$dump" 2>&1)"; then
+            echo 'Expected the restore script to reject the damaged dump' >&2
+            exit 1
+          fi
+          [[ "$output" == *"backup checksum mismatch"* && "$output" != *"unexpected Docker access"* ]]

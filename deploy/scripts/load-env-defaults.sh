@@ -5,6 +5,7 @@
 load_env_defaults() {
   local env_file="$1"
   local line key value first last
+  local -A file_values=()
 
   [[ -f "$env_file" ]] || { echo "environment file not found: $env_file" >&2; return 1; }
 
@@ -14,8 +15,6 @@ load_env_defaults() {
     [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=(.*)$ ]] || continue
 
     key="${BASH_REMATCH[1]}"
-    [[ -v $key ]] && continue
-
     value="${BASH_REMATCH[2]}"
     value="${value#"${value%%[![:space:]]*}"}"
     value="${value%"${value##*[![:space:]]}"}"
@@ -27,7 +26,13 @@ load_env_defaults() {
       fi
     fi
 
-    printf -v "$key" '%s' "$value"
-    export "$key"
+    file_values["$key"]="$value"
   done < "$env_file"
+
+  # Apply the last file assignment, as Compose and Node preflight do.
+  for key in "${!file_values[@]}"; do
+    [[ -v $key ]] && continue
+    printf -v "$key" '%s' "${file_values[$key]}"
+    export "$key"
+  done
 }

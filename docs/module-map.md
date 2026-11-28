@@ -76,7 +76,7 @@
 - 重复出现的坑、质量门槛或工具协作经验，应写回对应 pitfalls、模块文档、`docs/PROGRESS.md` 或 AI 规则，避免只停留在单次对话。
 # 预生产基础设施
 
-Changes to `.env.example`, `deploy/preproduction/**`, or `deploy/scripts/*preproduction*` must be checked together with `docs/PREPRODUCTION_ARCHITECTURE.md`, `docs/env.md`, `docs/docker-deployment.md`, workflow configuration, sensitive-diff checks, and the manual acceptance checklist. Production resources and credentials are outside the default writable scope.
+预生产入口包括 `deploy/preproduction/compose.yml`、`deploy/scripts/*preproduction*`、`deploy/scripts/verify-application-images.sh`、`scripts/preproduction-contract.mjs` 与 `.env.example`。同时检查 `tests/workflow/preproduction.test.ts`、`Docker Config CI`、`docs/PREPRODUCTION_ARCHITECTURE.md`、`docs/env.md`、`docs/docker-deployment.md` 和生产人工验收清单。
 
 ## Production Credential / Read-only / Control Modules
 
