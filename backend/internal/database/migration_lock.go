@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -33,25 +34,34 @@ func RunMigrateWithLock(ctx context.Context, db *gorm.DB, timeout time.Duration,
 	if timeout <= 0 {
 		timeout = 120 * time.Second
 	}
-	deadline := time.Now().UTC().Add(timeout)
-	for {
-		acquired, err := tryAdvisoryLock(ctx, db)
-		if err != nil {
-			return err
+	lockCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	// PostgreSQL advisory locks belong to the session. Keep the session checked
+	// out until the migration and unlock have both finished.
+	return db.WithContext(lockCtx).Connection(func(conn *gorm.DB) (err error) {
+		for {
+			acquired, lockErr := tryAdvisoryLock(lockCtx, conn)
+			if lockErr != nil {
+				return fmt.Errorf("migration lock: acquire: %w", lockErr)
+			}
+			if acquired {
+				break
+			}
+			select {
+			case <-lockCtx.Done():
+				return fmt.Errorf("migration lock: wait: %w", lockCtx.Err())
+			case <-time.After(500 * time.Millisecond):
+			}
 		}
-		if acquired {
-			defer func() { _ = releaseAdvisoryLock(db) }()
-			return run(db)
-		}
-		if time.Now().UTC().After(deadline) {
-			return fmt.Errorf("migration lock: timeout waiting for advisory lock")
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(500 * time.Millisecond):
-		}
-	}
+		defer func() {
+			unlockCtx, cancelUnlock := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancelUnlock()
+			if unlockErr := releaseAdvisoryLock(unlockCtx, conn); unlockErr != nil {
+				err = errors.Join(err, unlockErr)
+			}
+		}()
+		return run(conn.WithContext(db.Statement.Context))
+	})
 }
 
 func tryAdvisoryLock(ctx context.Context, db *gorm.DB) (bool, error) {
@@ -62,6 +72,13 @@ func tryAdvisoryLock(ctx context.Context, db *gorm.DB) (bool, error) {
 	return ok, err
 }
 
-func releaseAdvisoryLock(db *gorm.DB) error {
-	return db.Exec("SELECT pg_advisory_unlock(?, ?)", migrationLockKey1, migrationLockKey2).Error
+func releaseAdvisoryLock(ctx context.Context, db *gorm.DB) error {
+	var released bool
+	if err := db.WithContext(ctx).Raw("SELECT pg_advisory_unlock(?, ?)", migrationLockKey1, migrationLockKey2).Scan(&released).Error; err != nil {
+		return fmt.Errorf("migration lock: release: %w", err)
+	}
+	if !released {
+		return errors.New("migration lock: the database session did not hold the lock")
+	}
+	return nil
 }

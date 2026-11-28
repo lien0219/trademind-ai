@@ -118,10 +118,6 @@ func (p *Provider) Send(ctx context.Context, req email.SendEmailRequest) error {
 	if err := client.Rcpt(to.Address); err != nil {
 		return fmt.Errorf("smtp: recipient rejected: %w", err)
 	}
-	w, err := client.Data()
-	if err != nil {
-		return fmt.Errorf("smtp: DATA: %w", err)
-	}
 	name := strings.TrimSpace(cfg.FromName)
 	fromHeader := from.Address
 	if name != "" {
@@ -135,6 +131,14 @@ func (p *Provider) Send(ctx context.Context, req email.SendEmailRequest) error {
 		"Content-Type: " + contentType + "; charset=utf-8\r\n" +
 		"Content-Transfer-Encoding: 8bit\r\n\r\n" +
 		strings.ReplaceAll(strings.ReplaceAll(req.Content, "\r\n", "\n"), "\n", "\r\n")
+	return deliverMessage(client, msg)
+}
+
+func deliverMessage(client *smtp.Client, msg string) error {
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("smtp: DATA: %w", err)
+	}
 	_, err = io.WriteString(w, msg)
 	if err != nil {
 		_ = w.Close()
@@ -143,5 +147,8 @@ func (p *Provider) Send(ctx context.Context, req email.SendEmailRequest) error {
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("smtp: finalize: %w", err)
 	}
-	return client.Quit()
+	// A successful DATA close means the server accepted the message. A
+	// dropped connection during QUIT must not invalidate a delivered code.
+	_ = client.Quit()
+	return nil
 }

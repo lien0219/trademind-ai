@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -14,12 +13,17 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ListSKUMatchRowsForOrder returns one DTO per order line merged with match row.
 func (s *Service) ListSKUMatchRowsForOrder(c *gin.Context, orderID uuid.UUID) ([]SKUMatchDetailDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
 	}
 	var items []OrderItem
 	if err := s.DB.WithContext(c.Request.Context()).Where("order_id = ?", orderID).Order("created_at ASC, id ASC").Find(&items).Error; err != nil {
@@ -38,7 +42,7 @@ func (s *Service) ListSKUMatchRowsForOrder(c *gin.Context, orderID uuid.UUID) ([
 		}
 		if it.ProductSKUID != nil && *it.ProductSKUID != uuid.Nil {
 			var loc product.ProductSKU
-			if err := s.DB.WithContext(c.Request.Context()).First(&loc, "id = ? AND deleted_at IS NULL", *it.ProductSKUID).Error; err == nil {
+			if err := orderLocalSKUQuery(s.DB.WithContext(c.Request.Context()), tenantID).First(&loc, "product_skus.id = ?", *it.ProductSKUID).Error; err == nil {
 				dto.LocalSKUCode = strings.TrimSpace(loc.SKUCode)
 			}
 		}
@@ -158,7 +162,7 @@ func (s *Service) ListSKUMatchGlobal(c *gin.Context, q SKUMatchListQuery) ([]SKU
 		}
 		if m.ProductSKUID != nil && *m.ProductSKUID != uuid.Nil {
 			var psku product.ProductSKU
-			if err := s.DB.WithContext(c.Request.Context()).First(&psku, "id = ? AND deleted_at IS NULL", *m.ProductSKUID).Error; err == nil {
+			if err := orderLocalSKUQuery(s.DB.WithContext(c.Request.Context()), tenantID).First(&psku, "product_skus.id = ?", *m.ProductSKUID).Error; err == nil {
 				row.LocalSKUCode = strings.TrimSpace(psku.SKUCode)
 			}
 		}
@@ -190,31 +194,20 @@ func (s *Service) BindOrderItemSKU(ctx context.Context, in BindOrderItemSKUInput
 		return nil, err
 	}
 	var sku product.ProductSKU
-	skuQuery := s.DB.WithContext(ctx)
-	if in.TenantID != nil {
-		skuQuery = skuQuery.Joins("JOIN products ON products.id = product_skus.product_id AND products.tenant_id = ? AND products.deleted_at IS NULL", *in.TenantID)
-	}
-	if err := skuQuery.First(&sku, "product_skus.id = ? AND product_skus.deleted_at IS NULL", in.ProductSKUID).Error; err != nil {
-		return nil, err
-	}
-	pid := sku.ProductID
-	sid := sku.ID
-
-	now := time.Now().UTC()
 	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&it).Updates(map[string]any{
-			"product_id":     &pid,
-			"product_sku_id": &sid,
-			"updated_at":     now,
-		}).Error; err != nil {
-			return err
-		}
 		var o Order
-		orderQuery := tx
+		orderQuery := tx.Clauses(clause.Locking{Strength: "UPDATE"})
 		if in.TenantID != nil {
 			orderQuery = orderQuery.Where("tenant_id = ?", *in.TenantID)
 		}
 		if err := orderQuery.First(&o, "id = ?", it.OrderID).Error; err != nil {
+			return err
+		}
+		if err := orderLocalSKUQuery(tx, o.TenantID).First(&sku, "product_skus.id = ?", in.ProductSKUID).Error; err != nil {
+			return err
+		}
+		pid, sid := sku.ProductID, sku.ID
+		if err := updateOrderItemBinding(tx, &o, it.ID, &pid, &sid); err != nil {
 			return err
 		}
 		it.ProductID = &pid
@@ -242,7 +235,7 @@ func (s *Service) BindOrderItemSKU(ctx context.Context, in BindOrderItemSKUInput
 	}
 	if s.OpLog != nil {
 		msg := fmt.Sprintf("orderId=%s orderItemId=%s productSkuId=%s matchType=manual",
-			it.OrderID.String(), it.ID.String(), sid.String())
+			it.OrderID.String(), it.ID.String(), sku.ID.String())
 		if in.CandidateConfidence != nil {
 			msg += fmt.Sprintf(" candidateConfidence=%d", *in.CandidateConfidence)
 		}

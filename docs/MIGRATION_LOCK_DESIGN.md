@@ -8,7 +8,7 @@
 - 启动入口：`cmd/server/main.go`
 
 ```go
-database.RunMigrateWithLock(ctx, db, timeout, database.AutoMigrate)
+database.RunMigrateWithLock(ctx, db, timeout, database.AutoMigrateProductionSchema)
 ```
 
 ## Advisory Lock 键
@@ -31,18 +31,18 @@ SELECT pg_advisory_unlock(8837291, 20260710);
 ## 执行流程
 
 ```text
-启动 → MIGRATION_RUN_ON_STARTUP?
-  ├─ true  → RunMigrateWithLock
-  │           ├─ postgres: try lock → 成功则 AutoMigrate → unlock (defer)
-  │           └─ 失败: 每 500ms 重试至 timeout
-  └─ false → 直接 AutoMigrate（无锁，适合外部已迁移）
+启动 → staging/production 或 MIGRATION_RUN_ON_STARTUP=true？
+  ├─ 是 → RunMigrateWithLock
+  │         ├─ PostgreSQL 固定会话 → 获取锁 → 迁移 → 同会话释放锁
+  │         └─ 锁被占用时每 500ms 重试，直到等待超时
+  └─ 否 → 本地直接调用 AutoMigrateProductionSchema
 ```
 
 ### 超时
 
 - `MIGRATION_LOCK_TIMEOUT_SECONDS`（默认 **120**）。
-- Context 与 lock wait 共用该超时。
-- 超时错误：`migration lock: timeout waiting for advisory lock`。
+- 等待连接和获取锁共用该超时。迁移使用调用方数据库上下文，并复用持锁会话。
+- 迁移失败时仍尝试释放锁。解锁失败会使启动失败。
 
 ### 非 PostgreSQL
 
@@ -54,16 +54,10 @@ MySQL 部署约定：单窗口迁移或 CI 专用迁移 Job。
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
-| `MIGRATION_RUN_ON_STARTUP` | `true` | 启动时 AutoMigrate |
+| `MIGRATION_RUN_ON_STARTUP` | `true` | 启动时使用迁移锁。`staging` 和 `production` 的 PostgreSQL 始终使用锁。 |
 | `MIGRATION_LOCK_TIMEOUT_SECONDS` | `120` | 等待锁最长时间 |
 
-关闭启动迁移（大型生产变更）：
-
-```env
-MIGRATION_RUN_ON_STARTUP=false
-```
-
-须改为发布流程中 **单次** 执行迁移（仍可使用同 advisory 脚本）。
+`MIGRATION_RUN_ON_STARTUP=false` 仅影响本地锁策略。服务启动仍会执行 schema 检查及迁移。安排大型数据库变更时，先在隔离环境验证上一版本、候选版本与数据库的兼容性，再在发布工单指定迁移窗口。
 
 ## P2 迁移内容
 

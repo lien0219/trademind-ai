@@ -4,6 +4,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,7 +34,59 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"github.com/trademind-ai/trademind/backend/internal/testing/postgrestest"
 	"github.com/trademind-ai/trademind/backend/internal/testing/safeenv"
+	"gorm.io/gorm"
 )
+
+func TestMigrationLockSerializesCallersSharingPostgresPool(t *testing.T) {
+	db := postgrestest.Require(t).DB
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	entered := make(chan struct{})
+	finish := make(chan struct{})
+	first := make(chan error, 1)
+	go func() {
+		first <- database.RunMigrateWithLock(ctx, db, 3*time.Second, func(*gorm.DB) error {
+			close(entered)
+			select {
+			case <-finish:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		})
+	}()
+	select {
+	case <-entered:
+	case err := <-first:
+		t.Fatalf("first migration exited before it acquired the lock: %v", err)
+	case <-ctx.Done():
+		t.Fatal("first migration never acquired the lock")
+	}
+	var secondRan bool
+	secondErr := database.RunMigrateWithLock(ctx, db, 250*time.Millisecond, func(*gorm.DB) error {
+		secondRan = true
+		return nil
+	})
+	close(finish)
+	require.NoError(t, <-first)
+	require.False(t, secondRan, "a pooled session must not reenter a migration in progress")
+	require.Error(t, secondErr)
+
+	// A separate pool must be able to take the lock after the first migration releases it.
+	otherDB := postgrestest.Require(t).DB
+	migrationErr := errors.New("synthetic migration failure")
+	require.ErrorIs(t, database.RunMigrateWithLock(ctx, otherDB, time.Second, func(*gorm.DB) error {
+		return migrationErr
+	}), migrationErr)
+	require.NoError(t, database.RunMigrateWithLock(ctx, db, time.Second, func(tx *gorm.DB) error {
+		var holdsLock bool
+		if err := tx.Raw("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid())").Scan(&holdsLock).Error; err != nil {
+			return err
+		}
+		require.True(t, holdsLock, "the migration must use the locked session")
+		return tx.AutoMigrate(&legacyRuntimeControl{})
+	}))
+}
 
 type legacyRuntimeControl struct {
 	ID                 uuid.UUID `gorm:"type:char(36);primaryKey"`
@@ -505,8 +558,8 @@ func TestAutoMigrateProductionSchemaRenamesLegacySchemaWithoutDataLoss(t *testin
 	}
 	require.NoError(t, db.Create(&legacy).Error)
 
-	require.NoError(t, database.AutoMigrateProductionSchema(db))
-	require.NoError(t, database.AutoMigrateProductionSchema(db))
+	require.NoError(t, database.RunMigrateWithLock(context.Background(), db, 10*time.Second, database.AutoMigrateProductionSchema))
+	require.NoError(t, database.RunMigrateWithLock(context.Background(), db, 10*time.Second, database.AutoMigrateProductionSchema))
 	require.False(t, db.Migrator().HasTable("p10_runtime_controls"))
 	require.True(t, db.Migrator().HasTable("production_runtime_controls"))
 	require.True(t, db.Migrator().HasIndex(&productioncontrol.RuntimeControl{}, "idx_production_runtime_controls_tenant_id"))

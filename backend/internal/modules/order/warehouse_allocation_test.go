@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
@@ -206,6 +208,31 @@ func TestConfirmWarehouseAllocationReservesAtomicallyAndReplays(t *testing.T) {
 	if balance.Reserved != 3 || balance.Version != 2 {
 		t.Fatalf("replay must not reserve twice: %#v", balance)
 	}
+}
+
+func TestConfirmWarehouseAllocationResumesOnlyAfterLeaseExpires(t *testing.T) {
+	fx := newWarehouseAllocationFixture(t)
+	evaluation, err := fx.orders.GetWarehouseAllocation(fx.ctx, fx.inv, fx.order.ID)
+	require.NoError(t, err)
+	candidate := evaluation.Candidates[0]
+	in := ConfirmWarehouseAllocationInput{WarehouseID: candidate.WarehouseID, ExpectedRevision: candidate.Revision, IdempotencyKey: "allocation-interrupted"}
+	key := idempotency.OrderWarehouseAllocation(fx.order.ID.String(), in.IdempotencyKey)
+	claim, err := fx.orders.Idempotency.Acquire(fx.ctx.Request.Context(), orderWarehouseAllocationScope, key, allocationRequestHash(fx.order.ID, in), "interrupted-request", time.Minute)
+	require.NoError(t, err)
+	_, err = fx.orders.ConfirmWarehouseAllocation(fx.ctx, fx.inv, fx.order.ID, in, nil)
+	require.ErrorIs(t, err, ErrWarehouseAllocationInProgress)
+	var balance inventory.WarehouseStockBalance
+	require.NoError(t, fx.db.Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", fx.order.TenantID, candidate.WarehouseID, fx.sku.ID).First(&balance).Error)
+	require.Zero(t, balance.Reserved)
+
+	require.NoError(t, fx.db.Model(claim.Record).UpdateColumn("locked_until", time.Now().Add(-time.Minute)).Error)
+	result, err := fx.orders.ConfirmWarehouseAllocation(fx.ctx, fx.inv, fx.order.ID, in, nil)
+	require.NoError(t, err)
+	require.Equal(t, inventory.WarehouseAllocationAllocated, result.Allocation.Status)
+	_, err = fx.orders.ConfirmWarehouseAllocation(fx.ctx, fx.inv, fx.order.ID, in, nil)
+	require.NoError(t, err)
+	require.NoError(t, fx.db.First(&balance, "id = ?", balance.ID).Error)
+	require.Equal(t, fx.item.Quantity, balance.Reserved)
 }
 
 func TestConfirmWarehouseAllocationRejectsStaleCandidateWithoutWrites(t *testing.T) {

@@ -97,7 +97,7 @@ TRADEMIND_COLLECTOR_IMAGE=ghcr.io/lien0219/trademind@sha256:<collector-manifest-
 
 ```bash
 # 在正式服务器仓库根目录准备 .env，放入同一 GitHub Release 的三个 digest。
-# 此命令只检查 Compose 与镜像引用，不拉取镜像或更改服务：
+# 先校验 Compose 和三个镜像引用的格式
 bash deploy/scripts/deploy-production.sh --dry-run
 
 # 仅在完成独立备份、恢复演练、版本核对和上线授权后执行：
@@ -105,7 +105,11 @@ TRADEMIND_PRODUCTION_APPROVED=yes TRADEMIND_PRODUCTION_BACKUP_CONFIRMED=yes \
   bash deploy/scripts/deploy-production.sh
 ```
 
-部署脚本要求本机 `docker compose` 和 `python3`，强制应用镜像使用 `ghcr.io/lien0219/trademind@sha256:<64位digest>`；它不在生产构建源码、不删除数据卷、不自动放开 P10 的 L0 安全限制。两个审批环境变量仅代表操作者已在外部真实核验备份和授权，脚本无法独立证明备份可恢复。若健康检查失败，暂停发布并检查数据库迁移兼容性。在**独立确认数据库向后兼容**后可执行以下显式应用镜像回滚；三个上一版本的 Digest 必须来自同一已验证 Release，**不会恢复数据库或删除持久卷**：
+生产脚本使用 Bash、Docker Compose 和 Python 3。`--dry-run` 在本地校验 Compose 配置及三个 `ghcr.io/lien0219/trademind@sha256:<64位digest>` 引用。对于旧 Release 中的 `镜像:标签@sha256:摘要`，填写引用时去掉标签并保留 `@sha256:摘要`。
+
+实际启动前，脚本会核对已拉取镜像的服务名称、源码提交和发布版本。请从同一份正式 Release 复制三个引用，并记录外部备份核验和上线授权。生产 Compose 等待后端 `/health/ready` 通过后再启动 Admin。后端启动要求 PostgreSQL、Redis 和数据库迁移成功，业务 Provider 与 Worker 的验收使用人工验收清单。
+
+健康检查失败时，暂停发布并检查数据库迁移兼容性。在**独立确认数据库向后兼容**后，可使用同一份上一版本 Release 的三个 Digest 执行应用镜像回滚。持久化数据恢复使用独立运维流程。
 
 ```bash
 export TRADEMIND_PREVIOUS_BACKEND_IMAGE='ghcr.io/lien0219/trademind@sha256:<previous-backend-digest>'

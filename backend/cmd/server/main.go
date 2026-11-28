@@ -128,9 +128,21 @@ func main() {
 		runtimediag.Shutdown(shCtx)
 	}()
 
+	var redisClient *rdb.Client
+	if rcl, err := rdb.Open(cfg); err != nil {
+		if config.IsStagingOrProduction(cfg.AppEnv) {
+			log.Error("redis_init_failed", "error", err)
+			os.Exit(1)
+		}
+		log.Warn("redis_unavailable", "error", err)
+	} else {
+		redisClient = rcl
+		defer func() { _ = redisClient.Close() }()
+	}
+
 	migrateCtx, migrateCancel := context.WithTimeout(context.Background(), time.Duration(cfg.MigrationLockTimeoutSeconds)*time.Second)
 	defer migrateCancel()
-	if cfg.MigrationRunOnStartup {
+	if cfg.MigrationRunOnStartup || config.IsStagingOrProduction(cfg.AppEnv) {
 		if err := database.RunMigrateWithLock(migrateCtx, db, time.Duration(cfg.MigrationLockTimeoutSeconds)*time.Second, database.AutoMigrateProductionSchema); err != nil {
 			log.Error("database_migrate_failed", "error", err)
 			os.Exit(1)
@@ -262,14 +274,6 @@ func main() {
 		}
 	}
 	cancel()
-
-	var redisClient *rdb.Client
-	if rcl, err := rdb.Open(cfg); err != nil {
-		log.Warn("redis_unavailable", "error", err)
-	} else {
-		redisClient = rcl
-		defer func() { _ = redisClient.Close() }()
-	}
 
 	engine := gin.New()
 	if err := engine.SetTrustedProxies(cfg.Observability.HTTPTrustedProxyCIDRs); err != nil {

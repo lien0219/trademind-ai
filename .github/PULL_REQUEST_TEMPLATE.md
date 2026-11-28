@@ -21,7 +21,7 @@
 - [ ] `pnpm build:admin`
 - [ ] `pnpm build:collector`
 - [ ] `gofmt`
-- [ ] Docker Compose 配置检查
+- [ ] Docker Compose 配置检查与受影响的生产部署 `--dry-run`
 - [ ] 未执行本地检查，原因：
 
 ## GitHub Actions

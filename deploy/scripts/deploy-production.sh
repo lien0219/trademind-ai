@@ -22,11 +22,9 @@ command -v docker >/dev/null || { echo "[deploy-production] docker missing" >&2;
 command -v python3 >/dev/null || { echo "[deploy-production] python3 missing" >&2; exit 1; }
 
 COMPOSE=(docker compose --project-name trademind-production --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
-CONFIG="$("${COMPOSE[@]}" config --format json)"
-
 # Verify all images resolve to immutable digests and the three application
-# images are distinct. This validation occurs before any pull or mutation.
-printf '%s' "$CONFIG" | python3 -c '
+# images are distinct. Keep the resolved references for checking pulled labels.
+IMAGE_REFERENCES="$("${COMPOSE[@]}" config --format json | python3 -c '
 import json, re, sys
 try:
     services = json.load(sys.stdin)["services"]
@@ -41,7 +39,9 @@ if len(set(images)) != 3:
 for name in ("postgres", "redis"):
     if name not in services:
         sys.exit("production dependency missing: " + name)
-'
+print("\n".join(images))
+')"
+mapfile -t IMAGES <<< "$IMAGE_REFERENCES"
 
 echo "[deploy-production] compose and immutable image references validated"
 if $DRY_RUN; then
@@ -57,6 +57,31 @@ fi
 
 # Pull application digests only; never rebuild source or delete named volumes.
 "${COMPOSE[@]}" pull backend admin collector
+
+# A valid digest may still point to the wrong service or a different release.
+# Compare the labels of the actual, locally pulled platform images before up.
+docker image inspect --format '{{json .Config.Labels}}' "${IMAGES[@]}" | python3 -c '
+import json, re, sys
+try:
+    labels = [json.loads(line) for line in sys.stdin]
+except ValueError:
+    sys.exit("could not read production image labels")
+services = ("Backend", "Admin", "Collector")
+if len(labels) != len(services):
+    sys.exit("expected labels for all three production images")
+releases = set()
+for service, item in zip(services, labels):
+    if not isinstance(item, dict) or item.get("org.opencontainers.image.title") != "TradeMind " + service:
+        sys.exit("incorrect production image for " + service)
+    revision = item.get("org.opencontainers.image.revision", "")
+    version = item.get("org.opencontainers.image.version", "")
+    if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision) or not isinstance(version, str) or not version.strip():
+        sys.exit("missing or invalid release labels for " + service)
+    releases.add((revision, version))
+if len(releases) != 1:
+    sys.exit("production images must share the same source revision and release version")
+'
+echo "[deploy-production] pulled images match the expected services and release labels"
 "${COMPOSE[@]}" up -d --wait --wait-timeout 240
 "${COMPOSE[@]}" ps
 echo "[deploy-production] healthy services; validate external traffic, migrations, workers and release evidence before acceptance"

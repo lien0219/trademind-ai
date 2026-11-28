@@ -105,6 +105,24 @@ func TestEnsurePerformanceBootstrap_idempotent(t *testing.T) {
 	}
 }
 
+func TestEnsurePerformanceBootstrapSkipsDisabledModeInProduction(t *testing.T) {
+	t.Parallel()
+	db := perfBootstrapDB(t)
+	cfg := &config.Config{AppEnv: config.EnvProduction}
+	audit := &recordingBootstrapAuditWriter{}
+	stats, err := EnsurePerformanceBootstrap(context.Background(), db, cfg, nil, audit)
+	if err != nil || stats != nil {
+		t.Fatalf("disabled performance bootstrap should be idle: stats=%#v error=%v", stats, err)
+	}
+	var count int64
+	if err := db.Model(&AdminUser{}).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 || len(audit.calls) != 0 {
+		t.Fatalf("disabled performance bootstrap created %d accounts and %d audit records", count, len(audit.calls))
+	}
+}
+
 func TestEnsurePerformanceBootstrap_rejectsProduction(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{AppEnv: config.EnvProduction, RuntimeLimits: config.RuntimeLimitsConfig{PerformanceTestMode: true}}

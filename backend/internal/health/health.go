@@ -62,13 +62,16 @@ func readyHandler(dep *Deps) gin.HandlerFunc {
 			}
 		}
 
-		if dep != nil && dep.Redis != nil {
+		if dep != nil && dep.Redis != nil && dep.Redis.Client != nil {
 			if err := dep.Redis.Ping(ctx).Err(); err != nil {
 				checks["redis"] = "down"
 				ready = false
 			} else {
 				checks["redis"] = "ok"
 			}
+		} else if dep != nil && dep.Config != nil && config.IsStagingOrProduction(dep.Config.AppEnv) {
+			checks["redis"] = "down"
+			ready = false
 		} else {
 			checks["redis"] = "skipped"
 			warnings = append(warnings, "redis_not_configured")

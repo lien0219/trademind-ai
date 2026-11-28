@@ -14,6 +14,7 @@ on:
     paths:
       - "docker-compose*.yml"
       - "deploy/production/compose.yml"
+      - "deploy/scripts/*-production.sh"
       - ".env.example"
       - "**/Dockerfile"
       - "**/.dockerignore"
@@ -35,6 +36,7 @@ on:
     paths:
       - "docker-compose*.yml"
       - "deploy/production/compose.yml"
+      - "deploy/scripts/*-production.sh"
       - ".env.example"
       - "**/Dockerfile"
       - "**/.dockerignore"
@@ -74,7 +76,7 @@ jobs:
           TRADEMIND_COLLECTOR_IMAGE: ghcr.io/lien0219/trademind@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         run: bash scripts/release/validate-production-image-references.sh
 
-      - name: Validate production compose file
+      - name: Validate production deployment configuration
         env:
           POSTGRES_DB: trademind
           POSTGRES_USER: trademind
@@ -88,4 +90,4 @@ jobs:
           TRADEMIND_BACKEND_IMAGE: ghcr.io/lien0219/trademind@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           TRADEMIND_ADMIN_IMAGE: ghcr.io/lien0219/trademind@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
           TRADEMIND_COLLECTOR_IMAGE: ghcr.io/lien0219/trademind@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-        run: docker compose -f deploy/production/compose.yml config
+        run: bash deploy/scripts/deploy-production.sh --dry-run

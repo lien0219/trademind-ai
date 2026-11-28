@@ -8,9 +8,11 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type publicationSKUHit struct {
@@ -59,7 +61,7 @@ func (s *Service) MatchOrderItemToSKU(ctx context.Context, o *Order, it *OrderIt
 
 	// Priority 1: publication external_sku_id
 	if extSKU != "" && o.ShopID != nil && *o.ShopID != uuid.Nil {
-		hits, err := s.findPublicationSKUsByExternalSKUID(ctx, plat, *o.ShopID, extSKU)
+		hits, err := s.findPublicationSKUsByExternalSKUID(ctx, o.TenantID, plat, *o.ShopID, extSKU)
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +97,7 @@ func (s *Service) MatchOrderItemToSKU(ctx context.Context, o *Order, it *OrderIt
 
 	// Priority 2: publication sku_code
 	if codeOrSeller != "" && o.ShopID != nil && *o.ShopID != uuid.Nil {
-		hits, err := s.findPublicationSKUsBySKUCode(ctx, plat, *o.ShopID, codeOrSeller)
+		hits, err := s.findPublicationSKUsBySKUCode(ctx, o.TenantID, plat, *o.ShopID, codeOrSeller)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +138,7 @@ func (s *Service) MatchOrderItemToSKU(ctx context.Context, o *Order, it *OrderIt
 
 	// Priority 3: local sku_code (product_skus)
 	if codeOrSeller != "" {
-		skus, err := s.findLocalSKUsByCode(ctx, codeOrSeller)
+		skus, err := s.findLocalSKUsByCode(ctx, o.TenantID, codeOrSeller)
 		if err != nil {
 			return nil, err
 		}
@@ -241,7 +243,7 @@ func localSKUsToCandidates(rows []product.ProductSKU) []map[string]any {
 	return out
 }
 
-func (s *Service) findPublicationSKUsByExternalSKUID(ctx context.Context, platform string, shopID uuid.UUID, ext string) ([]publicationSKUHit, error) {
+func (s *Service) findPublicationSKUsByExternalSKUID(ctx context.Context, tenantID int64, platform string, shopID uuid.UUID, ext string) ([]publicationSKUHit, error) {
 	var rows []struct {
 		PSKU  *uuid.UUID `gorm:"column:product_sku_id"`
 		PID   uuid.UUID  `gorm:"column:product_id"`
@@ -250,7 +252,9 @@ func (s *Service) findPublicationSKUsByExternalSKUID(ctx context.Context, platfo
 	err := s.DB.WithContext(ctx).Table("product_publication_skus AS pps").
 		Select("pps.product_sku_id AS product_sku_id, skus.product_id AS product_id, pps.sku_code AS pub_code").
 		Joins("JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
-		Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.deleted_at IS NULL").
+		Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.product_id = pp.product_id").
+		Joins("JOIN products AS p ON p.id = skus.product_id AND p.tenant_id = pp.tenant_id AND p.deleted_at IS NULL").
+		Where("pp.tenant_id = ?", tenantID).
 		Where("pp.platform = ? AND pp.shop_id = ? AND pps.external_sku_id = ? AND pps.product_sku_id IS NOT NULL", platform, shopID, ext).
 		Find(&rows).Error
 	if err != nil {
@@ -266,7 +270,7 @@ func (s *Service) findPublicationSKUsByExternalSKUID(ctx context.Context, platfo
 	return hits, nil
 }
 
-func (s *Service) findPublicationSKUsBySKUCode(ctx context.Context, platform string, shopID uuid.UUID, code string) ([]publicationSKUHit, error) {
+func (s *Service) findPublicationSKUsBySKUCode(ctx context.Context, tenantID int64, platform string, shopID uuid.UUID, code string) ([]publicationSKUHit, error) {
 	code = strings.TrimSpace(code)
 	if code == "" {
 		return nil, nil
@@ -279,7 +283,9 @@ func (s *Service) findPublicationSKUsBySKUCode(ctx context.Context, platform str
 	err := s.DB.WithContext(ctx).Table("product_publication_skus AS pps").
 		Select("pps.product_sku_id AS product_sku_id, skus.product_id AS product_id, pps.sku_code AS pub_code").
 		Joins("JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
-		Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.deleted_at IS NULL").
+		Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.product_id = pp.product_id").
+		Joins("JOIN products AS p ON p.id = skus.product_id AND p.tenant_id = pp.tenant_id AND p.deleted_at IS NULL").
+		Where("pp.tenant_id = ?", tenantID).
 		Where("pp.platform = ? AND pp.shop_id = ? AND LOWER(TRIM(pps.sku_code)) = LOWER(?)", platform, shopID, code).
 		Find(&rows).Error
 	if err != nil {
@@ -295,27 +301,60 @@ func (s *Service) findPublicationSKUsBySKUCode(ctx context.Context, platform str
 	return hits, nil
 }
 
-func (s *Service) findLocalSKUsByCode(ctx context.Context, code string) ([]product.ProductSKU, error) {
+func (s *Service) findLocalSKUsByCode(ctx context.Context, tenantID int64, code string) ([]product.ProductSKU, error) {
 	code = strings.TrimSpace(code)
 	if code == "" {
 		return nil, nil
 	}
 	var skus []product.ProductSKU
-	err := s.DB.WithContext(ctx).
-		Where("deleted_at IS NULL AND LOWER(TRIM(sku_code)) = LOWER(?)", code).
-		Order("created_at ASC, id ASC").
+	err := orderLocalSKUQuery(s.DB.WithContext(ctx), tenantID).
+		Where("LOWER(TRIM(product_skus.sku_code)) = LOWER(?)", code).
+		Order("product_skus.created_at ASC, product_skus.id ASC").
 		Find(&skus).Error
 	return skus, err
 }
 
-// LoadSKUForBind returns the SKU row after ownership checks (no soft-deleted).
+func orderLocalSKUQuery(db *gorm.DB, tenantID int64) *gorm.DB {
+	return db.Model(&product.ProductSKU{}).
+		Joins("JOIN products ON products.id = product_skus.product_id AND products.deleted_at IS NULL").
+		Where("products.tenant_id = ?", tenantID)
+}
+
+// LoadSKUForBind reads the SKU without applying caller authorization.
 func (s *Service) LoadSKUForBind(ctx context.Context, skuID uuid.UUID) (*product.ProductSKU, error) {
 	var sku product.ProductSKU
-	if err := s.DB.WithContext(ctx).First(&sku, "id = ? AND deleted_at IS NULL", skuID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&sku, "id = ?", skuID).Error; err != nil {
 		return nil, err
 	}
 	return &sku, nil
 }
+
+// updateOrderItemBinding is called with the tenant's order row locked, as in the
+// inventory service. Existing ledger facts always retain their bound SKU.
+func updateOrderItemBinding(tx *gorm.DB, orderRow *Order, itemID uuid.UUID, productID, skuID *uuid.UUID) error {
+	var item OrderItem
+	if err := tx.Select("id", "product_id", "product_sku_id").Where("id = ? AND order_id = ?", itemID, orderRow.ID).Take(&item).Error; err != nil {
+		return err
+	}
+	if item.ProductSKUID != nil && skuID != nil && *item.ProductSKUID == *skuID &&
+		item.ProductID != nil && productID != nil && *item.ProductID == *productID {
+		return nil
+	}
+	var effects int64
+	if err := tx.Model(&inventory.OrderInventoryEffect{}).
+		Where("tenant_id = ? AND order_id = ? AND order_item_id = ? AND status = ?", orderRow.TenantID, orderRow.ID, itemID, inventory.InventoryEffectSuccess).
+		Count(&effects).Error; err != nil {
+		return err
+	}
+	if effects > 0 {
+		return errOrderItemSKUInventoryLocked
+	}
+	return tx.Model(&item).Updates(map[string]any{
+		"product_id": productID, "product_sku_id": skuID, "updated_at": gorm.Expr("CURRENT_TIMESTAMP"),
+	}).Error
+}
+
+var errOrderItemSKUInventoryLocked = errors.New("order item already has inventory facts and cannot change its SKU")
 
 func matchRowFromResult(o *Order, it *OrderItem, r *MatchOrderItemResult, admin *uuid.UUID) (*OrderItemSKUMatch, error) {
 	if o == nil || it == nil || r == nil {
@@ -525,18 +564,22 @@ func (s *Service) MatchOrderItemsForOrder(ctx context.Context, orderID uuid.UUID
 		}
 		if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			if res.UpdateOrderLines && res.ProductSKUID != nil && *res.ProductSKUID != uuid.Nil {
-				up := map[string]any{
-					"product_id":     res.ProductID,
-					"product_sku_id": res.ProductSKUID,
-					"updated_at":     gorm.Expr("CURRENT_TIMESTAMP"),
+				var lockedOrder Order
+				if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "tenant_id").
+					Where("id = ? AND tenant_id = ?", o.ID, o.TenantID).Take(&lockedOrder).Error; err != nil {
+					return err
 				}
-				if err := tx.Model(&OrderItem{}).Where("id = ?", item.ID).Updates(up).Error; err != nil {
+				if err := updateOrderItemBinding(tx, &lockedOrder, item.ID, res.ProductID, res.ProductSKUID); err != nil {
 					return err
 				}
 			}
 			return upsertSKUMatchRowTx(tx, row)
 		}); err != nil {
-			sum.Errors = append(sum.Errors, err.Error())
+			if errors.Is(err, errOrderItemSKUInventoryLocked) {
+				sum.Preserved++
+			} else {
+				sum.Errors = append(sum.Errors, err.Error())
+			}
 			continue
 		}
 		switch res.MatchStatus {

@@ -99,6 +99,8 @@ docker compose -f docker-compose.full.yml up -d --build
 | `DB_PASSWORD` | 明显占位值 | backend | 是 | 数据库密码；真实值只写入 `.env` 或 Secret Store。 |
 | `DB_NAME` | `trademind` | backend | 否 | 数据库名。 |
 | `DB_TIMEZONE` | `UTC` | backend | 否 | 数据库时区。 |
+| `MIGRATION_RUN_ON_STARTUP` | `true` | backend | 否 | 控制本地启动迁移锁。`staging` 和 `production` 的 PostgreSQL 始终加锁。 |
+| `MIGRATION_LOCK_TIMEOUT_SECONDS` | `120` | backend | 否 | PostgreSQL 分配固定会话并等待迁移锁的预算。 |
 | `DB_MAX_OPEN_CONNECTIONS` | `100` | backend | 否 | P7 数据库连接池最大打开连接数；生产非法配置 fail-fast。 |
 | `DB_MAX_IDLE_CONNECTIONS` | `10` | backend | 否 | P7 数据库连接池最大空闲连接数。 |
 | `DB_CONN_MAX_LIFETIME_SECONDS` | `3600` | backend | 否 | P7 单连接最大生命周期。 |
@@ -111,7 +113,7 @@ docker compose -f docker-compose.full.yml up -d --build
 
 ## Redis
 
-使用 Redis 7，与 Compose / CI 保持一致；本机服务和 `TEST_REDIS_URL` 指向的隔离实例也适用。OAuth 状态消费使用 `GETDEL`，Redis 5 / 6.0 不支持该命令。
+使用 Redis 7，与 Compose 和 CI 保持一致，也适用于 `TEST_REDIS_URL` 指向的隔离实例。OAuth 状态消费使用 `GETDEL`。`staging` 和 `production` 要求 Redis 连接成功才会继续启动，运行期间 Redis 异常会使 `/health/ready` 返回 503。
 
 | 变量 | 示例 / 默认 | 服务 | 敏感 | 说明 |
 | --- | --- | --- | --- | --- |

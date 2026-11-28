@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -189,7 +190,9 @@ func (s *Service) ConfirmWarehouseAllocation(c *gin.Context, inv *inventory.Serv
 		case idempotency.StatusSucceeded:
 			return s.replayWarehouseAllocation(c, inv, orderID, existing)
 		case idempotency.StatusProcessing:
-			return nil, ErrWarehouseAllocationInProgress
+			if existing.LockedUntil != nil && existing.LockedUntil.After(time.Now()) {
+				return nil, ErrWarehouseAllocationInProgress
+			}
 		}
 	} else if !errors.Is(getErr, gorm.ErrRecordNotFound) {
 		return nil, getErr

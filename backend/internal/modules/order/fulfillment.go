@@ -175,7 +175,9 @@ func (s *Service) fulfillOrder(c *gin.Context, inv *inventory.Service, orderID u
 		case idempotency.StatusSucceeded:
 			return s.replayFulfillmentResult(c, orderID, existing)
 		case idempotency.StatusProcessing:
-			return nil, ErrFulfillmentInProgress
+			if existing.LockedUntil != nil && existing.LockedUntil.After(time.Now()) {
+				return nil, ErrFulfillmentInProgress
+			}
 		}
 	} else if !errors.Is(getErr, gorm.ErrRecordNotFound) {
 		return nil, getErr

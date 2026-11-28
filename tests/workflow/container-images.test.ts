@@ -495,6 +495,26 @@ describe('container image release workflow', () => {
     expect(releaseWorkflow).not.toContain('service-v$RELEASE_VERSION');
   });
 
+  it('publishes copy-ready digest references for the production deploy and rollback scripts', () => {
+    for (const service of ['Backend', 'Admin', 'Collector']) {
+      expect(releaseWorkflow).toContain(
+        `echo "- ${service}: \`$REGISTRY/$NAMESPACE/$IMAGE_NAME@$${service.toUpperCase()}_DIGEST\`"`
+          .replaceAll('`', '\\`'),
+      );
+    }
+  });
+
+  it('waits for backend readiness before starting Admin in production', () => {
+    const { services } = parse(productionCompose) as {
+      services: {
+        backend: { healthcheck: { test: string[] } };
+        admin: { depends_on: { backend: { condition: string } } };
+      };
+    };
+    expect(services.backend.healthcheck.test).toEqual(['CMD', 'curl', '-fsS', 'http://127.0.0.1:8080/health/ready']);
+    expect(services.admin.depends_on.backend.condition).toBe('service_healthy');
+  });
+
   it('keeps production Compose pull-only and digest-pinned', () => {
     expect(productionCompose).not.toContain('build:');
     expect(productionCompose).toContain('TRADEMIND_BACKEND_IMAGE:?');

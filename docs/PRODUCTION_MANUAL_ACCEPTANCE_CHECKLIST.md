@@ -115,6 +115,18 @@ Status: **not signed off**. These checks do not authorize real platform writes.
 
 No schema migration is introduced by the localization changes. Rolling back code restores earlier behavior; the browser regional-display key may be cleared independently. Existing tenant migration and backup/restore requirements still apply.
 
+## J. Existing Business Workflows
+
+Use an isolated target with a fresh database and a representative upgraded database. Record the tested source or image revision and the results in the release work order.
+
+- [ ] Deploy the three images from one Release. Confirm readiness with PostgreSQL and Redis, fail startup with Redis absent, and observe readiness failure and recovery during a Redis interruption. Verify that production starts with performance test mode disabled and creates no performance accounts. Exercise each Admin/API/Collector path through the target ingress or internal service network.
+- [ ] Run two concurrent PostgreSQL startups and verify migration serialization. Restore the verified off-host backup to an isolated target and confirm application rollback compatibility and the measured recovery objectives.
+- [ ] Exercise collection through draft and AI review/apply/undo, including expired browser sessions, provider errors, and on-screen recovery. Run each approved provider with revocable credentials and a controlled sample.
+- [ ] Exercise registration, invitation, password reset and task notification through a controlled SMTP mailbox. Verify language, delivery, expiry, session revocation and failed delivery feedback.
+- [ ] Reconcile a paid order through SKU matching, single-warehouse reservation, picking, pack verification, shipment and a return. Interrupt and manually resume fulfillment. Verify one shipment, one stock deduction, retained audit facts and rejection of SKU changes after a successful inventory event.
+- [ ] Verify purchase approval, partial receipt and original-receipt return with separate roles. Reconcile warehouse balances and immutable movement quantities after duplicate submission and a stale revision.
+- [ ] Import and reconcile controlled settlement, carrier, warehouse and advertising fee samples. Check refund status, historical cost gaps, ambiguous currency, confirmed exchange-rate snapshots and CSV values against source records.
+
 ## Real Platform Acceptance
 
 Status: **blocked_by_external_infrastructure_and_credentials**

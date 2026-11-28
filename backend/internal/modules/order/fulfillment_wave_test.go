@@ -3,11 +3,15 @@ package order
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/logistics"
 	"github.com/trademind-ai/trademind/backend/internal/modules/warehouse"
@@ -237,6 +241,83 @@ func TestFulfillmentWaveRequiresPickAndPackBeforeLocalFulfillment(t *testing.T) 
 	}
 }
 
+func TestFulfillmentWaveFreezesLocalSKUCodeWhenOrderCodeIsMissing(t *testing.T) {
+	orders, _, _, wave, row, line := newFulfillmentWaveFixture(t)
+	require.Empty(t, line.Barcode)
+	require.Equal(t, "FULFILL-SKU", line.SKUCode)
+	// Later SKU edits must not change the code operators scan for this wave.
+	require.NoError(t, orders.DB.Table("product_skus").Where("id = ?", line.ProductSKUID).Update("sku_code", "NEW-CODE").Error)
+	view, err := orders.GetFulfillmentWave(context.Background(), row.TenantID, nil, wave.ID)
+	require.NoError(t, err)
+	require.Equal(t, "FULFILL-SKU", view.Lines[0].SKUCode)
+}
+
+func TestFulfillmentWaveRejectsLinesWithNoScannableCode(t *testing.T) {
+	orders, _, _, wave, row, line := newFulfillmentWaveFixture(t)
+	ctx := context.Background()
+	_, err := orders.CancelFulfillmentWave(ctx, row.TenantID, nil, nil, wave.ID, FulfillmentWaveRevisionInput{
+		ExpectedRevision: wave.Revision, IdempotencyKey: "cancel-original-wave",
+	})
+	require.NoError(t, err)
+	require.NoError(t, orders.DB.Table("product_skus").Where("id = ?", line.ProductSKUID).Update("sku_code", "").Error)
+	_, err = orders.CreateFulfillmentWave(ctx, row.TenantID, nil, nil, CreateFulfillmentWaveInput{
+		IdempotencyKey: "unscannable-wave", WarehouseID: wave.WarehouseID, OrderIDs: []uuid.UUID{row.ID},
+	})
+	require.ErrorIs(t, err, ErrFulfillmentWaveOrderUnavailable)
+	var assignments int64
+	require.NoError(t, orders.DB.Model(&FulfillmentWaveAssignment{}).Where("order_id = ?", row.ID).Count(&assignments).Error)
+	require.Zero(t, assignments)
+}
+
+func TestFulfillmentWaveCanResumeAfterOrderLeaseExpires(t *testing.T) {
+	orders, inv, _, wave, row, line := newFulfillmentWaveFixture(t)
+	c, _ := newWaveGinContext(t)
+	ctx := c.Request.Context()
+	require.NoError(t, orders.DB.Model(line).UpdateColumn("barcode", "RESUME-SKU").Error)
+	started, err := orders.StartFulfillmentWave(ctx, row.TenantID, nil, nil, wave.ID, FulfillmentWaveRevisionInput{ExpectedRevision: wave.Revision, IdempotencyKey: "wave-resume-start"})
+	require.NoError(t, err)
+	picked, err := orders.RecordFulfillmentWavePick(ctx, row.TenantID, nil, nil, wave.ID, RecordFulfillmentWavePickInput{
+		ExpectedRevision: started.Revision, IdempotencyKey: "wave-resume-pick",
+		Lines: []FulfillmentWavePickLineInput{{LineID: line.ID, PickedQty: line.RequiredQty, ScannedBarcode: "RESUME-SKU"}},
+	})
+	require.NoError(t, err)
+	packed, err := orders.VerifyFulfillmentWavePack(ctx, row.TenantID, nil, nil, wave.ID, row.ID, VerifyFulfillmentWavePackInput{
+		ExpectedRevision: picked.Revision, IdempotencyKey: "wave-resume-pack", ScannedOrderNo: row.OrderNo,
+		Carrier: "Carrier", TrackingNo: "TRACK-RESUME", PackageCode: "TRACK-RESUME",
+		Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: "RESUME-SKU", VerifiedQty: line.RequiredQty}},
+	})
+	require.NoError(t, err)
+	childInput := FulfillOrderInput{
+		IdempotencyKey: fmt.Sprintf("wave-%s-order-%s", wave.ID, row.ID), WarehouseID: &wave.WarehouseID,
+		Carrier: "Carrier", TrackingNo: "TRACK-RESUME",
+	}
+	key := idempotency.OrderFulfillment(row.ID.String(), childInput.IdempotencyKey)
+	claim, err := orders.Idempotency.Acquire(ctx, orderFulfillmentScope, key, fulfillmentHash(row.ID, childInput), "interrupted-request", time.Minute)
+	require.NoError(t, err)
+	in := FulfillmentWaveRevisionInput{ExpectedRevision: packed.Revision, IdempotencyKey: "wave-resume-complete"}
+	_, err = orders.CompleteFulfillmentWave(c, inv, row.TenantID, nil, nil, wave.ID, in)
+	require.ErrorIs(t, err, ErrFulfillmentWaveCompleting)
+	waiting, err := orders.GetFulfillmentWave(ctx, row.TenantID, nil, wave.ID)
+	require.NoError(t, err)
+	require.Equal(t, FulfillmentWaveCompleting, waiting.Status)
+	require.Equal(t, FulfillmentWaveOrderPacked, waiting.Orders[0].Status)
+	require.Zero(t, waiting.FailedCount)
+
+	require.NoError(t, orders.DB.Model(claim.Record).UpdateColumn("locked_until", time.Now().Add(-time.Minute)).Error)
+	in.ExpectedRevision = waiting.Revision
+	result, err := orders.CompleteFulfillmentWave(c, inv, row.TenantID, nil, nil, wave.ID, in)
+	require.NoError(t, err)
+	require.Equal(t, FulfillmentWaveCompleted, result.Wave.Status)
+	require.Equal(t, 1, result.Succeeded)
+	in.ExpectedRevision = packed.Revision
+	replay, err := orders.CompleteFulfillmentWave(c, inv, row.TenantID, nil, nil, wave.ID, in)
+	require.NoError(t, err)
+	require.Equal(t, result.Items[0].ShipmentID, replay.Items[0].ShipmentID)
+	var shipments int64
+	require.NoError(t, orders.DB.Model(&OrderShipment{}).Where("order_id = ?", row.ID).Count(&shipments).Error)
+	require.EqualValues(t, 1, shipments)
+}
+
 func TestFulfillmentWaveShortageBlocksPackingAndCancelKeepsReservation(t *testing.T) {
 	orders, _, _, wave, orderRow, line := newFulfillmentWaveFixture(t)
 	if err := orders.DB.Model(&FulfillmentWaveLine{}).Where("id = ?", line.ID).Update("barcode", "SHORTAGE-SKU").Error; err != nil {
@@ -309,7 +390,7 @@ func TestFulfillmentWaveWriteRequiresStoreOperateGrant(t *testing.T) {
 	if _, err := orders.VerifyFulfillmentWavePack(context.Background(), 41, principal, nil, wave.ID, orderRow.ID, VerifyFulfillmentWavePackInput{
 		ExpectedRevision: wave.Revision, IdempotencyKey: "wave-pack-store-view-only", ScannedOrderNo: orderRow.OrderNo,
 		Carrier: "Carrier", TrackingNo: "TRACK-1", PackageCode: "TRACK-1",
-		Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: line.SKUCode, VerifiedQty: line.RequiredQty}},
+		Lines: []FulfillmentWavePackLineInput{{LineID: line.ID, ScannedCode: "RESUME-SKU", VerifiedQty: line.RequiredQty}},
 	}); !errors.Is(err, ErrFulfillmentWaveStorePermission) {
 		t.Fatalf("view-only store grant must not verify packing, got %v", err)
 	}

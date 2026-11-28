@@ -211,9 +211,9 @@ jobs:
             echo
             echo "## Container Images"
             echo
-            echo "- Backend: \`$REGISTRY/$NAMESPACE/$IMAGE_NAME:backend-main-v$RELEASE_VERSION@$BACKEND_DIGEST\`"
-            echo "- Admin: \`$REGISTRY/$NAMESPACE/$IMAGE_NAME:admin-main-v$RELEASE_VERSION@$ADMIN_DIGEST\`"
-            echo "- Collector: \`$REGISTRY/$NAMESPACE/$IMAGE_NAME:collector-main-v$RELEASE_VERSION@$COLLECTOR_DIGEST\`"
+            echo "- Backend: \`$REGISTRY/$NAMESPACE/$IMAGE_NAME@$BACKEND_DIGEST\`"
+            echo "- Admin: \`$REGISTRY/$NAMESPACE/$IMAGE_NAME@$ADMIN_DIGEST\`"
+            echo "- Collector: \`$REGISTRY/$NAMESPACE/$IMAGE_NAME@$COLLECTOR_DIGEST\`"
             echo
             echo "Supported Platforms: \`linux/amd64\`, \`linux/arm64\`"
             echo
@@ -222,11 +222,11 @@ jobs:
             echo
             echo "## Deployment"
             echo
-            echo 'Use `deploy/production/compose.yml` with the three immutable `image@sha256` references above and inject production secrets at runtime.'
+            echo 'Set the three immutable `image@sha256` references and inject production secrets at runtime. Validate with `deploy/scripts/deploy-production.sh --dry-run` before the approved deployment.'
             echo
             echo "## Rollback"
             echo
-            echo 'Restore the previous verified release manifest and run `docker compose -f deploy/production/compose.yml up -d` without removing persistent volumes.'
+            echo 'Confirm database compatibility and use `deploy/scripts/rollback-production.sh` with the previous verified release references and the required approvals.'
           } > release-body.md
 
       - name: Create or update GitHub Release

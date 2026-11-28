@@ -4,6 +4,13 @@ All notable changes to TradeMind are documented here.
 
 ## Unreleased
 
+### Production readiness and order recovery
+
+- Gate deployment on API readiness and compatible Backend, Admin and Collector images from the same release. Publish copy-ready digest references in Release notes.
+- Require Redis before staging and production startup and serialize PostgreSQL schema changes on one locked session. Skip performance account provisioning when performance test mode is disabled.
+- Restore tenant-scoped SKU matching and protect existing inventory facts. Freeze the local SKU code when a wave has no order code, and recover interrupted allocation and fulfillment requests after lease expiry.
+- Keep accepted SMTP messages valid when session teardown fails.
+
 ### Admin copy cleanup
 
 - Remove redundant page introductions, form notes, and email preview copy. Surface related settings links in page headers and keep actionable feedback close to controls.

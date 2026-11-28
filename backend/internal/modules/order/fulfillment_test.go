@@ -7,10 +7,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
@@ -85,6 +87,31 @@ func bindFulfillmentCost(t *testing.T, orderSvc *Service, skuID uuid.UUID, code 
 		t.Fatal(err)
 	}
 	return supplierRow, binding
+}
+
+func TestFulfillOrderResumesOnlyAfterLeaseExpires(t *testing.T) {
+	orders, inv, ctx, row, sku, warehouseRow, idem := newFulfillmentFixture(t)
+	in := FulfillOrderInput{IdempotencyKey: "fulfill-interrupted", WarehouseID: &warehouseRow.ID, Carrier: "Carrier", TrackingNo: "TRACK-RESUME"}
+	key := idempotency.OrderFulfillment(row.ID.String(), in.IdempotencyKey)
+	claim, err := idem.Acquire(ctx.Request.Context(), orderFulfillmentScope, key, fulfillmentHash(row.ID, in), "interrupted-request", time.Minute)
+	require.NoError(t, err)
+	_, err = orders.FulfillOrder(ctx, inv, row.ID, in, nil)
+	require.ErrorIs(t, err, ErrFulfillmentInProgress)
+	var shipments int64
+	require.NoError(t, orders.DB.Model(&OrderShipment{}).Where("order_id = ?", row.ID).Count(&shipments).Error)
+	require.Zero(t, shipments)
+
+	require.NoError(t, orders.DB.Model(claim.Record).UpdateColumn("locked_until", time.Now().Add(-time.Minute)).Error)
+	result, err := orders.FulfillOrder(ctx, inv, row.ID, in, nil)
+	require.NoError(t, err)
+	replay, err := orders.FulfillOrder(ctx, inv, row.ID, in, nil)
+	require.NoError(t, err)
+	require.Equal(t, result.Shipment.ID, replay.Shipment.ID)
+	require.NoError(t, orders.DB.Model(&OrderShipment{}).Where("order_id = ?", row.ID).Count(&shipments).Error)
+	require.EqualValues(t, 1, shipments)
+	var balance inventory.WarehouseStockBalance
+	require.NoError(t, orders.DB.Where("tenant_id = ? AND warehouse_id = ? AND product_sku_id = ?", row.TenantID, warehouseRow.ID, sku.ID).First(&balance).Error)
+	require.Equal(t, 7, balance.OnHand)
 }
 
 func TestFulfillOrderCommitsShipmentAndInventoryAtomically(t *testing.T) {

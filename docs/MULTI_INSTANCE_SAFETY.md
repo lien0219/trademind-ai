@@ -27,7 +27,7 @@
 
 详见 `MIGRATION_LOCK_DESIGN.md`。
 
-启动：`MIGRATION_RUN_ON_STARTUP=true`（默认）时在 `main.go` 带锁迁移。
+`staging` / `production` 的 PostgreSQL 启动迁移始终加锁。其他环境默认通过 `MIGRATION_RUN_ON_STARTUP=true` 启用同一迁移入口。
 
 ## Worker 租约（任务级 Leader）
 

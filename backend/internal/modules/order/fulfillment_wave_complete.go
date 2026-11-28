@@ -143,6 +143,12 @@ func (s *Service) CompleteFulfillmentWave(c *gin.Context, inv *inventory.Service
 			WarehouseID:    &fulfillmentWarehouseID,
 			Carrier:        candidate.Carrier, TrackingNo: candidate.TrackingNo, TrackingURL: candidate.TrackingURL,
 		}, actor, waveID)
+		if errors.Is(fulfillErr, ErrFulfillmentInProgress) || errors.Is(fulfillErr, idempotency.ErrLeaseLost) {
+			// The order may outlive the wave's lease. Leave it packed so an
+			// explicit resume can replay or reclaim it without another scan.
+			_ = s.Idempotency.Fail(ctx, acquired.Record.ID, owner, "order_fulfillment_in_progress", true)
+			return nil, ErrFulfillmentWaveCompleting
+		}
 		updateErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			var locked FulfillmentWaveOrder
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND wave_id = ? AND id = ?", tenantID, waveID, candidate.ID).First(&locked).Error; err != nil {

@@ -58,7 +58,7 @@ AI 批次、商品图片批次与图片任务的读取需要 `product.view`，�
 ## 基础约定
 
 - 基础路径：`/api/v1`
-- 健康检查：`GET /health`、`GET /api/v1/health`（综合）；`GET /health/live`（存活）；`GET /health/ready`（就绪，DB/Redis/迁移/生产门闸）
+- 健康端点包括 `GET /health` 和 `GET /api/v1/health`（综合诊断）、`GET /health/live`（存活）及 `GET /health/ready`（就绪）。在 `staging` 和 `production`，Redis 缺失或不可访问时就绪端点返回 503。
 - 可观测性（需权限）：`GET /api/v1/observability/overview` 返回 `overallStatus`、受保护指标端点、活跃系统告警、最近告警窗口评估、SLO 评估和 telemetry 导出摘要。OTLP 状态区分等待首次导出、最近成功和最近失败，未完成首次导出不会显示为健康。总体状态只表示当前可观测性运行情况，不表示系统已经完成生产发布。系统告警统一在 Admin 告警中心处置，`GET /api/v1/observability/alerts` 支持 `page`、`pageSize`（最大 200）、`status`、`severity`、`module`，并返回 `items[]` 与 `pagination`，旧 `limit` 参数继续兼容；列表字段为 `id`、`ruleId`、`severity`、`status`、`module`、`summary`、`occurrenceCount`、`lastSeenAt`；`POST /api/v1/observability/alerts/:id/ack` 确认告警，`POST /api/v1/observability/alerts/:id/silence` 必须提交 `reason` 与 1-720 小时的 `durationHours`；内部指标：`GET /internal/metrics`，由 Nginx 精确路径与 Gin CIDR 双层保护。固定返回聚合占位值的旧 `/http`、`/tasks`、`/providers`、`/security` 接口不再注册。
 - 鉴权：管理端受保护接口使用 `Authorization: Bearer <token>`
 - 返回格式：统一 JSON 响应，核心字段为 `code`、`message`、`data`、`traceId`
@@ -181,7 +181,9 @@ AI 批次、商品图片批次与图片任务的读取需要 `product.view`，�
 
 ## 订单库存生命周期
 
-订单、订单明细和库存 effect 均按当前租户隔离。订单库存只支持单订单单仓：手工订单首次应用库存时必须提供启用的 `warehouseId`；平台订单首次处理时绑定当前租户启用的默认仓。已有成功库存 effect 后不能修改订单仓库、订单明细数量或删除明细；订单删除前必须先完成释放或回补。
+分仓确认和本地出库可在请求中断后使用相同幂等键人工续办。有效租约仍会阻止并发执行。出库波次遇到仍在处理的订单时保持该订单已打包，刷新波次后可在租约释放或到期时续办。
+
+订单、订单明细和库存 effect 均按当前租户隔离。订单库存只支持单订单单仓：手工订单首次应用库存时必须提供启用的 `warehouseId`；平台订单首次处理时绑定当前租户启用的默认仓。已有成功库存 effect 后不能修改订单仓库、该明细的数量和绑定规格或删除明细。订单删除前必须先完成释放或回补。自动规格匹配与两个人工绑定入口共用订单锁和库存事实校验。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -206,7 +208,7 @@ AI 批次、商品图片批次与图片任务的读取需要 `product.view`，�
 | `GET` | `/api/v1/fulfillment-waves/:id/documents/:documentId` | 读取一个不可变单据版本（需要 `order.view`）；返回生成时冻结的波次、仓库、订单、SKU、库位、拣货/缺货及本地包裹字段，并附带浏览器打印发起记录。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/documents` | 基于指定波次 revision 生成新的本地单据快照版本（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。事务锁定波次、校验租户/店铺操作范围并保存快照 hash；已取消波次不可新建版本，同键同 payload 返回原版本。接口不申请运单号、不生成承运商官方面单、不调用真实物流或平台。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/documents/:documentId/print-events` | 登记操作员已发起一个版本的浏览器打印（需要 `order.operate`）；JSON：`documentType=pick_list|packing_list|sku_labels|package_labels`、`copies`（1–100）、可选 `reason`、`idempotencyKey`。同版本同类型再次登记视为重打并强制至少 2 字原因。该事实不声明物理打印成功，也不控制打印机。 |
-| `POST` | `/api/v1/fulfillment-waves` | 从同一仓库的已付款、未履约且整单预占完成的订单创建波次（需要 `order.operate`）；JSON：`idempotencyKey`、`warehouseId`、`orderIds`（1–50 个，不重复）、可选 `remark`。创建事务冻结订单/规格快照并写活动归属，同一订单不能进入两个活动波次。 |
+| `POST` | `/api/v1/fulfillment-waves` | 从同一仓库的已付款、未履约且整单预占完成的订单创建波次（需要 `order.operate`）；JSON：`idempotencyKey`、`warehouseId`、`orderIds`（1–50 个，不重复）、可选 `remark`。创建事务冻结订单/规格快照并写活动归属，同一订单不能进入两个活动波次。缺少订单行规格编码时使用租户内绑定的本地规格编码。没有可用编码或仓库条码时，阻止创建该波次。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/start` | 开始拣货（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`。仅 `draft` 可进入 `picking`。 |
 | `GET` | `/api/v1/fulfillment-waves/:id/orders/:orderId/freight-quotes` | 本地只读运费试算（需要 `order.view`）；查询参数 `weightGrams`。按订单目的国家/区域/邮编、波次仓库和启用模板返回候选、模板 revision、整数最小单位金额及计算说明；目的国家不完整或无匹配模板时失败关闭。不会调用承运商。 |
 | `POST` | `/api/v1/fulfillment-waves/:id/orders/:orderId/freight-quotes/confirm` | 人工确认一个本地报价（需要 `order.operate`）；JSON：`expectedRevision`、`idempotencyKey`、`rateTemplateId`、`rateTemplateRevision`、`weightGrams`。事务内锁定波次和订单，重算并验证模板版本后保存不可变目的地/渠道/费率快照并递增波次 revision。同键同 payload 安全重放；模板或波次已变化返回 `409`。 |

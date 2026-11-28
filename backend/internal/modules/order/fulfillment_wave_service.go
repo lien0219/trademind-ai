@@ -465,6 +465,10 @@ func (s *Service) CreateFulfillmentWave(ctx context.Context, tenantID int64, pri
 		if err != nil {
 			return err
 		}
+		skuCodes, err := loadFulfillmentWaveSKUCodes(tx, tenantID, items)
+		if err != nil {
+			return err
+		}
 		itemsByOrder := make(map[uuid.UUID][]OrderItem, len(orders))
 		for _, item := range items {
 			itemsByOrder[item.OrderID] = append(itemsByOrder[item.OrderID], item)
@@ -523,10 +527,17 @@ func (s *Service) CreateFulfillmentWave(ctx context.Context, tenantID int64, pri
 					return ErrFulfillmentWaveReservation
 				}
 				placement := placementBySKU[*item.ProductSKUID]
+				skuCode := clampWaveText(item.SKUCode, 128)
+				if skuCode == "" {
+					skuCode = skuCodes[*item.ProductSKUID]
+				}
+				if skuCode == "" && strings.TrimSpace(placement.Barcode) == "" {
+					return ErrFulfillmentWaveOrderUnavailable
+				}
 				waveLines = append(waveLines, FulfillmentWaveLine{
 					TenantID: tenantID, WaveID: wave.ID, WaveOrderID: waveOrder.ID, OrderID: orderRow.ID,
 					OrderItemID: item.ID, ProductID: item.ProductID, ProductSKUID: *item.ProductSKUID,
-					ProductTitle: clampWaveText(item.ProductTitle, 512), SKUCode: clampWaveText(item.SKUCode, 128), SKUName: clampWaveText(item.SKUName, 512),
+					ProductTitle: clampWaveText(item.ProductTitle, 512), SKUCode: skuCode, SKUName: clampWaveText(item.SKUName, 512),
 					Barcode: placement.Barcode, LocationID: placement.LocationID, LocationCode: placement.LocationCode, LocationName: placement.LocationName,
 					RequiredQty: item.Quantity, Status: FulfillmentWaveLinePending,
 				})
@@ -562,6 +573,38 @@ func (s *Service) CreateFulfillmentWave(ctx context.Context, tenantID int64, pri
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{TenantID: tenantID, AdminUserID: actor, Action: "order.fulfillment_wave.create", Resource: "fulfillment_wave", ResourceID: wave.ID.String(), Status: "success", Message: fmt.Sprintf("waveId=%s orderCount=%d", wave.ID, wave.OrderCount)})
 	}
 	return s.GetFulfillmentWave(ctx, tenantID, principal, wave.ID)
+}
+
+// loadFulfillmentWaveSKUCodes supplies scan codes only for lines whose order
+// snapshot has no code. Existing snapshots and configured barcodes take precedence.
+func loadFulfillmentWaveSKUCodes(tx *gorm.DB, tenantID int64, items []OrderItem) (map[uuid.UUID]string, error) {
+	missing := make(map[uuid.UUID]struct{})
+	for _, item := range items {
+		if item.ProductSKUID != nil && *item.ProductSKUID != uuid.Nil && strings.TrimSpace(item.SKUCode) == "" {
+			missing[*item.ProductSKUID] = struct{}{}
+		}
+	}
+	if len(missing) == 0 {
+		return nil, nil
+	}
+	skuIDs := make([]uuid.UUID, 0, len(missing))
+	for skuID := range missing {
+		skuIDs = append(skuIDs, skuID)
+	}
+	var rows []struct {
+		ID      uuid.UUID
+		SKUCode string
+	}
+	if err := tx.Table("product_skus AS sk").Select("sk.id, sk.sku_code").
+		Joins("JOIN products AS p ON p.id = sk.product_id AND p.deleted_at IS NULL").
+		Where("p.tenant_id = ? AND sk.id IN ?", tenantID, skuIDs).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	codes := make(map[uuid.UUID]string, len(rows))
+	for _, row := range rows {
+		codes[row.ID] = clampWaveText(row.SKUCode, 128)
+	}
+	return codes, nil
 }
 
 func validateWaveTracking(carrier, trackingNo, trackingURL string) error {
